@@ -93,6 +93,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
 import java.io.IOException;
 import java.net.URI;
@@ -233,7 +235,7 @@ public class OpenIdConnectAuthenticator {
             // Don't wrap in a new ElasticsearchSecurityException
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
+            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response.", e));
         }
     }
 
@@ -290,17 +292,21 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(
-                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
-                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                            claimsListener.onFailure(ex);
-                        })
-                    );
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
             } else {
+                LOGGER.debug("Failed to parse or validate the ID Token", e);
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
         } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
-            LOGGER.debug("ID Token: [{}], Nonce: [{}]", idToken.getParsedString(), expectedNonce);
+            LOGGER.debug(
+                () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
+                e
+            );
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
@@ -359,10 +365,16 @@ public class OpenIdConnectAuthenticator {
      * @throws IOException    if the file cannot be read
      */
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
-        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
-        return JWKSet.parse(jwkSet);
+        try {
+            String jwkSet = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<String>) () -> Files.readString(path, StandardCharsets.UTF_8)
+            );
+            return JWKSet.parse(jwkSet);
+        } catch (PrivilegedActionException ex) {
+            throw (IOException) ex.getException();
+        }
     }
 
     /**
@@ -388,7 +400,7 @@ public class OpenIdConnectAuthenticator {
      * @param expectedState The state that was originally generated
      * @param state         The state that was contained in the response
      */
-    private void validateState(State expectedState, State state) {
+    private static void validateState(State expectedState, State state) {
         if (null == state) {
             throw new ElasticsearchSecurityException("Failed to validate the response, the response did not contain a state parameter");
         } else if (null == expectedState) {
@@ -444,7 +456,7 @@ public class OpenIdConnectAuthenticator {
      * of the Id Token and call the provided listener.
      * (This method is package-protected for testing purposes)
      */
-    void handleUserinfoResponse(
+    static void handleUserinfoResponse(
         HttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
@@ -518,7 +530,11 @@ public class OpenIdConnectAuthenticator {
     /**
      * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
      */
-    private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
+    private static void validateUserInfoResponse(
+        JWTClaimsSet userInfoClaims,
+        String expectedSub,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         if (userInfoClaims.getSubject().isEmpty()) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
         } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
@@ -613,18 +629,20 @@ public class OpenIdConnectAuthenticator {
     /**
      * Handle the Token Response from the OpenID Connect Provider. If successful, extract the (yet not validated) Id Token
      * and access token and call the provided listener.
+     * (Package private for testing purposes)
      */
-    private void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
             final Header contentHeader = entity.getContentType();
-            if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json") == false) {
+            final String contentHeaderValue = contentHeader == null ? null : ContentType.parse(contentHeader.getValue()).getMimeType();
+            if (contentHeaderValue == null || contentHeaderValue.equals("application/json") == false) {
                 tokensListener.onFailure(
                     new IllegalStateException(
                         "Unable to parse Token Response. Content type was expected to be "
                             + "[application/json] but was ["
-                            + contentHeader.getValue()
+                            + contentHeaderValue
                             + "]"
                     )
                 );
@@ -672,7 +690,7 @@ public class OpenIdConnectAuthenticator {
         } catch (Exception e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException(
-                    "Failed to exchange code for Id Token using the Token Endpoint. " + "Unable to parse Token Response",
+                    "Failed to exchange code for Id Token using the Token Endpoint. Unable to parse Token Response",
                     e
                 )
             );
@@ -709,7 +727,7 @@ public class OpenIdConnectAuthenticator {
                 connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
                 final RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
-                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
+                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getMillis()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
 
@@ -798,8 +816,8 @@ public class OpenIdConnectAuthenticator {
     }
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
-        FileWatcher watcher = new FileWatcher(path);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }

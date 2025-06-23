@@ -1,15 +1,15 @@
 ---
 "Simulate index template without new template in the body":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
         name: test
         body:
-          index_patterns: te*
+          index_patterns: test*
           template:
             settings:
               number_of_shards:   1
@@ -30,16 +30,16 @@
 
 ---
 "Simulate index template specifying a new template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
         name: existing_test
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -66,7 +66,7 @@
       indices.simulate_index_template:
         name: test
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 15
           template:
             settings:
@@ -79,24 +79,24 @@
   - match: {template.settings.index.number_of_replicas: "2"}
   - match: {template.mappings.properties.ct_field.type: "keyword"}
   - match: {overlapping.0.name: existing_test}
-  - match: {overlapping.0.index_patterns: ["te*"]}
+  - match: {overlapping.0.index_patterns: ["test*"]}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
 
 ---
 "Simulate index template with index not matching any template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
-        - "index template [test] has index patterns [te*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+        - "index template [test] has index patterns [test*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
         name: test
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -115,27 +115,27 @@
 
 ---
 "Simulate index matches overlapping legacy and composable templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "simulate index template API is only in 7.8.0+"
-      features: ["allowed_warnings", "default_shards"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.put_template:
         name: v1_template
         body:
-          index_patterns: [t*, t1*]
+          index_patterns: [test*, t1*]
           settings:
             number_of_shards:   5
 
   - do:
       allowed_warnings:
-        - "index template [v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
-        (v1_template => [t*, t1*]); this template [v2_template] will take precedence during new index creation"
+        - "index template [v2_template] has index patterns [test*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [test*, t1*]); this template [v2_template] will take precedence during new index creation"
       indices.put_index_template:
         name: v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 10
           template:
             settings:
@@ -148,12 +148,12 @@
 
   - do:
       allowed_warnings:
-        - "index template [winning_v2_template] has index patterns [te*] matching patterns from existing older templates [v1_template] with patterns
-        (v1_template => [t*, t1*]); this template [winning_v2_template] will take precedence during new index creation"
+        - "index template [winning_v2_template] has index patterns [test*] matching patterns from existing older templates [v1_template] with patterns
+        (v1_template => [test*, t1*]); this template [winning_v2_template] will take precedence during new index creation"
       indices.put_index_template:
         name: winning_v2_template
         body:
-          index_patterns: te*
+          index_patterns: test*
           priority: 20
           template:
             settings:
@@ -172,22 +172,22 @@
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping.0.name: v1_template}
-  - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
+  - match: {overlapping.0.index_patterns: ["test*", "t1*"]}
   - match: {overlapping.1.name: v2_template}
-  - match: {overlapping.1.index_patterns: ["te*"]}
+  - match: {overlapping.1.index_patterns: ["test*"]}
 
 ---
 "Simulate an index for and index or alias that already exists":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "simulating index template API for an existing index has not yet been backported"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
         name: test
         body:
-          index_patterns: [te*]
+          index_patterns: [test*]
           template:
             settings:
               number_of_shards:   1
@@ -222,4 +222,31 @@
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
   - match: {template.mappings.properties.field.type: "keyword"}
+  - match: {overlapping: []}
+
+---
+"Simulate index template with lifecycle and include defaults":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "Lifecycle is only available in 8.11+"
+      test_runner_features: ["default_shards"]
+
+  - do:
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test*
+          template:
+            lifecycle:
+              data_retention: "7d"
+          data_stream: {}
+
+  - do:
+      indices.simulate_index_template:
+        name: test
+        include_defaults: true
+
+  - match: {template.lifecycle.enabled: true}
+  - match: {template.lifecycle.data_retention: "7d"}
+  - is_true: template.lifecycle.rollover
   - match: {overlapping: []}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -73,8 +74,8 @@ public class ModuleSupport {
         Predicate<String> isPackageInParentLayers
     ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
-        requires.stream().forEach(builder::requires);
-        uses.stream().forEach(builder::uses);
+        requires.forEach(builder::requires);
+        uses.forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();

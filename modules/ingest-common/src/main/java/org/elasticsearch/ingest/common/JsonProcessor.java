@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Locale;
 import java.util.Map;
 
@@ -90,10 +89,11 @@ public final class JsonProcessor extends AbstractProcessor {
     }
 
     public static Object apply(Object fieldValue, boolean allowDuplicateKeys, boolean strictJsonParsing) {
-        BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (
-            InputStream stream = bytesRef.streamInput();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, stream)
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                fieldValue == null ? "null" : fieldValue.toString()
+            )
         ) {
             parser.allowDuplicateKeys(allowDuplicateKeys);
             XContentParser.Token token = parser.nextToken();
@@ -218,7 +218,8 @@ public final class JsonProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
@@ -41,7 +42,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     private final RecoveryState.Index indexState;
     private final String tempFilePrefix;
     private final Logger logger;
-    private final Runnable ensureOpen;
     private final boolean verifyOutput;
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -51,23 +51,15 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
-        this(store, indexState, tempFilePrefix, logger, ensureOpen, true);
+    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger) {
+        this(store, indexState, tempFilePrefix, logger, true);
     }
 
-    public MultiFileWriter(
-        Store store,
-        RecoveryState.Index indexState,
-        String tempFilePrefix,
-        Logger logger,
-        Runnable ensureOpen,
-        boolean verifyOutput
-    ) {
+    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, boolean verifyOutput) {
         this.store = store;
         this.indexState = indexState;
         this.tempFilePrefix = tempFilePrefix;
         this.logger = logger;
-        this.ensureOpen = ensureOpen;
         this.verifyOutput = verifyOutput;
     }
 
@@ -84,7 +76,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     }
 
     public void writeFile(StoreFileMetadata fileMetadata, long readSnapshotFileBufferSize, InputStream stream) throws IOException {
-        ensureOpen.run();
+        assert hasReferences();
         assert Transports.assertNotTransportThread("multi_file_writer");
 
         String fileName = fileMetadata.name();
@@ -95,7 +87,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         tempFileNames.put(tempFileName, fileName);
 
         incRef();
-        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata, IOContext.DEFAULT)) {
+        try (IndexOutput indexOutput = createIndexOutput(tempFileName, fileMetadata)) {
             int bufferSize = Math.toIntExact(Math.min(readSnapshotFileBufferSize, fileMetadata.length()));
             byte[] buffer = new byte[bufferSize];
             int length;
@@ -117,9 +109,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 );
             }
 
-            Store.verify(indexOutput);
-            assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
-                : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
+            if (verifyOutput) {
+                Store.verify(indexOutput);
+                assert Arrays.asList(store.directory().listAll()).contains(tempFileName)
+                    : "expected: [" + tempFileName + "] in " + Arrays.toString(store.directory().listAll());
+            }
             store.directory().sync(Collections.singleton(tempFileName));
         } catch (IOException e) {
             tempFileNames.remove(tempFileName);
@@ -131,10 +125,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata, IOContext context) throws IOException {
+    private IndexOutput createIndexOutput(String tempFileName, StoreFileMetadata fileMetadata) throws IOException {
         return verifyOutput
-            ? store.createVerifyingOutput(tempFileName, fileMetadata, context)
-            : store.directory().createOutput(tempFileName, context);
+            ? store.createVerifyingOutput(tempFileName, fileMetadata, IOContext.DEFAULT)
+            : store.directory().createOutput(tempFileName, IOContext.DEFAULT);
     }
 
     /** Get a temporary name for the provided file name. */
@@ -143,13 +137,13 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     }
 
     public IndexOutput getOpenIndexOutput(String key) {
-        ensureOpen.run();
+        assert hasReferences();
         return openIndexOutputs.get(key);
     }
 
     /** remove and {@link IndexOutput} for a given file. It is the caller's responsibility to close it */
     public IndexOutput removeOpenIndexOutputs(String name) {
-        ensureOpen.run();
+        assert hasReferences();
         return openIndexOutputs.remove(name);
     }
 
@@ -161,7 +155,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
      * at a later stage
      */
     public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetadata metadata, Store store) throws IOException {
-        ensureOpen.run();
+        assert hasReferences();
         String tempFileName = getTempNameForFile(fileName);
         if (tempFileNames.containsKey(tempFileName)) {
             throw new IllegalStateException("output for file [" + fileName + "] has already been created");
@@ -175,6 +169,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     private void innerWriteFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
         throws IOException {
+        assert hasReferences();
         final String name = fileMetadata.name();
         IndexOutput indexOutput;
         if (position == 0) {
@@ -239,17 +234,14 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
-        ensureOpen.run();
+        assert hasReferences();
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    private static final class FileChunk implements Releasable {
-        final StoreFileMetadata md;
-        final ReleasableBytesReference content;
-        final long position;
-        final boolean lastChunk;
-
-        FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
+    private record FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk)
+        implements
+            Releasable {
+        private FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content.retain();
             this.position = position;

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -21,36 +21,37 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(createDynamicTemplateMapping()));
+        assertAcked(indicesAdmin().prepareCreate("test-idx").setMapping(createDynamicTemplateMapping()));
 
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
+            prepareIndex("test-idx").setId(Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
         }
-        client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
+        indicesAdmin().prepareRefresh("test-idx").get();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
 
-        SearchResponse response = client().prepareSearch("test-idx")
-            .setQuery(QueryBuilders.termQuery("even", true))
-            .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2).collectMode(aggCollectionMode))
-            .addAggregation(
-                AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
-            )
-            .execute()
-            .actionGet();
+        assertResponse(
+            prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("even", true))
+                .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2).collectMode(aggCollectionMode))
+                .addAggregation(
+                    AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo((long) recordCount));
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
-
-        assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
-        assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
-
+                assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
+                assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
+            }
+        );
     }
 
     public void testDynamicObjectCopyTo() throws Exception {
@@ -64,11 +65,10 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
         );
-        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(mapping));
-        client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
-        client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
-        SearchResponse response = client().prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertAcked(indicesAdmin().prepareCreate("test-idx").setMapping(mapping));
+        prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
+        indicesAdmin().prepareRefresh("test-idx").get();
+        assertHitCount(prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")), 1L);
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {

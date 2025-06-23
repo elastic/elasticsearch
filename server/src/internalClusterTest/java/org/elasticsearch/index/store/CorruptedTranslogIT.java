@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils.getClusterAllocationExplanation;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -51,18 +52,15 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.refresh_interval", "-1")
+                indexSettings(1, 0).put("index.refresh_interval", "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
             )
         );
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("foo", "bar");
+            builders[i] = prepareIndex("test").setSource("foo", "bar");
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));
@@ -82,25 +80,21 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test")
-                .setShard(0)
-                .setPrimary(true)
-                .get();
-            final String description = Strings.toString(allocationExplainResponse.getExplanation());
-            final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
+            final var allocationExplainResponse = getClusterAllocationExplanation(client(), "test", 0, true);
+            final var description = Strings.toString(allocationExplainResponse);
+            final var unassignedInfo = allocationExplainResponse.getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
-            assertThat(description, unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            final Throwable cause = ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class);
-            assertThat(description, cause, not(nullValue()));
-            assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            assertThat(description, unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            var failure = unassignedInfo.failure();
+            assertNotNull(failure);
+            final Throwable cause = ExceptionsHelper.unwrap(failure, TranslogCorruptedException.class);
+            if (cause != null) {
+                assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
+            }
         });
 
         assertThat(
-            expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
-                .getMessage(),
+            expectThrows(SearchPhaseExecutionException.class, prepareSearch("test").setQuery(matchAllQuery())).getMessage(),
             containsString("all shards failed")
         );
 

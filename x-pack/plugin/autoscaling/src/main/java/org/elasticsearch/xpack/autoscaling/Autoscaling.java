@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,21 +20,15 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
@@ -69,6 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -96,36 +88,28 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final SetOnce<ReservedAutoscalingPolicyAction> reservedAutoscalingPolicyAction = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public Autoscaling() {
         this(new AutoscalingLicenseChecker());
     }
 
+    @SuppressWarnings("this-escape")
     Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        this.clusterServiceHolder.set(clusterService);
-        this.allocationServiceHolder.set(allocationService);
+    public Collection<?> createComponents(PluginServices services) {
+        this.clusterServiceHolder.set(services.clusterService());
+        this.allocationServiceHolder.set(services.allocationService());
         var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
         this.reservedAutoscalingPolicyAction.set(new ReservedAutoscalingPolicyAction(capacityServiceHolder));
-        return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
+        return List.of(
+            capacityServiceHolder,
+            autoscalingLicenseChecker,
+            new AutoscalingNodeInfoService(services.clusterService(), services.client())
+        );
     }
 
     @Override
@@ -134,24 +118,26 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
-            new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
-            new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
-            new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
+            new ActionHandler(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
+            new ActionHandler(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
+            new ActionHandler(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
+            new ActionHandler(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
         final Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController controller,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster
+        final Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestGetAutoscalingCapacityHandler(),
@@ -164,7 +150,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(
                 AutoscalingDeciderResult.Reason.class,
@@ -202,7 +188,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
+            new NamedXContentRegistry.Entry(
+                Metadata.ClusterCustom.class,
+                new ParseField(AutoscalingMetadata.NAME),
+                AutoscalingMetadata::parse
+            )
         );
     }
 

@@ -55,7 +55,7 @@ public class WrappedBatchedJobsIterator implements Iterator<Job> {
         return currentBatch.hasNext() ? currentBatch.next() : null;
     }
 
-    private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
+    private static VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
         List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
         return new VolatileCursorIterator<>(jobs);
     }

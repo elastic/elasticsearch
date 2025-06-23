@@ -11,7 +11,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -21,7 +20,7 @@ public final class SessionFactorySettings {
 
     public static final Function<String, Setting.AffixSetting<List<String>>> URLS_SETTING = RealmSettings.affixSetting(
         "url",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
     );
 
     public static final TimeValue TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(5);

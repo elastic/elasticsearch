@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -20,13 +22,16 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,13 +44,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/settings/update");
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -55,27 +63,30 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         ThreadPool threadPool,
         MetadataUpdateSettingsService updateSettingsService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
-            UpdateSettingsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             UpdateSettingsRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
     @Override
     protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        ClusterBlockException globalBlock = state.blocks()
+            .globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;
         }
@@ -85,8 +96,13 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -120,18 +136,25 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            concreteIndices
-        )
-            .settings(requestSettings)
-            .setPreserveExisting(request.isPreserveExisting())
-            .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
-
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
-            l.onFailure(e);
-        }));
+        updateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                requestSettings,
+                request.isPreserveExisting()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE
+                    : UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                request.reopen()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES
+                    : UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                concreteIndices
+            ),
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
+                l.onFailure(e);
+            })
+        );
     }
 
     /**

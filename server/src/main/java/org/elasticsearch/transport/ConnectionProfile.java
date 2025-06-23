@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -134,6 +135,7 @@ public final class ConnectionProfile {
     private final TimeValue pingInterval;
     private final Compression.Enabled compressionEnabled;
     private final Compression.Scheme compressionScheme;
+    private final String transportProfile;
 
     private ConnectionProfile(
         List<ConnectionTypeHandle> handles,
@@ -142,7 +144,8 @@ public final class ConnectionProfile {
         TimeValue handshakeTimeout,
         TimeValue pingInterval,
         Compression.Enabled compressionEnabled,
-        Compression.Scheme compressionScheme
+        Compression.Scheme compressionScheme,
+        String transportProfile
     ) {
         this.handles = handles;
         this.numConnections = numConnections;
@@ -151,6 +154,7 @@ public final class ConnectionProfile {
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
         this.compressionScheme = compressionScheme;
+        this.transportProfile = Objects.requireNonNull(transportProfile, "transport profile name must not be null");
     }
 
     /**
@@ -165,6 +169,7 @@ public final class ConnectionProfile {
         private Compression.Enabled compressionEnabled;
         private Compression.Scheme compressionScheme;
         private TimeValue pingInterval;
+        private String transportProfile = TransportSettings.DEFAULT_PROFILE;
 
         /** create an empty builder */
         public Builder() {}
@@ -179,6 +184,7 @@ public final class ConnectionProfile {
             compressionEnabled = source.getCompressionEnabled();
             compressionScheme = source.getCompressionScheme();
             pingInterval = source.getPingInterval();
+            transportProfile = source.getTransportProfile();
         }
 
         /**
@@ -247,6 +253,11 @@ public final class ConnectionProfile {
             return this;
         }
 
+        public Builder setTransportProfile(String transportProfile) {
+            this.transportProfile = transportProfile;
+            return this;
+        }
+
         /**
          * Creates a new {@link ConnectionProfile} based on the added connections.
          * @throws IllegalStateException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
@@ -264,7 +275,8 @@ public final class ConnectionProfile {
                 handshakeTimeout,
                 pingInterval,
                 compressionEnabled,
-                compressionScheme
+                compressionScheme,
+                transportProfile
             );
         }
 
@@ -312,6 +324,10 @@ public final class ConnectionProfile {
      */
     public int getNumConnections() {
         return numConnections;
+    }
+
+    public String getTransportProfile() {
+        return transportProfile;
     }
 
     /**

@@ -11,19 +11,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.mockito.ArgumentMatcher;
 
-import static java.util.Collections.emptyMap;
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -34,22 +35,23 @@ public class TransportStopILMActionTests extends ESTestCase {
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportStopILMAction transportStopILMAction = new TransportStopILMAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            mock(ThreadPool.class),
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            threadPool,
+            mock(ActionFilters.class)
         );
         Task task = new Task(
             randomLong(),
             "transport",
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
-            emptyMap()
+            Map.of()
         );
-        StopILMRequest request = new StopILMRequest();
+        StopILMRequest request = new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
         verify(clusterService).submitUnbatchedStateUpdateTask(

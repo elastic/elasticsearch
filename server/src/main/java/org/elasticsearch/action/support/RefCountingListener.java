@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * A mechanism to complete a listener on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
@@ -99,12 +100,12 @@ public final class RefCountingListener implements Releasable {
             assert false : maxExceptions;
             throw new IllegalArgumentException("maxExceptions must be positive");
         }
-        this.delegate = Objects.requireNonNull(delegate);
+        this.delegate = ActionListener.assertOnce(Objects.requireNonNull(delegate));
         this.exceptionPermits = new Semaphore(maxExceptions);
     }
 
     /**
-     * Release the original reference to this object, which commpletes the delegate {@link ActionListener} if there are no other references.
+     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no other references.
      *
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
@@ -167,7 +168,8 @@ public final class RefCountingListener implements Releasable {
 
     /**
      * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate {@link
-     * ActionListener} is called when all its references have been released. The consumer must not throw any exception.
+     * ActionListener} is called when all its references have been released. If the consumer throws an exception, the exception is passed
+     * to the final listener as if the returned listener was completed exceptionally.
      *
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.
@@ -175,7 +177,7 @@ public final class RefCountingListener implements Releasable {
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
      */
-    public <Response> ActionListener<Response> acquire(Consumer<Response> consumer) {
+    public <Response> ActionListener<Response> acquire(CheckedConsumer<Response, Exception> consumer) {
         final var ref = refs.acquire();
         final var consumerRef = new AtomicReference<>(Objects.requireNonNull(consumer));
         return new ActionListener<>() {
@@ -186,11 +188,12 @@ public final class RefCountingListener implements Releasable {
                     if (acquiredConsumer == null) {
                         assert false : "already closed";
                     } else {
-                        acquiredConsumer.accept(response);
+                        try {
+                            acquiredConsumer.accept(response);
+                        } catch (Exception e) {
+                            addException(e);
+                        }
                     }
-                } catch (Exception e) {
-                    assert false : e;
-                    throw e;
                 }
             }
 
@@ -224,5 +227,13 @@ public final class RefCountingListener implements Releasable {
     @Override
     public String toString() {
         return "refCounting[" + delegate + "]";
+    }
+
+    /**
+     * @return {@code true} if at least one acquired listener has completed exceptionally, which means that the delegate listener will also
+     *         complete exceptionally once all acquired listeners are completed.
+     */
+    public boolean isFailing() {
+        return exceptionRef.get() != null;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis.wrappers;
@@ -136,7 +137,7 @@ public class StableApiWrappers {
                 return mapAnalysisMode(f.getAnalysisMode());
             }
 
-            private org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
+            private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
                 return org.elasticsearch.index.analysis.AnalysisMode.valueOf(analysisMode.name());
             }
         };
@@ -204,7 +205,9 @@ public class StableApiWrappers {
                     }
                     return (T) constructor.newInstance(parameters);
                 } else {
-                    throw new IllegalStateException("Missing @Inject annotation for constructor with settings.");
+                    throw new IllegalStateException(
+                        "Missing @" + Inject.class.getCanonicalName() + " annotation for constructor with settings."
+                    );
                 }
             }
 

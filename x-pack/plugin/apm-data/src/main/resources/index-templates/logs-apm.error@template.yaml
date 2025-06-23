@@ -1,0 +1,34 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: ["logs-apm.error-*"]
+priority: 210
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for logs-apm.error-*
+  managed: true
+composed_of:
+- logs@mappings
+- apm@mappings
+- apm@settings
+- apm-10d@lifecycle
+- logs-apm@settings
+- logs-apm.error@mappings
+- logs-apm.error-fallback@ilm
+- logs@custom
+- logs-apm.error@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- logs@custom
+- logs-apm.error@custom
+- logs-apm.error-fallback@ilm
+template:
+  mappings:
+    properties:
+      processor.event:
+        type: constant_keyword
+        value: error
+  settings:
+    index:
+      default_pipeline: logs-apm.error@default-pipeline
+      final_pipeline: logs-apm@pipeline

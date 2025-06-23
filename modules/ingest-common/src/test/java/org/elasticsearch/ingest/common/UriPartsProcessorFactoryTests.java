@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -40,20 +41,24 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         boolean keepOriginal = randomBoolean();
         config.put("keep_original", keepOriginal);
 
+        boolean ignoreMissing = randomBoolean();
+        config.put("ignore_missing", ignoreMissing);
+
         String processorTag = randomAlphaOfLength(10);
-        UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config);
+        UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(uriPartsProcessor.getTag(), equalTo(processorTag));
         assertThat(uriPartsProcessor.getField(), equalTo(field));
         assertThat(uriPartsProcessor.getTargetField(), equalTo(targetField));
         assertThat(uriPartsProcessor.getRemoveIfSuccessful(), equalTo(removeIfSuccessful));
         assertThat(uriPartsProcessor.getKeepOriginal(), equalTo(keepOriginal));
+        assertThat(uriPartsProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -64,7 +69,7 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", null);
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -43,7 +44,8 @@ import java.util.stream.StreamSupport;
 /**
  * The Java Module Compile Path Plugin, i.e. --module-path, ---module-version
  */
-public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
+public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(JavaPlugin.class);
@@ -51,9 +53,9 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
-    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
+    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common", ":x-pack:plugin:esql:compute:test");
 
-    static void configureCompileModulePath(Project project) {
+    void configureCompileModulePath(Project project) {
         // first disable Gradle's builtin module path inference
         project.getTasks()
             .withType(JavaCompile.class)
@@ -82,12 +84,10 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         }).getIncoming().artifactView(it -> {
             it.componentFilter(cf -> {
                 var visited = new HashSet<ComponentIdentifier>();
-                return walkResolvedComponent(
-                    project,
-                    compileClasspath.getIncoming().getResolutionResult().getRoot(),
-                    isModuleProject,
-                    visited
-                ).anyMatch(cf::equals);
+                ResolvedComponentResult root = compileClasspath.getIncoming().getResolutionResult().getRoot();
+                ComponentIdentifier id = root.getId();
+                String currentBuildPath = ((ProjectComponentIdentifier) id).getBuild().getBuildPath();
+                return walkResolvedComponent(currentBuildPath, project, root, isModuleProject, visited).anyMatch(cf::equals);
             });
         }).getFiles();
 
@@ -116,7 +116,8 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         });
     }
 
-    static Stream<ComponentIdentifier> walkResolvedComponent(
+    Stream<ComponentIdentifier> walkResolvedComponent(
+        String currentBuildPath,
         Project project,
         ResolvedComponentResult result,
         boolean isModuleDependency,
@@ -133,9 +134,10 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     return false;
                 }
                 return isModuleDependency
-                    || (it.getId()instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
+                    || (it.getId() instanceof ProjectComponentIdentifier projectId
+                        && hasModuleInfoDotJava(currentBuildPath, project, projectId));
             })
-            .flatMap(it -> Stream.concat(walkResolvedComponent(project, it, true, visited), Stream.of(it.getId())));
+            .flatMap(it -> Stream.concat(walkResolvedComponent(currentBuildPath, project, it, true, visited), Stream.of(it.getId())));
     }
 
     static class CompileModulePathArgumentProvider implements CommandLineArgumentProvider, Named {
@@ -176,7 +178,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         }
     }
 
-    static boolean hasModuleInfoDotJava(Project project) {
+    boolean hasModuleInfoDotJava(Project project) {
         return getJavaMainSourceSet(project).getJava()
             .getSrcDirs()
             .stream()
@@ -184,8 +186,8 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
             .anyMatch(Files::exists);
     }
 
-    static boolean hasModuleInfoDotJava(Project project, ProjectComponentIdentifier id) {
-        return new File(findProjectIdPath(project, id), "src/main/java/module-info.java").exists();
+    boolean hasModuleInfoDotJava(String currentBuildPath, Project project, ProjectComponentIdentifier id) {
+        return new File(findProjectIdPath(currentBuildPath, project, id), "src/main/java/module-info.java").exists();
     }
 
     static SourceSet getJavaMainSourceSet(Project project) {
@@ -209,13 +211,14 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
         return System.getProperty("idea.sync.active", "false").equals("true");
     }
 
-    static File findProjectIdPath(Project project, ProjectComponentIdentifier id) {
-        if (id.getBuild().isCurrentBuild()) {
+    File findProjectIdPath(String currentBuildPath, Project project, ProjectComponentIdentifier id) {
+        if (id.getBuild().getBuildPath().equals(currentBuildPath)) {
             return project.findProject(id.getProjectPath()).getProjectDir();
         } else {
             // For project dependencies sourced from an included build we have to infer the source project path
-            File includedBuildDir = project.getGradle().includedBuild(id.getBuild().getName()).getProjectDir();
-
+            String buildPath = id.getBuild().getBuildPath();
+            String buildName = buildPath.substring(buildPath.lastIndexOf(':') + 1);
+            File includedBuildDir = project.getGradle().includedBuild(buildName).getProjectDir();
             // We have to account for us renaming the :libs projects here
             String[] pathSegments = id.getProjectPath().split(":");
             if (pathSegments[1].equals("libs")) {

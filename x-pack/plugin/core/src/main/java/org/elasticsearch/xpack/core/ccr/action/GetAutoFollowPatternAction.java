@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -27,14 +28,16 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
     public static final GetAutoFollowPatternAction INSTANCE = new GetAutoFollowPatternAction();
 
     private GetAutoFollowPatternAction() {
-        super(NAME, GetAutoFollowPatternAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String name;
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -87,13 +90,12 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::readFrom);
+            autoFollowPatterns = in.readMap(AutoFollowPattern::readFrom);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(autoFollowPatterns, StreamOutput::writeWriteable);
         }
 
         @Override

@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
@@ -33,26 +34,28 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASY
 public final class AsyncSearch extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(SubmitAsyncSearchAction.INSTANCE, TransportSubmitAsyncSearchAction.class),
-            new ActionHandler<>(GetAsyncSearchAction.INSTANCE, TransportGetAsyncSearchAction.class),
-            new ActionHandler<>(GetAsyncStatusAction.INSTANCE, TransportGetAsyncStatusAction.class)
+            new ActionHandler(SubmitAsyncSearchAction.INSTANCE, TransportSubmitAsyncSearchAction.class),
+            new ActionHandler(GetAsyncSearchAction.INSTANCE, TransportGetAsyncSearchAction.class),
+            new ActionHandler(GetAsyncStatusAction.INSTANCE, TransportGetAsyncStatusAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder()),
+            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

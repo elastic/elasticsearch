@@ -8,7 +8,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm'
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'health_report'
   }
 }
 
@@ -17,4 +17,16 @@ testClusters.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

@@ -1,0 +1,512 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+---
+"Update Connector Filtering - Update draft":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+          rules:
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 0
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+
+  - match: { filtering.0.draft.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.draft.advanced_snippet.value.0.tables.0.: "some_table" }
+  - match: { filtering.0.draft.rules.0.id: DEFAULT }
+  - match: { filtering.0.draft.validation.errors: [] }
+  - match: { filtering.0.draft.validation.state: edited }
+
+  # Default domain and active should be unchanged
+  - match: { filtering.0.domain: DEFAULT }
+  - match: { filtering.0.active.advanced_snippet.value: {} }
+  - match: { filtering.0.active.advanced_snippet.value: {} }
+  - match: { filtering.0.active.rules.0.field: _ }
+  - match: { filtering.0.active.rules.0.id: DEFAULT }
+  - match: { filtering.0.active.rules.0.rule: regex }
+
+
+---
+"Update Connector Filtering - Update draft rules only":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules:
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: my_field
+              id: MY-RULE-1
+              order: 0
+              policy: exclude
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: "tax-.*"
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 1
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: MY-RULE-1 }
+  - match: { filtering.0.draft.rules.1.id: DEFAULT }
+
+  # Default domain and active should be unchanged
+  - match: { filtering.0.domain: DEFAULT }
+  - match: { filtering.0.active.advanced_snippet.value: {} }
+  - match: { filtering.0.active.advanced_snippet.value: {} }
+  - match: { filtering.0.active.rules.0.field: _ }
+  - match: { filtering.0.active.rules.0.id: DEFAULT }
+  - match: { filtering.0.active.rules.0.rule: regex }
+
+---
+"Update Connector Filtering - Update draft advanced snippet only":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.draft.advanced_snippet.value.0.tables.0.: "some_table" }
+
+---
+"Update Connector Filtering - Update full filtering object":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value:
+                    some_filtering_key: "some_filtering_value"
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: DEFAULT
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: DEFAULT
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.domain: DEFAULT }
+  - match: { filtering.0.active.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.value.some_filtering_key: "some_filtering_value" }
+  - match: { filtering.0.active.rules.0.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.0.id: "DEFAULT" }
+
+
+---
+"Update Connector Filtering with value literal - Wrong advanced snippet value":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            value: "string literal"
+
+---
+"Update Connector Filtering with value literal - Empty rules":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules: [ ]
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: ".*" }
+  - match: { filtering.0.draft.rules.0.field: "_" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+
+---
+"Update Connector Filtering with with value literal - Only default rule":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules:
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 0
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: ".*" }
+  - match: { filtering.0.draft.rules.0.field: "_" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+
+
+---
+"Update Connector Filtering - Mixed order and default value":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+            rules:
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: _
+                  id: DEFAULT
+                  order: 5
+                  policy: include
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: ".*"
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: my_field
+                  id: MY_RULE
+                  order: 3
+                  policy: exclude
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: "tax-.*"
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: my_field
+                  id: MY_RULE_2
+                  order: 0
+                  policy: include
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: "fix-.*"
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  # rules are sorted by order and default rule is always last
+  - match: { filtering.0.draft.rules.0.id: "MY_RULE_2" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: "fix-.*" }
+  - match: { filtering.0.draft.rules.0.field: "my_field" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+  - match: { filtering.0.draft.rules.1.id: "MY_RULE" }
+  - match: { filtering.0.draft.rules.1.policy: "exclude" }
+  - match: { filtering.0.draft.rules.1.rule: "regex" }
+  - match: { filtering.0.draft.rules.1.value: "tax-.*" }
+  - match: { filtering.0.draft.rules.1.field: "my_field" }
+  - match: { filtering.0.draft.rules.1.order: 3 }
+  # Make sure default rule has the highest order
+  - match: { filtering.0.draft.rules.2.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.2.policy: "include" }
+  - match: { filtering.0.draft.rules.2.rule: "regex" }
+  - match: { filtering.0.draft.rules.2.value: ".*" }
+  - match: { filtering.0.draft.rules.2.field: "_" }
+  - match: { filtering.0.draft.rules.2.order: 4 }
+
+---
+"Update Connector Filtering with value literal - Default rule not present":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules:
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: my_field
+              id: MY_RULE
+              order: 0
+              policy: exclude
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: "hello-not-default-rule.*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "MY_RULE" }
+  - match: { filtering.0.draft.rules.0.policy: "exclude" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: "hello-not-default-rule.*" }
+  - match: { filtering.0.draft.rules.0.field: "my_field" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+  - match: { filtering.0.draft.rules.1.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.1.policy: "include" }
+  - match: { filtering.0.draft.rules.1.rule: "regex" }
+  - match: { filtering.0.draft.rules.1.value: ".*" }
+  - match: { filtering.0.draft.rules.1.field: "_" }
+  - match: { filtering.0.draft.rules.1.order: 1 }
+
+---
+"Update Connector Filtering - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_filtering:
+        connector_id: test-non-existent-connector
+        body:
+          advanced_snippet:
+            value: {}
+
+---
+"Update Connector Filtering - Required fields are missing":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering:
+        connector_id: test-connector
+        body: {}
+
+  - match:
+      status: 400
+
+---
+"Update Connector Filtering - Wrong datetime expression":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules: [ ]
+          advanced_snippet:
+            updated_at: "wrong datetime"
+            value: { }
+
+
+---
+"Update Connector Filtering - Update filtering draft validation":
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: invalid
+            errors:
+              - ids: ["1", "2"]
+                messages: ["some error 1", "some error 2"]
+              - ids: [ "3", "4" ]
+                messages: [ "some error 3", "some error 4" ]
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.validation.state: invalid }
+  - match: { filtering.0.draft.validation.errors.0.ids.0: "1"}
+  - match: { filtering.0.draft.validation.errors.0.messages.1: "some error 2"}
+  - match: { filtering.0.draft.validation.errors.1.ids.0: "3"}
+  - match: { filtering.0.draft.validation.errors.1.messages.1: "some error 4"}
+
+
+---
+"Update Connector Filtering - Update validation missing validation state":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            errors: []
+
+---
+"Update Connector Filtering - Update validation missing validation errors":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: "valid"
+
+
+
+---
+"Update Connector Filtering - Activate valid draft":
+
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+          rules:
+            - created_at: "2023-06-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 0
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: valid
+            errors: []
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.update_active_filtering:
+        connector_id: test-connector
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.draft.advanced_snippet.value.0.tables.0.: "some_table" }
+  - match: { filtering.0.draft.rules.0.created_at: "2023-06-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.value.0.tables.0.: "some_table" }
+  - match: { filtering.0.active.rules.0.created_at: "2023-06-25T12:30:00.000Z" }
+
+---
+"Update Connector Filtering - Activate invalid draft":
+
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: invalid
+            errors: []
+
+  - match: { result: updated }
+
+  - do:
+      catch: "bad_request"
+      connector.update_active_filtering:
+        connector_id: test-connector
+
+
+---
+"Update Connector Filtering - Activate edited draft":
+
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+
+  - match: { result: updated }
+
+
+  - do:
+      catch: "bad_request"
+      connector.update_active_filtering:
+        connector_id: test-connector

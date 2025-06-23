@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -59,7 +61,8 @@ public final class MinDocQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        IndexReader reader = searcher.getIndexReader();
         if (Objects.equals(reader.getContext().id(), readerId) == false) {
             return new MinDocQuery(minDoc, reader.getContext().id());
         }
@@ -74,15 +77,17 @@ public final class MinDocQuery extends Query {
             throw new IllegalStateException("Executing against a different reader than the query has been rewritten against");
         }
         return new ConstantScoreWeight(this, boost) {
+
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
                 if (context.docBase + maxDoc <= minDoc) {
                     return null;
                 }
                 final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
                 final DocIdSetIterator disi = new MinDocIterator(segmentMinDoc, maxDoc);
-                return new ConstantScoreScorer(this, score(), scoreMode, disi);
+                Scorer scorer = new ConstantScoreScorer(score(), scoreMode, disi);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

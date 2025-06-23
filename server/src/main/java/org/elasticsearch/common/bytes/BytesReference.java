@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -65,7 +66,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
             while ((r = byteRefIterator.next()) != null) {
                 buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
             }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
+            return buffers.toArray(ByteBuffer[]::new);
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences
@@ -184,7 +185,9 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
-     * access to the internal pages of this reference without copying them. Use with care!
+     * access to the internal pages of this reference without copying them.
+     * It must return direct references to the pages, not copies. Use with care!
+     *
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();

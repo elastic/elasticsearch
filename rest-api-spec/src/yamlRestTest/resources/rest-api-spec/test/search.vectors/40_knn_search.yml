@@ -1,13 +1,11 @@
 setup:
-  - skip:
-      version: ' - 7.99.99'
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: 'kNN search added in 8.0'
   - do:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               name:
@@ -17,20 +15,27 @@ setup:
                 dims: 5
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               another_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: l2_norm
-
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
   - do:
       index:
         index: test
         id: "1"
         body:
           name: cow.jpg
-          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
-          another_vector: [130.0, 115.0, -1.02, 15.555, -100.0]
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+          another_vector: [ 130.0, 115.0, -1.02, 15.555, -100.0 ]
 
   - do:
       index:
@@ -38,8 +43,8 @@ setup:
         id: "2"
         body:
           name: moose.jpg
-          vector: [-0.5, 100.0, -13, 14.8, -156.0]
-          another_vector: [-0.5, 50.0, -1, 1, 120]
+          vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+          another_vector: [ -0.5, 50.0, -1, 1, 120 ]
 
   - do:
       index:
@@ -47,16 +52,16 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
-          another_vector: [-0.5, 11.0, 0, 12, 111.0]
+          vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+          another_vector: [ -0.5, 11.0, 0, 12, 111.0 ]
 
   - do:
-      indices.refresh: {}
+      indices.refresh: { }
 
 ---
 "kNN search only":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -65,19 +70,19 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search only":
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
@@ -85,18 +90,18 @@ setup:
         body:
           fields: [ "name" ]
           knn:
-           - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
-           - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+            - { field: vector, query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ], k: 2, num_candidates: 3 }
+            - { field: another_vector, query_vector: [ -0.5, 11.0, 0, 12, 111.0 ], k: 2, num_candidates: 3 }
 
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
 ---
 "kNN search plus query":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -105,25 +110,25 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           query:
             term:
               name: cow.jpg
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "cow.jpg" }
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.2._id: "3"}
-  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2.fields.name.0: "rabbit.jpg" }
 ---
 "kNN multi-field search with query":
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: 'multi-field kNN search added to search endpoint in 8.7'
   - do:
       search:
@@ -131,24 +136,24 @@ setup:
         body:
           fields: [ "name" ]
           knn:
-            - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
-            - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+            - { field: vector, query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ], k: 2, num_candidates: 3 }
+            - { field: another_vector, query_vector: [ -0.5, 11.0, 0, 12, 111.0 ], k: 2, num_candidates: 3 }
           query:
             term:
               name: cow.jpg
 
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
-  - match: {hits.hits.1._id: "1"}
-  - match: {hits.hits.1.fields.name.0: "cow.jpg"}
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.fields.name.0: "cow.jpg" }
 
-  - match: {hits.hits.2._id: "2"}
-  - match: {hits.hits.2.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2.fields.name.0: "moose.jpg" }
 ---
 "kNN search with filter":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       search:
@@ -157,16 +162,16 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
             filter:
               term:
                 name: "rabbit.jpg"
 
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
   - do:
       search:
@@ -175,7 +180,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
             filter:
@@ -184,12 +189,12 @@ setup:
               - term:
                   _id: 2
 
-  - match: {hits.total.value: 0}
+  - match: { hits.total.value: 0 }
 
 ---
 "kNN search with explicit search_type":
-  - skip:
-      version: ' - 8.3.99'
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
@@ -200,7 +205,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
@@ -210,8 +215,11 @@ setup:
 ---
 "kNN search in _knn_search endpoint":
   - skip:
-      features: ["allowed_warnings"]
+      features: [ "allowed_warnings", "headers" ]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
@@ -220,23 +228,26 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
 
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.name.0: "rabbit.jpg" }
 
 ---
 "kNN search with filter in _knn_search endpoint":
-  - skip:
-      version: ' - 8.1.99'
+  - requires:
+      cluster_features: "gte_v8.2.0"
       reason: 'kNN with filtering added in 8.2'
-      features: ["allowed_warnings"]
+      test_runner_features: [ "allowed_warnings", "headers" ]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
@@ -245,18 +256,21 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           filter:
             term:
               name: "rabbit.jpg"
 
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.name.0: "rabbit.jpg" }
 
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
@@ -265,7 +279,7 @@ setup:
           fields: [ "name" ]
           knn:
             field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
           filter:
@@ -274,15 +288,14 @@ setup:
             - term:
                 _id: 2
 
-  - match: {hits.total.value: 0}
+  - match: { hits.total.value: 0 }
 
 ---
-"Test nonexistent field":
-  - skip:
-      version: ' - 8.3.99'
-      reason: 'kNN added to search endpoint in 8.4'
+"Test nonexistent field is match none":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'non-existent field handling improved in 8.16'
   - do:
-      catch: bad_request
       search:
         index: test
         body:
@@ -292,23 +305,328 @@ setup:
             query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
             k: 2
             num_candidates: 3
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
 
----
-"Direct kNN queries are disallowed":
-  - skip:
-      version: ' - 8.3.99'
-      reason: 'error message changed in 8.4'
+  - length: { hits.hits: 0 }
+
+  - do:
+      indices.create:
+        index: test_nonexistent
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: float
+                dims: 5
+                index: true
+                similarity: l2_norm
+          settings:
+            index.query.parse.allow_unmapped_fields: false
+
   - do:
       catch: bad_request
       search:
-        index: test-index
+        index: test_nonexistent
         body:
+          fields: [ "name" ]
+          knn:
+            field: nonexistent
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "No field mapping can be found for the field with name [nonexistent]" }
+
+---
+"KNN Vector similarity search only":
+  - requires:
+      cluster_features: "gte_v8.8.0"
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
+---
+"Vector similarity with filter only":
+  - requires:
+      cluster_features: "gte_v8.8.0"
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            filter: { "term": { "name": "moose.jpg" } }
+
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.name.0: "moose.jpg" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 110
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            filter: { "term": { "name": "cow.jpg" } }
+
+  - length: { hits.hits: 0 }
+---
+"Knn search with mip":
+  - requires:
+      cluster_features: "gte_v8.11.0"
+      reason: 'mip similarity added in 8.11'
+      test_runner_features: "close_to"
+
+  - do:
+      indices.create:
+        index: mip
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
+
+  - do:
+      index:
+        index: mip
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      index:
+        index: mip
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+
+  - do:
+      index:
+        index: mip
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: mip
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - close_to: { hits.hits.0._score: { value: 58694.902, error: 0.01 } }
+  - match: { hits.hits.1._id: "3" }
+  - close_to: { hits.hits.1._score: { value: 34702.79, error: 0.01 } }
+  - match: { hits.hits.2._id: "2" }
+  - close_to: { hits.hits.2._score: { value: 33686.29, error: 0.01 } }
+
+  - do:
+      search:
+        index: mip
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            filter: { "term": { "name": "moose.jpg" } }
+
+
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+  - close_to: { hits.hits.0._score: { value: 33686.29, error: 0.01 } }
+---
+"Knn search with _name":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'support for _name in knn was added in 8.15'
+      test_runner_features: "close_to"
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 3
+            num_candidates: 3
+            _name: "my_knn_query"
           query:
-            knn:
-              field: vector
-              query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
-              num_candidates: 1
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
+            term:
+              name:
+                term: cow.jpg
+                _name: "my_query"
+
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.name.0: "cow.jpg" }
+  - match: { hits.hits.0.matched_queries.0: "my_knn_query" }
+  - match: { hits.hits.0.matched_queries.1: "my_query" }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.name.0: "moose.jpg" }
+  - match: { hits.hits.1.matched_queries.0: "my_knn_query" }
+
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2.fields.name.0: "rabbit.jpg" }
+  - match: { hits.hits.2.matched_queries.0: "my_knn_query" }
+
+---
+"kNN search on empty index should return 0 results and not an error":
+  - requires:
+      cluster_features: "gte_v8.15.1"
+      reason: 'Error fixed in 8.15.1'
+  - do:
+      indices.create:
+        index: test_empty
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+  - do:
+      search:
+        index: test_empty
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+
+  - match: { hits.total.value: 0 }
+---
+"Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore_oversample]
+  - skip:
+      features: "headers"
+
+  # Non-rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  # Get scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: knn_score0 }
+  - set: { hits.hits.1._score: knn_score1 }
+  - set: { hits.hits.2._score: knn_score2 }
+
+  # Rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $knn_score0 }
+  - match: { hits.hits.1._score: $knn_score1 }
+  - match: { hits.hits.2._score: $knn_score2 }
+---
+"Updating dim to null is not allowed":
+  - requires:
+      cluster_features: "mapper.npe_on_dims_update_fix"
+      reason: "dims update fix"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector

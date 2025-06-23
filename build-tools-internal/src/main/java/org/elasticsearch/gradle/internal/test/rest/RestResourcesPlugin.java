@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
@@ -38,7 +39,7 @@ import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
  *   }
  * }
  * </pre>
- * Will copy the entire core Rest API specifications (assuming the project has tests) and any of the the X-pack specs starting with enrich*.
+ * Will copy the entire core Rest API specifications (assuming the project has tests) and any of the X-pack specs starting with enrich*.
  * It is recommended (but not required) to also explicitly declare which core specs your project depends on to help optimize the caching
  * behavior.
  * <i>For example:</i>
@@ -65,7 +66,7 @@ import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
  *   }
  * }
  * </pre>
- * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
+ * Will copy any of the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
  * Rest API specification.
  * <p>
  * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.

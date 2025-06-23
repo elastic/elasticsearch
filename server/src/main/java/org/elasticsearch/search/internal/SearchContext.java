@@ -1,22 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchShardTask;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -37,19 +41,23 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -63,25 +71,48 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    protected final SubscribableListener<Void> closeFuture = new SubscribableListener<>();
+
+    {
+        if (Assertions.ENABLED) {
+            closeFuture.addListener(ActionListener.releasing(LeakTracker.wrap(new Releasable() {
+                @Override
+                public void close() {
+                    // empty instance that will actually get GC'ed so that the leak tracker works
+                }
+            })));
+        }
+    }
     private InnerHitsContext innerHitsContext;
 
     private Query rewriteQuery;
 
     protected SearchContext() {}
 
-    public abstract void setTask(SearchShardTask task);
+    public final List<Runnable> getCancellationChecks() {
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(this);
+        if (lowLevelCancellation()) {
+            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
+            Runnable c = () -> {
+                final CancellableTask task = getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            };
+            return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
+        }
+        return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
 
-    public abstract SearchShardTask getTask();
+    public abstract void setTask(CancellableTask task);
+
+    public abstract CancellableTask getTask();
 
     public abstract boolean isCancelled();
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) {
-            Releasables.close(releasables);
-        }
+        closeFuture.onResponse(null);
     }
 
     /**
@@ -111,8 +142,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract void addSearchExt(SearchExtBuilder searchExtBuilder);
-
     public abstract SearchExtBuilder getSearchExt(String name);
 
     public abstract SearchHighlightContext highlight();
@@ -128,7 +157,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SuggestionSearchContext suggest();
 
-    public abstract void suggest(SuggestionSearchContext suggest);
+    public abstract QueryPhaseRankShardContext queryPhaseRankShardContext();
+
+    public abstract void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -176,8 +207,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract boolean sourceRequested();
 
-    public abstract boolean hasFetchSourceContext();
-
     public abstract FetchSourceContext fetchSourceContext();
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
@@ -203,8 +232,6 @@ public abstract class SearchContext implements Releasable {
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract TimeValue timeout();
-
-    public abstract void timeout(TimeValue timeout);
 
     public abstract int terminateAfter();
 
@@ -242,8 +269,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FieldDoc searchAfter();
 
-    public abstract SearchContext collapse(CollapseContext collapse);
-
     public abstract CollapseContext collapse();
 
     public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
@@ -262,7 +287,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * The query to execute in its rewritten form.
      */
-    public final Query rewrittenQuery() {
+    public Query rewrittenQuery() {
         if (query() == null) {
             throw new IllegalStateException("preProcess must be called first");
         }
@@ -297,8 +322,6 @@ public abstract class SearchContext implements Releasable {
     @Nullable
     public abstract List<String> groupStats();
 
-    public abstract void groupStats(List<String> groupStats);
-
     public abstract boolean version();
 
     public abstract void version(boolean version);
@@ -309,17 +332,39 @@ public abstract class SearchContext implements Releasable {
     /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
 
-    public abstract int[] docIdsToLoad();
-
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad);
-
     public abstract DfsSearchResult dfsResult();
 
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link DfsSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addDfsResult();
+
     public abstract QuerySearchResult queryResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link QuerySearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addQueryResult();
+
+    public abstract TotalHits getTotalHits();
+
+    public abstract float getMaxScore();
+
+    public abstract void addRankFeatureResult();
+
+    public abstract RankFeatureResult rankFeatureResult();
 
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link FetchSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addFetchResult();
 
     /**
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
@@ -327,17 +372,44 @@ public abstract class SearchContext implements Releasable {
     public abstract Profilers getProfilers();
 
     /**
+     * The circuit breaker used to account for the search operation.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the available memory in the parent breaker
+     * (the real memory breaker).
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param label the label to use in the breaker
+     * @return true if the real memory breaker is called and false otherwise
+     */
+    public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
-        releasables.add(releasable);
+        assert closeFuture.isDone() == false;
+        closeFuture.addListener(ActionListener.releasing(releasable));
     }
 
     /**
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null && request().source().isSuggestOnly();
+        var source = request().source();
+        return source != null && source.isSuggestOnly();
     }
 
     /**
@@ -345,9 +417,6 @@ public abstract class SearchContext implements Releasable {
      * WARN: This is not the epoch time.
      */
     public abstract long getRelativeTimeInMillis();
-
-    /** Return a view of the additional query collectors that should be run for this context. */
-    public abstract Map<Class<?>, Collector> queryCollectors();
 
     public abstract SearchExecutionContext getSearchExecutionContext();
 
@@ -359,7 +428,7 @@ public abstract class SearchContext implements Releasable {
         }
         if (scrollContext() != null) {
             if (scrollContext().scroll != null) {
-                result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+                result.append("scroll=[").append(scrollContext().scroll).append("]");
             } else {
                 result.append("scroll=[null]");
             }
@@ -373,5 +442,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Build something to load source {@code _source}.
      */
-    public abstract SourceLoader newSourceLoader();
+    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
+
+    public abstract IdLoader newIdLoader();
 }

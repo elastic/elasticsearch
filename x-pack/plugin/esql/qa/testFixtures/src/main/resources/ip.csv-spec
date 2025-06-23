@@ -1,0 +1,731 @@
+simpleProject
+from hosts | keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
+eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1
+eth1           |alpha          |::1                                                                              |::1
+eth0           |beta           |127.0.0.1                                                                        |::1
+eth1           |beta           |127.0.0.1                                                                        |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                        |128.0.0.1
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+equals
+
+from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
+warningRegex:evaluation of \[ip0 == ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |alpha          |127.0.0.1                |127.0.0.1
+eth1           |alpha          |::1                      |::1
+;
+
+# ignored due to unstable sort
+equalityNoSort-Ignore
+from hosts | where ip0 == ip1 | keep card, host, ip0, ip1
+
+card:keyword   |host:keyword   |ip0:ip                                                |ip1:ip
+eth0           |alpha          |127.0.0.1                                             |127.0.0.1
+eth1           |alpha          |::1                                                   |::1
+eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+greaterThanEquals
+from hosts | sort host, card | where ip0 >= ip1 | keep card, host, ip0, ip1;
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |alpha          |127.0.0.1                |127.0.0.1
+eth1           |alpha          |::1                      |::1
+eth0           |beta           |127.0.0.1                |::1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+;
+
+# ignored due to unstable sort
+greaterThanEqualsNoSort-Ignore
+from hosts | where ip0 >= ip1 | keep card, host, ip0, ip1;
+
+card:keyword   |host:keyword   |ip0:ip                                                |ip1:ip
+eth0           |alpha          |127.0.0.1                                             |127.0.0.1
+eth1           |alpha          |::1                                                   |::1
+eth0           |beta           |127.0.0.1                                             |::1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                             |127.0.0.3
+eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+lessThan
+
+from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
+warningRegex:evaluation of \[ip0 < ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth1           |beta           |127.0.0.1                |128.0.0.1
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+;
+
+notEquals
+
+from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
+warningRegex:evaluation of \[ip0 != ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |beta           |127.0.0.1                |::1
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth1           |beta           |127.0.0.1                |128.0.0.1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+;
+
+aggAndSort
+from hosts | stats c=count(ip0) by ip0 | sort ip0 | rename ip0 as ip;
+
+c:long         |ip:ip
+1              |::1
+4              |127.0.0.1
+5              |fe80::cae2:65ff:fece:feb9
+3              |fe80::cae2:65ff:fece:fec0
+3              |fe80::cae2:65ff:fece:fec1
+2              |fe81::cae2:65ff:fece:feb9
+2              |fe82::cae2:65ff:fece:fec0
+0              |null
+;
+
+doubleSort
+from hosts | sort ip0 asc nulls first, ip1 desc| keep card, host, ip0, ip1;
+
+  card:keyword | host:keyword  |                                      ip0:ip                                     |                       ip1:ip                          
+eth1           |epsilon        |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
+eth1           |alpha          |::1                                                                              |::1                                                   
+eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                                             
+eth1           |beta           |127.0.0.1                                                                        |127.0.0.2                                             
+eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1                                             
+eth0           |beta           |127.0.0.1                                                                        |::1                                                   
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9                             
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1                             
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                                             
+eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+isNull
+from hosts | where ip0 is null | keep ip0, ip1;
+
+ip0:ip         |ip1:ip
+null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+;
+
+conditional
+
+from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
+ignoreOrder:true
+warning:Line 1:27: evaluation of [ip0==ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+eq:ip                                                 |ip0:ip                                                                           |ip1:ip
+127.0.0.1                                             |127.0.0.1                                                                        |127.0.0.1
+::1                                                   |::1                                                                              |::1
+::1                                                   |127.0.0.1                                                                        |::1
+127.0.0.2                                             |127.0.0.1                                                                        |127.0.0.2
+128.0.0.1                                             |127.0.0.1                                                                        |128.0.0.1
+fe81::cae2:65ff:fece:feb9                             |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
+127.0.0.3                                             |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
+fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+[127.0.0.1, 127.0.0.2, 127.0.0.3]                     |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+in
+
+from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
+ignoreOrder:true
+warningRegex:evaluation of \[ip0==ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[eq in \(ip0, ip1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip                   |eq:ip
+eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1                |127.0.0.1
+eth1           |alpha          |::1                                                                              |::1                      |::1
+eth0           |beta           |127.0.0.1                                                                        |::1                      |::1
+eth1           |beta           |127.0.0.1                                                                        |127.0.0.2                |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
+;
+
+
+inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
+
+from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
+ignoreOrder:true
+warningRegex:Line \d+:\d+: evaluation of \[ip0==ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line \d+:\d+: evaluation of \[eq in \(ip0, ip1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip                   |eq:ip
+eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1                |127.0.0.1
+eth1           |alpha          |::1                                                                              |::1                      |::1
+eth0           |beta           |127.0.0.1                                                                        |::1                      |::1
+eth1           |beta           |127.0.0.1                                                                        |127.0.0.2                |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
+;
+
+cidrMatchSimple
+
+from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
+warningRegex:evaluation of \[cidr_match\(ip1, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip         |ip1:ip
+eth1           |beta           |127.0.0.1      |127.0.0.2
+;
+
+cidrMatchNullField
+
+from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
+ignoreOrder:true
+warningRegex:evaluation of \[cidr_match\(ip0, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+cdirMatchMultipleArgs
+
+//tag::cdirMatchMultipleArgs[]
+FROM hosts
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32", "127.0.0.3/32")
+| KEEP card, host, ip0, ip1
+//end::cdirMatchMultipleArgs[]
+;
+ignoreOrder:true
+warning:Line 2:9: evaluation of [CIDR_MATCH(ip1, \"127.0.0.2/32\", \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+//tag::cdirMatchMultipleArgs-result[]
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+//end::cdirMatchMultipleArgs-result[]
+;
+
+cidrMatchFunctionArg
+
+from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
+ignoreOrder:true
+warning:Line 1:20: evaluation of [cidr_match(ip1, concat(\"127.0.0.2\", \"/32\"), \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+;
+
+cidrMatchFieldArg
+
+from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
+ignoreOrder:true
+warning:Line 1:44: evaluation of [cidr_match(ip1, cidr, \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+;
+
+convertFromIP
+from hosts | keep ip0 | eval ip0ip = to_ip(ip0) | sort ip0ip desc | limit 2;
+
+ip0:ip                                                |ip0ip:ip
+null                                                  |null
+[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+convertFromString
+// tag::to_ip[]
+ROW str1 = "1.1.1.1", str2 = "foo"
+| EVAL ip1 = TO_IP(str1), ip2 = TO_IP(str2)
+| WHERE CIDR_MATCH(ip1, "1.0.0.0/8")
+// end::to_ip[]
+;
+warning:Line 2:33: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:33: java.lang.IllegalArgumentException: 'foo' is not an IP string literal.
+
+// tag::to_ip-result[]
+str1:keyword |str2:keyword |ip1:ip  |ip2:ip
+1.1.1.1      |foo          |1.1.1.1 |null
+// end::to_ip-result[]
+;
+
+convertFromStringLeadingZerosDecimal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_decimal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"decimal"})
+// end::to_ip_leading_zeros_decimal[]
+;
+
+// tag::to_ip_leading_zeros_decimal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.10.1
+// end::to_ip_leading_zeros_decimal-result[]
+;
+
+convertFromStringLeadingZerosOctal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_octal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"octal"})
+// end::to_ip_leading_zeros_octal[]
+;
+
+// tag::to_ip_leading_zeros_octal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.8.1
+// end::to_ip_leading_zeros_octal-result[]
+;
+
+convertFromStringFancy
+required_capability: to_ip_leading_zeros
+FROM logs
+| KEEP @timestamp, system, message
+| EVAL client = CASE(
+    system == "ping",
+        TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
+    system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
+        TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
+| SORT @timestamp
+| LIMIT 4
+;
+
+@timestamp:date         |system:keyword|message:keyword                    |client:ip
+2023-10-23T13:55:01.543Z|          ping|Pinging 192.168.86.046             |192.168.86.38
+2023-10-23T13:55:01.544Z|          cron|Running cats                       |null
+2023-10-23T13:55:01.545Z|          java|Doing java stuff for 192.168.86.038|192.168.86.38
+2023-10-23T13:55:01.546Z|          java|More java stuff                    |null
+;
+
+toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
+ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.1.1
+;
+
+toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
+ROW s = "1.1.1.1" | SORT TO_IP(s)
+;
+
+s:keyword
+1.1.1.1
+;
+
+toIpInAggOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | STATS COUNT(*) BY ip = TO_IP(s, {"leading_zeros":"octal"})
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.8.1
+;
+
+toIpInSortOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | SORT TO_IP(s, {"leading_zeros":"octal"})
+;
+
+s:keyword
+1.1.010.1
+;
+
+cdirMatchOrsIPs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32") or CIDR_MATCH(ip0, "127.0.0.1") or CIDR_MATCH(ip1, "127.0.0.3/32") or CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9")
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:20: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:55: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:55: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |alpha          |127.0.0.1                |127.0.0.1
+eth0           |beta           |127.0.0.1                |::1
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth1           |beta           |127.0.0.1                |128.0.0.1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+;
+
+cdirMatchEqualsInsOrs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR CIDR_MATCH(ip0, "127.0.0.1") OR card IN ("eth0", "eth1") OR CIDR_MATCH(ip1, "127.0.0.3/32") OR card == "lo0" OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta"
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:58: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:58: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:93: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:93: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                            |ip1:ip
+eth0           |alpha          |127.0.0.1                                                                         |127.0.0.1
+eth1           |alpha          |::1                                                                               |::1
+eth0           |beta           |127.0.0.1                                                                         |::1
+eth1           |beta           |127.0.0.1                                                                         |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                         |128.0.0.1
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] |fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                              |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                         |127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
+;
+
+cidrMatchEqualsInsOrsIPs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR ip0 == "127.0.0.1" OR card IN ("eth0", "eth1") OR ip1 IN ("127.0.0.3", "127.0.0.1") OR card == "lo0" OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta"
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:58: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:58: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:82: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                            |ip1:ip
+eth0           |alpha          |127.0.0.1                                                                         |127.0.0.1
+eth1           |alpha          |::1                                                                               |::1
+eth0           |beta           |127.0.0.1                                                                         |::1
+eth1           |beta           |127.0.0.1                                                                         |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                         |128.0.0.1
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] |fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                              |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                         |127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
+;
+
+pushDownIP
+from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
+ignoreOrder:true
+warningRegex:evaluation of \[ip1 == to_ip\(\\\"::1\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip     |ip1:ip
+eth1           |alpha          |::1        |::1
+eth0           |beta           |127.0.0.1  |::1
+;
+
+pushDownIPWithIn
+
+from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
+ignoreOrder:true
+warning:Line 1:20: evaluation of [ip1 in (to_ip(\"::1\"), to_ip(\"127.0.0.1\"))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip      |ip1:ip
+eth0           |alpha          |127.0.0.1   |127.0.0.1
+eth1           |alpha          |::1         |::1
+eth0           |beta           |127.0.0.1   |::1
+;
+
+pushDownIPWithComparision
+
+from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
+ignoreOrder:true
+warningRegex:evaluation of \[ip1 > to_ip\(\\\"127.0.0.1\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |ip1:ip
+eth1           |127.0.0.2
+eth1           |128.0.0.1
+lo0            |fe81::cae2:65ff:fece:feb9
+eth0           |127.0.0.3
+eth0           |fe80::cae2:65ff:fece:fec1
+;
+
+mvSort
+required_capability: mv_sort
+
+FROM hosts
+| eval sd = mv_sort(ip1, "DESC"), sa = mv_sort(ip1)
+| sort host desc, ip1
+| keep host, ip1, sa, sd
+| limit 5
+;
+
+host:keyword | ip1:ip                                                 | sa:ip                                                  | sd:ip
+gamma        | 127.0.0.3                                              | 127.0.0.3                                              | 127.0.0.3
+gamma        | fe81::cae2:65ff:fece:feb9                              | fe81::cae2:65ff:fece:feb9                              | fe81::cae2:65ff:fece:feb9
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.3, 127.0.0.2, 127.0.0.1]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+mvSlice
+required_capability: mv_sort
+
+from hosts
+| where host == "epsilon"
+| eval a1 = mv_slice(ip1, 0, 1)
+| keep host, ip1, a1
+| sort host, ip1
+| limit 5;
+
+host:keyword | ip1:ip                                                 | a1:ip
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+mvSlice
+required_capability: mv_sort
+
+from hosts
+| where host == "epsilon"
+| eval a1 = mv_slice(ip1, 0, 1)
+| keep host, ip1, a1
+| sort host, ip1
+| limit 5;
+
+host:keyword | ip1:ip                                                 | a1:ip
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+mvZip
+required_capability: mv_sort
+
+from hosts
+| eval zip = mv_zip(to_string(description), to_string(ip0), "@@")
+| keep host, description, ip0, zip
+| sort host desc, ip0
+| limit 5
+;
+
+host:keyword | description:text              | ip0:ip                                                                            | zip:keyword
+gamma        | gamma k8s server              | fe80::cae2:65ff:fece:feb9                                                         | gamma k8s server@@fe80::cae2:65ff:fece:feb9
+gamma        | gamma k8s server              | fe80::cae2:65ff:fece:feb9                                                         | gamma k8s server@@fe80::cae2:65ff:fece:feb9
+epsilon      | epsilon gw instance           | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] | [epsilon gw instance@@fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [epsilon host, epsilon2 host] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                            | [epsilon host@@fe81::cae2:65ff:fece:feb9, epsilon2 host@@fe82::cae2:65ff:fece:fec0]
+epsilon      | null                          | null                                                                              | null
+;
+
+values
+required_capability: agg_values
+
+  FROM hosts
+| STATS ip0=MV_SORT(VALUES(ip0))
+;
+
+   ip0:ip
+[::1, 127.0.0.1, fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+valuesGrouped
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_SORT(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+         [::1, 127.0.0.1] | a
+                127.0.0.1 | b
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | e
+fe80::cae2:65ff:fece:feb9 | g
+;
+
+valuesGroupedByOrdinals
+required_capability: agg_values
+
+  FROM hosts
+| STATS ip0=MV_SORT(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+         [::1, 127.0.0.1] | alpha
+                127.0.0.1 | beta
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1, fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | epsilon
+fe80::cae2:65ff:fece:feb9 | gamma
+;
+
+implictCastingEqual
+required_capability: string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0 | sort host;
+
+host:keyword | ip0:ip
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+;
+
+implictCastingNotEqual
+required_capability: string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) != "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+alpha        | ::1
+epsilon      | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+implictCastingGreaterThan
+required_capability: string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) > "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+epsilon      | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+gamma        | fe80::cae2:65ff:fece:feb9
+;
+
+implictCastingLessThanOrEqual
+required_capability: string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) <= "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
+
+host:keyword | ip0:ip
+alpha        | ::1
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+;
+
+implictCastingIn
+required_capability: string_literal_auto_casting_extended
+from hosts | where mv_first(ip0) in ( "127.0.0.1", "::1") | keep host, ip0 | sort host, ip0;
+
+host:keyword | ip0:ip
+alpha        | ::1
+alpha        | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+beta         | 127.0.0.1
+;
+
+ipPrefix
+required_capability: fn_ip_prefix
+//tag::ipPrefix[]
+ROW ip4 = to_ip("1.2.3.4"), ip6 = TO_IP("fe80::cae2:65ff:fece:feb9")
+| EVAL ip4_prefix = IP_PREFIX(ip4, 24, 0), ip6_prefix = IP_PREFIX(ip6, 0, 112);
+//end::ipPrefix[]
+
+//tag::ipPrefix-result[]
+ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
+1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 1.2.3.0       | fe80::cae2:65ff:fece:0000
+//end::ipPrefix-result[]
+;
+
+ipPrefixCompleteIp
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
+| eval ip4_prefix = ip_prefix(ip4, 32, 0), ip6_prefix = ip_prefix(ip6, 0, 128);
+
+ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
+1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 1.2.3.4       | fe80::cae2:65ff:fece:feb9 
+;
+
+ipPrefixZeroBits
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
+| eval ip4_prefix = ip_prefix(ip4, 0, 128), ip6_prefix = ip_prefix(ip6, 32, 0);
+
+ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
+1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 0.0.0.0       | ::0
+;
+
+ipPrefixWithBits
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.255"), ip6 = to_ip("fe80::cae2:65ff:fece:feff")
+| eval ip4_prefix = ip_prefix(ip4, 25, 0), ip6_prefix = ip_prefix(ip6, 0, 121);
+
+ip4:ip    | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
+1.2.3.255 | fe80::cae2:65ff:fece:feff | 1.2.3.128     | fe80::cae2:65ff:fece:fe80
+;
+
+ipPrefixLengthFromColumn
+required_capability: fn_ip_prefix
+from hosts
+| where host == "alpha"
+| sort card
+| eval prefix = ip_prefix(ip0, 24, 120)
+| keep card, ip0, prefix;
+
+card:keyword | ip0:ip    | prefix:ip
+eth0         | 127.0.0.1 | 127.0.0.0
+eth1         | ::1       | ::0
+;
+
+ipPrefixLengthFromExpression
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9"), bits_per_byte = 8
+| eval ip4_length = 3 * bits_per_byte, ip4_prefix = ip_prefix(ip4, ip4_length, 0), ip6_prefix = ip_prefix(ip6, 0, 12 * 10);
+
+ip4:ip  | ip6:ip                    | bits_per_byte:integer | ip4_length:integer | ip4_prefix:ip | ip6_prefix:ip
+1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 8                     | 24                 | 1.2.3.0       | fe80::cae2:65ff:fece:fe00
+;
+
+ipPrefixAsGroup
+required_capability: fn_ip_prefix
+from hosts
+| stats count(*) by ip_prefix(ip1, 24, 120)
+| sort `ip_prefix(ip1, 24, 120)`;
+warningRegex:evaluation of \[ip_prefix\(ip1, 24, 120\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+count(*):long | ip_prefix(ip1, 24, 120):ip
+2             | ::0
+3             | 127.0.0.0
+1             | 128.0.0.0
+1             | fe80::cae2:65ff:fece:fe00
+1             | fe81::cae2:65ff:fece:fe00
+2             | null
+;
+
+ipPrefixWithWrongLengths
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.4")
+| eval a = ip_prefix(ip4, -1, 128), b = ip_prefix(ip4, 32, -1), c = ip_prefix(ip4, 33, 0), d = ip_prefix(ip4, 32, 129);
+warning:Line 2:12: evaluation of [ip_prefix(ip4, -1, 128)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found -1
+warning:Line 2:41: evaluation of [ip_prefix(ip4, 32, -1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Prefix length v6 must be in range [0, 128], found -1
+warning:Line 2:69: evaluation of [ip_prefix(ip4, 33, 0)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:69: java.lang.IllegalArgumentException: Prefix length v4 must be in range [0, 32], found 33
+warning:Line 2:96: evaluation of [ip_prefix(ip4, 32, 129)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:96: java.lang.IllegalArgumentException: Prefix length v6 must be in range [0, 128], found 129
+
+ip4:ip  | a:ip | b:ip | c:ip | d:ip
+1.2.3.4 | null | null | null | null
+;
+
+ipPrefixWithNullArguments
+required_capability: fn_ip_prefix
+row ip4 = to_ip("1.2.3.4")
+| eval a = ip_prefix(null, 32, 128), b = ip_prefix(ip4, null, 128), c = ip_prefix(ip4, 32, null);
+
+ip4:ip  | a:ip | b:ip | c:ip
+1.2.3.4 | null | null | null
+;

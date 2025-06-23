@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.test;
 
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.process.CommandLineArgumentProvider;
 
@@ -18,10 +18,6 @@ import java.util.stream.Collectors;
 
 public class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
     private final Map<String, Object> systemProperties = new LinkedHashMap<>();
-
-    public void systemProperty(String key, Provider<Object> value) {
-        systemProperties.put(key, (Supplier<String>) () -> String.valueOf(value.get()));
-    }
 
     public void systemProperty(String key, Supplier<String> value) {
         systemProperties.put(key, value);

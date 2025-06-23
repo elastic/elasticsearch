@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,12 +56,12 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 3, 3))
         );
@@ -70,23 +70,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -95,12 +91,12 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
 
     public void testConditionNotMetShardsNotInSync() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 8, 3))
         );
@@ -109,37 +105,33 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
         assertThat(exceptionHolder[0], nullValue());
         WaitForFollowShardTasksStep.Info info = (WaitForFollowShardTasksStep.Info) informationContextHolder[0];
-        assertThat(info.getShardFollowTaskInfos().size(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getShardId(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getLeaderGlobalCheckpoint(), equalTo(8L));
-        assertThat(info.getShardFollowTaskInfos().get(0).getFollowerGlobalCheckpoint(), equalTo(3L));
+        assertThat(info.shardFollowTaskInfos().size(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).shardId(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).leaderGlobalCheckpoint(), equalTo(8L));
+        assertThat(info.shardFollowTaskInfos().get(0).followerGlobalCheckpoint(), equalTo(3L));
     }
 
     public void testConditionNotMetNotAFollowerIndex() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
@@ -147,23 +139,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(
-            Metadata.builder().put(indexMetadata, true).build(),
-            indexMetadata.getIndex(),
-            new AsyncWaitStep.Listener() {
-                @Override
-                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                    conditionMetHolder[0] = conditionMet;
-                    informationContextHolder[0] = informationContext;
-                }
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder[0] = conditionMet;
+                informationContextHolder[0] = informationContext;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    exceptionHolder[0] = e;
-                }
-            },
-            MASTER_TIMEOUT
-        );
+            @Override
+            public void onFailure(Exception e) {
+                exceptionHolder[0] = e;
+            }
+        }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -214,7 +202,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             @SuppressWarnings("unchecked")
             ActionListener<FollowStatsAction.StatsResponses> listener = (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock
                 .getArguments()[2];
-            listener.onResponse(new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), statsResponses));
+            listener.onResponse(new FollowStatsAction.StatsResponses(List.of(), List.of(), statsResponses));
             return null;
         }).when(client).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());
     }

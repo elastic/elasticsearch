@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -16,10 +18,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -31,12 +33,12 @@ public class PipelineProcessorTests extends ESTestCase {
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
         IngestService ingestService = createIngestService();
-        CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
+        PlainActionFuture<IngestDocument> invoked = new PlainActionFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(pipelineId, null, null, null, new CompoundProcessor(new Processor() {
             @Override
-            public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                invoked.complete(ingestDocument);
+            public IngestDocument execute(final IngestDocument ingestDocument) {
+                invoked.onResponse(ingestDocument);
                 return ingestDocument;
             }
 
@@ -59,8 +61,8 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
-        factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e) -> {});
-        assertEquals(testIngestDocument, invoked.get());
+        factory.create(Map.of(), null, null, config, null).execute(testIngestDocument, (result, e) -> {});
+        assertIngestDocument(testIngestDocument, safeGet(invoked));
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {
@@ -70,7 +72,7 @@ public class PipelineProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("name", "missingPipelineId");
         IllegalStateException[] e = new IllegalStateException[1];
-        factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
+        factory.create(Map.of(), null, null, config, null).execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals("Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage());
     }
 
@@ -84,7 +86,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
         var r = new IngestDocument[1];
         var e = new Exception[1];
-        var processor = factory.create(Map.of(), null, null, config);
+        var processor = factory.create(Map.of(), null, null, config, null);
         processor.execute(testIngestDocument, (result, e1) -> {
             r[0] = result;
             e[0] = e1;
@@ -106,7 +108,7 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, outerConfig))
+            new CompoundProcessor(factory.create(Map.of(), null, null, outerConfig, null))
         );
         Map<String, Object> innerConfig = new HashMap<>();
         innerConfig.put("name", outerPipelineId);
@@ -115,13 +117,14 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, innerConfig))
+            new CompoundProcessor(factory.create(Map.of(), null, null, innerConfig, null))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         outerConfig.put("name", innerPipelineId);
         ElasticsearchException[] e = new ElasticsearchException[1];
-        factory.create(Map.of(), null, null, outerConfig).execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
+        factory.create(Map.of(), null, null, outerConfig, null)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
         assertEquals("Cycle detected for pipeline: inner", e[0].getRootCause().getMessage());
     }
 
@@ -134,7 +137,7 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline inner = new Pipeline(innerPipelineId, null, null, null, new CompoundProcessor());
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
-        Processor outerProc = factory.create(Map.of(), null, null, outerConfig);
+        Processor outerProc = factory.create(Map.of(), null, null, outerConfig, null);
         outerProc.execute(testIngestDocument, (result, e) -> {});
         outerProc.execute(testIngestDocument, (result, e) -> {});
     }
@@ -148,15 +151,23 @@ public class PipelineProcessorTests extends ESTestCase {
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
         pipeline1ProcessorConfig.put("name", pipeline2Id);
-        PipelineProcessor pipeline1Processor = factory.create(Map.of(), null, null, pipeline1ProcessorConfig);
+        PipelineProcessor pipeline1Processor = factory.create(Map.of(), null, null, pipeline1ProcessorConfig, null);
 
         Map<String, Object> pipeline2ProcessorConfig = new HashMap<>();
         pipeline2ProcessorConfig.put("name", pipeline3Id);
-        PipelineProcessor pipeline2Processor = factory.create(Map.of(), null, null, pipeline2ProcessorConfig);
+        PipelineProcessor pipeline2Processor = factory.create(Map.of(), null, null, pipeline2ProcessorConfig, null);
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
-        Pipeline pipeline1 = new Pipeline(pipeline1Id, null, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider);
+        Pipeline pipeline1 = new Pipeline(
+            pipeline1Id,
+            null,
+            null,
+            null,
+            new CompoundProcessor(pipeline1Processor),
+            relativeTimeProvider,
+            null
+        );
 
         String key1 = randomAlphaOfLength(10);
         relativeTimeProvider = mock(LongSupplier.class);
@@ -166,23 +177,17 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(
-                true,
-                List.of(new TestProcessor(ingestDocument -> { ingestDocument.setFieldValue(key1, randomInt()); }), pipeline2Processor),
-                List.of()
-            ),
-            relativeTimeProvider
+            new CompoundProcessor(true, List.of(new TestProcessor(ingestDocument -> {
+                ingestDocument.setFieldValue(key1, randomInt());
+            }), pipeline2Processor), List.of()),
+            relativeTimeProvider,
+            null
         );
         relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
-        Pipeline pipeline3 = new Pipeline(
-            pipeline3Id,
-            null,
-            null,
-            null,
-            new CompoundProcessor(new TestProcessor(ingestDocument -> { throw new RuntimeException("error"); })),
-            relativeTimeProvider
-        );
+        Pipeline pipeline3 = new Pipeline(pipeline3Id, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {
+            throw new RuntimeException("error");
+        })), relativeTimeProvider, null);
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);
         when(ingestService.getPipeline(pipeline3Id)).thenReturn(pipeline3);
@@ -198,24 +203,24 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestStats.Stats pipeline3Stats = pipeline3.getMetrics().createStats();
 
         // current
-        assertThat(pipeline1Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestCurrent(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestCurrent(), equalTo(0L));
+        assertThat(pipeline1Stats.ingestCurrent(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestCurrent(), equalTo(0L));
+        assertThat(pipeline3Stats.ingestCurrent(), equalTo(0L));
 
         // count
-        assertThat(pipeline1Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline2Stats.getIngestCount(), equalTo(1L));
-        assertThat(pipeline3Stats.getIngestCount(), equalTo(1L));
+        assertThat(pipeline1Stats.ingestCount(), equalTo(1L));
+        assertThat(pipeline2Stats.ingestCount(), equalTo(1L));
+        assertThat(pipeline3Stats.ingestCount(), equalTo(1L));
 
         // time
-        assertThat(pipeline1Stats.getIngestTimeInMillis(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestTimeInMillis(), equalTo(3L));
-        assertThat(pipeline3Stats.getIngestTimeInMillis(), equalTo(2L));
+        assertThat(pipeline1Stats.ingestTimeInMillis(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestTimeInMillis(), equalTo(3L));
+        assertThat(pipeline3Stats.ingestTimeInMillis(), equalTo(2L));
 
         // failure
-        assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
-        assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+        assertThat(pipeline1Stats.ingestFailedCount(), equalTo(0L));
+        assertThat(pipeline2Stats.ingestFailedCount(), equalTo(0L));
+        assertThat(pipeline3Stats.ingestFailedCount(), equalTo(1L));
     }
 
     public void testIngestPipelineMetadata() {

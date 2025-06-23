@@ -1,6 +1,0 @@
-pr: 88686
-summary: "Fix: do not allow map key types other than String"
-area: Aggregations
-type: bug
-issues:
- - 66057

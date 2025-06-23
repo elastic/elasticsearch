@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -41,7 +41,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
+    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) {
         SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(
             instance.getThreshold(),
             instance.getRng(),
@@ -130,6 +130,34 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
             e.getMessage(),
             equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted.")
         );
+    }
+
+    public void testMergeBigSmall() {
+        int threshold = 1000;
+
+        // Setup the first filter
+        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
+        int counter = 0;
+        Set<Long> values = new HashSet<>();
+        while (counter < threshold + 1) {
+            long value = randomLong();
+            filter.add(value);
+            boolean newValue = values.add(value);
+            if (newValue) {
+                counter += 1;
+            }
+        }
+
+        SetBackedScalingCuckooFilter filter2 = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
+        long value = randomLong();
+        while (filter.mightContain(value)) {
+            value = randomLong();
+        }
+
+        filter2.add(value);
+
+        filter.merge(filter2);
+        assertTrue(filter.mightContain(value));
     }
 
     public void testMergeSmall() {

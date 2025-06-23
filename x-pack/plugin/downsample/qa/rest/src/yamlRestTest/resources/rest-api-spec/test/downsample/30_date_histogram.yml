@@ -1,0 +1,713 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2020-01-01T00:00:00Z
+                end_time: 2022-01-01T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              total_memory_used:
+                type: integer
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "003", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": 120770 }'
+
+---
+"Date histogram aggregation on time series index and rollup indices":
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      test_runner_features: close_to
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0._index: "test-downsample" }
+  - match: { hits.hits.0._source._doc_count: 1 }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.uid: "003" }
+  - close_to: { hits.hits.0._source.total_memory_used.min: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.max: { value: 109009.0, error: 0.00001 } }
+  - close_to: { hits.hits.0._source.total_memory_used.sum: { value: 109009.0, error: 0.00001 } }
+  - match: { hits.hits.0._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.1._index: "test-downsample" }
+  - match: { hits.hits.1._source._doc_count: 1 }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.1._source.uid: "004" }
+  - close_to: { hits.hits.1._source.total_memory_used.min: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.max: { value: 120770.0, error: 0.00001 } }
+  - close_to: { hits.hits.1._source.total_memory_used.sum: { value: 120770.0, error: 0.00001 } }
+  - match: { hits.hits.1._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.2._index: "test-downsample" }
+  - match: { hits.hits.2._source._doc_count: 1 }
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.2._source.uid: "002" }
+  - close_to: { hits.hits.2._source.total_memory_used.min: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.max: { value: 110450.0, error: 0.00001 } }
+  - close_to: { hits.hits.2._source.total_memory_used.sum: { value: 110450.0, error: 0.00001 } }
+  - match: { hits.hits.2._source.total_memory_used.value_count: 1 }
+
+  - match: { hits.hits.3._index: "test-downsample" }
+  - match: { hits.hits.3._source._doc_count: 1 }
+  - match: { hits.hits.3._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.3._source.uid: "001" }
+  - close_to: { hits.hits.3._source.total_memory_used.min: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.max: { value: 106780.0, error: 0.00001 } }
+  - close_to: { hits.hits.3._source.total_memory_used.sum: { value: 106780.0, error: 0.00001 } }
+  - match: { hits.hits.3._source.total_memory_used.value_count: 1 }
+
+  # date histogram aggregation with calendar interval on rollup index not supported
+  - do:
+      catch: bad_request
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: hour
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
+
+  # date histogram aggregation with calendar interval on time series index supported
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: hour
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0..doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z"}
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  # date histogram aggregation with non-utc timezone on time series index supported
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0..doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  # date histogram aggregation with fixed interval and utc timezone on rollup index supported
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                min_doc_count: 1
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+
+  # date histogram aggregation with fixed interval and utc timezone on time series index supported
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                min_doc_count: 1
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+
+  # date histogram aggregation on both indices resulting in partial results and shard failures
+  - do:
+      search:
+        index: test,test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                calendar_interval: hour
+                min_doc_count: 1
+
+  # NOTE: the rollup index is created with the same number of shards of the source index.
+  # As a result we have 1 shard for the 'test' index and 1 shard for the 'test-downsample' index.
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 1 }
+  - match: { _shards.failed: 1 }
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - length: { _shards.failures: 1 }
+  - match: { _shards.failures.0.index: "test-downsample" }
+  - match: { _shards.failures.0.reason.type: illegal_argument_exception }
+  - match: { _shards.failures.0.reason.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
+
+---
+timezone support - 15m:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "timezone support added in 8.13"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          # Check timezone support
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:05:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:55:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:05:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:55:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T12:05:00Z", "uid": "001", "total_memory_used": 120770 }'
+          # Check daylight savings
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T05:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T06:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T07:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T09:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "15m"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-28T15:00:00Z"
+                lt: "2021-04-29T15:00:00Z"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "-01:15"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-27T15:00:00Z"
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T08:00:00.000-01:15" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T09:00:00.000-01:15" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T10:00:00.000-01:15" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "+02:15"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-27T15:00:00Z"
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T12:00:00.000+02:15" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T13:00:00.000+02:15" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T14:00:00.000+02:15" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  # Check timezone with daylight savings
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2020-03-08T00:00:00Z"
+                lt: "2020-03-10T00:00:00Z"
+
+  - match: { hits.total.value: 10 }
+  - length: { aggregations.date_histogram.buckets: 7 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2020-03-08T23:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2020-03-09T01:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.3.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.3.key_as_string: "2020-03-09T02:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.4.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.4.key_as_string: "2020-03-09T03:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.5.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.5.key_as_string: "2020-03-09T04:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.6.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.6.key_as_string: "2020-03-09T05:00:00.000-04:00" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1d
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2020-03-08T00:00:00Z"
+                lt: "2020-03-10T00:00:00Z"
+
+  - match: { hits.total.value: 10 }
+  - length: { aggregations.date_histogram.buckets: 2 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2020-03-08T00:00:00.000-05:00" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 8 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+---
+timezone support - 1h:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "timezone support added in 8.13"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          # Check timezone support
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:05:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:55:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:05:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:55:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T12:05:00Z", "uid": "001", "total_memory_used": 120770 }'
+          # Check daylight savings
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T05:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T06:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T07:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T09:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-28T15:00:00Z"
+                lt: "2021-04-29T15:00:00Z"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "-01:15"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-27T15:00:00Z"
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.date_histogram.downsampled_results_offset: true }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T08:45:00.000-01:15" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T09:45:00.000-01:15" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T10:45:00.000-01:15" }
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "+02:15"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-27T15:00:00Z"
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.date_histogram.downsampled_results_offset: true }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T12:15:00.000+02:15" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T13:15:00.000+02:15" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T14:15:00.000+02:15" }
+
+  # Check timezone with daylight savings
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2020-03-08T00:00:00Z"
+                lt: "2020-03-10T00:00:00Z"
+
+  - match: { hits.total.value: 7 }
+  - length: { aggregations.date_histogram.buckets: 7 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2020-03-08T23:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2020-03-09T01:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.3.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.3.key_as_string: "2020-03-09T02:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.4.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.4.key_as_string: "2020-03-09T03:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.5.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.5.key_as_string: "2020-03-09T04:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.6.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.6.key_as_string: "2020-03-09T05:00:00.000-04:00" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1d
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2020-03-08T00:00:00Z"
+                lt: "2020-03-10T00:00:00Z"
+
+  - match: { hits.total.value: 7 }
+  - length: { aggregations.date_histogram.buckets: 2 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2020-03-08T00:00:00.000-05:00" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 8 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
+  - is_false: aggregations.date_histogram.downsampled_results_offset
+
+---
+timezone support - 1d:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "timezone support added in 8.13"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          # Check daylight savings
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-08T03:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-08T03:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T03:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T04:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T05:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T06:00:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T07:50:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:00:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-09T08:50:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2020-03-10T09:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1d"
+          }
+
+  - is_true: acknowledged
+
+  # Check timezone with daylight savings
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1d
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2020-03-01T00:00:00Z"
+                lt: "2020-03-30T00:00:00Z"
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.date_histogram.downsampled_results_offset: true }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2020-03-07T19:00:00.000-05:00" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 9 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2020-03-08T19:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2020-03-09T19:00:00.000-04:00" }

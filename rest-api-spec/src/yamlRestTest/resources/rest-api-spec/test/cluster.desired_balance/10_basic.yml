@@ -1,11 +1,11 @@
 ---
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "API added in in 8.6.0"
 
 ---
-"Test empty desired balance":
+"Test get empty desired balance":
 
   - do:
       _internal.get_desired_balance: { }
@@ -20,37 +20,7 @@ setup:
   - match: { routing_table: {} }
 
 ---
-"Test cluster_balance_stats":
-
-  - skip:
-      version: " - 8.6.99"
-      reason: "Field added in in 8.7.0"
-
-  - do:
-      _internal.get_desired_balance: { }
-
-  - is_true: 'cluster_balance_stats'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.total'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.min'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.max'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.average'
-  - is_true: 'cluster_balance_stats.data_content.total_shard_size.std_dev'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.total'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.min'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.max'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.average'
-  - is_true: 'cluster_balance_stats.data_content.total_write_load.std_dev'
-  - is_true: 'cluster_balance_stats.data_content.shard_count'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.total'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.min'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.max'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.average'
-  - is_true: 'cluster_balance_stats.data_content.shard_count.std_dev'
-
----
-"Test get desired balance for single shard":
+"Test get desired balance for a single shard":
   - do:
       indices.create:
         index: test
@@ -81,9 +51,193 @@ setup:
   - is_true: 'routing_table.test.0.current.0.node_is_desired'
   - is_false: 'routing_table.test.0.current.0.relocating_node'
   - is_false: 'routing_table.test.0.current.0.relocating_node_is_desired'
-  - is_false: 'routing_table.test.0.current.0.forecasted_write_load'
-  - is_false: 'routing_table.test.0.current.0.forecasted_shard_size_in_bytes'
+  - is_false: 'routing_table.test.0.current.0.forecast_write_load'
+  - is_false: 'routing_table.test.0.current.0.forecast_shard_size_in_bytes'
   - match: { routing_table.test.0.desired.total: 1 }
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }
   - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
+"Test cluster_balance_stats":
+
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
+      reason: "cluster_balance_stats added in in 8.7.0"
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - exists: 'cluster_balance_stats'
+  - exists: 'cluster_balance_stats.tiers'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.shard_count.std_dev'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_write_load.std_dev'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.forecast_disk_usage.std_dev'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.actual_disk_usage.std_dev'
+  - exists: 'cluster_balance_stats.nodes'
+  - exists: 'cluster_balance_stats.nodes.$node_name'
+  - gte: { 'cluster_balance_stats.nodes.$node_name.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_write_load': 0.0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.forecast_disk_usage_bytes' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
+
+---
+"Test cluster_info":
+
+  - requires:
+      cluster_features: [gte_v8.8.0]
+      reason: "cluster_info added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - exists: 'cluster_info'
+
+---
+"Test cluster_balance_stats contains node ID and roles":
+
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "node_id and roles added in in 8.8.0"
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - exists: 'cluster_balance_stats.nodes.$node_name'
+  - exists: 'cluster_balance_stats.nodes.$node_name.node_id'
+  - exists: 'cluster_balance_stats.nodes.$node_name.roles'
+
+---
+"Test tier_preference":
+
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "tier_preference added in in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - exists: 'routing_table.test.0.current.0.tier_preference'
+
+---
+"Test computed_shard_movements":
+
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "computed_shard_movements added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computed_shard_movements: 0 }
+
+---
+"Test reset desired balance":
+
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "reset API added in in 8.8.0"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: DELETE
+          path: /_internal/desired_balance
+          capabilities: [ plain_text_empty_response ]
+
+  - do:
+      _internal.delete_desired_balance: { }
+
+---
+"Test undesired_shard_allocation_count":
+
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      cluster.state: {}
+  - set: { nodes._arbitrary_key_ : node_id }
+  - set: { nodes.$node_id.name : node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { 'cluster_balance_stats.shard_count' : 0 }
+  - gte: { 'cluster_balance_stats.undesired_shard_allocation_count' : 0 }
+  - gte: { 'cluster_balance_stats.nodes.$node_name.undesired_shard_allocation_count' : 0 }
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.std_dev'
+
+---
+"Test unassigned_shards, total_allocations, undesired_allocations and undesired_allocations_fraction":
+
+  - requires:
+      cluster_features: [ "gte_v8.12.0" ]
+      reason: "undesired_shard_allocation_count added in in 8.12.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { 'stats.unassigned_shards' : 0 }
+  - gte: { 'stats.total_allocations' : 0 }
+  - gte: { 'stats.undesired_allocations' : 0 }
+  - gte: { 'stats.undesired_allocations_ratio' : 0.0 }

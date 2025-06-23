@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -15,7 +16,8 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -33,10 +35,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,8 +48,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -54,8 +57,6 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class ServerProcessTests extends ESTestCase {
 
@@ -64,11 +65,13 @@ public class ServerProcessTests extends ESTestCase {
     protected final Map<String, String> sysprops = new HashMap<>();
     protected final Map<String, String> envVars = new HashMap<>();
     Path esHomeDir;
+    Path logsDir;
     Settings.Builder nodeSettings;
-    ServerProcess.OptionsBuilder optionsBuilder;
     ProcessValidator processValidator;
     MainMethod mainCallback;
+    Runnable forceStopCallback;
     MockElasticsearchProcess process;
+    SecureSettings secrets;
 
     interface MainMethod {
         void main(ServerArgs args, InputStream stdin, PrintStream stderr, AtomicInteger exitCode) throws IOException;
@@ -79,22 +82,25 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     int runForeground() throws Exception {
-        var server = startProcess(false, false, "");
+        var server = startProcess(false, false);
         return server.waitFor();
     }
 
     @Before
     public void resetEnv() {
+        esHomeDir = createTempDir();
         terminal.reset();
         sysprops.clear();
         sysprops.put("os.name", "Linux");
         sysprops.put("java.home", "javahome");
+        sysprops.put("es.path.home", esHomeDir.toString());
+        logsDir = esHomeDir.resolve("logs");
         envVars.clear();
-        esHomeDir = createTempDir();
         nodeSettings = Settings.builder();
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> new ArrayList<>();
         processValidator = null;
         mainCallback = null;
+        forceStopCallback = null;
+        secrets = KeyStoreWrapper.create();
     }
 
     @AfterClass
@@ -121,9 +127,11 @@ public class ServerProcessTests extends ESTestCase {
                 var in = new InputStreamStreamInput(stdin);
                 try {
                     var serverArgs = new ServerArgs(in);
-                    if (mainCallback != null) {
-                        try (var err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+                    try (var err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+                        if (mainCallback != null) {
                             mainCallback.main(serverArgs, stdin, err, exitCode);
+                        } else {
+                            err.println(SERVER_READY_MARKER);
                         }
                     }
                 } catch (IOException e) {
@@ -161,6 +169,8 @@ public class ServerProcessTests extends ESTestCase {
                 main.get();
             } catch (ExecutionException e) {
                 throw new AssertionError(e);
+            } catch (CancellationException e) {
+                return 137; // process killed
             }
             if (processException.get() != null) {
                 throw new AssertionError("Process failed", processException.get());
@@ -186,22 +196,35 @@ public class ServerProcessTests extends ESTestCase {
 
         public Process destroyForcibly() {
             main.cancel(true);
+            IOUtils.closeWhileHandlingException(stdin, stderr);
+            forceStopCallback.run();
             return this;
         }
     }
 
-    ServerProcess startProcess(boolean daemonize, boolean quiet, String keystorePassword) throws Exception {
-        var pinfo = new ProcessInfo(Map.copyOf(sysprops), Map.copyOf(envVars), esHomeDir);
-        SecureString password = new SecureString(keystorePassword.toCharArray());
-        var args = new ServerArgs(daemonize, quiet, null, password, nodeSettings.build(), esHomeDir.resolve("config"));
-        ServerProcess.ProcessStarter starter = pb -> {
+    ProcessInfo createProcessInfo() {
+        return new ProcessInfo(Map.copyOf(sysprops), Map.copyOf(envVars), esHomeDir);
+    }
+
+    ServerArgs createServerArgs(boolean daemonize, boolean quiet) {
+        return new ServerArgs(daemonize, quiet, null, secrets, nodeSettings.build(), esHomeDir.resolve("config"), logsDir);
+    }
+
+    ServerProcess startProcess(boolean daemonize, boolean quiet) throws Exception {
+        var pinfo = createProcessInfo();
+        ServerProcessBuilder.ProcessStarter starter = pb -> {
             if (processValidator != null) {
                 processValidator.validate(pb);
             }
             process = new MockElasticsearchProcess();
             return process;
         };
-        return ServerProcess.start(terminal, pinfo, args, null, optionsBuilder, starter);
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(pinfo)
+            .withServerArgs(createServerArgs(daemonize, quiet))
+            .withJvmOptions(List.of())
+            .withTempDir(ServerProcessUtils.setupTempDir(pinfo));
+        return serverProcessBuilder.start(starter);
     }
 
     public void testProcessBuilder() throws Exception {
@@ -209,11 +232,12 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectInput(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.redirectOutput(), equalTo(ProcessBuilder.Redirect.INHERIT));
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
-            assertThat(pb.directory(), nullValue()); // leave default, which is working directory
+            assertThat(String.valueOf(pb.directory()), equalTo(esHomeDir.resolve("logs").toString()));
         };
         mainCallback = (args, stdin, stderr, exitCode) -> {
             try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
                 err.println("stderr message");
+                err.println(SERVER_READY_MARKER);
             }
         };
         runForeground();
@@ -221,7 +245,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testPid() throws Exception {
-        var server = startProcess(true, false, "");
+        var server = startProcess(true, false);
         assertThat(server.pid(), equalTo(12345L));
         server.stop();
     }
@@ -231,23 +255,15 @@ public class ServerProcessTests extends ESTestCase {
             stderr.println("a bootstrap exception");
             exitCode.set(ExitCodes.CONFIG);
         };
-        int exitCode = runForeground();
-        assertThat(exitCode, equalTo(ExitCodes.CONFIG));
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
         assertThat(terminal.getErrorOutput(), containsString("a bootstrap exception"));
     }
 
-    public void testStartError() throws Exception {
+    public void testStartError() {
         processValidator = pb -> { throw new IOException("something went wrong"); };
-        var e = expectThrows(UncheckedIOException.class, () -> runForeground());
+        var e = expectThrows(UncheckedIOException.class, this::runForeground);
         assertThat(e.getCause().getMessage(), equalTo("something went wrong"));
-    }
-
-    public void testOptionsBuildingInterrupted() throws Exception {
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
-            throw new InterruptedException("interrupted while get jvm options");
-        };
-        var e = expectThrows(RuntimeException.class, () -> runForeground());
-        assertThat(e.getCause().getMessage(), equalTo("interrupted while get jvm options"));
     }
 
     public void testEnvPassthrough() throws Exception {
@@ -268,83 +284,48 @@ public class ServerProcessTests extends ESTestCase {
         runForeground();
     }
 
-    public void testTempDir() throws Exception {
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
-            assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
-            assertThat(tmpDir.getFileName().toString(), startsWith("elasticsearch-"));
-            return new ArrayList<>();
-        };
-        runForeground();
-    }
-
-    public void testTempDirWindows() throws Exception {
-        Path baseTmpDir = createTempDir();
-        sysprops.put("os.name", "Windows 10");
-        sysprops.put("java.io.tmpdir", baseTmpDir.toString());
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
-            assertThat(tmpDir.toString(), Files.exists(tmpDir), is(true));
-            assertThat(tmpDir.getFileName().toString(), equalTo("elasticsearch"));
-            assertThat(tmpDir.getParent().toString(), equalTo(baseTmpDir.toString()));
-            return new ArrayList<>();
-        };
-        runForeground();
-    }
-
-    public void testTempDirOverride() throws Exception {
+    public void testEnvCleared() throws Exception {
         Path customTmpDir = createTempDir();
         envVars.put("ES_TMPDIR", customTmpDir.toString());
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
-            assertThat(tmpDir.toString(), equalTo(customTmpDir.toString()));
-            return new ArrayList<>();
-        };
-        processValidator = pb -> assertThat(pb.environment(), not(hasKey("ES_TMPDIR")));
-        runForeground();
-    }
-
-    public void testTempDirOverrideMissing() throws Exception {
-        Path baseDir = createTempDir();
-        envVars.put("ES_TMPDIR", baseDir.resolve("dne").toString());
-        var e = expectThrows(UserException.class, () -> runForeground());
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e.getMessage(), containsString("dne] does not exist"));
-    }
-
-    public void testTempDirOverrideNotADirectory() throws Exception {
-        Path tmpFile = createTempFile();
-        envVars.put("ES_TMPDIR", tmpFile.toString());
-        var e = expectThrows(UserException.class, () -> runForeground());
-        assertThat(e.exitCode, equalTo(ExitCodes.CONFIG));
-        assertThat(e.getMessage(), containsString("is not a directory"));
-    }
-
-    public void testCustomJvmOptions() throws Exception {
         envVars.put("ES_JAVA_OPTS", "-Dmyoption=foo");
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> {
-            assertThat(envOptions, equalTo("-Dmyoption=foo"));
-            return new ArrayList<>();
+
+        processValidator = pb -> {
+            assertThat(pb.environment(), not(hasKey("ES_TMPDIR")));
+            assertThat(pb.environment(), not(hasKey("ES_JAVA_OPTS")));
         };
-        processValidator = pb -> assertThat(pb.environment(), not(hasKey("ES_JAVA_OPTS")));
         runForeground();
     }
 
     public void testCommandLineSysprops() throws Exception {
-        optionsBuilder = (args, keystore, configDir, tmpDir, envOptions) -> List.of("-Dfoo1=bar", "-Dfoo2=baz");
-        processValidator = pb -> {
-            assertThat(pb.command(), contains("-Dfoo1=bar"));
-            assertThat(pb.command(), contains("-Dfoo2=bar"));
+        ServerProcessBuilder.ProcessStarter starter = pb -> {
+            assertThat(pb.command(), hasItems("-Dfoo1=bar", "-Dfoo2=baz"));
+            process = new MockElasticsearchProcess();
+            return process;
         };
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(createProcessInfo())
+            .withServerArgs(createServerArgs(false, false))
+            .withJvmOptions(List.of("-Dfoo1=bar", "-Dfoo2=baz"))
+            .withTempDir(Path.of("."));
+        serverProcessBuilder.start(starter).waitFor();
+    }
+
+    public void testServerProcessBuilderMissingArgumentError() throws Exception {
+        ServerProcessBuilder.ProcessStarter starter = pb -> new MockElasticsearchProcess();
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(createProcessInfo())
+            .withServerArgs(createServerArgs(false, false))
+            .withTempDir(Path.of("."));
+        var ex = expectThrows(IllegalStateException.class, () -> serverProcessBuilder.start(starter).waitFor());
+        assertThat(ex.getMessage(), equalTo("'jvmOptions' is a required argument and needs to be specified before calling start()"));
     }
 
     public void testCommandLine() throws Exception {
         String mainClass = "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch";
-        String distroSysprop = "-Des.distribution.type=testdistro";
         String modulePath = esHomeDir.resolve("lib").toString();
         Path javaBin = Paths.get("javahome").resolve("bin");
-        sysprops.put("es.distribution.type", "testdistro");
         AtomicReference<String> expectedJava = new AtomicReference<>(javaBin.resolve("java").toString());
-        processValidator = pb -> {
-            assertThat(pb.command(), hasItems(expectedJava.get(), distroSysprop, "--module-path", modulePath, "-m", mainClass));
-        };
+        processValidator = pb -> { assertThat(pb.command(), hasItems(expectedJava.get(), "--module-path", modulePath, "-m", mainClass)); };
         runForeground();
 
         sysprops.put("os.name", "Windows 10");
@@ -356,13 +337,13 @@ public class ServerProcessTests extends ESTestCase {
     public void testDetach() throws Exception {
         mainCallback = (args, stdin, stderr, exitCode) -> {
             assertThat(args.daemonize(), equalTo(true));
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("final message");
             stderr.close();
             // will block until stdin closed manually after test
             assertThat(stdin.read(), equalTo(-1));
         };
-        var server = startProcess(true, false, "");
+        var server = startProcess(true, false);
         server.detach();
         assertThat(terminal.getErrorOutput(), containsString("final message"));
         server.stop(); // this should be a noop, and will fail the stdin read assert above if shutdown sent
@@ -372,49 +353,96 @@ public class ServerProcessTests extends ESTestCase {
     public void testStop() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             nonInterruptibleVoid(mainReady::await);
             stderr.println("final message");
         };
-        var server = startProcess(false, false, "");
+        var server = startProcess(false, false);
         mainReady.countDown();
         server.stop();
         assertThat(process.main.isDone(), is(true)); // stop should have waited
         assertThat(terminal.getErrorOutput(), containsString("final message"));
     }
 
+    public void testForceStop() throws Exception {
+        CountDownLatch blockMain = new CountDownLatch(1);
+        CountDownLatch inMain = new CountDownLatch(1);
+        mainCallback = (args, stdin, stderr, exitCode) -> {
+            stderr.println(SERVER_READY_MARKER);
+            inMain.countDown();
+            nonInterruptibleVoid(blockMain::await);
+        };
+        var server = startProcess(false, false);
+        nonInterruptibleVoid(inMain::await);
+        forceStopCallback = blockMain::countDown;
+        server.forceStop();
+
+        assertThat(process.main.isCancelled(), is(true)); // stop should have waited
+    }
+
     public void testWaitFor() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             mainReady.countDown();
             assertThat(stdin.read(), equalTo((int) BootstrapInfo.SERVER_SHUTDOWN_MARKER));
             stderr.println("final message");
         };
-        var server = startProcess(false, false, "");
+        var server = startProcess(false, false);
+
+        CompletableFuture<Void> stopping = new CompletableFuture<>();
         new Thread(() -> {
-            // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
-            nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            try {
+                // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
+                nonInterruptibleVoid(mainReady::await);
+                server.stop();
+                stopping.complete(null);
+            } catch (Throwable e) {
+                stopping.completeExceptionally(e);
+            }
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
         assertThat(exitCode, equalTo(0));
         assertThat(terminal.getErrorOutput(), containsString("final message"));
+        // rethrow any potential exception observed while stopping
+        stopping.get();
     }
 
     public void testProcessDies() throws Exception {
         CountDownLatch mainExit = new CountDownLatch(1);
         mainCallback = (args, stdin, stderr, exitCode) -> {
-            stderr.println(BootstrapInfo.SERVER_READY_MARKER);
+            stderr.println(SERVER_READY_MARKER);
             stderr.println("fatal message");
             stderr.close(); // mimic pipe break if cli process dies
             nonInterruptibleVoid(mainExit::await);
             exitCode.set(-9);
         };
-        var server = startProcess(false, false, "");
+        var server = startProcess(false, false);
         mainExit.countDown();
         int exitCode = server.waitFor();
         assertThat(exitCode, equalTo(-9));
+    }
+
+    public void testLogsDirIsFile() throws Exception {
+        Files.createFile(logsDir);
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.getMessage(), containsString("exists but is not a directory"));
+    }
+
+    public void testLogsDirCreateParents() throws Exception {
+        Path testDir = createTempDir();
+        logsDir = testDir.resolve("subdir/logs");
+        processValidator = pb -> assertThat(String.valueOf(pb.directory()), equalTo(logsDir.toString()));
+        runForeground();
+    }
+
+    public void testLogsCreateFailure() throws Exception {
+        Path testDir = createTempDir();
+        Path parentFile = testDir.resolve("exists");
+        Files.createFile(parentFile);
+        logsDir = parentFile.resolve("logs");
+        var e = expectThrows(UserException.class, this::runForeground);
+        assertThat(e.getMessage(), containsString("Unable to create logs dir"));
     }
 }

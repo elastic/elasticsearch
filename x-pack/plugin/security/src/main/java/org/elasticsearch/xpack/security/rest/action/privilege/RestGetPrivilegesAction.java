@@ -10,11 +10,12 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
@@ -35,6 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to retrieve an application privilege from the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestGetPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
@@ -44,13 +46,9 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/privilege/").replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/privilege/{application}")
-                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/_security/privilege/{application}/{privilege}")
-                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7)
-                .build()
+            new Route(GET, "/_security/privilege/"),
+            new Route(GET, "/_security/privilege/{application}"),
+            new Route(GET, "/_security/privilege/{application}/{privilege}")
         );
     }
 

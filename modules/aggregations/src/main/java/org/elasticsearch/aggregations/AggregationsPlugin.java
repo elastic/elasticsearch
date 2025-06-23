@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations;
@@ -23,7 +24,6 @@ import org.elasticsearch.aggregations.pipeline.Derivative;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -55,15 +55,10 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
             new AggregationSpec(MatrixStatsAggregationBuilder.NAME, MatrixStatsAggregationBuilder::new, new MatrixStatsParser())
                 .addResultReader(InternalMatrixStats::new)
         );
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            specs.add(
-                new AggregationSpec(
-                    TimeSeriesAggregationBuilder.NAME,
-                    TimeSeriesAggregationBuilder::new,
-                    TimeSeriesAggregationBuilder.PARSER
-                ).addResultReader(InternalTimeSeries::new)
-            );
-        }
+        specs.add(
+            new AggregationSpec(TimeSeriesAggregationBuilder.NAME, TimeSeriesAggregationBuilder::new, TimeSeriesAggregationBuilder.PARSER)
+                .addResultReader(InternalTimeSeries::new)
+        );
         return List.copyOf(specs);
     }
 

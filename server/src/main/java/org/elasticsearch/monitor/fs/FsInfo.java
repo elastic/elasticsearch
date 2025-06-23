@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.fs;
 
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -28,18 +32,22 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
-        @Nullable
-        String mount;
-        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
-        @Nullable
-        String type;
+        /** File system string from {@link FileStore#toString()}. The concrete subclasses of FileStore have meaningful toString methods. */
+        String mount; // e.g. "/app (/dev/mapper/lxc-data)", "/System/Volumes/Data (/dev/disk1s2)", "Local Disk (C:)", etc.
+        /** File system type from {@link FileStore#type()}. */
+        String type; // e.g. "xfs", "apfs", "NTFS", etc.
         long total = -1;
         long free = -1;
         long available = -1;
 
+        ByteSizeValue lowWatermarkFreeSpace = null;
+        ByteSizeValue highWatermarkFreeSpace = null;
+        ByteSizeValue floodStageWatermarkFreeSpace = null;
+        ByteSizeValue frozenFloodStageWatermarkFreeSpace = null;
+
         public Path() {}
 
-        public Path(String path, @Nullable String mount, long total, long free, long available) {
+        public Path(String path, String mount, long total, long free, long available) {
             this.path = path;
             this.mount = mount;
             this.total = total;
@@ -51,7 +59,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
          * Read from a stream.
          */
         public Path(StreamInput in) throws IOException {
-            path = in.readOptionalString();
+            path = in.readOptionalString(); // total aggregates do not have a path, mount, or type
             mount = in.readOptionalString();
             type = in.readOptionalString();
             total = in.readLong();
@@ -61,7 +69,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(path); // total aggregates do not have a path
+            out.writeOptionalString(path); // total aggregates do not have a path, mount, or type
             out.writeOptionalString(mount);
             out.writeOptionalString(type);
             out.writeLong(total);
@@ -93,6 +101,35 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return ByteSizeValue.ofBytes(available);
         }
 
+        public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
+            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.of(total, ByteSizeUnit.BYTES));
+            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.of(total, ByteSizeUnit.BYTES));
+            floodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFloodStage(
+                ByteSizeValue.of(total, ByteSizeUnit.BYTES)
+            );
+            if (isDedicatedFrozenNode) {
+                frozenFloodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
+                    ByteSizeValue.of(total, ByteSizeUnit.BYTES)
+                );
+            }
+        }
+
+        public ByteSizeValue getLowWatermarkFreeSpace() {
+            return lowWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getHighWatermarkFreeSpace() {
+            return highWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFloodStageWatermarkFreeSpace() {
+            return floodStageWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFrozenFloodStageWatermarkFreeSpace() {
+            return frozenFloodStageWatermarkFreeSpace;
+        }
+
         private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
@@ -122,6 +159,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String LOW_WATERMARK_FREE_SPACE = "low_watermark_free_space";
+            static final String LOW_WATERMARK_FREE_SPACE_IN_BYTES = "low_watermark_free_space_in_bytes";
+            static final String HIGH_WATERMARK_FREE_SPACE = "high_watermark_free_space";
+            static final String HIGH_WATERMARK_FREE_SPACE_IN_BYTES = "high_watermark_free_space_in_bytes";
+            static final String FLOOD_STAGE_FREE_SPACE = "flood_stage_free_space";
+            static final String FLOOD_STAGE_FREE_SPACE_IN_BYTES = "flood_stage_free_space_in_bytes";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE = "frozen_flood_stage_free_space";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES = "frozen_flood_stage_free_space_in_bytes";
         }
 
         @Override
@@ -145,6 +190,35 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             }
             if (available != -1) {
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
+            }
+
+            if (lowWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.LOW_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.LOW_WATERMARK_FREE_SPACE,
+                    getLowWatermarkFreeSpace()
+                );
+            }
+            if (highWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.HIGH_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.HIGH_WATERMARK_FREE_SPACE,
+                    getHighWatermarkFreeSpace()
+                );
+            }
+            if (floodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FLOOD_STAGE_FREE_SPACE,
+                    getFloodStageWatermarkFreeSpace()
+                );
+            }
+            if (frozenFloodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE,
+                    getFrozenFloodStageWatermarkFreeSpace()
+                );
             }
 
             builder.endObject();
@@ -461,6 +535,19 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         this.total = total();
     }
 
+    public static FsInfo setEffectiveWatermarks(
+        @Nullable final FsInfo fsInfo,
+        @Nullable final DiskThresholdSettings masterThresholdSettings,
+        boolean isDedicatedFrozenNode
+    ) {
+        if (fsInfo != null && masterThresholdSettings != null) {
+            for (Path path : fsInfo.paths) {
+                path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+            }
+        }
+        return fsInfo;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
@@ -476,8 +563,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Path res = new Path();
         Set<String> seenDevices = Sets.newHashSetWithExpectedSize(paths.length);
         for (Path subPath : paths) {
-            if (subPath.path != null) {
-                if (seenDevices.add(subPath.path) == false) {
+            if (subPath.mount != null) {
+                if (seenDevices.add(subPath.mount) == false) {
                     continue; // already added numbers for this device;
                 }
             }

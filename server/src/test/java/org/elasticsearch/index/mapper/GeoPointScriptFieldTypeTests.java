@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,10 +22,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -33,6 +34,7 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.Source;
@@ -43,9 +45,20 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    @Override
+    protected ScriptFactory parseFromSource() {
+        return GeoPointFieldScript.PARSE_FROM_SOURCE;
+    }
+
+    @Override
+    protected ScriptFactory dummyScript() {
+        return GeoPointFieldScriptTests.DUMMY;
+    }
 
     @Override
     protected boolean supportsTermQueries() {
@@ -60,11 +73,11 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 GeoPointScriptFieldType ft = build("fromLatLon", Map.of(), OnScriptError.FAIL);
                 GeoPointScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -92,7 +105,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0))));
+                assertThat(results, containsInAnyOrder(new GeoPoint(45.0, 45.0), new GeoPoint(0.0, 0.0)));
             }
         }
     }
@@ -106,7 +119,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     public void testFetch() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("""
                 {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -127,14 +140,19 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean needs_termStats() {
                         return false;
                     }
 
@@ -148,7 +166,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                             }
                         };
                     }
-                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
             }
         }
     }
@@ -156,10 +174,10 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(2));
             }
         }

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -27,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Map;
@@ -57,6 +58,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         client = mock(Client.class);
         OriginSettingClient originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
         deleteIndexRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
 
         remover = new EmptyStateIndexRemover(originSettingClient, new TaskId("test", 0L));
@@ -66,6 +68,8 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
     public void verifyNoOtherInteractionsWithMocks() {
         verify(client).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(client).projectResolver();
+        verify(listener, Mockito.atLeast(0)).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(client, listener);
     }
 
@@ -133,14 +137,14 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
         AcknowledgedResponse deleteIndexResponse = AcknowledgedResponse.of(acknowledged);
-        doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(DeleteIndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(TransportDeleteIndexAction.TYPE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
         inOrder.verify(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(DeleteIndexAction.INSTANCE), deleteIndexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportDeleteIndexAction.TYPE), deleteIndexRequestCaptor.capture(), any());
         inOrder.verify(listener).onResponse(acknowledged);
 
         DeleteIndexRequest deleteIndexRequest = deleteIndexRequestCaptor.getValue();

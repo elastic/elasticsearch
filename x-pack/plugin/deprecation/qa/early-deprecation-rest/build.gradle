@@ -1,18 +1,23 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
-  description 'Deprecated query plugin'
-  classname 'org.elasticsearch.xpack.deprecation.EarlyDeprecationTestPlugin'
+  description = 'Deprecated query plugin'
+  classname ='org.elasticsearch.xpack.deprecation.EarlyDeprecationTestPlugin'
 }
 
 dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:deprecation:qa:common')
 
-  javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 }
@@ -28,13 +33,16 @@ restResources {
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'cluster.deprecation_indexing.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.deprecation_indexing.enabled', 'true'
+  setting 'cluster.deprecation_indexing.flush_interval', '1ms'
+  setting 'logger.org.elasticsearch.xpack.deprecation','TRACE'
+  setting 'logger.org.elasticsearch.xpack.deprecation.logging','TRACE'
 }
 
 // Test clusters run with security disabled
 tasks.named("javaRestTest") {
-  onlyIf { BuildParams.inFipsJvm == false }
+  buildParams.withFipsEnabledOnly(it)
 }
 

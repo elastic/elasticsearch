@@ -1,33 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Base64;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -40,19 +41,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_7_16_0;
-
-    public static final Version FROM_SORT_VALUE_VERSION = Version.V_7_16_0;
-
-    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
-
-    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
-
-    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_7_15_0;
-
-    private static final Version SORT_BY_SHARDS_OR_REPO_VERSION = Version.V_7_16_0;
-
-    private static final Version INDICES_FLAG_VERSION = Version.V_8_3_0;
+    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion STATE_FLAG_VERSION = TransportVersions.STATE_PARAM_GET_SNAPSHOT;
 
     public static final int NO_LIMIT = -1;
 
@@ -62,17 +52,20 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private int size = NO_LIMIT;
 
     /**
-     * Numeric offset at which to start fetching snapshots. Mutually exclusive with {@link After} if not equal to {@code 0}.
+     * Numeric offset at which to start fetching snapshots. Mutually exclusive with {@link #after} if not equal to {@code 0}.
      */
     private int offset = 0;
 
+    /**
+     * Sort key value at which to start fetching snapshots. Mutually exclusive with {@link #offset} if not {@code null}.
+     */
     @Nullable
-    private After after;
+    private SnapshotSortKey.After after;
 
     @Nullable
     private String fromSortValue;
 
-    private SortBy sort = SortBy.START_TIME;
+    private SnapshotSortKey sort = SnapshotSortKey.START_TIME;
 
     private SortOrder order = SortOrder.ASC;
 
@@ -88,7 +81,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    public GetSnapshotsRequest() {}
+    private EnumSet<SnapshotState> states = EnumSet.allOf(SnapshotState.class);
+
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new get snapshots request with given repository names and list of snapshots
@@ -96,8 +93,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
-        this.repositories = repositories;
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String[] repositories, String[] snapshots) {
+        this(masterNodeTimeout, repositories);
         this.snapshots = snapshots;
     }
 
@@ -106,93 +103,57 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      *
      * @param repositories repository names
      */
-    public GetSnapshotsRequest(String... repositories) {
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String... repositories) {
+        this(masterNodeTimeout);
         this.repositories = repositories;
     }
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            repositories = in.readStringArray();
-        } else {
-            repositories = new String[] { in.readString() };
-        }
+        repositories = in.readStringArray();
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
-        if (in.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
-            after = in.readOptionalWriteable(After::new);
-            sort = in.readEnum(SortBy.class);
-            size = in.readVInt();
-            order = SortOrder.readFromStream(in);
-            if (in.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
-                offset = in.readVInt();
-            }
-            if (in.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
-                policies = in.readStringArray();
-            }
-            if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
-                fromSortValue = in.readOptionalString();
-            }
-            if (in.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-                includeIndexNames = in.readBoolean();
-            }
+        after = in.readOptionalWriteable(SnapshotSortKey.After::new);
+        sort = in.readEnum(SnapshotSortKey.class);
+        size = in.readVInt();
+        order = SortOrder.readFromStream(in);
+        offset = in.readVInt();
+        policies = in.readStringArray();
+        fromSortValue = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            includeIndexNames = in.readBoolean();
+        }
+        if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            states = in.readEnumSet(SnapshotState.class);
+        } else {
+            states = EnumSet.allOf(SnapshotState.class);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeStringArray(repositories);
-        } else {
-            if (repositories.length != 1) {
-                throw new IllegalArgumentException(
-                    "Requesting snapshots from multiple repositories is not supported in versions prior "
-                        + "to "
-                        + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString()
-                );
-            }
-            out.writeString(repositories[0]);
-        }
+        out.writeStringArray(repositories);
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
         out.writeBoolean(verbose);
-        if (out.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
-            out.writeOptionalWriteable(after);
-            if ((sort == SortBy.SHARDS || sort == SortBy.FAILED_SHARDS || sort == SortBy.REPOSITORY)
-                && out.getVersion().before(SORT_BY_SHARDS_OR_REPO_VERSION)) {
-                throw new IllegalArgumentException(
-                    "can't use sort by shard count or repository name with node version [" + out.getVersion() + "]"
-                );
-            }
-            out.writeEnum(sort);
-            out.writeVInt(size);
-            order.writeTo(out);
-            if (out.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
-                out.writeVInt(offset);
-            } else if (offset != 0) {
-                throw new IllegalArgumentException(
-                    "can't use numeric offset in get snapshots request with node version [" + out.getVersion() + "]"
-                );
-            }
-        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
-            throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
-        }
-        if (out.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
-            out.writeStringArray(policies);
-        } else if (policies.length > 0) {
-            throw new IllegalArgumentException(
-                "can't use slm policy filter in snapshots request with node version [" + out.getVersion() + "]"
-            );
-        }
-        if (out.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
-            out.writeOptionalString(fromSortValue);
-        } else if (fromSortValue != null) {
-            throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
-        }
-        if (out.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+        out.writeOptionalWriteable(after);
+        out.writeEnum(sort);
+        out.writeVInt(size);
+        order.writeTo(out);
+        out.writeVInt(offset);
+        out.writeStringArray(policies);
+        out.writeOptionalString(fromSortValue);
+        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             out.writeBoolean(includeIndexNames);
+        }
+        if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            out.writeEnumSet(states);
+        } else if (states.equals(EnumSet.allOf(SnapshotState.class)) == false) {
+            final var errorString = "GetSnapshotsRequest [states] field is not supported on all nodes in the cluster";
+            assert false : errorString;
+            throw new IllegalStateException(errorString);
         }
     }
 
@@ -206,7 +167,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             validationException = addValidationError("size must be -1 or greater than 0", validationException);
         }
         if (verbose == false) {
-            if (sort != SortBy.START_TIME) {
+            if (sort != SnapshotSortKey.START_TIME) {
                 validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
             }
             if (size > 0) {
@@ -233,6 +194,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
+        }
+        if (states.isEmpty()) {
+            validationException = addValidationError("states is empty", validationException);
         }
         return validationException;
     }
@@ -275,13 +239,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] policies() {
         return policies;
-    }
-
-    public boolean isSingleRepositoryRequest() {
-        return repositories.length == 1
-            && repositories[0] != null
-            && "_all".equals(repositories[0]) == false
-            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**
@@ -343,15 +300,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return includeIndexNames;
     }
 
-    public After after() {
+    @Nullable
+    public SnapshotSortKey.After after() {
         return after;
     }
 
-    public SortBy sort() {
+    public SnapshotSortKey sort() {
         return sort;
     }
 
-    public GetSnapshotsRequest after(@Nullable After after) {
+    public GetSnapshotsRequest after(@Nullable SnapshotSortKey.After after) {
         this.after = after;
         return this;
     }
@@ -366,7 +324,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return fromSortValue;
     }
 
-    public GetSnapshotsRequest sort(SortBy sort) {
+    public GetSnapshotsRequest sort(SnapshotSortKey sort) {
         this.sort = sort;
         return this;
     }
@@ -405,118 +363,26 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return verbose;
     }
 
+    public EnumSet<SnapshotState> states() {
+        return states;
+    }
+
+    public GetSnapshotsRequest states(EnumSet<SnapshotState> states) {
+        this.states = Objects.requireNonNull(states);
+        return this;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
-    public enum SortBy {
-        START_TIME("start_time"),
-        NAME("name"),
-        DURATION("duration"),
-        INDICES("index_count"),
-        SHARDS("shard_count"),
-        FAILED_SHARDS("failed_shard_count"),
-        REPOSITORY("repository");
-
-        private final String param;
-
-        SortBy(String param) {
-            this.param = param;
-        }
-
-        @Override
-        public String toString() {
-            return param;
-        }
-
-        public static SortBy of(String value) {
-            return switch (value) {
-                case "start_time" -> START_TIME;
-                case "name" -> NAME;
-                case "duration" -> DURATION;
-                case "index_count" -> INDICES;
-                case "shard_count" -> SHARDS;
-                case "failed_shard_count" -> FAILED_SHARDS;
-                case "repository" -> REPOSITORY;
-                default -> throw new IllegalArgumentException("unknown sort order [" + value + "]");
-            };
-        }
-    }
-
-    public static final class After implements Writeable {
-
-        private final String value;
-
-        private final String repoName;
-
-        private final String snapshotName;
-
-        After(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), in.readString());
-        }
-
-        public static After fromQueryParam(String param) {
-            final String[] parts = new String(Base64.getUrlDecoder().decode(param), StandardCharsets.UTF_8).split(",");
-            if (parts.length != 3) {
-                throw new IllegalArgumentException("invalid ?after parameter [" + param + "]");
-            }
-            return new After(parts[0], parts[1], parts[2]);
-        }
-
-        @Nullable
-        public static After from(@Nullable SnapshotInfo snapshotInfo, SortBy sortBy) {
-            if (snapshotInfo == null) {
-                return null;
-            }
-            final String afterValue = switch (sortBy) {
-                case START_TIME -> String.valueOf(snapshotInfo.startTime());
-                case NAME -> snapshotInfo.snapshotId().getName();
-                case DURATION -> String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
-                case INDICES -> String.valueOf(snapshotInfo.indices().size());
-                case SHARDS -> String.valueOf(snapshotInfo.totalShards());
-                case FAILED_SHARDS -> String.valueOf(snapshotInfo.failedShards());
-                case REPOSITORY -> snapshotInfo.repository();
-            };
-            return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
-        }
-
-        public After(String value, String repoName, String snapshotName) {
-            this.value = value;
-            this.repoName = repoName;
-            this.snapshotName = snapshotName;
-        }
-
-        public String value() {
-            return value;
-        }
-
-        public String snapshotName() {
-            return snapshotName;
-        }
-
-        public String repoName() {
-            return repoName;
-        }
-
-        public String asQueryParam() {
-            return Base64.getUrlEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
-            out.writeString(repoName);
-            out.writeString(snapshotName);
-        }
-    }
-
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("repositories[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", "", "", 512, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", 512, stringBuilder);
         stringBuilder.append("], snapshots[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", 1024, stringBuilder);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

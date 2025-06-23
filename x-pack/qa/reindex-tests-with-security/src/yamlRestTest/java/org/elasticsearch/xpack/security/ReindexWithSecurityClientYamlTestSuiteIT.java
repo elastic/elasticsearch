@@ -13,16 +13,22 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.net.URL;
 import java.nio.file.Path;
 
 public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ReindexWithSecurityIT.createCluster();
+
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
@@ -66,5 +72,10 @@ public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteT
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(CERTIFICATE_AUTHORITIES, httpCertificateAuthority)
             .build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

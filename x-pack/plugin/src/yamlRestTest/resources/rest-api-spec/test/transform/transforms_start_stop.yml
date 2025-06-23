@@ -138,6 +138,39 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Test schedule_now on a stopped transform":
+  - do:
+      transform.schedule_now_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test schedule_now on an already started transform":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.schedule_now_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test schedule_now all transforms":
+  - do:
+      catch: /_schedule_now API does not support _all wildcard/
+      transform.schedule_now_transform:
+        transform_id: "_all"
+
+---
+"Test schedule_now missing transform":
+  - do:
+      catch: missing
+      transform.schedule_now_transform:
+        transform_id: "missing"
+
+---
 "Verify start transform creates destination index with appropriate mapping":
   - do:
       transform.start_transform:

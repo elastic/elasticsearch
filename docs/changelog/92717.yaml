@@ -1,6 +1,0 @@
-pr: 92717
-summary: Fix wildcard expansion for update-by-query on data streams
-area: Data streams
-type: bug
-issues:
- - 90272

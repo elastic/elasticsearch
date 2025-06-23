@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.core.UpdateForV10;
+
 public final class XPackField {
     // These should be moved back to XPackPlugin once its moved to common
     /** Name constant for the security feature. */
@@ -18,6 +20,8 @@ public final class XPackField {
     public static final String GRAPH = "graph";
     /** Name constant for the machine learning feature. */
     public static final String MACHINE_LEARNING = "ml";
+    /** Name constant for the inference feature. */
+    public static final String INFERENCE = "inference";
     /** Name constant for the Logstash feature. */
     public static final String LOGSTASH = "logstash";
     /** Name constant for the Beats feature. */
@@ -30,6 +34,8 @@ public final class XPackField {
     public static final String SETTINGS_NAME = "xpack";
     /** Name constant for the eql feature. */
     public static final String EQL = "eql";
+    /** Name constant for the esql feature. */
+    public static final String ESQL = "esql";
     /** Name constant for the sql feature. */
     public static final String SQL = "sql";
     /** Name constant for the rollup feature. */
@@ -54,6 +60,7 @@ public final class XPackField {
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
     /** Name constant for the frozen index feature. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
     public static final String FROZEN_INDICES = "frozen_indices";
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";
@@ -65,6 +72,8 @@ public final class XPackField {
     public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
     /** Name constant for the data streams feature. */
     public static final String DATA_STREAMS = "data_streams";
+    /** Name constant for the data stream lifecycle feature. */
+    public static final String DATA_STREAM_LIFECYCLE = "data_lifecycle";
     /** Name constant for the data tiers feature. */
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
@@ -75,6 +84,16 @@ public final class XPackField {
     public static final String ARCHIVE = "archive";
     /** Name constant for the health api feature. */
     public static final String HEALTH_API = "health_api";
+    /** Name for Enterprise Search. */
+    public static final String ENTERPRISE_SEARCH = "enterprise_search";
+    public static final String REMOTE_CLUSTERS = "remote_clusters";
+
+    /** Name constant for the redact processor feature. */
+    public static final String REDACT_PROCESSOR = "redact_processor";
+    public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise_geoip_downloader";
+    /** Name for Universal Profiling. */
+    public static final String UNIVERSAL_PROFILING = "universal_profiling";
+    public static final String LOGSDB = "logsdb";
 
     private XPackField() {}
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -18,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,6 +30,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -159,7 +160,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) {
         spare.copyUTF8Bytes(query);
         return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
     }
@@ -174,7 +175,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         String name,
         PhraseSuggestionContext suggestion,
         CharsRefBuilder spare
-    ) throws IOException {
+    ) {
         PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
         spare.copyUTF8Bytes(suggestion.getText());
         phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));

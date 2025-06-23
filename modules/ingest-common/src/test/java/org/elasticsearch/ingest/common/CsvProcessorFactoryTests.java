@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -30,7 +31,7 @@ public class CsvProcessorFactoryTests extends ESTestCase {
         properties.put("empty_value", "empty");
         properties.put("trim", true);
         properties.put("ignore_missing", true);
-        CsvProcessor csv = factory.create(null, "csv", null, properties);
+        CsvProcessor csv = factory.create(null, "csv", null, properties, null);
         assertThat(csv, notNullValue());
         assertThat(csv.field, equalTo("field"));
         assertThat(csv.headers, equalTo(new String[] { "target" }));

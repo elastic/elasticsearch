@@ -1,70 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.util.json.Jackson;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
-    static {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (final ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-            return null;
-        });
-    }
+    private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final Settings settings;
@@ -79,38 +59,51 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     // proxy method for testing
     protected S3Repository createRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings);
+        return new S3Repository(
+            projectId,
+            metadata,
+            registry,
+            service.get(),
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            s3RepositoriesMetrics
+        );
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        service.set(s3Service(environment));
+    public Collection<?> createComponents(PluginServices services) {
+        service.set(
+            s3Service(services.environment(), services.clusterService(), services.projectResolver(), services.resourceWatcherService())
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        return List.of(service);
+        return List.of(service.get());
     }
 
-    S3Service s3Service(Environment environment) {
-        return new S3Service(environment);
+    S3Service s3Service(
+        Environment environment,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ResourceWatcherService resourceWatcherService
+    ) {
+        return new S3Service(environment, clusterService, projectResolver, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    }
+
+    private static Region getDefaultRegion() {
+        try {
+            return DefaultAwsRegionProviderChain.builder().build().getRegion();
+        } catch (Exception e) {
+            logger.info("failed to obtain region from default provider chain", e);
+            return null;
+        }
     }
 
     @Override
@@ -119,11 +112,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
+        final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings)
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            )
         );
     }
 
@@ -138,14 +141,19 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
+            S3ClientSettings.PROXY_SCHEME_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
+            S3ClientSettings.MAX_CONNECTIONS_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
+            S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
-            S3ClientSettings.SIGNER_OVERRIDE,
+            S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
+            S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
             S3ClientSettings.REGION,
+            S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
+            S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING
         );

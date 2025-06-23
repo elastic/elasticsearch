@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -160,6 +163,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
     }
 
     public void testRuntimeSectionRejectedUpdate() throws IOException {
@@ -309,13 +313,21 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionNonRuntimeType() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionMissingType() throws IOException {
@@ -356,6 +368,66 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testSyntheticSourceKeepAllThrows() throws IOException {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("synthetic_source_keep", "all")
+                .endObject()
+                .endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("root object can't be configured with [synthetic_source_keep:all]"));
+    }
+
+    public void testWithoutMappers() throws IOException {
+        RootObjectMapper shallowRoot = createRootObjectMapperWithAllParametersSet(b -> {}, b -> {});
+        RootObjectMapper root = createRootObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        }, b -> {
+            b.startObject("runtime");
+            b.startObject("field").field("type", "keyword").endObject();
+            b.endObject();
+        });
+        assertThat(root.withoutMappers().toString(), equalTo(shallowRoot.toString()));
+    }
+
+    private RootObjectMapper createRootObjectMapperWithAllParametersSet(
+        CheckedConsumer<XContentBuilder, IOException> buildProperties,
+        CheckedConsumer<XContentBuilder, IOException> buildRuntimeFields
+    ) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("enabled", false);
+            b.field("subobjects", false);
+            b.field("dynamic", false);
+            b.field("date_detection", false);
+            b.field("numeric_detection", false);
+            b.field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"));
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_template");
+                    {
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            buildProperties.accept(b);
+            b.endObject();
+        }));
+        return mapper.mapping().getRoot();
     }
 
 }

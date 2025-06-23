@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.nio.file.Path;
@@ -45,14 +47,13 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.DATA_TIERS);
         }
     }
@@ -69,7 +70,7 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        protected List<XPackInfoFeatureAction> infoActions() {
+        protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
             return Collections.singletonList(XPackInfoFeatureAction.DATA_TIERS);
         }
     }

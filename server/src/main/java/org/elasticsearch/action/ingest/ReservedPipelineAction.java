@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,7 +38,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to add/update or remove ingest pipelines. Typical usage
  * for this action is in the context of file based state.
  */
-public class ReservedPipelineAction implements ReservedClusterStateHandler<List<PutPipelineRequest>> {
+public class ReservedPipelineAction implements ReservedProjectStateHandler<List<PutPipelineRequest>> {
     public static final String NAME = "ingest_pipelines";
 
     /**
@@ -68,43 +71,51 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         return requests;
     }
 
-    private ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
-        final var allIndexMetadata = state.metadata().indices().values();
-        final IngestMetadata currentIndexMetadata = state.metadata().custom(IngestMetadata.TYPE);
+    private static ProjectMetadata wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ProjectMetadata metadata) {
+        final var allIndexMetadata = metadata.indices().values();
+        final IngestMetadata currentIndexMetadata = metadata.custom(IngestMetadata.TYPE);
 
         var updatedIngestMetadata = task.execute(currentIndexMetadata, allIndexMetadata);
-        return state.copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, updatedIngestMetadata));
+        return ProjectMetadata.builder(metadata).putCustom(IngestMetadata.TYPE, updatedIngestMetadata).build();
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<PutPipelineRequest>) source);
+    public TransformState transform(ProjectId projectId, List<PutPipelineRequest> source, TransformState prevState) throws Exception {
+        var requests = prepare(source);
 
-        ClusterState state = prevState.state();
+        ClusterState clusterState = prevState.state();
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
 
         for (var request : requests) {
-            var nopUpdate = IngestService.isNoOpPipelineUpdate(state, request);
+            var nopUpdate = IngestService.isNoOpPipelineUpdate(projectMetadata, request);
 
             if (nopUpdate) {
                 continue;
             }
 
-            var task = new IngestService.PutPipelineClusterStateUpdateTask(request);
-            state = wrapIngestTaskExecute(task, state);
+            var task = new IngestService.PutPipelineClusterStateUpdateTask(projectMetadata.id(), request);
+            projectMetadata = wrapIngestTaskExecute(task, projectMetadata);
         }
 
-        Set<String> entities = requests.stream().map(r -> r.getId()).collect(Collectors.toSet());
+        Set<String> entities = requests.stream().map(PutPipelineRequest::getId).collect(Collectors.toSet());
 
         Set<String> toDelete = new HashSet<>(prevState.keys());
         toDelete.removeAll(entities);
 
         for (var pipelineToDelete : toDelete) {
-            var task = new IngestService.DeletePipelineClusterStateUpdateTask(pipelineToDelete);
-            state = wrapIngestTaskExecute(task, state);
+            var task = new IngestService.DeletePipelineClusterStateUpdateTask(
+                projectMetadata.id(),
+                null,
+                new DeletePipelineRequest(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    pipelineToDelete
+                )
+            );
+            projectMetadata = wrapIngestTaskExecute(task, projectMetadata);
         }
 
-        return new TransformState(state, entities);
+        return new TransformState(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), entities);
     }
 
     @Override
@@ -118,7 +129,15 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
             Map<String, ?> content = (Map<String, ?>) source.get(id);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                 builder.map(content);
-                result.add(new PutPipelineRequest(id, BytesReference.bytes(builder), XContentType.JSON));
+                result.add(
+                    new PutPipelineRequest(
+                        RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                        RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                        id,
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
+                );
             } catch (Exception e) {
                 throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
             }

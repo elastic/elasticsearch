@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PrefixCodedTerms;
-import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -19,12 +19,10 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -34,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -42,12 +41,18 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -77,7 +82,9 @@ public abstract class MappedFieldType {
         this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = Objects.requireNonNull(meta);
+        // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
+        // irrelevant
+        this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
     }
 
     /**
@@ -189,10 +196,42 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
+        return false;
+    }
+
+    /**
+     * @return true if field has script values.
+     */
+    public boolean hasScriptValues() {
+        return false;
+    }
+
+    /**
+     * @return a list of dimension fields. Expected to be used by fields that have
+     * nested fields or that, in some way, identify a collection of fields by means
+     * of a top level field (like flattened fields).
+     */
+    public List<String> dimensions() {
+        return Collections.emptyList();
+    }
+
+    /**
      * @return metric type or null if the field is not a metric field
      */
     public TimeSeriesParams.MetricType getMetricType() {
         return null;
+    }
+
+    /**
+     * Returns the default highlighter type to use when highlighting the field.
+     */
+    public String getDefaultHighlighter() {
+        return DefaultHighlighter.NAME;
     }
 
     /** Generates a query that will only match documents that contain the given value.
@@ -218,8 +257,9 @@ public abstract class MappedFieldType {
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+        Set<?> dedupe = new HashSet<>(values);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (Object value : values) {
+        for (Object value : dedupe) {
             builder.add(termQuery(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
@@ -248,11 +288,23 @@ public abstract class MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, null);
     }
 
     // Case sensitive form of prefix query
@@ -406,6 +458,30 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Create a regexp {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a range {@link IntervalsSource} for the given ranges
+     */
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */
@@ -523,29 +599,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Extract a {@link Term} from a query created with {@link #termQuery} by
-     * recursively removing {@link BoostQuery} wrappers.
-     * @throws IllegalArgumentException if the wrapped query is not a {@link TermQuery}
-     */
-    public static Term extractTerm(Query termQuery) {
-        while (termQuery instanceof BoostQuery) {
-            termQuery = ((BoostQuery) termQuery).getQuery();
-        }
-        if (termQuery instanceof TermInSetQuery tisQuery) {
-            PrefixCodedTerms terms = tisQuery.getTermData();
-            if (terms.size() == 1) {
-                TermIterator it = terms.iterator();
-                BytesRef term = it.next();
-                return new Term(it.field(), term);
-            }
-        }
-        if (termQuery instanceof TermQuery == false) {
-            throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
-        }
-        return ((TermQuery) termQuery).getTerm();
-    }
-
-    /**
      * Get the metadata associated with this field.
      */
     public Map<String, String> meta() {
@@ -578,29 +631,125 @@ public abstract class MappedFieldType {
      * If fields cannot look up matching terms quickly they should return null.
      * The returned TermEnum should implement next(), term() and doc_freq() methods
      * but postings etc are not required.
-     * @param caseInsensitive if matches should be case insensitive
-     * @param string the partially complete word the user has typed (can be empty)
-     * @param queryShardContext the shard context
+     * @param reader an index reader
+     * @param prefix the partially complete word the user has typed (can be empty)
+     * @param caseInsensitive if prefix matches should be case insensitive
      * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
-     * @return null or an enumeration of matching terms and their doc frequencies
+     * @return null or an enumeration of matching terms
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-        throws IOException {
+    public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
         return null;
     }
 
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
-        throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                + "and without the [script] parameter. ["
-                + name()
-                + "] was ["
-                + typeName()
-                + "]."
-        );
+    public void validateMatchedRoutingPath(String routingPath) {
+        if (hasScriptValues()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] has a [script] parameter."
+            );
+        }
+
+        if (isDimension() == false) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path "
+                    + "must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] was not a dimension."
+            );
+        }
     }
+
+    /**
+     * This method is used to support _field_caps when include_empty_fields is set to
+     * {@code false}. In that case we return only fields with value in an index. This method
+     * gets as input FieldInfos and returns if the field is non-empty. This method needs to
+     * be overwritten where fields don't have footprint in Lucene or their name differs from
+     * {@link MappedFieldType#name()}
+     * @param fieldInfos field information
+     * @return {@code true} if field is present in fieldInfos {@code false} otherwise
+     */
+    public boolean fieldHasValue(FieldInfos fieldInfos) {
+        return fieldInfos.fieldInfo(name()) != null;
+    }
+
+    /**
+     * Returns a loader for ESQL or {@code null} if the field doesn't support
+     * ESQL.
+     */
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return null;
+    }
+
+    public enum FieldExtractPreference {
+        /**
+         * Load the field from doc-values into a BlockLoader supporting doc-values.
+         */
+        DOC_VALUES,
+        /**
+         *  Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS,
+        /**
+         * No preference. Leave the choice of where to load the field from up to the FieldType.
+         */
+        NONE,
+        /**
+         * Prefer loading from stored fields like {@code _source} because we're
+         * loading many fields. The {@link MappedFieldType} can chose a different
+         * method to load the field if it needs to.
+         */
+        STORED;
+    }
+
+    /**
+     * Arguments for {@link #blockLoader}.
+     */
+    public interface BlockLoaderContext {
+        /**
+         * The name of the index.
+         */
+        String indexName();
+
+        /**
+         * The index settings of the index
+         */
+        IndexSettings indexSettings();
+
+        /**
+         * How the field should be extracted into the BlockLoader. The default is {@link FieldExtractPreference#NONE}, which means
+         * that the field type can choose where to load the field from. However, in some cases, the caller may have a preference.
+         * For example, when loading a spatial field for usage in STATS, it is preferable to load from doc-values.
+         */
+        FieldExtractPreference fieldExtractPreference();
+
+        /**
+         * {@link SearchLookup} used for building scripts.
+         */
+        SearchLookup lookup();
+
+        /**
+         * Find the paths in {@code _source} that contain values for the field named {@code name}.
+         */
+        Set<String> sourcePaths(String name);
+
+        /**
+         * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+         */
+        String parentField(String field);
+
+        /**
+         * The {@code _field_names} field mapper, mostly used to check if it is enabled.
+         */
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+    }
+
 }

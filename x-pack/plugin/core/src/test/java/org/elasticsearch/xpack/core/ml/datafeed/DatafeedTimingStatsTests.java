@@ -60,7 +60,7 @@ public class DatafeedTimingStatsTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) throws IOException {
+    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) {
         String jobId = instance.getJobId();
         long searchCount = instance.getSearchCount();
         long bucketCount = instance.getBucketCount();

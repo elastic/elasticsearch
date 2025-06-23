@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexCartesianPointFieldData;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 public class CartesianPointValuesSourceType implements Writeable, ValuesSourceType {
 
@@ -48,7 +48,7 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
 
     @Override
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-        if (fieldContext.indexFieldData()instanceof IndexCartesianPointFieldData pointFieldData) {
+        if (fieldContext.indexFieldData() instanceof IndexCartesianPointFieldData pointFieldData) {
             return new CartesianPointValuesSource.Fielddata(pointFieldData);
         }
         throw new IllegalArgumentException(
@@ -61,7 +61,7 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
         ValuesSource valuesSource,
         Object rawMissing,
         DocValueFormat docValueFormat,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         // TODO: also support the structured formats of points
         final CartesianPointValuesSource pointValuesSource = (CartesianPointValuesSource) valuesSource;

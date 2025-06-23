@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -27,21 +26,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,11 +46,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -86,13 +77,16 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testRoutingTable() throws Exception {
-        ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setRoutingTable(true).get();
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .get();
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("foo"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("fuu"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("baz"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("non-existent"), is(false));
 
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("foo"), is(false));
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("fuu"), is(false));
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("baz"), is(false));
@@ -100,49 +94,53 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testNodes() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         assertThat(clusterStateResponse.getState().nodes().getNodes().size(), is(cluster().size()));
 
-        ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
+        ClusterStateResponse clusterStateResponseFiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
         assertThat(clusterStateResponseFiltered.getState().nodes().getNodes().size(), is(0));
     }
 
     public void testMetadata() throws Exception {
-        ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setMetadata(true).get();
-        assertThat(clusterStateResponseUnfiltered.getState().metadata().indices().size(), is(3));
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .get();
+        assertThat(clusterStateResponseUnfiltered.getState().metadata().getProject().indices().size(), is(3));
 
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(0));
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(0));
     }
 
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        long baselineVersion = client().admin().cluster().prepareState().get().getState().metadata().version();
+        long baselineVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
         assertThat(
-            client().admin().cluster().prepareState().setIndices("index-1").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            client().admin().cluster().prepareState().setIndices("index-2").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-2").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            client().admin().cluster().prepareState().setIndices("*").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("*").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            client().admin().cluster().prepareState().setIndices("not-found").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("not-found").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
-        assertThat(client().admin().cluster().prepareState().clear().setMetadata(false).get().getState().metadata().version(), equalTo(0L));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(false).get().getState().metadata().version(),
+            equalTo(0L)
+        );
     }
 
     public void testIndexTemplates() throws Exception {
-        client().admin()
-            .indices()
-            .preparePutTemplate("foo_template")
+        indicesAdmin().preparePutTemplate("foo_template")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -164,9 +162,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("fuu_template")
+        indicesAdmin().preparePutTemplate("fuu_template")
             .setPatterns(Collections.singletonList("test*"))
             .setOrder(1)
             .setMapping(
@@ -184,10 +180,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             )
             .get();
 
-        ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().get();
-        assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
+        assertThat(clusterStateResponseUnfiltered.getState().metadata().getProject().templates().size(), is(greaterThanOrEqualTo(2)));
 
-        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates("foo_template").get();
+        GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "foo_template")
+            .get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
@@ -212,16 +209,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
      * that the cluster state returns coherent data for both routing table and metadata.
      */
     private void testFilteringByIndexWorks(String[] indices, String[] expected) {
-        ClusterStateResponse clusterState = client().admin()
-            .cluster()
-            .prepareState()
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
             .setIndices(indices)
             .get();
 
-        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
+        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().getProject().indices();
         assertThat(metadata.size(), is(expected.length));
 
         RoutingTable routingTable = clusterState.getState().getRoutingTable();
@@ -255,26 +250,22 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                    indexSettings(numberOfShards, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 )
                 .setMapping(mapping)
-                .setTimeout("60s")
-                .get()
+                .setTimeout(TimeValue.timeValueMinutes(1))
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = client().admin().indices().prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .getMappings()
+            .get("test");
         for (Client client : clients()) {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
-                .prepareGetMappings("test")
-                .setLocal(true)
+                .prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
                 .get()
                 .getMappings()
                 .get("test");
@@ -284,66 +275,63 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndicesOptions() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("f*")
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(2));
         ensureGreen("fuu");
 
         // close one index
-        assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());
-        clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*").get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertAcked(indicesAdmin().close(new CloseIndexRequest("fuu")).get());
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).setIndices("f*").get();
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metadata().getProject().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("f*")
             .setIndicesOptions(expandCloseOptions)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
-        assertThat(clusterStateResponse.getState().metadata().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().size(), is(1));
+        assertThat(clusterStateResponse.getState().metadata().getProject().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("fzzbzz")
             .setIndicesOptions(ignoreUnavailabe)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("a*")
             .setIndicesOptions(allowNoIndices)
             .get();
-        assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
+        assertThat(clusterStateResponse.getState().metadata().getProject().indices().isEmpty(), is(true));
     }
 
     public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {
         // empty wildcard expansion throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
         try {
-            client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setIndices("a*")
+                .setIndicesOptions(allowNoIndices)
+                .get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [a*]"));
@@ -354,9 +342,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices("fzzbzz")
@@ -371,7 +357,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public void testPrivateCustomsAreExcluded() throws Exception {
         // ensure that the custom is injected into the cluster state
         assertBusy(() -> assertTrue(clusterService().state().customs().containsKey("test")));
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey("test"));
     }
 
@@ -393,8 +379,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -432,21 +418,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         private final AtomicBoolean installed = new AtomicBoolean();
 
         @Override
-        public Collection<Object> createComponents(
-            final Client client,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ResourceWatcherService resourceWatcherService,
-            final ScriptService scriptService,
-            final NamedXContentRegistry xContentRegistry,
-            final Environment environment,
-            final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
+            ClusterService clusterService = services.clusterService();
+
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
@@ -486,4 +460,18 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             return Collections.emptyList();
         }
     }
+
+    public void testNodeLeftGeneration() throws IOException {
+        final var clusterService = internalCluster().getInstance(ClusterService.class);
+        final var initialGeneration = clusterService.state().nodes().getNodeLeftGeneration();
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + initialGeneration));
+
+        final var newNode = internalCluster().startNode();
+        assertEquals(initialGeneration, clusterService.state().nodes().getNodeLeftGeneration());
+        internalCluster().stopNode(newNode);
+        assertEquals(initialGeneration + 1, clusterService.state().nodes().getNodeLeftGeneration());
+
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + (initialGeneration + 1)));
+    }
+
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
@@ -18,13 +19,15 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +39,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -44,8 +48,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -54,16 +58,16 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutComponentTemplateAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     public static ComponentTemplate normalizeComponentTemplate(
@@ -76,8 +80,13 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
-            template = new Template(settings, template.mappings(), template.aliases());
-            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
+            template = Template.builder(template).settings(settings).build();
+            componentTemplate = new ComponentTemplate(
+                template,
+                componentTemplate.version(),
+                componentTemplate.metadata(),
+                componentTemplate.deprecated()
+            );
         }
 
         return componentTemplate;
@@ -91,12 +100,14 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
+        var projectId = projectResolver.getProjectId();
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
+            projectId,
             listener
         );
     }
@@ -109,5 +120,18 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     @Override
     public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
+    }
+
+    @Override
+    @FixForMultiProject // does this need to be a more general concept?
+    protected void validateForReservedState(PutComponentTemplateAction.Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 }

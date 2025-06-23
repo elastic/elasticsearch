@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
@@ -28,6 +30,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+
 /**
  * Response for a {@link GetUserPrivilegesRequest}
  */
@@ -39,18 +43,23 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private final Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private final Set<String> runAs;
     private final Set<RemoteIndices> remoteIndex;
+    private final RemoteClusterPermissions remoteClusterPermissions;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
-        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        configurableClusterPrivileges = Collections.unmodifiableSet(in.readSet(ConfigurableClusterPrivileges.READER));
-        index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
-        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
-            remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
+        cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
+        configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
+        index = in.readCollectionAsImmutableSet(Indices::new);
+        application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
+        runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         } else {
-            remoteIndex = Collections.emptySet();
+            remoteIndex = Set.of();
+        }
+        if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            remoteClusterPermissions = new RemoteClusterPermissions(in);
+        } else {
+            remoteClusterPermissions = RemoteClusterPermissions.NONE;
         }
     }
 
@@ -60,7 +69,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         Set<Indices> index,
         Set<RoleDescriptor.ApplicationResourcePrivileges> application,
         Set<String> runAs,
-        Set<RemoteIndices> remoteIndex
+        Set<RemoteIndices> remoteIndex,
+        RemoteClusterPermissions remoteClusterPermissions
     ) {
         this.cluster = Collections.unmodifiableSet(cluster);
         this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
@@ -68,6 +78,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         this.application = Collections.unmodifiableSet(application);
         this.runAs = Collections.unmodifiableSet(runAs);
         this.remoteIndex = Collections.unmodifiableSet(remoteIndex);
+        this.remoteClusterPermissions = remoteClusterPermissions;
     }
 
     public Set<String> getClusterPrivileges() {
@@ -86,6 +97,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return remoteIndex;
     }
 
+    public RemoteClusterPermissions getRemoteClusterPermissions() {
+        return remoteClusterPermissions;
+    }
+
     public Set<RoleDescriptor.ApplicationResourcePrivileges> getApplicationPrivileges() {
         return application;
     }
@@ -98,21 +113,36 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return false == remoteIndex.isEmpty();
     }
 
+    public boolean hasRemoteClusterPrivileges() {
+        return remoteClusterPermissions.hasAnyPrivileges();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(cluster, StreamOutput::writeString);
+        out.writeStringCollection(cluster);
         out.writeCollection(configurableClusterPrivileges, ConfigurableClusterPrivileges.WRITER);
         out.writeCollection(index);
         out.writeCollection(application);
-        out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+        out.writeStringCollection(runAs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + RoleDescriptor.VERSION_REMOTE_INDICES
+                    + TransportVersions.V_8_8_0.toReleaseVersion()
                     + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getVersion()
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            remoteClusterPermissions.writeTo(out);
+        } else if (hasRemoteClusterPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
+                    + "] can't handle remote cluster privileges and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }
@@ -132,25 +162,26 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             && Objects.equals(index, that.index)
             && Objects.equals(application, that.application)
             && Objects.equals(runAs, that.runAs)
-            && Objects.equals(remoteIndex, that.remoteIndex);
+            && Objects.equals(remoteIndex, that.remoteIndex)
+            && Objects.equals(remoteClusterPermissions, that.remoteClusterPermissions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex);
+        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex, remoteClusterPermissions);
     }
 
     public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
 
         public RemoteIndices(StreamInput in) throws IOException {
-            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString))));
+            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString))));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indices.innerToXContent(builder);
-            builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            builder.field(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 
@@ -189,14 +220,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         public Indices(StreamInput in) throws IOException {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
-            indices = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            fieldSecurity = Collections.unmodifiableSet(in.readSet(input -> {
+            indices = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            fieldSecurity = in.readCollectionAsImmutableSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
-            }));
-            queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
+            });
+            queries = in.readCollectionAsImmutableSet(StreamInput::readBytesReference);
             this.allowRestrictedIndices = in.readBoolean();
         }
 
@@ -304,8 +335,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(indices, StreamOutput::writeString);
-            out.writeCollection(privileges, StreamOutput::writeString);
+            out.writeStringCollection(indices);
+            out.writeStringCollection(privileges);
             out.writeCollection(fieldSecurity, (output, fields) -> {
                 output.writeOptionalStringArray(fields.getGrantedFields());
                 output.writeOptionalStringArray(fields.getExcludedFields());

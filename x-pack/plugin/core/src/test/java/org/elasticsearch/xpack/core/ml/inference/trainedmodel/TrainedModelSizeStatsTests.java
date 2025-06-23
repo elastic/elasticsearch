@@ -22,6 +22,11 @@ public class TrainedModelSizeStatsTests extends AbstractWireSerializingTestCase<
         return createRandom();
     }
 
+    @Override
+    protected TrainedModelSizeStats mutateInstance(TrainedModelSizeStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static TrainedModelSizeStats createRandom() {
         return new TrainedModelSizeStats(randomNonNegativeLong(), randomNonNegativeLong());
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.dra
@@ -28,7 +29,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         plugins {
             id 'elasticsearch.dra-artifacts'
         }
-        
+
         repositories.all {
             // for supporting http testing repos here
             allowInsecureProtocol = true
@@ -49,7 +50,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
                   artifact()
                 }
               }
-            }  
+            }
         }
         """
 
@@ -57,11 +58,11 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         configurations {
             someConfig
         }
-        
+
         dependencies {
             someConfig "org.acme:ml-cpp:8.6.0-SNAPSHOT"
         }
-        
+
         tasks.register('resolveArtifacts') {
             doLast {
                 configurations.someConfig.files.each { println it }
@@ -92,13 +93,13 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         configurations {
             someConfig
         }
-        
+
         dependencies {
             someConfig "some.group:bar:1.0.0"
             someConfig "some.group:baz:1.0.0-SNAPSHOT"
             someConfig "org.acme:$draArtifact:$draVersion:deps@zip"
         }
-        
+
         tasks.register('resolveArtifacts') {
             doLast {
                 configurations.someConfig.files.each { println it }

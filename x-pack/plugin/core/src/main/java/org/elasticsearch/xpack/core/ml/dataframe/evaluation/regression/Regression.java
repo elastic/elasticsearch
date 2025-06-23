@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of regression results.
  */
-public class Regression implements Evaluation {
+public final class Regression implements Evaluation {
 
     public static final ParseField NAME = new ParseField("regression");
 
@@ -87,7 +87,7 @@ public class Regression implements Evaluation {
 
     public Regression(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override
@@ -114,7 +114,7 @@ public class Regression implements Evaluation {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
         out.writeString(fields.getPredictedField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

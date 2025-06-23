@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -158,15 +160,34 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, Version.CURRENT).build(new MapperBuilderContext(parent, false));
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
+            new MapperBuilderContext(
+                parent,
+                false,
+                false,
+                false,
+                ObjectMapper.Defaults.DYNAMIC,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                false
+            )
+        );
     }
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, emptyMap());
+        return new ObjectMapper(
+            name,
+            name,
+            Explicit.IMPLICIT_TRUE,
+            Optional.empty(),
+            Optional.empty(),
+            ObjectMapper.Dynamic.FALSE,
+            emptyMap()
+        );
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {
-        return new NestedObjectMapper.Builder(name, Version.CURRENT).build(MapperBuilderContext.root(false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current(), query -> { throw new UnsupportedOperationException(); }, null)
+            .build(MapperBuilderContext.root(false, false));
     }
 
     private static MappingLookup createMappingLookup(
@@ -178,7 +199,11 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.root(false)), new MetadataFieldMapper[0], Collections.emptyMap());
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
+        Mapping mapping = new Mapping(
+            builder.build(MapperBuilderContext.root(false, false)),
+            new MetadataFieldMapper[0],
+            Collections.emptyMap()
+        );
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers, emptyList());
     }
 }

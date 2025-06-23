@@ -154,7 +154,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -162,30 +166,28 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
 
         ClusterStateResponse leaderState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
         ClusterStateResponse followerState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
             .get();
 
-        IndexMetadata leaderMetadata = leaderState.getState().metadata().index(leaderIndex);
-        IndexMetadata followerMetadata = followerState.getState().metadata().index(followerIndex);
+        IndexMetadata leaderMetadata = leaderState.getState().metadata().getProject().index(leaderIndex);
+        IndexMetadata followerMetadata = followerState.getState().metadata().getProject().index(followerIndex);
         assertEquals(leaderMetadata.getNumberOfShards(), followerMetadata.getNumberOfShards());
         Map<String, String> ccrMetadata = followerMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         assertEquals(leaderIndex, ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY));
@@ -227,7 +229,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -235,9 +241,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -296,7 +300,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -304,9 +312,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        future.actionGet();
+        startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         if (followerRateLimiting) {
             assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
@@ -345,8 +351,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false
-                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
+                if (action.equals(GetCcrRestoreFileChunkAction.INTERNAL_NAME) == false
+                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.INTERNAL_NAME)) == false) {
                     connection.sendRequest(requestId, action, request, options);
                 }
             });
@@ -363,7 +369,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -374,8 +384,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+            final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
             // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching
             // metadata this will throw an exception. If it times-out when restoring a shard, the shard will
@@ -393,7 +402,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 transportService.clearAllRules();
             }
 
-            settingsRequest = new ClusterUpdateSettingsRequest();
+            settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
             settingsRequest.persistentSettings(
                 Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(), defaultValue)
@@ -408,7 +417,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     private ClusterUpdateSettingsRequest newSettingsRequest() {
-        return new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        return new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).masterNodeTimeout(TimeValue.MAX_VALUE);
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {
@@ -427,7 +436,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indices(leaderIndex)
+        RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -441,7 +454,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Runnable updateMappings = () -> {
             if (updateSent.compareAndSet(false, true)) {
                 leaderClient().admin().indices().preparePutMapping(leaderIndex).setSource("""
-                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.wrap(latch::countDown));
+                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.running(latch::countDown));
             }
             try {
                 latch.await();
@@ -454,7 +467,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PutCcrRestoreSessionAction.NAME)) {
+                if (action.equals(PutCcrRestoreSessionAction.INTERNAL_NAME)) {
                     updateMappings.run();
                     connection.sendRequest(requestId, action, request, options);
                 } else {
@@ -464,20 +477,18 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         try {
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-            RestoreInfo restoreInfo = future.actionGet();
+            RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
             assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
             assertEquals(0, restoreInfo.failedShards());
 
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+            ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
             clusterStateRequest.clear();
             clusterStateRequest.metadata(true);
             clusterStateRequest.indices(followerIndex);
             MappingMetadata mappingMetadata = followerClient().admin()
                 .indices()
-                .prepareGetMappings("index2")
+                .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
                 .get()
                 .getMappings()
                 .get("index2");
@@ -540,13 +551,13 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 new SnapshotId(CcrRepository.LATEST, CcrRepository.LATEST),
                 new IndexId(indexStats.getIndex(), indexStats.getUuid()),
                 new ShardId(new Index(indexStats.getIndex(), indexStats.getUuid()), shardId)
-            ).asCopy();
+            );
 
             assertThat(indexShardSnapshotStatus, notNullValue());
             assertThat(indexShardSnapshotStatus.getStage(), is(IndexShardSnapshotStatus.Stage.DONE));
             assertThat(
                 indexShardSnapshotStatus.getTotalSize(),
-                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes())
+                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().sizeInBytes())
             );
         }
 
@@ -557,13 +568,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final Map<Integer, Long> fetchedSnapshotShardSizes = new ConcurrentHashMap<>();
 
-        final PlainActionFuture<Void> waitForRestoreInProgress = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> waitForRestoreInProgress = new PlainActionFuture<>();
         final ClusterStateListener listener = event -> {
-            RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            if (restoreInProgress != null && restoreInProgress.isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
+            if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
-                    if (shardRouting.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
+                    if (shardRouting.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
                         try {
                             assertBusy(() -> {
                                 final Long snapshotShardSize = snapshotsInfoService.snapshotShardSizes().getShardSize(shardRouting);
@@ -583,7 +593,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         };
         clusterService.addListener(listener);
 
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderCluster, CcrRepository.LATEST).indices(leaderIndex)
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderCluster, CcrRepository.LATEST)
+            .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
@@ -594,7 +605,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             )
             .quiet(true);
-        restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
+        restoreService.restoreSnapshot(restoreRequest, ActionListener.noop());
 
         waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);
         clusterService.removeListener(listener);
@@ -604,11 +615,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             assertThat(
                 "Snapshot shard size fetched for follower shard [" + shardId + "] does not match leader store size",
                 fetchedSnapshotShardSizes.get(shardId),
-                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes())
+                equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().sizeInBytes())
             );
         }
 
-        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0).get(), numDocs);
+        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0), numDocs);
         assertAcked(followerClient().admin().indices().prepareDelete(followerIndex).setMasterNodeTimeout(TimeValue.MAX_VALUE));
     }
 
@@ -644,12 +655,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
 
-            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = new PlainActionFuture<>();
             final ClusterStateListener listener = event -> {
-                RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null
-                    && restoreInProgress.isEmpty() == false
-                    && event.state().routingTable().hasIndex(followerIndex)) {
+                if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                     try {
                         final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                         // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService
@@ -657,7 +665,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                         assertBusy(() -> {
                             List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)
                                 .stream()
-                                .filter(shard -> shard.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
+                                .filter(shard -> shard.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
                                 .sorted(Comparator.comparingInt(ShardRouting::getId))
                                 .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
                                 .filter(Objects::nonNull)

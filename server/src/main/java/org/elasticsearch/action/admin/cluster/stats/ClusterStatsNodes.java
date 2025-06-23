@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.ingest.IngestStats.ProcessorStat;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -48,7 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClusterStatsNodes implements ToXContentFragment {
 
     private final Counts counts;
-    private final Set<Version> versions;
+    private final Set<String> versions;
     private final OsStats os;
     private final ProcessStats process;
     private final JvmStats jvm;
@@ -62,10 +64,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = Sets.newHashSetWithExpectedSize(nodeResponses.size());
+        ClusterFsStatsDeduplicator deduplicator = new ClusterFsStatsDeduplicator(nodeResponses.size());
+
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -74,16 +76,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.versions.add(nodeResponse.nodeInfo().getVersion());
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
-            // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (seenAddresses.add(inetAddress) == false) {
-                continue;
-            }
-            if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
-            }
+            deduplicator.add(inetAddress, nodeResponse.nodeStats().getFs());
         }
+        this.fs = deduplicator.getTotal();
+
         this.counts = new Counts(nodeInfos);
         this.os = new OsStats(nodeInfos, nodeStats);
         this.process = new ProcessStats(nodeStats);
@@ -99,7 +97,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return this.counts;
     }
 
-    public Set<Version> getVersions() {
+    public Set<String> getVersions() {
         return versions;
     }
 
@@ -141,8 +139,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.VERSIONS);
-        for (Version v : versions) {
-            builder.value(v.toString());
+        for (var v : versions) {
+            builder.value(v);
         }
         builder.endArray();
 
@@ -713,37 +711,38 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final SortedMap<String, long[]> stats;
 
         IngestStats(final List<NodeStats> nodeStats) {
-            Set<String> pipelineIds = new HashSet<>();
+            Map<ProjectId, Set<String>> pipelineIdsByProject = new HashMap<>();
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
-                        .getIngestStats()
-                        .getProcessorStats()
-                        .entrySet()) {
-                        pipelineIds.add(processorStats.getKey());
-                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.getType(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
-                                if (v == null) {
-                                    return new long[] {
-                                        nodeIngestStats.getIngestCount(),
-                                        nodeIngestStats.getIngestFailedCount(),
-                                        nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis() };
-                                } else {
-                                    v[0] += nodeIngestStats.getIngestCount();
-                                    v[1] += nodeIngestStats.getIngestFailedCount();
-                                    v[2] += nodeIngestStats.getIngestCurrent();
-                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
-                                    return v;
-                                }
-                            });
+                    Map<ProjectId, Map<String, List<ProcessorStat>>> nodeProcessorStats = nodeStat.getIngestStats().processorStats();
+                    for (Map.Entry<ProjectId, Map<String, List<ProcessorStat>>> processorStatsForProject : nodeProcessorStats.entrySet()) {
+                        ProjectId projectId = processorStatsForProject.getKey();
+                        for (Map.Entry<String, List<ProcessorStat>> processorStats : processorStatsForProject.getValue().entrySet()) {
+                            pipelineIdsByProject.computeIfAbsent(projectId, k -> new HashSet<>()).add(processorStats.getKey());
+                            for (ProcessorStat stat : processorStats.getValue()) {
+                                stats.compute(stat.type(), (k, v) -> {
+                                    org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
+                                    if (v == null) {
+                                        return new long[] {
+                                            nodeIngestStats.ingestCount(),
+                                            nodeIngestStats.ingestFailedCount(),
+                                            nodeIngestStats.ingestCurrent(),
+                                            nodeIngestStats.ingestTimeInMillis() };
+                                    } else {
+                                        v[0] += nodeIngestStats.ingestCount();
+                                        v[1] += nodeIngestStats.ingestFailedCount();
+                                        v[2] += nodeIngestStats.ingestCurrent();
+                                        v[3] += nodeIngestStats.ingestTimeInMillis();
+                                        return v;
+                                    }
+                                });
+                            }
                         }
                     }
                 }
             }
-            this.pipelineCount = pipelineIds.size();
+            this.pipelineCount = pipelineIdsByProject.values().stream().mapToInt(Set::size).sum();
             this.stats = Collections.unmodifiableSortedMap(stats);
         }
 
@@ -787,14 +786,20 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long coordinatingRejections = 0;
             long primaryRejections = 0;
             long replicaRejections = 0;
+            long primaryDocumentRejections = 0;
             long memoryLimit = 0;
 
             long totalCoordinatingOps = 0;
+            long totalCoordinatingRequests = 0;
             long totalPrimaryOps = 0;
             long totalReplicaOps = 0;
             long currentCoordinatingOps = 0;
             long currentPrimaryOps = 0;
             long currentReplicaOps = 0;
+            long lowWaterMarkSplits = 0;
+            long highWaterMarkSplits = 0;
+            long largeOpsRejections = 0;
+            long totalLargeRejectedOpsBytes = 0;
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
@@ -816,6 +821,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentCoordinatingOps += nodeStatIndexingPressureStats.getCurrentCoordinatingOps();
                     currentPrimaryOps += nodeStatIndexingPressureStats.getCurrentPrimaryOps();
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
+                    primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
+                    totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
+                    lowWaterMarkSplits += nodeStatIndexingPressureStats.getLowWaterMarkSplits();
+                    highWaterMarkSplits += nodeStatIndexingPressureStats.getHighWaterMarkSplits();
+                    largeOpsRejections += nodeStatIndexingPressureStats.getLargeOpsRejections();
+                    totalLargeRejectedOpsBytes += nodeStatIndexingPressureStats.getTotalLargeRejectedOpsBytes();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -836,7 +847,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 totalReplicaOps,
                 currentCoordinatingOps,
                 currentPrimaryOps,
-                currentReplicaOps
+                currentReplicaOps,
+                primaryDocumentRejections,
+                totalCoordinatingRequests,
+                lowWaterMarkSplits,
+                highWaterMarkSplits,
+                largeOpsRejections,
+                totalLargeRejectedOpsBytes
             );
         }
 
@@ -845,6 +862,52 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return indexingPressureStats.toXContent(builder, params);
         }
 
+    }
+
+    static class ClusterFsStatsDeduplicator {
+
+        private record DedupEntry(InetAddress inetAddress, String mount, String path) {}
+
+        private final Set<DedupEntry> seenAddressesMountsPaths;
+
+        private final FsInfo.Path total = new FsInfo.Path();
+
+        ClusterFsStatsDeduplicator(int expectedSize) {
+            // each address+mount is stored twice (once without a path, and once with a path), thus 2x
+            seenAddressesMountsPaths = Sets.newHashSetWithExpectedSize(2 * expectedSize);
+        }
+
+        public void add(InetAddress inetAddress, FsInfo fsInfo) {
+            if (fsInfo != null) {
+                for (FsInfo.Path p : fsInfo) {
+                    final String mount = p.getMount();
+                    final String path = p.getPath();
+
+                    // this deduplication logic is hard to get right. it might be impossible to make it work correctly in
+                    // *all* circumstances. this is best-effort only, but it's aimed at trying to solve 90%+ of cases.
+
+                    // rule 0: we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
+                    // address and mount, then definitely add that to the total.
+
+                    // rule 1: however, as a special case, if we see the same address+mount+path triple more than once, then we
+                    // override the ip+mount de-duplication logic -- using that as indicator that we're seeing a special
+                    // containerization situation, in which case we assume the operator is maintaining different disks for each node.
+
+                    boolean seenAddressMount = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, null)) == false;
+                    boolean seenAddressMountPath = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, path)) == false;
+
+                    if ((seenAddressMount == false) || seenAddressMountPath) {
+                        total.add(p);
+                    }
+                }
+            }
+        }
+
+        public FsInfo.Path getTotal() {
+            FsInfo.Path result = new FsInfo.Path();
+            result.add(total);
+            return result;
+        }
     }
 
 }

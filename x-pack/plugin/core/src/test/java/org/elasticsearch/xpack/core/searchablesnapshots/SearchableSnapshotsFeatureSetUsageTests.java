@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.searchablesnapshots;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSerializingTestCase<SearchableSnapshotFeatureSetUsage> {
 
     @Override
@@ -20,7 +18,7 @@ public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSeriali
     }
 
     @Override
-    protected SearchableSnapshotFeatureSetUsage mutateInstance(SearchableSnapshotFeatureSetUsage instance) throws IOException {
+    protected SearchableSnapshotFeatureSetUsage mutateInstance(SearchableSnapshotFeatureSetUsage instance) {
         boolean available = instance.available();
         int numFullCopySearchableSnapshotIndices = instance.getNumberOfFullCopySearchableSnapshotIndices();
         int numSharedCacheSearchableSnapshotIndices = instance.getNumberOfSharedCacheSearchableSnapshotIndices();

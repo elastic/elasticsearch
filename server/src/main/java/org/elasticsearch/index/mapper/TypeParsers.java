@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ public class TypeParsers {
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
+        if (meta.isEmpty()) {
+            return Map.of();
+        }
         if (meta.size() > 5) {
             throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
         }
@@ -69,6 +73,12 @@ public class TypeParsers {
                 );
             }
         }
+        var entrySet = meta.entrySet();
+        if (entrySet.size() == 1) {
+            // no need to sort for a single entry
+            var entry = entrySet.iterator().next();
+            return Map.of(entry.getKey(), (String) entry.getValue());
+        }
         Map<String, String> sortedMeta = new TreeMap<>();
         for (Map.Entry<String, ?> entry : meta.entrySet()) {
             sortedMeta.put(entry.getKey(), (String) entry.getValue());
@@ -88,7 +98,7 @@ public class TypeParsers {
             if (parserContext.isWithinMultiField()) {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
-                if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                if (parserContext.indexVersionCreated().before(IndexVersions.V_8_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         "multifield_within_multifield",
@@ -151,7 +161,15 @@ public class TypeParsers {
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on field ["
+                            + multiFieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
                 }
                 if (typeParser instanceof FieldMapper.TypeParser == false) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
@@ -169,7 +187,7 @@ public class TypeParsers {
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return DateFormatter.forPattern((String) node);
+            return DateFormatter.forPattern((String) node).withLocale(DateFieldMapper.DEFAULT_LOCALE);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

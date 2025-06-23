@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -195,7 +196,18 @@ public class XContentMapValues {
             for (Object o : valueList) {
                 Object listValue = extractValue(pathElements, index, o, nullValue);
                 if (listValue != null) {
-                    newList.add(listValue);
+                    // we add arrays as list elements only if we are already at leaf,
+                    // otherwise append individual elements to the new list so we don't
+                    // accumulate intermediate array structures
+                    if (listValue instanceof List<?> list) {
+                        if (index == pathElements.length) {
+                            newList.add(list);
+                        } else {
+                            newList.addAll(list);
+                        }
+                    } else {
+                        newList.add(listValue);
+                    }
                 }
             }
             return newList;
@@ -262,29 +274,22 @@ public class XContentMapValues {
      */
     public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
-
-        CharacterRunAutomaton include;
-        if (includes == null || includes.length == 0) {
-            include = matchAllAutomaton;
-        } else {
-            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
-            includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
-        }
-
-        Automaton excludeA;
-        if (excludes == null || excludes.length == 0) {
-            excludeA = Automata.makeEmpty();
-        } else {
-            excludeA = Regex.simpleMatchToAutomaton(excludes);
-            excludeA = makeMatchDotsInFieldNames(excludeA);
-        }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton);
+        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
         return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton);
+    }
+
+    public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue) {
+        if (patterns == null || patterns.length == 0) {
+            return defaultValue;
+        }
+        var aut = Regex.simpleMatchToAutomaton(patterns);
+        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(aut);
     }
 
     /** Make matches on objects also match dots in field names.
@@ -544,7 +549,7 @@ public class XContentMapValues {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
         } else {
-            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+            throw new ElasticsearchParseException(desc + " should be a map but was of type: " + node.getClass());
         }
     }
 

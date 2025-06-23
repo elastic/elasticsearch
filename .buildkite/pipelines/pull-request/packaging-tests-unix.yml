@@ -1,0 +1,35 @@
+config:
+  allow-labels: ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-unix
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix"
+        key: "packaging-tests-unix"
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.{{matrix.PACKAGING_TASK}}
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - debian-12
+              - opensuse-leap-15
+              - oraclelinux-8
+              - oraclelinux-9
+              - sles-15
+              - ubuntu-2204
+              - ubuntu-2404
+              - rocky-8
+              - rocky-9
+              - rhel-8
+              - rhel-9
+              - almalinux-8
+              - almalinux-9
+            PACKAGING_TASK:
+              - docker
+              - docker-cloud-ess
+              - packages
+              - archives
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768

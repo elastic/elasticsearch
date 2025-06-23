@@ -24,11 +24,6 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
@@ -39,10 +34,15 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
         }
         if (randomBoolean()) {
             request.setMaxModelMemory(
-                randomLongBetween(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(), new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())
+                randomLongBetween(ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes(), ByteSizeValue.of(499, ByteSizeUnit.MB).getBytes())
             );
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -31,7 +31,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
 
     public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));
@@ -72,13 +72,13 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         assertThat(exception.validationErrors(), hasItem("Application names may not contain '*' (found '*')"));
     }
 
-    private HasPrivilegesRequest serializeAndDeserialize(HasPrivilegesRequest original, Version version) throws IOException {
+    private HasPrivilegesRequest serializeAndDeserialize(HasPrivilegesRequest original, TransportVersion version) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         original.writeTo(out);
 
         final StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
+        in.setTransportVersion(version);
         final HasPrivilegesRequest copy = new HasPrivilegesRequest(in);
         assertThat(in.read(), equalTo(-1));
         return copy;

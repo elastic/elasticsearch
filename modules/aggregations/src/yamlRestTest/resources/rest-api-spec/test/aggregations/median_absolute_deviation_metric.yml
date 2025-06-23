@@ -3,8 +3,6 @@ setup:
         indices.create:
             index: test
             body:
-              settings:
-                number_of_replicas: 0
               mappings:
                 properties:
                   int_field:
@@ -75,6 +73,49 @@ setup:
 
   - match: { aggregations.mad_int.value: 100 }
   - match: { aggregations.mad_double.value: 100 }
+
+---
+"with execution hint":
+
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
+      reason: t-digest forked in 8.9.0
+
+  - do:
+      search:
+        body:
+          aggs:
+            mad_int:
+              median_absolute_deviation:
+                field: int_field
+                execution_hint: high_accuracy
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.mad_int.value: 100 }
+
+  - do:
+      search:
+        body:
+          aggs:
+            mad_int:
+              median_absolute_deviation:
+                field: int_field
+                execution_hint: default
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { aggregations.mad_int.value: 100 }
+
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        body:
+          aggs:
+            mad:
+              median_absolute_deviation:
+                field: int_field
+                execution_hint: no_such_hint
 
 ---
 "no documents":

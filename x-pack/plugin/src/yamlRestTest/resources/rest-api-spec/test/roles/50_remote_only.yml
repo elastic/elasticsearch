@@ -1,0 +1,110 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "remote_role" ]
+            }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "remote_role"
+        ignore: 404
+
+---
+"Test put remote role api":
+  - do:
+      security.put_role:
+        name: "remote_role"
+        body:  >
+          {
+            "remote_indices":[
+              {
+                "names":[
+                  "logs*"
+                ],
+                "privileges":[
+                  "read"
+                ],
+                "allow_restricted_indices":false,
+                "clusters":[
+                  "*"
+                ]
+              }
+            ],
+            "remote_cluster":[
+              {
+                "privileges":[
+                  "monitor_enrich"
+                ],
+                "clusters":[
+                  "my_remote*", "my_remote2*"
+                ]
+              }
+            ]
+          }
+  - match: { role: { created: true } }
+
+  - do:
+      security.get_role:
+        name: "remote_role"
+  - match: { remote_role.remote_indices.0.names.0:  "logs*" }
+  - match: { remote_role.remote_indices.0.privileges.0:  "read" }
+  - match: { remote_role.remote_indices.0.allow_restricted_indices:  false }
+  - match: { remote_role.remote_indices.0.clusters.0:  "*" }
+  - match: { remote_role.remote_cluster.0.privileges.0:  "monitor_enrich" }
+  - match: { remote_role.remote_cluster.0.clusters.0:  "my_remote*" }
+  - match: { remote_role.remote_cluster.0.clusters.1:  "my_remote2*" }
+
+  # the query roles endpoint also shows the same role info
+  - do:
+      security.query_role:
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must_not": {
+                  "term": {
+                    "metadata._reserved": true
+                  }
+                }
+              }
+            }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { roles.0.name: "remote_role" }
+  - match: { roles.0.remote_indices.0.names.0:  "logs*" }
+  - match: { roles.0.remote_indices.0.privileges.0:  "read" }
+  - match: { roles.0.remote_indices.0.allow_restricted_indices:  false }
+  - match: { roles.0.remote_indices.0.clusters.0:  "*" }
+  - match: { roles.0.remote_cluster.0.privileges.0:  "monitor_enrich" }
+  - match: { roles.0.remote_cluster.0.clusters.0:  "my_remote*" }
+  - match: { roles.0.remote_cluster.0.clusters.1:  "my_remote2*" }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.get_user_privileges: {}
+  - match: { remote_indices.0.names.0:  "logs*" }
+  - match: { remote_indices.0.privileges.0:  "read" }
+  - match: { remote_indices.0.allow_restricted_indices:  false }
+  - match: { remote_indices.0.clusters.0:  "*" }
+  - match: { remote_cluster.0.privileges.0:  "monitor_enrich" }
+  - match: { remote_cluster.0.clusters.0:  "my_remote*" }
+  - match: { remote_cluster.0.clusters.1:  "my_remote2*" }

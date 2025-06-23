@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
@@ -41,12 +41,13 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
     private static final PolicyValidator NO_VALIDATION = policy -> {};
 
     public void testWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,
             new AutoscalingLicenseChecker(() -> true)
         );
@@ -65,12 +66,13 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
     }
 
     public void testNoWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,
             new AutoscalingLicenseChecker(() -> true)
         );
@@ -124,6 +126,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     public void testAddPolicyWithNoRoles() {
         PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             null,
             randomAutoscalingDeciders()
@@ -153,6 +157,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final String name = randomFrom(currentMetadata.policies().keySet());
         // add to the existing deciders, to ensure the policy has changed
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             name,
             randomBoolean() ? randomRoles() : null,
             mutateAutoscalingDeciders(currentMetadata.policies().get(name).policy().deciders())
@@ -201,6 +207,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final AutoscalingPolicy policy = randomFrom(currentMetadata.policies().values()).policy();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             randomBoolean() ? policy.roles() : null,
             randomBoolean() ? policy.deciders() : null
@@ -220,6 +228,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     public void testPolicyValidator() {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             randomRoles(),
             Collections.emptySortedMap()
@@ -227,12 +237,9 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final Logger mockLogger = mock(Logger.class);
         expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(
-                ClusterState.EMPTY_STATE,
-                request,
-                p -> { throw new IllegalArgumentException(); },
-                mockLogger
-            )
+            () -> TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(ClusterState.EMPTY_STATE, request, p -> {
+                throw new IllegalArgumentException();
+            }, mockLogger)
         );
 
         verifyNoMoreInteractions(mockLogger);
@@ -240,6 +247,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     static PutAutoscalingPolicyAction.Request randomPutAutoscalingPolicyRequest() {
         return new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             randomRoles(),
             randomBoolean() ? randomAutoscalingDeciders() : null

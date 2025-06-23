@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CancellationException;
 
-import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -58,11 +57,6 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
         List<Class<? extends Plugin>> result = new ArrayList<>(super.nodePlugins());
         result.add(Netty4Plugin.class);
         return Collections.unmodifiableList(result);
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testCapacityRestCancellationAndResponse() throws Exception {
@@ -85,7 +79,8 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
             Cancellable cancellable = restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(cancelledFuture));
             LocalStateAutoscaling.AutoscalingTestPlugin plugin = internalCluster().getAnyMasterNodeInstance(PluginsService.class)
                 .filterPlugins(LocalStateAutoscaling.class)
-                .get(0)
+                .findFirst()
+                .get()
                 .testPlugin();
             plugin.syncWithDeciderService(() -> {
                 putAutoscalingPolicy(Map.of(AutoscalingCountTestDeciderService.NAME, Settings.EMPTY));
@@ -148,6 +143,8 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
 
     private void putAutoscalingPolicy(Map<String, Settings> settingsMap) {
         final PutAutoscalingPolicyAction.Request request1 = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "test",
             new TreeSet<>(Set.of(DiscoveryNodeRole.DATA_ROLE.roleName())),
             // test depends on using treemap's internally, i.e., count is evaluated before wait_for_cancel.

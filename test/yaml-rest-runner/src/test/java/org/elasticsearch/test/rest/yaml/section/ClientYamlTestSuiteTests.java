@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +28,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -35,6 +35,53 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentParserTestCase {
+
+    public void testParseTestSetupWithSkip() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            setup:
+              - skip:
+                  known_issues:
+                    - cluster_feature: "feature_a"
+                      fixed_by: "feature_a_fix"
+                  reason: "Bug introduced with feature a, fixed with feature a fix"
+
+            ---
+            date:
+              - skip:
+                  cluster_features: "tsdb_indexing"
+                  reason: tsdb indexing changed in 8.2.0
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_index.test_type.properties.text.type:     string}
+              - match: {test_index.test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection(), notNullValue());
+
+        assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getExecutableSections().isEmpty(), equalTo(true));
+
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("date"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(3));
+        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
+        DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_mapping"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
+        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
+    }
+
     public void testParseTestSetupTeardownAndSections() throws Exception {
         final boolean includeSetup = randomBoolean();
         final boolean includeTeardown = randomBoolean();
@@ -73,7 +120,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "Get type mapping - pre 6.0":
 
               - skip:
-                  version:     "6.0.0 - "
+                  cluster_features: "feature_in_6.0"
                   reason:      "for newer versions the index name is always returned"
 
               - do:
@@ -93,7 +140,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getSetupSection(), notNullValue());
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
-            assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
+            assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().isEmpty(), equalTo(true));
             assertThat(restTestSuite.getSetupSection().getExecutableSections().size(), equalTo(1));
             final ExecutableSection maybeDoSection = restTestSuite.getSetupSection().getExecutableSections().get(0);
             assertThat(maybeDoSection, instanceOf(DoSection.class));
@@ -108,7 +155,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTeardownSection(), notNullValue());
         if (includeTeardown) {
             assertThat(restTestSuite.getTeardownSection().isEmpty(), equalTo(false));
-            assertThat(restTestSuite.getTeardownSection().getSkipSection().isEmpty(), equalTo(true));
+            assertThat(restTestSuite.getTeardownSection().getPrerequisiteSection().isEmpty(), equalTo(true));
             assertThat(restTestSuite.getTeardownSection().getDoSections().size(), equalTo(1));
             assertThat(
                 ((DoSection) restTestSuite.getTeardownSection().getDoSections().get(0)).getApiCallSection().getApi(),
@@ -129,7 +176,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().size(), equalTo(2));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Get index mapping"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
         DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
@@ -146,13 +193,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
 
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 6.0"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(1).getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(
-            restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
+            restTestSuite.getTestSections().get(1).getPrerequisiteSection().skipReason,
             equalTo("for newer versions the index name is always returned")
         );
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
+
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);
@@ -211,7 +257,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().size(), equalTo(1));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Index with ID"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(12));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
         DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
@@ -324,7 +370,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().size(), equalTo(2));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Missing document (partial doc)"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(2));
 
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
@@ -341,7 +387,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(true));
 
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Missing document (script)"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(1).getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(2));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(1), instanceOf(DoSection.class));
@@ -420,13 +466,74 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().size(), equalTo(1));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getReason(), equalTo("not supported"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason, containsString("not supported"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().hasYamlRunnerFeature("skip_os"), equalTo(true));
+    }
+
+    public void testMuteUsingAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Mute":
+
+              - skip:
+                  awaits_fix: bugurl
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Mute"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+    }
+
+    public void testParseSkipAndRequireClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Broken on some os":
+
+              - skip:
+                  known_issues:
+                    - cluster_feature: buggy_feature
+                      fixed_by: buggy_feature_fix
+                  cluster_features:     [unsupported-feature1, unsupported-feature2]
+                  reason:      "unsupported-features are not supported"
+              - requires:
+                  cluster_features:     required-feature1
+                  reason:      "required-feature1 is required"
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
         assertThat(
-            restTestSuite.getTestSections().get(0).getSkipSection().getOperatingSystems(),
-            containsInAnyOrder("windows95", "debian-5")
+            restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason,
+            equalTo("unsupported-features are not supported")
         );
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().requireReason, equalTo("required-feature1 is required"));
     }
 
     public void testParseFileWithSingleTestSection() throws Exception {
@@ -459,7 +566,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().size(), equalTo(1));
 
         assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Index with ID"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(2));
         assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
         DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
@@ -479,7 +586,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSection section = new ClientYamlTestSection(
             new XContentLocation(0, 0),
             "test",
-            SkipSection.EMPTY,
+            PrerequisiteSection.EMPTY,
             Collections.singletonList(doSection)
         );
         ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite(
@@ -498,11 +605,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
+            attempted to add a [do] with a [warnings] section without a corresponding ["requires": "test_runner_features": "warnings"] \
             so runners that do not support the [warnings] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -512,11 +619,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [warnings_regex] section without a corresponding ["skip": "features": "warnings_regex"] \
+            attempted to add a [do] with a [warnings_regex] section without a corresponding \
+            ["requires": "test_runner_features": "warnings_regex"] \
             so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -526,11 +634,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setAllowedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["skip": "features": \
+            attempted to add a [do] with a [allowed_warnings] section without a corresponding ["requires": "test_runner_features": \
             "allowed_warnings"] so runners that do not support the [allowed_warnings] section can skip the test at \
             line [%d]\
             """, lineNumber)));
@@ -541,11 +649,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setAllowedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["skip": "features": \
+            attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["requires": "test_runner_features": \
             "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] section can skip the test \
             at line [%d]\
             """, lineNumber)));
@@ -557,11 +665,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(Collections.singletonMap("header", "value"));
         doSection.setApiCallSection(apiCallSection);
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
+            attempted to add a [do] with a [headers] section without a corresponding ["requires": "test_runner_features": "headers"] \
             so runners that do not support the [headers] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -572,11 +680,12 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] \
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
             so runners that do not support the [node_selector] section can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -588,11 +697,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             randomAlphaOfLength(randomIntBetween(3, 30)),
             randomDouble()
         );
-        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, containsAssertion);
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, containsAssertion);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
-            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
+            attempted to add a [contains] assertion without a corresponding ["requires": "test_runner_features": "contains"] \
             so runners that do not support the [contains] assertion can skip the test at line [%d]\
             """, lineNumber)));
     }
@@ -610,7 +719,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "section1",
-                    SkipSection.EMPTY,
+                    PrerequisiteSection.EMPTY,
                     Collections.singletonList(containsAssertion)
                 )
             );
@@ -631,7 +740,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             doSection.setApiCallSection(apiCall);
             doSections.add(doSection);
         }
-        sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", SkipSection.EMPTY, doSections));
+        sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", PrerequisiteSection.EMPTY, doSections));
 
         ClientYamlTestSuite testSuite = new ClientYamlTestSuite(
             "api",
@@ -644,14 +753,20 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
         assertEquals(Strings.format("""
             api/name:
-            attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
-            do not support the [contains] assertion can skip the test at line [%d],
-            attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] so runners \
-            that do not support the [warnings] section can skip the test at line [%d],
-            attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] so \
-            runners that do not support the [node_selector] section can skip the test \
-            at line [%d]\
+            attempted to add a [contains] assertion without a corresponding \
+            ["requires": "test_runner_features": "contains"] \
+            so runners that do not support the [contains] assertion can skip the test at line [%d],
+            attempted to add a [do] with a [warnings] section without a corresponding \
+            ["requires": "test_runner_features": "warnings"] \
+            so runners that do not support the [warnings] section can skip the test at line [%d],
+            attempted to add a [do] with a [node_selector] section without a corresponding \
+            ["requires": "test_runner_features": "node_selector"] \
+            so runners that do not support the [node_selector] section can skip the test at line [%d]\
             """, firstLineNumber, secondLineNumber, thirdLineNumber), e.getMessage());
+    }
+
+    private static PrerequisiteSection createPrerequisiteSection(String yamlTestRunnerFeature) {
+        return new PrerequisiteSection(emptyList(), null, emptyList(), null, singletonList(yamlTestRunnerFeature));
     }
 
     public void testAddingDoWithWarningWithSkip() {
@@ -659,8 +774,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), emptyList(), null);
-        createTestSuite(skipSection, doSection).validate();
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("warnings");
+        createTestSuite(prerequisiteSection, doSection).validate();
     }
 
     public void testAddingDoWithWarningRegexWithSkip() {
@@ -668,75 +783,86 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("foo")));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings_regex"), emptyList(), null);
-        createTestSuite(skipSection, doSection).validate();
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("warnings_regex");
+        createTestSuite(prerequisiteSection, doSection).validate();
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), emptyList(), null);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("node_selector");
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
-        createTestSuite(skipSection, doSection).validate();
+        createTestSuite(prerequisiteSection, doSection).validate();
     }
 
     public void testAddingDoWithHeadersWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("headers"), emptyList(), null);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("headers");
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
         doSection.setApiCallSection(apiCallSection);
-        createTestSuite(skipSection, doSection).validate();
+        createTestSuite(prerequisiteSection, doSection).validate();
     }
 
     public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("contains"), emptyList(), null);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("contains");
         ContainsAssertion containsAssertion = new ContainsAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
             randomDouble()
         );
-        createTestSuite(skipSection, containsAssertion).validate();
+        createTestSuite(prerequisiteSection, containsAssertion).validate();
     }
 
     public void testAddingCloseToWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("close_to"), emptyList(), null);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("close_to");
         CloseToAssertion closeToAssertion = new CloseToAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),
             randomDouble(),
             randomDouble()
         );
-        createTestSuite(skipSection, closeToAssertion).validate();
+        createTestSuite(prerequisiteSection, closeToAssertion).validate();
     }
 
-    private static ClientYamlTestSuite createTestSuite(SkipSection skipSection, ExecutableSection executableSection) {
+    public void testAddingIsAfterWithSkip() {
+        int lineNumber = between(1, 10000);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection("is_after");
+        IsAfterAssertion isAfterAssertion = new IsAfterAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomInstantBetween(Instant.ofEpochSecond(0L), Instant.ofEpochSecond(3000000000L))
+        );
+        createTestSuite(prerequisiteSection, isAfterAssertion).validate();
+    }
+
+    private static ClientYamlTestSuite createTestSuite(PrerequisiteSection prerequisiteSection, ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
         switch (randomIntBetween(0, 4)) {
             case 0 -> {
-                setupSection = new SetupSection(skipSection, Collections.emptyList());
+                setupSection = new SetupSection(prerequisiteSection, Collections.emptyList());
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "test",
-                    SkipSection.EMPTY,
+                    PrerequisiteSection.EMPTY,
                     Collections.singletonList(executableSection)
                 );
             }
             case 1 -> {
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(skipSection, Collections.emptyList());
+                teardownSection = new TeardownSection(prerequisiteSection, Collections.emptyList());
                 clientYamlTestSection = new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "test",
-                    SkipSection.EMPTY,
+                    PrerequisiteSection.EMPTY,
                     Collections.singletonList(executableSection)
                 );
             }
@@ -746,27 +872,27 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 clientYamlTestSection = new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "test",
-                    skipSection,
+                    prerequisiteSection,
                     Collections.singletonList(executableSection)
                 );
             }
             case 3 -> {
-                setupSection = new SetupSection(skipSection, Collections.singletonList(executableSection));
+                setupSection = new SetupSection(prerequisiteSection, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "test",
-                    SkipSection.EMPTY,
+                    PrerequisiteSection.EMPTY,
                     randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection)
                 );
             }
             case 4 -> {
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(skipSection, Collections.singletonList(executableSection));
+                teardownSection = new TeardownSection(prerequisiteSection, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(
                     new XContentLocation(0, 0),
                     "test",
-                    SkipSection.EMPTY,
+                    PrerequisiteSection.EMPTY,
                     randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection)
                 );
             }

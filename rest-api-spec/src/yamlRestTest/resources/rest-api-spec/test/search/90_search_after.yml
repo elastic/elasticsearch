@@ -155,8 +155,8 @@
 
 ---
 "date_nanos":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: fixed in 7.10.0
 
   - do:
@@ -218,35 +218,10 @@
   - match: {hits.hits.0._source.timestamp: "2019-10-21 00:30:04.828740" }
   - match: {hits.hits.0.sort: [1571617804828740000] }
 
-
----
-"_shard_doc sort":
-  - skip:
-        version: " - 7.11.99"
-        reason: _shard_doc sort was added in 7.12
-
-  - do:
-      indices.create:
-        index:  test
-  - do:
-      index:
-        index:  test
-        id:     "1"
-        body:   { id: 1, foo: bar, age: 18 }
-
-  - do:
-      catch:      /\[_shard_doc\] sort field cannot be used without \[point in time\]/
-      search:
-        index: test
-        body:
-          size: 1
-          sort: ["_shard_doc"]
-          search_after: [ 0L ]
-
 ---
 "Format sort values":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: Format sort output is introduced in 7.13
 
   - do:

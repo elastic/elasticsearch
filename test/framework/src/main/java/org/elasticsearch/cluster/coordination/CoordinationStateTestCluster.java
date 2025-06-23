@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +38,7 @@ import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 
-public class CoordinationStateTestCluster {
+public final class CoordinationStateTestCluster {
 
     public static ClusterState clusterState(
         long term,
@@ -147,17 +149,14 @@ public class CoordinationStateTestCluster {
                 }
             }
 
-            localNode = new DiscoveryNode(
-                localNode.getName(),
-                localNode.getId(),
-                UUIDs.randomBase64UUID(random()),
-                localNode.getHostName(),
-                localNode.getHostAddress(),
-                localNode.getAddress(),
-                localNode.getAttributes(),
-                roles,
-                localNode.getVersion()
-            );
+            localNode = DiscoveryNodeUtils.builder(localNode.getId())
+                .name(localNode.getName())
+                .ephemeralId(UUIDs.randomBase64UUID(random()))
+                .address(localNode.getHostName(), localNode.getHostAddress(), localNode.getAddress())
+                .attributes(localNode.getAttributes())
+                .roles(roles)
+                .version(localNode.getVersionInformation())
+                .build();
 
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
@@ -187,7 +186,7 @@ public class CoordinationStateTestCluster {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();
 
-        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).collect(Collectors.toList());
+        clusterNodes = nodes.stream().map(node -> new ClusterNode(node, electionStrategy)).toList();
 
         initialConfiguration = randomVotingConfig();
         initialValue = randomLong();
@@ -200,7 +199,7 @@ public class CoordinationStateTestCluster {
     }
 
     void broadcast(DiscoveryNode sourceNode, Object payload) {
-        messages.addAll(clusterNodes.stream().map(cn -> new Message(sourceNode, cn.localNode, payload)).collect(Collectors.toList()));
+        clusterNodes.stream().map(cn -> new Message(sourceNode, cn.localNode, payload)).forEach(messages::add);
     }
 
     Optional<ClusterNode> getNode(DiscoveryNode node) {
@@ -245,15 +244,13 @@ public class CoordinationStateTestCluster {
                 if (rarely() && nextTerm < maxTerm) {
                     final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : nextTerm++;
                     final StartJoinRequest startJoinRequest = new StartJoinRequest(randomFrom(clusterNodes).localNode, term);
-                    broadcast(startJoinRequest.getSourceNode(), startJoinRequest);
+                    broadcast(startJoinRequest.getMasterCandidateNode(), startJoinRequest);
                 } else if (rarely()) {
                     randomFrom(clusterNodes).setInitialState(initialConfiguration, initialValue);
                 } else if (rarely() && rarely()) {
                     randomFrom(clusterNodes).reboot();
                 } else if (rarely()) {
-                    final List<ClusterNode> masterNodes = clusterNodes.stream()
-                        .filter(cn -> cn.state.electionWon())
-                        .collect(Collectors.toList());
+                    final List<ClusterNode> masterNodes = clusterNodes.stream().filter(cn -> cn.state.electionWon()).toList();
                     if (masterNodes.isEmpty() == false) {
                         final ClusterNode clusterNode = randomFrom(masterNodes);
                         final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : clusterNode.state.getCurrentTerm();

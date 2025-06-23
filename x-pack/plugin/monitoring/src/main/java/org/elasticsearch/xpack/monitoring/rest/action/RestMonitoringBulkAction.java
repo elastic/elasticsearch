@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -53,10 +53,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_monitoring/bulk").replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_monitoring/bulk").replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override
@@ -97,12 +94,13 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
-        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
-        return channel -> requestBuilder.execute(getRestBuilderListener(channel));
+        var content = request.content();
+        requestBuilder.add(system, content, request.getXContentType(), timestamp, intervalMillis);
+        return channel -> requestBuilder.execute(ActionListener.withRef(getRestBuilderListener(channel), content));
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 
@@ -114,7 +112,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
      * @param version the system API version
      * @return true if supported, false otherwise
      */
-    private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
+    private static boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
         final List<String> monitoredSystem = SUPPORTED_API_VERSIONS.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
     }

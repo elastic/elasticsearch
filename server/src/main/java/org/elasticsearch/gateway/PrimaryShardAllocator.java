@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -98,7 +98,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(unassignedShard.index());
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
@@ -292,7 +292,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
-    protected static NodeShardsResult buildNodeShardsResult(
+    private static NodeShardsResult buildNodeShardsResult(
         ShardRouting shard,
         boolean matchAnyShard,
         Set<String> ignoreNodes,
@@ -401,13 +401,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 ? allocation.deciders().canForceAllocatePrimary(shardRouting, node, allocation)
                 : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
-            if (decision.type() == Type.THROTTLE) {
-                throttledNodeShards.add(decidedNode);
-            } else if (decision.type() == Type.NO) {
-                noNodeShards.add(decidedNode);
-            } else {
-                yesNodeShards.add(decidedNode);
-            }
+            (switch (decision.type()) {
+                case YES -> yesNodeShards;
+                case THROTTLE -> throttledNodeShards;
+                case NO -> noNodeShards;
+            }).add(decidedNode);
         }
         return new NodesToAllocate(
             Collections.unmodifiableList(yesNodeShards),
@@ -418,39 +416,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    private static class NodeShardsResult {
-        final List<NodeGatewayStartedShards> orderedAllocationCandidates;
-        final int allocationsFound;
+    private record NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {}
 
-        NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
-            this.orderedAllocationCandidates = orderedAllocationCandidates;
-            this.allocationsFound = allocationsFound;
-        }
-    }
-
-    static class NodesToAllocate {
-        final List<DecidedNode> yesNodeShards;
-        final List<DecidedNode> throttleNodeShards;
-        final List<DecidedNode> noNodeShards;
-
-        NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
-            this.yesNodeShards = yesNodeShards;
-            this.throttleNodeShards = throttleNodeShards;
-            this.noNodeShards = noNodeShards;
-        }
-    }
+    private record NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {}
 
     /**
      * This class encapsulates the shard state retrieved from a node and the decision that was made
      * by the allocator for allocating to the node that holds the shard copy.
      */
-    private static class DecidedNode {
-        final NodeGatewayStartedShards nodeShardState;
-        final Decision decision;
-
-        private DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {
-            this.nodeShardState = nodeShardState;
-            this.decision = decision;
-        }
-    }
+    private record DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {}
 }

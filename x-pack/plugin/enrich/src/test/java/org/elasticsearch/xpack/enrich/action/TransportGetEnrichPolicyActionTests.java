@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.junit.After;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,7 +37,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null, new GetEnrichPolicyAction.Request(), new ActionListener<>() {
+        final var task = createTask();
+        ActionTestUtils.execute(transportAction, task, new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT), new ActionListener<>() {
             @Override
             public void onResponse(GetEnrichPolicyAction.Response response) {
                 reference.set(response);
@@ -43,7 +47,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
             }
 
             public void onFailure(final Exception e) {
-                fail();
+                fail(e);
             }
         });
         latch.await();
@@ -74,24 +78,19 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        ActionTestUtils.execute(
-            transportAction,
-            null,
-            // empty or null should return the same
-            randomBoolean() ? new GetEnrichPolicyAction.Request() : new GetEnrichPolicyAction.Request(new String[] {}),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(GetEnrichPolicyAction.Response response) {
-                    reference.set(response);
-                    latch.countDown();
+        final var task = createTask();
+        ActionTestUtils.execute(transportAction, task, new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT), new ActionListener<>() {
+            @Override
+            public void onResponse(GetEnrichPolicyAction.Response response) {
+                reference.set(response);
+                latch.countDown();
 
-                }
-
-                public void onFailure(final Exception e) {
-                    fail();
-                }
             }
-        );
+
+            public void onFailure(final Exception e) {
+                fail(e);
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         GetEnrichPolicyAction.Response response = reference.get();
@@ -107,7 +106,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null, new GetEnrichPolicyAction.Request(), new ActionListener<>() {
+        final var task = createTask();
+        ActionTestUtils.execute(transportAction, task, new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT), new ActionListener<>() {
             @Override
             public void onResponse(GetEnrichPolicyAction.Response response) {
                 reference.set(response);
@@ -116,7 +116,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
             }
 
             public void onFailure(final Exception e) {
-                fail();
+                fail(e);
             }
         });
         latch.await();
@@ -141,17 +141,22 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null, new GetEnrichPolicyAction.Request(new String[] { name }), new ActionListener<>() {
-            @Override
-            public void onResponse(GetEnrichPolicyAction.Response response) {
-                reference.set(response);
-                latch.countDown();
-            }
+        ActionTestUtils.execute(
+            transportAction,
+            createTask(),
+            new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, name),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GetEnrichPolicyAction.Response response) {
+                    reference.set(response);
+                    latch.countDown();
+                }
 
-            public void onFailure(final Exception e) {
-                fail();
+                public void onFailure(final Exception e) {
+                    fail(e);
+                }
             }
-        });
+        );
         latch.await();
         assertNotNull(reference.get());
         GetEnrichPolicyAction.Response response = reference.get();
@@ -185,8 +190,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(
             transportAction,
-            null,
-            new GetEnrichPolicyAction.Request(new String[] { name, anotherName }),
+            createTask(),
+            new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, name, anotherName),
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
@@ -195,7 +200,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
                 }
 
                 public void onFailure(final Exception e) {
-                    fail();
+                    fail(e);
                 }
             }
         );
@@ -219,8 +224,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(
             transportAction,
-            null,
-            new GetEnrichPolicyAction.Request(new String[] { "non-exists" }),
+            createTask(),
+            new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "non-exists"),
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
@@ -229,12 +234,16 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
                 }
 
                 public void onFailure(final Exception e) {
-                    fail();
+                    fail(e);
                 }
             }
         );
         latch.await();
         assertNotNull(reference.get());
         assertThat(reference.get().getPolicies().size(), equalTo(0));
+    }
+
+    private static CancellableTask createTask() {
+        return new CancellableTask(randomNonNegativeLong(), "test", GetEnrichPolicyAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
     }
 }

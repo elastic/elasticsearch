@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rerun.executer
@@ -12,6 +13,7 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal
 import org.gradle.api.internal.tasks.testing.TestResultProcessor
 import org.gradle.api.internal.tasks.testing.TestStartEvent
+import org.gradle.api.tasks.testing.TestFailure
 import org.gradle.api.tasks.testing.TestOutputEvent
 import spock.lang.Specification
 
@@ -75,20 +77,20 @@ class RerunTestResultProcessorTestSpec extends Specification {
 
         def testDescriptor2 = descriptor("testId2")
         def testStartEvent2 = startEvent("testId2")
-        def testError2 = Mock(Throwable)
+        def testFailure = Mock(TestFailure)
 
         when:
         processor.started(rootDescriptor, rootTestStartEvent)
         processor.started(testDescriptor1, testStartEvent1)
         processor.started(testDescriptor2, testStartEvent2)
-        processor.failure("testId2", testError2)
+        processor.failure("testId2", testFailure)
         processor.completed("rootId", rootCompleteEvent)
 
         then:
         1 * delegate.started(rootDescriptor, rootTestStartEvent)
         1 * delegate.started(testDescriptor1, testStartEvent1)
         1 * delegate.started(testDescriptor2, testStartEvent2)
-        1 * delegate.failure("testId2", testError2)
+        1 * delegate.failure("testId2", testFailure)
         0 * delegate.completed("rootId", rootCompleteEvent)
 
         when:

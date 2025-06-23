@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -44,7 +46,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
     public static final Setting<ClusterRebalanceType> CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING = new Setting<>(
         CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
-        ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
+        settings -> ClusterModule.DESIRED_BALANCE_ALLOCATOR.equals(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.get(settings))
+            ? ClusterRebalanceType.ALWAYS.toString()
+            : ClusterRebalanceType.INDICES_ALL_ACTIVE.toString(),
         ClusterRebalanceType::parseString,
         Property.Dynamic,
         Property.NodeScope
@@ -146,6 +150,10 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             + "]"
     );
 
+    /**
+     * Rebalancing may be enabled, disabled, or only allowed after all primaries have started, depending on the cluster setting
+     * {@link #CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING}.
+     */
     @SuppressWarnings("fallthrough")
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {

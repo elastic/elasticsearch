@@ -90,6 +90,7 @@ public class Latest extends AbstractCompositeAggFunction {
                 topHits.getHits().getHits().length
             );
         }
+
         Map<String, Object> document = topHits.getHits().getHits()[0].getSourceAsMap();
 
         // generator to create unique but deterministic document ids, so we
@@ -113,7 +114,13 @@ public class Latest extends AbstractCompositeAggFunction {
     }
 
     @Override
-    public void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener) {
+    public void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        String transformId,
+        SourceConfig sourceConfig,
+        ActionListener<Map<String, String>> listener
+    ) {
         listener.onResponse(emptyMap());
     }
 

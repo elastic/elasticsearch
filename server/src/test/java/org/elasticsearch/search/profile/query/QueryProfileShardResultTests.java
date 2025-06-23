@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -33,7 +35,9 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too
         }
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
+
+        Long vectorOperationsCount = randomBoolean() ? null : randomNonNegativeLong();
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount);
     }
 
     @Override
@@ -42,9 +46,14 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected QueryProfileShardResult mutateInstance(QueryProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected QueryProfileShardResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        QueryProfileShardResult result = QueryProfileShardResult.fromXContent(parser);
+        QueryProfileShardResult result = SearchResponseUtils.parseQueryProfileShardResult(parser);
         ensureExpectedToken(null, parser.nextToken(), parser);
         return result;
     }

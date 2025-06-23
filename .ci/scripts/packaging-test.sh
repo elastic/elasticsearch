@@ -3,7 +3,7 @@
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
-    sudo zypper install -y insserv-compat
+    sudo zypper install -y insserv-compat docker-buildx
 fi
 
 if [ -e /etc/sysctl.d/99-gce.conf ]; then
@@ -23,7 +23,6 @@ sudo useradd vagrant
 set -e
 
 . .ci/java-versions.properties
-RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
 rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
@@ -40,6 +39,7 @@ if [ -f "/etc/os-release" ] ; then
         # Work around incorrect lintian version
         #  https://github.com/elastic/elasticsearch/issues/48573
         if [ $VERSION_ID == 10 ] ; then
+            sudo apt-get update -y || true
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi
@@ -74,9 +74,9 @@ git config --global --add safe.directory $WORKSPACE
 # be explicit about Gradle home dir so we use the same even with sudo
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
-  RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
-  SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
+  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
+  DOCKER_CONFIG="${HOME}/.docker" \
+  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
 

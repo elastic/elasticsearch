@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +27,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UpdateDesiredNodesRequestTests extends ESTestCase {
     public void testValidation() {
         final UpdateDesiredNodesRequest updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomBoolean() ? "" : "     ",
             -1,
             randomBoolean() ? Collections.emptyList() : List.of(hotDesiredNode()),
@@ -46,14 +48,13 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
             .build();
 
         if (randomBoolean()) {
-            return new DesiredNode(settings, randomFloat(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            return new DesiredNode(settings, randomFloat(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1));
         } else {
             return new DesiredNode(
                 settings,
                 new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (double) 1),
                 ByteSizeValue.ofGb(1),
-                ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                ByteSizeValue.ofGb(1)
             );
         }
     }

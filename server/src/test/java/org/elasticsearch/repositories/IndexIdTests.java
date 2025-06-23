@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -36,7 +37,7 @@ public class IndexIdTests extends AbstractWireSerializingTestCase<IndexId> {
     }
 
     @Override
-    protected IndexId mutateInstance(IndexId instance) throws IOException {
+    protected IndexId mutateInstance(IndexId instance) {
         return switch (randomInt(1)) {
             case 0 -> new IndexId(randomValueOtherThan(instance.getName(), ESTestCase::randomIdentifier), instance.getId());
             case 1 -> new IndexId(instance.getName(), randomValueOtherThan(instance.getId(), UUIDs::randomBase64UUID));
@@ -48,17 +49,20 @@ public class IndexIdTests extends AbstractWireSerializingTestCase<IndexId> {
         IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        String name = null;
-        String id = null;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            final String currentFieldName = parser.currentName();
-            parser.nextToken();
-            if (currentFieldName.equals(IndexId.NAME)) {
-                name = parser.text();
-            } else if (currentFieldName.equals(IndexId.ID)) {
-                id = parser.text();
+        String name;
+        String id;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            name = null;
+            id = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                final String currentFieldName = parser.currentName();
+                parser.nextToken();
+                if (currentFieldName.equals(IndexId.NAME)) {
+                    name = parser.text();
+                } else if (currentFieldName.equals(IndexId.ID)) {
+                    id = parser.text();
+                }
             }
         }
         assertNotNull(name);

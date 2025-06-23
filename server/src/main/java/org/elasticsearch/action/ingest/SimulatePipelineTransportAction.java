@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -16,15 +17,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
@@ -46,6 +50,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final IngestService ingestService;
     private final SimulateExecutionService executionService;
     private final TransportService transportService;
+    private final ProjectResolver projectResolver;
     private volatile TimeValue ingestNodeTransportActionTimeout;
     // ThreadLocal because our unit testing framework does not like sharing Randoms across threads
     private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
@@ -55,12 +60,20 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
-        IngestService ingestService
+        IngestService ingestService,
+        ProjectResolver projectResolver
     ) {
-        super(SimulatePipelineAction.NAME, transportService, actionFilters, SimulatePipelineRequest::new);
+        super(
+            SimulatePipelineAction.NAME,
+            transportService,
+            actionFilters,
+            SimulatePipelineRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.ingestService = ingestService;
         this.executionService = new SimulateExecutionService(threadPool);
         this.transportService = transportService;
+        this.projectResolver = projectResolver;
         this.ingestNodeTransportActionTimeout = INGEST_NODE_TRANSPORT_ACTION_TIMEOUT.get(ingestService.getClusterService().getSettings());
         ingestService.getClusterService()
             .getClusterSettings()
@@ -87,9 +100,11 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         }
         try {
             if (discoveryNodes.getLocalNode().isIngestNode()) {
+                final var projectId = projectResolver.getProjectId();
                 final SimulatePipelineRequest.Parsed simulateRequest;
                 if (request.getId() != null) {
                     simulateRequest = SimulatePipelineRequest.parseWithPipelineId(
+                        projectId,
                         request.getId(),
                         source,
                         request.isVerbose(),
@@ -98,6 +113,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                     );
                 } else {
                     simulateRequest = SimulatePipelineRequest.parse(
+                        projectId,
                         source,
                         request.isVerbose(),
                         ingestService,
@@ -110,7 +126,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                 logger.trace("forwarding request [{}] to ingest node [{}]", actionName, ingestNode);
                 ActionListenerResponseHandler<SimulatePipelineResponse> handler = new ActionListenerResponseHandler<>(
                     listener,
-                    SimulatePipelineAction.INSTANCE.getResponseReader()
+                    SimulatePipelineResponse::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
                 );
                 if (task == null) {
                     transportService.sendRequest(ingestNode, actionName, request, handler);

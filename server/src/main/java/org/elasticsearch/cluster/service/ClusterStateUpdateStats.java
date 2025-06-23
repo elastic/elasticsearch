@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -117,7 +117,6 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(Version.V_7_16_0) : out.getVersion();
         out.writeVLong(unchangedTaskCount);
         out.writeVLong(publicationSuccessCount);
         out.writeVLong(publicationFailureCount);
@@ -139,7 +138,7 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
         out.writeVLong(failedNotificationElapsedMillis);
     }
 
-    public static ClusterStateUpdateStats EMPTY = new ClusterStateUpdateStats(
+    public static final ClusterStateUpdateStats EMPTY = new ClusterStateUpdateStats(
         0L,
         0L,
         0L,

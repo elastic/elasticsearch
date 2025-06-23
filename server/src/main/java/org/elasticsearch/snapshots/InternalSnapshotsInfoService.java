@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -41,7 +42,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
+public final class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
     public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
         "cluster.snapshot.info.max_concurrent_fetches",
@@ -53,13 +54,13 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+    private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
         r -> logger.trace("reroute after snapshot shard size update completed"),
         e -> logger.debug("reroute after snapshot shard size update failed", e)
     );
 
     private final ThreadPool threadPool;
-    private final Supplier<RepositoriesService> repositoriesService;
+    private final RepositoriesService repositoriesService;
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
@@ -87,11 +88,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final RepositoriesService repositoriesService,
         final Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoriesService = repositoriesServiceSupplier;
+        this.repositoriesService = repositoriesService;
         this.rerouteService = rerouteServiceSupplier;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
@@ -210,16 +211,14 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         protected void doRun() throws Exception {
-            final RepositoriesService repositories = repositoriesService.get();
-            assert repositories != null;
-            final Repository repository = repositories.repository(snapshotShard.snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(snapshotShard.snapshot.getRepository());
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(
                 snapshotShard.snapshot().getSnapshotId(),
                 snapshotShard.index(),
                 snapshotShard.shardId()
-            ).asCopy().getTotalSize();
+            ).getTotalSize();
 
             logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 

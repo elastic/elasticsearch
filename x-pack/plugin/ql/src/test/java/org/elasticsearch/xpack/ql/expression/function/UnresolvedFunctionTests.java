@@ -22,22 +22,30 @@ import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunction, Expression> {
 
-    public UnresolvedFunction randomUnresolvedFunction() {
+    public static UnresolvedFunction randomUnresolvedFunction() {
+        return innerRandomUnresolvedFunction(resolutionStrategies());
+    }
+
+    static UnresolvedFunction innerRandomUnresolvedFunction(List<FunctionResolutionStrategy> resolutionStrategies) {
         /* Pick an UnresolvedFunction where the name and the
          * message don't happen to be the same String. If they
          * matched then transform would get them confused. */
         Source source = randomSource();
         String name = randomAlphaOfLength(5);
-        FunctionResolutionStrategy resolutionStrategy = randomFrom(resolutionStrategies());
+        FunctionResolutionStrategy resolutionStrategy = randomFrom(resolutionStrategies);
         List<Expression> args = randomFunctionArgs();
         boolean analyzed = randomBoolean();
         String unresolvedMessage = randomUnresolvedMessage();
         return new UnresolvedFunction(source, name, resolutionStrategy, args, analyzed, unresolvedMessage);
     }
 
-    protected List<FunctionResolutionStrategy> resolutionStrategies() {
+    private static List<FunctionResolutionStrategy> resolutionStrategies() {
         return asList(FunctionResolutionStrategy.DEFAULT, new FunctionResolutionStrategy() {
         });
+    }
+
+    protected List<FunctionResolutionStrategy> pluggableResolutionStrategies() {
+        return resolutionStrategies();
     }
 
     private static List<Expression> randomFunctionArgs() {
@@ -64,7 +72,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     protected UnresolvedFunction randomInstance() {
-        return randomUnresolvedFunction();
+        return innerRandomUnresolvedFunction(pluggableResolutionStrategies());
     }
 
     @Override
@@ -130,7 +138,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     public void testTransform() {
-        UnresolvedFunction uf = randomUnresolvedFunction();
+        UnresolvedFunction uf = innerRandomUnresolvedFunction(pluggableResolutionStrategies());
 
         String newName = randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5));
         assertEquals(
@@ -164,7 +172,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     public void testReplaceChildren() {
-        UnresolvedFunction uf = randomUnresolvedFunction();
+        UnresolvedFunction uf = innerRandomUnresolvedFunction(pluggableResolutionStrategies());
 
         List<Expression> newChildren = randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs);
         assertEquals(

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,10 +39,10 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField CATEGORY_ID = CategoryDefinition.CATEGORY_ID;
         public static final ParseField FROM = new ParseField("from");

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -25,17 +26,26 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(8));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testValidateRequest() {
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("my-data-stream");
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my-data-stream"
+        );
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutName() {
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("");
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "");
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

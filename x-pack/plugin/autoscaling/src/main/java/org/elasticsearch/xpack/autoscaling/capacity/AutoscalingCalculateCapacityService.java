@@ -75,7 +75,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         configuration.keySet().forEach(key -> validateSetting(key, configuration, deciderSettings, deciderName));
     }
 
-    private void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
+    private static void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
         Setting<?> setting = deciderSettings.get(key);
         if (setting == null) {
             throw new IllegalArgumentException("unknown setting [" + key + "] for decider [" + decider + "]");
@@ -165,7 +165,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context, ensureNotCancelled)))
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> {
+                throw new UnsupportedOperationException();
+            }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
     }
 
@@ -210,7 +212,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
      * Check if the policy has unknown roles. This can only happen in mixed clusters, where one master can accept a policy but if it fails
      * over to an older master before it is also upgraded, one of the roles might not be known.
      */
-    private boolean hasUnknownRoles(AutoscalingPolicy policy) {
+    private static boolean hasUnknownRoles(AutoscalingPolicy policy) {
         return DiscoveryNodeRole.roleNames().containsAll(policy.roles()) == false;
     }
 
@@ -298,7 +300,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
                 DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
                 if (mostAvailable == null
-                    || mostAvailable.getPath().equals(leastAvailable.getPath()) == false
+                    || mostAvailable.path().equals(leastAvailable.path()) == false
                     || totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node) < 0) {
                     return false;
                 }
@@ -336,9 +338,9 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             );
         }
 
-        private long totalStorage(Map<String, DiskUsage> diskUsages, DiscoveryNode node) {
+        private static long totalStorage(Map<String, DiskUsage> diskUsages, DiscoveryNode node) {
             DiskUsage diskUsage = diskUsages.get(node.getId());
-            return diskUsage != null ? diskUsage.getTotalBytes() : -1;
+            return diskUsage != null ? diskUsage.totalBytes() : -1;
         }
 
         private boolean rolesFilter(DiscoveryNode discoveryNode) {

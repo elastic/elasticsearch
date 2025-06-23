@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -11,7 +12,6 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -19,12 +19,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertThrows;
 
 public class JdkDownloadPluginTests {
-    private static Project rootProject;
-
-    @BeforeClass
-    public static void setupRoot() {
-        rootProject = ProjectBuilder.builder().build();
-    }
 
     @Test
     public void testMissingVendor() {
@@ -134,7 +128,7 @@ public class JdkDownloadPluginTests {
     }
 
     private Project createProject() {
-        Project project = ProjectBuilder.builder().withParent(rootProject).build();
+        Project project = ProjectBuilder.builder().withParent(ProjectBuilder.builder().build()).build();
         project.getPlugins().apply("elasticsearch.jdk-download");
         return project;
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -15,8 +16,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +53,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -97,6 +97,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        ensureStableCluster(3);
     }
 
     public void testUpdateByQuery() throws Exception {
@@ -108,7 +109,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             updateByQuery(),
             true,
-            (bulkByScrollResponse, updatedDocCount) -> { assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount)); }
+            (bulkByScrollResponse, updatedDocCount) -> {
+                assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
+            }
         );
     }
 
@@ -130,7 +133,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             reindexRequestBuilder,
             false,
-            (bulkByScrollResponse, reindexDocCount) -> { assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount)); }
+            (bulkByScrollResponse, reindexDocCount) -> {
+                assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
+            }
         );
     }
 
@@ -142,7 +147,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             false,
             deleteByQuery(),
             true,
-            (bulkByScrollResponse, deletedDocCount) -> { assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount)); }
+            (bulkByScrollResponse, deletedDocCount) -> {
+                assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
+            }
         );
     }
 
@@ -176,7 +183,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 
@@ -190,27 +197,24 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // Block the write thread pool
         writeThreadPool.submit(() -> {
-            try {
-                barrier.await();
-                latch.await();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(barrier);
+            safeAwait(latch);
         });
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
-            .setSize(numDocs) // Get all indexed docs
-            .addSort(SORTING_FIELD, SortOrder.DESC)
-            .execute()
-            .actionGet();
-
-        // Modify a subset of the target documents concurrently
-        final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
         int conflictingOps = randomIntBetween(maxDocs, numDocs);
-        final List<SearchHit> docsModifiedConcurrently = randomSubsetOf(conflictingOps, originalDocs);
-
+        final int finalConflictingOps = conflictingOps;
+        final List<SearchHit> docsModifiedConcurrently = new ArrayList<>();
+        assertResponse(
+            prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
+                .addSort(SORTING_FIELD, SortOrder.DESC),
+            response -> {
+                // Modify a subset of the target documents concurrently
+                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().asUnpooled().getHits());
+                docsModifiedConcurrently.addAll(randomSubsetOf(finalConflictingOps, originalDocs));
+            }
+        );
         BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
         for (SearchHit searchHit : docsModifiedConcurrently) {
             if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
@@ -263,10 +267,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     }
 
     private void createIndexWithSingleShard(String index) throws Exception {
-        final Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).build();
         final XContentBuilder mappings = jsonBuilder();
         {
             mappings.startObject();

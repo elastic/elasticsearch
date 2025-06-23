@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,7 +34,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
      */
     public void testErrorInAction() throws Exception {
         createIndex("foo");
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "foo");
 
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
             watchBuilder().trigger(schedule(interval("10m")))
@@ -52,12 +53,20 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(
-                QueryBuilders.boolQuery()
-                    .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure"))
-            );
-            assertThat(count, is(1L));
+            try {
+                long count = watchRecordCount(
+                    QueryBuilders.boolQuery()
+                        .must(termsQuery("result.actions.id", "_action"))
+                        .must(termsQuery("result.actions.status", "failure"))
+                );
+                assertThat(count, is(1L));
+            } catch (ElasticsearchException e) {
+                /*
+                 * Since the history is written asynchronously, it is possible that we try to query it after the history index is
+                 * created, but before the shards are allocated, which throws an exception.
+                 */
+                throw new AssertionError(e);
+            }
         });
 
         // now we'll trigger the watch again and make sure that it's not throttled and instead
@@ -71,12 +80,20 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // there should be a single history record with a failure status for the action:
         assertBusy(() -> {
-            long count = watchRecordCount(
-                QueryBuilders.boolQuery()
-                    .must(termsQuery("result.actions.id", "_action"))
-                    .must(termsQuery("result.actions.status", "failure"))
-            );
-            assertThat(count, is(2L));
+            try {
+                long count = watchRecordCount(
+                    QueryBuilders.boolQuery()
+                        .must(termsQuery("result.actions.id", "_action"))
+                        .must(termsQuery("result.actions.status", "failure"))
+                );
+                assertThat(count, is(2L));
+            } catch (ElasticsearchException e) {
+                /*
+                 * Since the history is written asynchronously, it is possible that we try to query it after the history index is
+                 * created, but before the shards are allocated, which throws an exception.
+                 */
+                throw new AssertionError(e);
+            }
         });
 
         // now lets confirm that the ack status of the action is awaits_successful_execution

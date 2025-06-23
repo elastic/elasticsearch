@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -45,8 +46,18 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        indicesAdmin().prepareDelete("test").get();
+        assertEquals(
+            1,
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
+        );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -64,15 +75,35 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         assertThat(terminal.getOutput(), containsString("index-graveyard"));
 
         internalCluster().startNode(dataPathSettings);
-        assertEquals(0, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        assertEquals(
+            0,
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
+        );
     }
 
     public void testCustomDoesNotMatch() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
         createIndex("test");
-        client().admin().indices().prepareDelete("test").get();
-        assertEquals(1, client().admin().cluster().prepareState().get().getState().metadata().indexGraveyard().getTombstones().size());
+        indicesAdmin().prepareDelete("test").get();
+        assertEquals(
+            1,
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .indexGraveyard()
+                .getTombstones()
+                .size()
+        );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();

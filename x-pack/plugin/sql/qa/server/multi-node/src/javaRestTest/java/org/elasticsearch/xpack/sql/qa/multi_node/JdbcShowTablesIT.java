@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.multi_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.ShowTablesTestCase;
+import org.junit.ClassRule;
 
-public class JdbcShowTablesIT extends ShowTablesTestCase {}
+public class JdbcShowTablesIT extends ShowTablesTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,6 +16,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -39,7 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
@@ -141,19 +144,25 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
+
+        assertEquals(
+            new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE),
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT, MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE)
+        );
+
     }
 
     public void testIndexPrefixes() {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(2, 10);
 
-        Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        Query q = ft.prefixQuery("goin", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, randomMockContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
 
-        q = ft.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT);
+        q = ft.prefixQuery("internationalisatio", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_CONTEXT);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
-        q = ft.prefixQuery("Internationalisatio", CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT);
+        q = ft.prefixQuery("Internationalisatio", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT);
         assertEquals(AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "Internationalisatio")), q);
 
         ElasticsearchException ee = expectThrows(
@@ -166,15 +175,13 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             ee.getMessage()
         );
 
-        q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        q = ft.prefixQuery("g", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, randomMockContext());
         Automaton automaton = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
-
         Query expected = new ConstantScoreQuery(
             new BooleanQuery.Builder().add(new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton), BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term("field", "g")), BooleanClause.Occur.SHOULD)
                 .build()
         );
-
         assertThat(q, equalTo(expected));
     }
 
@@ -237,20 +244,26 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixIntervals() throws IOException {
         MappedFieldType ft = createFieldType();
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
+        assertEquals(Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), prefixIntervals);
     }
 
-    public void testWildcardIntervals() throws IOException {
+    public void testWildcardIntervals() {
         MappedFieldType ft = createFieldType();
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
     }
 
-    public void testFuzzyIntervals() throws IOException {
+    public void testRegexpIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), regexpIntervals);
+    }
+
+    public void testFuzzyIntervals() {
         MappedFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
-        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
         assertEquals(expectedIntervals, fuzzyIntervals);
     }
 
@@ -265,6 +278,15 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(1, 4);
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+        assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
+    }
+
+    public void testRangeIntervals() {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
+        assertEquals(
+            Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
+            rangeIntervals
+        );
     }
 }

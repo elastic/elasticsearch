@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -13,9 +13,10 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')
-  api project(':libs:elasticsearch-ssl-config')
+  api project(':libs:ssl-config')
   api project(":server")
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
+  api project(":libs:entitlement:bridge")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -25,11 +26,19 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // mockito
-  api 'org.mockito:mockito-core:4.4.0'
-  api 'net.bytebuddy:byte-buddy:1.12.9'
-  api 'org.objenesis:objenesis:3.2'
+  api 'org.mockito:mockito-core:5.15.2'
+  api 'org.mockito:mockito-subclass:5.15.2'
+  api 'net.bytebuddy:byte-buddy:1.15.11'
+  api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  testImplementation project(":modules:mapper-extras")
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':x-pack:plugin:mapper-unsigned-long')
+  testImplementation project(':x-pack:plugin:mapper-counted-keyword')
+  testImplementation project(':x-pack:plugin:mapper-constant-keyword')
+  testImplementation project(':x-pack:plugin:wildcard')
 }
 
 sourceSets {
@@ -60,9 +69,18 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log4j.Priority',
 
           // mockito
+          'net.bytebuddy.agent.Installer',
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError'
+          'org.opentest4j.AssertionFailedError',
+
+          // not using JNA
+         'com.sun.jna.FunctionMapper',
+         'com.sun.jna.JNIEnv',
+         'com.sun.jna.Library',
+         'com.sun.jna.Native',
+         'com.sun.jna.NativeLibrary',
+         'com.sun.jna.Platform'
   )
 
   ignoreViolations(
@@ -72,9 +90,8 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("test").configure {
-  systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
+  systemProperty 'tests.gradle_index_compat_versions', buildParams.bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', buildParams.bwcVersions.wireCompatible.join(',')
 }
 
 tasks.register("integTest", Test) {
@@ -92,5 +109,5 @@ tasks.register("verifyVersions") {
 
 tasks.named('splitPackagesAudit').configure {
   // for now we always run tests with the classpath, so we are ok with split packages for tests
-  onlyIf { false }
+  enabled = false
 }

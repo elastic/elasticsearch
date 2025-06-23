@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -12,7 +13,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -127,8 +127,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)));
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType)));
             }
         }
     }
@@ -1081,11 +1080,9 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 InternalDateHistogram histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(histogram);

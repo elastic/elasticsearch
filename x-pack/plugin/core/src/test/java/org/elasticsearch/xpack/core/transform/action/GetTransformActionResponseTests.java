@@ -146,6 +146,11 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
     }
 
     @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Response> instanceReader() {
         return Response::new;
     }

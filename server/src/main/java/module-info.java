@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -15,25 +17,27 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
+    requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.pluginclassloader;
-    requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
+    requires org.elasticsearch.grok;
+    requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.entitlement;
 
-    requires com.sun.jna;
     requires hppc;
     requires HdrHistogram;
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;
-    requires t.digest;
 
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
@@ -58,7 +62,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.coordination;
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
-    exports org.elasticsearch.action.admin.cluster.migration;
+    exports org.elasticsearch.action.admin.cluster.node.capabilities;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
     exports org.elasticsearch.action.admin.cluster.node.reload;
@@ -132,15 +136,15 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.get;
     exports org.elasticsearch.action.index;
     exports org.elasticsearch.action.ingest;
-    exports org.elasticsearch.action.main;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
     exports org.elasticsearch.action.support;
     exports org.elasticsearch.action.support.broadcast;
     exports org.elasticsearch.action.support.broadcast.node;
+    exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
-    exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
+    exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
     exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
@@ -153,20 +157,22 @@ module org.elasticsearch.server {
     exports org.elasticsearch.client.internal.support;
     exports org.elasticsearch.client.internal.transport;
     exports org.elasticsearch.cluster;
-    exports org.elasticsearch.cluster.ack;
     exports org.elasticsearch.cluster.action.index;
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
     exports org.elasticsearch.cluster.coordination;
+    exports org.elasticsearch.cluster.coordination.stateless;
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
+    exports org.elasticsearch.cluster.project;
     exports org.elasticsearch.cluster.routing;
     exports org.elasticsearch.cluster.routing.allocation;
     exports org.elasticsearch.cluster.routing.allocation.allocator;
     exports org.elasticsearch.cluster.routing.allocation.command;
     exports org.elasticsearch.cluster.routing.allocation.decider;
     exports org.elasticsearch.cluster.service;
+    exports org.elasticsearch.cluster.version;
     exports org.elasticsearch.common;
     exports org.elasticsearch.common.blobstore;
     exports org.elasticsearch.common.blobstore.fs;
@@ -179,17 +185,18 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.component;
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
-    exports org.elasticsearch.common.filesystem;
+    exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
-    exports org.elasticsearch.common.inject;
-    exports org.elasticsearch.common.inject.binder;
-    exports org.elasticsearch.common.inject.internal;
-    exports org.elasticsearch.common.inject.matcher;
-    exports org.elasticsearch.common.inject.multibindings;
-    exports org.elasticsearch.common.inject.name;
-    exports org.elasticsearch.common.inject.spi;
-    exports org.elasticsearch.common.inject.util;
+    exports org.elasticsearch.injection.api;
+    exports org.elasticsearch.injection.guice;
+    exports org.elasticsearch.injection.guice.binder;
+    exports org.elasticsearch.injection.guice.internal;
+    exports org.elasticsearch.injection.guice.matcher;
+    exports org.elasticsearch.injection.guice.multibindings;
+    exports org.elasticsearch.injection.guice.name;
+    exports org.elasticsearch.injection.guice.spi;
+    exports org.elasticsearch.injection.guice.util;
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
@@ -204,6 +211,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.path;
     exports org.elasticsearch.common.recycler;
     exports org.elasticsearch.common.regex;
+    exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;
@@ -217,9 +225,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.tracker;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.health.stats;
     exports org.elasticsearch.http;
@@ -233,6 +243,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
+    exports org.elasticsearch.index.codec.zstd;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -271,7 +282,14 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery;
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
+    exports org.elasticsearch.indices.system;
+    exports org.elasticsearch.inference;
     exports org.elasticsearch.ingest;
+    exports org.elasticsearch.internal
+        to
+            org.elasticsearch.serverless.version,
+            org.elasticsearch.serverless.buildinfo,
+            org.elasticsearch.serverless.constants;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -285,15 +303,17 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.os;
     exports org.elasticsearch.monitor.process;
     exports org.elasticsearch.node;
+    exports org.elasticsearch.node.internal to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
-    exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
+    exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security, org.elasticsearch.serverless.rest;
     exports org.elasticsearch.plugins.spi;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
+    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -310,6 +330,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
+    exports org.elasticsearch.search.aggregations.bucket.countedterms;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
     exports org.elasticsearch.search.aggregations.bucket.global;
@@ -318,6 +339,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.bucket.nested;
     exports org.elasticsearch.search.aggregations.bucket.range;
     exports org.elasticsearch.search.aggregations.bucket.sampler;
+    exports org.elasticsearch.search.aggregations.bucket.sampler.random;
     exports org.elasticsearch.search.aggregations.bucket.terms;
     exports org.elasticsearch.search.aggregations.bucket.terms.heuristic;
     exports org.elasticsearch.search.aggregations.metrics;
@@ -337,7 +359,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
+    exports org.elasticsearch.search.rank;
+    exports org.elasticsearch.search.rank.context;
+    exports org.elasticsearch.search.rank.feature;
+    exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
+    exports org.elasticsearch.search.retriever;
+    exports org.elasticsearch.search.retriever.rankdoc;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -350,18 +378,32 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.vectors;
     exports org.elasticsearch.shutdown;
     exports org.elasticsearch.snapshots;
+    exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
-    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
-    exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
-    provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
+    exports org.elasticsearch.action.datastreams.lifecycle;
+    exports org.elasticsearch.action.datastreams.autosharding;
+    exports org.elasticsearch.action.downsample;
+    exports org.elasticsearch.plugins.internal
+        to
+            org.elasticsearch.inference,
+            org.elasticsearch.metering,
+            org.elasticsearch.stateless,
+            org.elasticsearch.settings.secure,
+            org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.internal.security;
+
+    exports org.elasticsearch.telemetry.tracing;
+    exports org.elasticsearch.telemetry;
+    exports org.elasticsearch.telemetry.metric;
+
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
     provides org.elasticsearch.cli.CliToolProvider
@@ -369,8 +411,75 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
-    uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
+    uses ReservedStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
+    uses org.elasticsearch.node.internal.TerminationHandlerProvider;
+    uses org.elasticsearch.internal.VersionExtension;
+    uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.features.FeatureSpecification;
+    uses org.elasticsearch.plugins.internal.LoggingDataProvider;
 
-    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
-    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+    provides org.elasticsearch.features.FeatureSpecification
+        with
+            org.elasticsearch.action.bulk.BulkFeatures,
+            org.elasticsearch.features.InfrastructureFeatures,
+            org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
+            org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures,
+            org.elasticsearch.index.mapper.MapperFeatures,
+            org.elasticsearch.index.IndexFeatures,
+            org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.script.ScriptFeatures,
+            org.elasticsearch.search.retriever.RetrieversFeatures,
+            org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
+
+    uses org.elasticsearch.plugins.internal.SettingsExtension;
+    uses RestExtension;
+    uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+
+    provides org.apache.lucene.codecs.PostingsFormat
+        with
+            org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat
+        with
+            org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.KnnVectorsFormat
+        with
+            org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+
+    provides org.apache.lucene.codecs.Codec
+        with
+            org.elasticsearch.index.codec.Elasticsearch814Codec,
+            org.elasticsearch.index.codec.Elasticsearch816Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+
+    provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
+
+    exports org.elasticsearch.cluster.routing.allocation.shards
+        to
+            org.elasticsearch.shardhealth,
+            org.elasticsearch.serverless.shardhealth,
+            org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.lucene.spatial;
+    exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.inference.validation;
+    exports org.elasticsearch.monitor.metrics;
+    exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
+    exports org.elasticsearch.lucene.util.automaton;
+    exports org.elasticsearch.index.codec.perfield;
+    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
 }

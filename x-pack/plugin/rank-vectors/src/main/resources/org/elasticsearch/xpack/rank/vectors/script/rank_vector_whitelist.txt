@@ -1,0 +1,13 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
+#
+
+# This file contains a rank vectors whitelist for functions to be used in Score context
+
+static_import {
+    double maxSimDotProduct(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.xpack.rank.vectors.script.RankVectorsScoreScriptUtils$MaxSimDotProduct
+    double maxSimInvHamming(org.elasticsearch.script.ScoreScript, Object, String) bound_to org.elasticsearch.xpack.rank.vectors.script.RankVectorsScoreScriptUtils$MaxSimInvHamming
+}

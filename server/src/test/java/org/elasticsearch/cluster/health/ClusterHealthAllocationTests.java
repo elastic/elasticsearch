@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.Collections;
 
@@ -31,10 +32,10 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
         MockAllocationService allocation = createAllocationService();
@@ -79,7 +80,11 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {
-        return new ClusterStateHealth(clusterState).getStatus();
+        return new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        ).getStatus();
     }
 
 }

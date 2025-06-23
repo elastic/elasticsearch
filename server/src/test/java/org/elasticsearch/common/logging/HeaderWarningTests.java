@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.logging;
 
@@ -12,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
@@ -22,13 +22,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class HeaderWarningTests extends ESTestCase {
 
-    private static final RegexMatcher warningValueMatcher = matches(WARNING_HEADER_PATTERN.pattern());
+    private static final org.hamcrest.Matcher<String> warningValueMatcher = matchesRegex(WARNING_HEADER_PATTERN);
 
     private final HeaderWarning logger = new HeaderWarning();
 
@@ -296,4 +297,104 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses.get(0), containsString(Integer.toString(299)));
     }
 
+    // Reproduces https://github.com/elastic/elasticsearch/issues/95972
+    public void testAddComplexWarning() {
+        final int maxWarningHeaderCount = 2;
+        Settings settings = Settings.builder().put("http.max_warning_header_count", maxWarningHeaderCount).build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        HeaderWarning.addWarning(
+            threadContexts,
+            "legacy template [global] has index patterns [*] matching patterns from existing composable templates "
+                + "[.deprecation-indexing-template,.fleet-file-data,.fleet-files,.ml-anomalies-,.ml-notifications-000002,.ml-state,"
+                + ".ml-stats,.monitoring-beats-mb,.monitoring-ent-search-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
+                + ".monitoring-logstash-mb,.profiling-ilm-lock,.slm-history,.watch-history-16,behavioral_analytics-events-default,"
+                + "ilm-history,logs,metrics,profiling-events,profiling-executables,profiling-metrics,profiling-returnpads-private,"
+                + "profiling-costs"
+                + "profiling-sq-executables,profiling-sq-leafframes,profiling-stackframes,profiling-stacktraces,"
+                + "profiling-symbols,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.*],"
+                + ".fleet-file-data => [.fleet-file-data-*-*],.fleet-files => [.fleet-files-*-*],.ml-anomalies- => [.ml-anomalies-*],"
+                + ".ml-notifications-000002 => [.ml-notifications-000002],.ml-state => [.ml-state*],.ml-stats => [.ml-stats-*],"
+                + ".monitoring-beats-mb => [.monitoring-beats-8-*],.monitoring-ent-search-mb => [.monitoring-ent-search-8-*],"
+                + ".monitoring-es-mb => [.monitoring-es-8-*],.monitoring-kibana-mb => [.monitoring-kibana-8-*],"
+                + ".monitoring-logstash-mb => [.monitoring-logstash-8-*],.profiling-ilm-lock => [.profiling-ilm-lock*],"
+                + ".slm-history => [.slm-history-7*],.watch-history-16 => [.watcher-history-16*],"
+                + "behavioral_analytics-events-default => [behavioral_analytics-events-*],ilm-history => [ilm-history-7*],"
+                + "logs => [logs-*-*],metrics => [metrics-*-*],profiling-events => [profiling-events*],profiling-executables => "
+                + "[profiling-executables*],profiling-metrics => [profiling-metrics*],profiling-returnpads-private => "
+                + "[.profiling-returnpads-private*],profiling-sq-executables => [.profiling-sq-executables*],"
+                + "profiling-costs => [.profiling-costs*],"
+                + "profiling-sq-leafframes => [.profiling-sq-leafframes*],profiling-stackframes => [profiling-stackframes*],"
+                + "profiling-stacktraces => [profiling-stacktraces*],profiling-symbols => [.profiling-symbols*],synthetics => "
+                + "[synthetics-*-*]); this template [global] may be ignored in favor of a composable template at index creation time"
+        );
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        // TODO 95972: As this uses the same regex as the assertion in HeaderWarning#addWarning() this also causes a StackOverflowError
+        // assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"legacy template [global] has index patterns"));
+        assertThat(responses.get(0), containsString(Integer.toString(299)));
+    }
+
+    public void testHeaderWarningValidation() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+
+        HeaderWarning.addWarning(threadContexts, allAllowedChars());
+
+        // LoggerMessageFormat.format makes sure all not allowed chars are escaped
+        HeaderWarning.addWarning(threadContexts, "\"");
+        HeaderWarning.addWarning(threadContexts, "\\");
+        HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    public void testWarnAgentValidationStateful() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateful/on-prem should match pattern with semantic version", matcher.matches());
+    }
+
+    public void testWarnAgentValidationStateless() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithoutSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateless should match pattern without semantic version", matcher.matches());
+    }
+
+    private String allNotAllowedChars() {
+        StringBuilder chars = new StringBuilder();
+        for (char c = 0; c < 256; c++) {
+            if (c < '\t' || ('\t' < c && c < 0x20) || c == 0x7f) {
+                chars.append(c);
+            }
+        }
+        return chars.toString();
+    }
+
+    private static String allAllowedChars() {
+        StringBuilder allPossibleChars = new StringBuilder();
+        allPossibleChars.append('\t');
+        allPossibleChars.append(' ');
+        allPossibleChars.append('!');
+        for (int i = 0x23; i <= 0x5b; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x5d; i <= 0x7e; i++) {
+            allPossibleChars.append((char) i);
+        }
+        for (int i = 0x80; i <= 0xff; i++) {
+            allPossibleChars.append((char) i);
+        }
+        allPossibleChars.append("\\");
+        allPossibleChars.append("\\\"");
+        return allPossibleChars.toString();
+    }
 }

@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -25,20 +27,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+public class IndexLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     private List<PolicyStats> policyStats;
 
     public IndexLifecycleFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         if (input.readBoolean()) {
-            policyStats = input.readList(PolicyStats::new);
+            policyStats = input.readCollectionAsList(PolicyStats::new);
         }
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -47,7 +49,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         boolean hasPolicyStats = policyStats != null;
         out.writeBoolean(hasPolicyStats);
         if (hasPolicyStats) {
-            out.writeList(policyStats);
+            out.writeCollection(policyStats);
         }
     }
 
@@ -104,13 +106,13 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
 
         public PolicyStats(StreamInput in) throws IOException {
-            this.phaseStats = in.readMap(StreamInput::readString, PhaseStats::new);
+            this.phaseStats = in.readMap(PhaseStats::new);
             this.indicesManaged = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(phaseStats, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            out.writeMap(phaseStats, StreamOutput::writeWriteable);
             out.writeVInt(indicesManaged);
         }
 
@@ -425,12 +427,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.shrinkNumberOfShards = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
                 this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
             } else {
                 this.rolloverMaxPrimaryShardDocs = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 this.rolloverMinAge = in.readOptionalTimeValue();
                 this.rolloverMinDocs = in.readOptionalVLong();
                 this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
@@ -456,10 +458,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeOptionalTimeValue(rolloverMinAge);
                 out.writeOptionalVLong(rolloverMinDocs);
                 out.writeOptionalWriteable(rolloverMinPrimaryShardSize);
@@ -493,50 +495,50 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 || rolloverMinPrimaryShardSize != null) {
                 builder.startObject(RolloverAction.NAME);
                 if (rolloverMaxAge != null) {
-                    builder.field(RolloverAction.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
-                    builder.field(RolloverAction.MAX_AGE_FIELD.getPreferredName() + "_millis", rolloverMaxAge.getMillis());
+                    builder.field(RolloverConditions.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
+                    builder.field(RolloverConditions.MAX_AGE_FIELD.getPreferredName() + "_millis", rolloverMaxAge.getMillis());
                 }
                 if (rolloverMaxDocs != null) {
-                    builder.field(RolloverAction.MAX_DOCS_FIELD.getPreferredName(), rolloverMaxDocs);
+                    builder.field(RolloverConditions.MAX_DOCS_FIELD.getPreferredName(), rolloverMaxDocs);
                 }
                 if (rolloverMaxPrimaryShardDocs != null) {
-                    builder.field(RolloverAction.MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMaxPrimaryShardDocs);
+                    builder.field(RolloverConditions.MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMaxPrimaryShardDocs);
                 }
                 if (rolloverMaxSize != null) {
-                    builder.field(RolloverAction.MAX_SIZE_FIELD.getPreferredName(), rolloverMaxSize.getStringRep());
-                    builder.field(RolloverAction.MAX_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMaxSize.getBytes());
+                    builder.field(RolloverConditions.MAX_SIZE_FIELD.getPreferredName(), rolloverMaxSize.getStringRep());
+                    builder.field(RolloverConditions.MAX_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMaxSize.getBytes());
                 }
                 if (rolloverMaxPrimaryShardSize != null) {
                     builder.field(
-                        RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        RolloverConditions.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
                         rolloverMaxPrimaryShardSize.getStringRep()
                     );
                     builder.field(
-                        RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        RolloverConditions.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
                         rolloverMaxPrimaryShardSize.getBytes()
                     );
                 }
                 if (rolloverMinAge != null) {
-                    builder.field(RolloverAction.MIN_AGE_FIELD.getPreferredName(), rolloverMinAge.getStringRep());
-                    builder.field(RolloverAction.MIN_AGE_FIELD.getPreferredName() + "_millis", rolloverMinAge.getMillis());
+                    builder.field(RolloverConditions.MIN_AGE_FIELD.getPreferredName(), rolloverMinAge.getStringRep());
+                    builder.field(RolloverConditions.MIN_AGE_FIELD.getPreferredName() + "_millis", rolloverMinAge.getMillis());
                 }
                 if (rolloverMinDocs != null) {
-                    builder.field(RolloverAction.MIN_DOCS_FIELD.getPreferredName(), rolloverMinDocs);
+                    builder.field(RolloverConditions.MIN_DOCS_FIELD.getPreferredName(), rolloverMinDocs);
                 }
                 if (rolloverMinPrimaryShardDocs != null) {
-                    builder.field(RolloverAction.MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMinPrimaryShardDocs);
+                    builder.field(RolloverConditions.MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMinPrimaryShardDocs);
                 }
                 if (rolloverMinSize != null) {
-                    builder.field(RolloverAction.MIN_SIZE_FIELD.getPreferredName(), rolloverMinSize.getStringRep());
-                    builder.field(RolloverAction.MIN_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMinSize.getBytes());
+                    builder.field(RolloverConditions.MIN_SIZE_FIELD.getPreferredName(), rolloverMinSize.getStringRep());
+                    builder.field(RolloverConditions.MIN_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMinSize.getBytes());
                 }
                 if (rolloverMinPrimaryShardSize != null) {
                     builder.field(
-                        RolloverAction.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        RolloverConditions.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
                         rolloverMinPrimaryShardSize.getStringRep()
                     );
                     builder.field(
-                        RolloverAction.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        RolloverConditions.MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
                         rolloverMinPrimaryShardSize.getBytes()
                     );
                 }

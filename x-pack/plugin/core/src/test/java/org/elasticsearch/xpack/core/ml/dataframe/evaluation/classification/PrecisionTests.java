@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
@@ -44,6 +44,11 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     @Override
+    protected Precision mutateInstance(Precision instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Precision> instanceReader() {
         return Precision::new;
     }
@@ -58,7 +63,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME),
                 mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
@@ -76,7 +81,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
 
     public void testProcess_GivenMissingAgg() {
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME), mockSingleValue("some_other_single_metric_agg", 0.2377))
             );
             Precision precision = new Precision();
@@ -84,7 +89,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
             assertThat(precision.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(
                     mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
                     mockSingleValue("some_other_single_metric_agg", 0.2377)
@@ -98,7 +103,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
 
     public void testProcess_GivenAggOfWrongType() {
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME), mockFilters(Precision.AVG_PRECISION_AGG_NAME))
             );
             Precision precision = new Precision();
@@ -106,7 +111,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
             assertThat(precision.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(
                     mockSingleValue(Precision.BY_PREDICTED_CLASS_AGG_NAME, 1.0),
                     mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123)
@@ -119,7 +124,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1))
         );
         Precision precision = new Precision();

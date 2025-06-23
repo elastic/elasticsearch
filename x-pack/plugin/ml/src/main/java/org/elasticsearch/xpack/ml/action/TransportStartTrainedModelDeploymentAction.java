@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.ml.action;
@@ -13,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -20,15 +23,17 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -39,8 +44,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.time.RemainingTime;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -52,27 +58,33 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
-import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
-import java.util.Collections;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -85,11 +97,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
     private final XPackLicenseState licenseState;
-    private final Client client;
+    private final OriginSettingClient client;
     private final TrainedModelAssignmentService trainedModelAssignmentService;
-    private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -99,11 +111,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ThreadPool threadPool,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentService trainedModelAssignmentService,
-        NamedXContentRegistry xContentRegistry,
         MlMemoryTracker memoryTracker,
-        InferenceAuditor auditor
+        InferenceAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartTrainedModelDeploymentAction.NAME,
@@ -112,16 +123,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             threadPool,
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
-        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -131,24 +141,26 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> "[" + request.getModelId() + "] received deploy request");
+        var remainingTime = RemainingTime.from(Instant::now, request.getTimeout());
+        logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot start a new model deployment as not all nodes are on version {}. All nodes must be the same version",
+                    "Cannot start model deployment [{}] while cluster upgrade is in progress.",
                     RestStatus.FORBIDDEN,
-                    state.getNodes().getMaxNodeVersion()
+                    request.getDeploymentId()
                 )
             );
             return;
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).modelAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+        var assignments = TrainedModelAssignmentMetadata.fromState(state);
+        if (assignments.allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Could not start model deployment because existing deployments reached the limit of [{}]",
@@ -159,29 +171,77 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
+        if (assignments.getDeploymentAssignment(request.getDeploymentId()) != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because an existing deployment with the same id [{}] exist",
+                    RestStatus.BAD_REQUEST,
+                    request.getDeploymentId()
+                )
+            );
+            return;
+        }
+
+        AtomicLong perDeploymentMemoryBytes = new AtomicLong();
+        AtomicLong perAllocationMemoryBytes = new AtomicLong();
+
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAssignment -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
+            modelAssignment -> waitForDeploymentState(request, remainingTime.get(), listener),
             e -> {
-                logger.warn(() -> "[" + request.getModelId() + "] creating new assignment failed", e);
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                logger.warn(
+                    () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
+                    e
+                );
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
-                        request.getModelId()
+                        resourceAlreadyExistsException,
+                        request.getDeploymentId()
                     );
                 }
                 listener.onFailure(e);
             }
         );
 
+        ActionListener<Tuple<String, Long>> modelSizeListener = ActionListener.wrap(modelIdAndSizeInBytes -> {
+            TaskParams taskParams = new TaskParams(
+                modelIdAndSizeInBytes.v1(),
+                request.getDeploymentId(),
+                modelIdAndSizeInBytes.v2(),
+                request.computeNumberOfAllocations(),
+                request.getThreadsPerAllocation(),
+                request.getQueueCapacity(),
+                Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
+                request.getPriority(),
+                perDeploymentMemoryBytes.get(),
+                perAllocationMemoryBytes.get()
+            );
+            PersistentTasksCustomMetadata persistentTasks = clusterService.state()
+                .getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
+            memoryTracker.refresh(
+                persistentTasks,
+                ActionListener.wrap(
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAdaptiveAllocationsSettings()),
+                        waitForDeploymentToStart
+                    ),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure);
+
+        GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
+                        "cannot deploy more than one model at the same time; [{}] matches models [{}]",
                         request.getModelId(),
-                        getModelResponse.getResources().results().size()
+                        getModelResponse.getResources().results().stream().map(TrainedModelConfig::getModelId).toList()
                     )
                 );
                 return;
@@ -199,80 +259,90 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return;
             }
 
+            perDeploymentMemoryBytes.set(trainedModelConfig.getPerDeploymentMemoryBytes());
+            perAllocationMemoryBytes.set(trainedModelConfig.getPerAllocationMemoryBytes());
+
             if (trainedModelConfig.getLocation() == null) {
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));
                 return;
             }
-            validateModelDefinition(
-                trainedModelConfig,
-                ActionListener.wrap(validate -> getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
-                    TaskParams taskParams = new TaskParams(
-                        trainedModelConfig.getModelId(),
-                        modelBytes,
-                        request.getNumberOfAllocations(),
-                        request.getThreadsPerAllocation(),
-                        request.getQueueCapacity(),
-                        Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes)),
-                        request.getPriority()
-                    );
-                    PersistentTasksCustomMetadata persistentTasks = clusterService.state()
-                        .getMetadata()
-                        .custom(PersistentTasksCustomMetadata.TYPE);
-                    memoryTracker.refresh(
-                        persistentTasks,
-                        ActionListener.wrap(
-                            aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
-                            listener::onFailure
-                        )
-                    );
-                }, listener::onFailure)), listener::onFailure)
+
+            ActionListener<GetTrainedModelsAction.Response> checkDeploymentIdDoesntAlreadyExist = ActionListener.wrap(
+                response -> listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                            + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                        request.getDeploymentId(),
+                        request.getModelId()
+                    )
+                ),
+                error -> {
+                    if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        // no name clash, continue with the deployment
+                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
+                    } else {
+                        listener.onFailure(error);
+                    }
+                }
             );
+
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with that deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelWithDeploymentId, checkDeploymentIdDoesntAlreadyExist);
+            } else {
+                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
+            }
 
         }, listener::onFailure);
 
+        ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
+            if (getInferenceModelResponse.getEndpoints().isEmpty() == false) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
+                );
+            } else {
+                getTrainedModelRequestExecution(request, getModelListener);
+            }
+        }, error -> {
+            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                // no name clash, continue with the deployment
+                getTrainedModelRequestExecution(request, getModelListener);
+            } else {
+                listener.onFailure(error);
+            }
+        });
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
+    }
+
+    private void getTrainedModelRequestExecution(
+        StartTrainedModelDeploymentAction.Request request,
+        ActionListener<GetTrainedModelsAction.Response> getModelListener
+    ) {
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
-    private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            trainedModelConfig.getModelId(),
-            client,
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            xContentRegistry
-        );
-        restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
-        restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> {
-            // The in-memory size of the model was found to be approximately equal
-            // to the size of the model on disk in experiments for BERT models. However,
-            // this might not always be the case.
-            // TODO Improve heuristic for in-memory model size.
-            listener.onResponse(doc.getTotalDefinitionLength());
-
-            // Return false to stop the restorer as we only need the first doc
-            return false;
-        }, success -> { /* nothing to do */ }, listener::onFailure);
-    }
-
     private void waitForDeploymentState(
-        String modelId,
-        TimeValue timeout,
-        AllocationStatus.State state,
+        StartTrainedModelDeploymentAction.Request request,
+        TimeValue remainingTime,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
+        var deploymentId = request.getDeploymentId();
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, request.getWaitForState());
         trainedModelAssignmentService.waitForAssignmentCondition(
-            modelId,
+            deploymentId,
             predicate,
-            timeout,
+            remainingTime,
             new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
                 public void onResponse(TrainedModelAssignment assignment) {
                     if (predicate.exception != null) {
-                        deleteFailedDeployment(modelId, predicate.exception, listener);
+                        deleteFailedDeployment(deploymentId, predicate.exception, listener);
                     } else {
-                        auditor.info(assignment.getModelId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
+                        auditor.info(assignment.getDeploymentId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
                         listener.onResponse(new CreateTrainedModelAssignmentAction.Response(assignment));
                     }
                 }
@@ -281,21 +351,36 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    onFailure(
+                        new ModelDeploymentTimeoutException(
+                            format(
+                                "Timed out after [%s] waiting for trained model deployment [%s] to start. "
+                                    + "Use the trained model stats API to track the state of the deployment "
+                                    + "and try again once it has started.",
+                                request.getTimeout(),
+                                request.getDeploymentId()
+                            )
+                        )
+                    );
+                }
             }
         );
     }
 
     private void deleteFailedDeployment(
-        String modelId,
+        String deploymentId,
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        logger.trace(() -> format("[%s] Deleting failed deployment", modelId), exception);
-        trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
+        logger.trace(() -> format("[%s] Deleting failed deployment", deploymentId), exception);
+        trainedModelAssignmentService.deleteModelAssignment(deploymentId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 () -> format(
                     "[%s] Failed to delete model allocation that had failed with the reason [%s]",
-                    modelId,
+                    deploymentId,
                     exception.getMessage()
                 ),
                 e
@@ -305,107 +390,255 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
     }
 
-    private void validateModelDefinition(TrainedModelConfig config, ActionListener<Void> listener) {
+    /**
+     * The model definition is spread over multiple docs.
+     * Check that all docs are present by summing up the
+     * individual per-document definition lengths and checking
+     * the total is equal to the total definition length as
+     * stored in the docs.
+     * <p>
+     * On success the response is a tuple
+     * {@code <String, Long> (model id, total definition length)}
+     * <p>
+     * If {@code errorIfDefinitionIsMissing == false} and some
+     * definition docs are missing then {@code listener::onResponse}
+     * is called with the total definition length == 0.
+     * This usage is to answer yes/no questions if the full model
+     * definition is present.
+     *
+     * @param mlOriginClient             A client using ML_ORIGIN
+     * @param config                     trained model config
+     * @param errorIfDefinitionIsMissing If true missing definition parts cause errors.
+     *                                   If false and some parts are missing the total
+     *                                   definition length in the response is set to 0.
+     * @param timeout                    The timeout value in seconds that the request should fail if it does not complete.
+     *                                   If null, then this will not wait for the download to complete before returning.
+     * @param listener                   response listener
+     */
+    static void checkFullModelDefinitionIsPresent(
+        OriginSettingClient mlOriginClient,
+        TrainedModelConfig config,
+        boolean errorIfDefinitionIsMissing,
+        TimeValue timeout,
+        ActionListener<Tuple<String, Long>> listener
+    ) {
         if (config.getLocation() instanceof IndexLocation == false) {
             listener.onResponse(null);
             return;
         }
+
         final String modelId = config.getModelId();
-        final String[] requiredSourceFields = new String[] {
-            TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName(),
-            TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(),
-            TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName(),
-            TrainedModelDefinitionDoc.EOS.getPreferredName() };
-        final Set<String> requiredSet = Set.of(requiredSourceFields);
+
         String index = ((IndexLocation) config.getLocation()).getIndexName();
-        client.prepareSearch(index)
-            .setQuery(
-                QueryBuilders.constantScoreQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                        .filter(
-                            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
-                        )
-                )
-            )
-            .setFetchSource(requiredSourceFields, new String[0])
-            .setSize(MAX_NUM_NATIVE_DEFINITION_PARTS)
-            .setTrackTotalHits(true)
-            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long"))
-            .execute(ActionListener.wrap(response -> {
-                SearchHit[] hits = response.getHits().getHits();
-                if (hits.length == 0) {
-                    listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
-                }
-                long firstTotalLength = ((Number) hits[0].getSourceAsMap()
-                    .get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())).longValue();
 
-                long summedLengths = 0;
-                for (SearchHit hit : hits) {
-                    Map<String, Object> fields = hit.getSourceAsMap();
-                    if (fields == null) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}. {}",
-                                modelId,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                List.of(requiredSourceFields),
-                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
-                            )
-                        );
-                        return;
-                    }
-                    Set<String> diff = Sets.difference(fields.keySet(), requiredSet);
-                    if (diff.isEmpty() == false) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "[{}] model definition [{}] is missing required fields {}. {}",
-                                modelId,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                diff,
-                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
-                            )
-                        );
-                        return;
-                    }
-                    summedLengths += ((Number) fields.get(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())).longValue();
-                    long totalLength = ((Number) fields.get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()))
-                        .longValue();
-                    if (totalLength != firstTotalLength) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "[{}] [total_definition_length] must be the same in all model definition parts. "
-                                    + "The value [{}] in model definition part [{}] does not match the value [{}] in part [{}]. "
-                                    + Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS,
-                                modelId,
-                                totalLength,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
-                                firstTotalLength,
-                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
-                            )
-                        );
-                        return;
-                    }
+        // Step 3
+        // Verify the model definition parts are all present
+        ActionListener<SearchResponse> step3SearchResultsVerificationListener = step3VerifyModelPartsArePresent(
+            errorIfDefinitionIsMissing,
+            listener,
+            modelId
+        );
 
+        // Step 2
+        // Search for the model definition parts to ensure they are all present
+        ActionListener<Runnable> step2DocsSearchListener = step2SearchForModelParts(
+            mlOriginClient,
+            listener,
+            index,
+            modelId,
+            step3SearchResultsVerificationListener
+        );
+
+        // Step 1 (there is no step zero)
+        // Check if there is a download task for this model, and wait for it to complete or timeout
+        step1CheckForDownloadTask(mlOriginClient, errorIfDefinitionIsMissing, timeout, listener, modelId, step2DocsSearchListener);
+    }
+
+    private static ActionListener<SearchResponse> step3VerifyModelPartsArePresent(
+        boolean errorIfDefinitionIsMissing,
+        ActionListener<Tuple<String, Long>> listener,
+        String modelId
+    ) {
+        return ActionListener.wrap(response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            if (hits.length == 0) {
+                failOrRespondWith0(
+                    () -> new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)),
+                    errorIfDefinitionIsMissing,
+                    modelId,
+                    listener
+                );
+                return;
+            }
+
+            long firstTotalLength;
+            DocumentField firstTotalLengthField = hits[0].field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+            if (firstTotalLengthField != null && firstTotalLengthField.getValue() instanceof Long firstTotalDefinitionLength) {
+                firstTotalLength = firstTotalDefinitionLength;
+            } else {
+                failOrRespondWith0(
+                    () -> missingFieldsError(
+                        modelId,
+                        hits[0].getId(),
+                        List.of(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
+                    ),
+                    errorIfDefinitionIsMissing,
+                    modelId,
+                    listener
+                );
+                return;
+            }
+
+            Set<String> missingFields = new HashSet<>();
+            long summedLengths = 0;
+            for (SearchHit hit : hits) {
+                long totalLength = -1;
+                DocumentField totalLengthField = hit.field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+                if (totalLengthField != null && totalLengthField.getValue() instanceof Long totalDefinitionLength) {
+                    totalLength = totalDefinitionLength;
+                } else {
+                    missingFields.add(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
                 }
-                Boolean eos = (Boolean) hits[hits.length - 1].getSourceAsMap().get(TrainedModelDefinitionDoc.EOS.getPreferredName());
-                if (summedLengths != firstTotalLength || eos == null || eos == false) {
-                    listener.onFailure(
-                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId))
+
+                DocumentField definitionLengthField = hit.field(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName());
+                if (definitionLengthField != null && definitionLengthField.getValue() instanceof Long definitionLength) {
+                    summedLengths += definitionLength;
+                } else {
+                    missingFields.add(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName());
+                }
+
+                if (missingFields.isEmpty() == false) {
+                    failOrRespondWith0(
+                        () -> missingFieldsError(modelId, hit.getId(), missingFields),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        listener
                     );
                     return;
                 }
-                listener.onResponse(null);
-            }, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
-                    ex.addSuppressed(e);
-                    listener.onFailure(ex);
+
+                if (totalLength != firstTotalLength) {
+                    final long finalTotalLength = totalLength;
+                    failOrRespondWith0(
+                        () -> ExceptionsHelper.badRequestException(
+                            "[{}] [total_definition_length] must be the same in all model definition parts. "
+                                + "The value [{}] in model definition part [{}] does not match the value [{}] in part [{}]. "
+                                + Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS,
+                            modelId,
+                            finalTotalLength,
+                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
+                            firstTotalLength,
+                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        listener
+                    );
                     return;
                 }
+
+            }
+            if (summedLengths != firstTotalLength) {
+                failOrRespondWith0(
+                    () -> ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)),
+                    errorIfDefinitionIsMissing,
+                    modelId,
+                    listener
+                );
+                return;
+            }
+            listener.onResponse(new Tuple<>(modelId, summedLengths));
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                failOrRespondWith0(() -> {
+                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
+                    ex.addSuppressed(e);
+                    return ex;
+                }, errorIfDefinitionIsMissing, modelId, listener);
+            } else {
                 listener.onFailure(e);
-            }));
+            }
+        });
+    }
+
+    private static ActionListener<Runnable> step2SearchForModelParts(
+        OriginSettingClient mlOriginClient,
+        ActionListener<Tuple<String, Long>> listener,
+        String index,
+        String modelId,
+        ActionListener<SearchResponse> nextStepListener
+    ) {
+        return ActionListener.wrap(r -> {
+            mlOriginClient.prepareSearch(index)
+                .setQuery(
+                    QueryBuilders.constantScoreQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                            .filter(
+                                QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
+                            )
+                    )
+                )
+                .setFetchSource(false)
+                .addDocValueField(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())
+                .addDocValueField(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
+                .setSize(MAX_NUM_NATIVE_DEFINITION_PARTS)
+                .setTrackTotalHits(true)
+                .addSort(
+                    SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long")
+                )
+                .execute(nextStepListener);
+
+        }, listener::onFailure);
+    }
+
+    /*
+    @param timeout null value indicates that the request should not wait for the download to complete before returning
+     */
+    private static void step1CheckForDownloadTask(
+        OriginSettingClient mlOriginClient,
+        boolean errorIfDefinitionIsMissing,
+        TimeValue timeout,
+        ActionListener<Tuple<String, Long>> failureListener,
+        String modelId,
+        ActionListener<Runnable> nextStepListener
+    ) {
+        // check task is present, do not wait for completion
+        TaskRetriever.getDownloadTaskInfo(
+            mlOriginClient,
+            modelId,
+            timeout != null,
+            timeout,
+            () -> Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo == null) {
+                    nextStepListener.onResponse(null);
+                } else {
+                    failOrRespondWith0(
+                        () -> new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+                            RestStatus.REQUEST_TIMEOUT
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        failureListener
+                    );
+                }
+            }, failureListener::onFailure)
+        );
+    }
+
+    private static void failOrRespondWith0(
+        Supplier<Exception> exceptionSupplier,
+        boolean errorIfDefinitionIsMissing,
+        String modelId,
+        ActionListener<Tuple<String, Long>> listener
+    ) {
+        if (errorIfDefinitionIsMissing) {
+            listener.onFailure(exceptionSupplier.get());
+        } else {
+            listener.onResponse(new Tuple<>(modelId, 0L));
+        }
     }
 
     @Override
@@ -413,7 +646,17 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    private static ElasticsearchStatusException missingFieldsError(String modelId, String hitId, Collection<String> missingFields) {
+        return ExceptionsHelper.badRequestException(
+            "[{}] model definition [{}] is missing required fields {}. {}",
+            modelId,
+            hitId,
+            missingFields,
+            Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
+        );
     }
 
     private static class DeploymentStartedPredicate implements Predicate<ClusterState> {
@@ -421,21 +664,27 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         private volatile Exception exception;
 
         // for logging
-        private final String modelId;
+        private final String deploymentId;
         private final AllocationStatus.State waitForState;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
+        DeploymentStartedPredicate(String deploymentId, AllocationStatus.State waitForState) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
             this.waitForState = waitForState;
         }
 
         @Override
         public boolean test(ClusterState clusterState) {
-            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId)
-                .orElse(null);
+            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
+                clusterState,
+                deploymentId
+            ).orElse(null);
             if (trainedModelAssignment == null) {
-                // Something weird happened, it should NEVER be null...
-                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", modelId, waitForState));
+                // The assignment may be null if it was stopped by another action while waiting
+                this.exception = new ElasticsearchStatusException(
+                    "Error waiting for the model deployment to start. The trained model assignment was removed while waiting",
+                    RestStatus.BAD_REQUEST
+                );
+                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }
 
@@ -478,7 +727,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             logger.trace(
                 () -> format(
                     "[%s] tested with state [%s] and nodes %s still initializing",
-                    modelId,
+                    deploymentId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing
                 )
@@ -488,10 +737,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
-
 }

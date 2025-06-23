@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -33,7 +34,7 @@ public final class CcrRequests {
     private CcrRequests() {}
 
     public static ClusterStateRequest metadataRequest(String leaderIndex) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TimeValue.MAX_VALUE);
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
         clusterStateRequest.indices(leaderIndex);
@@ -53,7 +54,7 @@ public final class CcrRequests {
      * must be at least the provided {@code mappingVersion} and {@code metadataVersion} respectively.
      */
     public static void getIndexMetadata(
-        Client client,
+        RemoteClusterClient client,
         Index index,
         long mappingVersion,
         long metadataVersion,
@@ -64,11 +65,11 @@ public final class CcrRequests {
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
-        client.admin().cluster().state(request, ActionListener.wrap(response -> {
+        client.execute(ClusterStateAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.getState() == null) { // timeout on wait_for_metadata_version
                 assert metadataVersion > 0 : metadataVersion;
                 if (timeoutSupplier.get().nanos() < 0) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalStateException(
                             "timeout to get cluster state with"
                                 + " metadata version ["
@@ -79,36 +80,36 @@ public final class CcrRequests {
                         )
                     );
                 } else {
-                    getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, listener);
+                    getIndexMetadata(client, index, mappingVersion, metadataVersion, timeoutSupplier, delegate);
                 }
             } else {
                 final Metadata metadata = response.getState().metadata();
-                final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(index);
                 if (indexMetadata.getMappingVersion() >= mappingVersion) {
-                    listener.onResponse(indexMetadata);
+                    delegate.onResponse(indexMetadata);
                     return;
                 }
                 if (timeoutSupplier.get().nanos() < 0) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalStateException("timeout to get cluster state with mapping version [" + mappingVersion + "]")
                     );
                 } else {
                     // ask for the next version.
-                    getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, listener);
+                    getIndexMetadata(client, index, mappingVersion, metadata.version() + 1, timeoutSupplier, delegate);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     public static final RequestValidators.RequestValidator<PutMappingRequest> CCR_PUT_MAPPING_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // a put-mapping-request on old versions does not have origin.
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
@@ -124,13 +125,13 @@ public final class CcrRequests {
 
     public static final RequestValidators.RequestValidator<IndicesAliasesRequest> CCR_INDICES_ALIASES_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // an indices aliases request on old versions does not have origin
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {

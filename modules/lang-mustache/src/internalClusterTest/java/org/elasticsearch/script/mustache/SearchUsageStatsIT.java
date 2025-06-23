@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class SearchUsageStatsIT extends ESIntegTestCase {
@@ -36,7 +35,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
 
     public void testSearchUsageStats() throws IOException {
         {
-            SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+            SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
             assertEquals(0, stats.getTotalSearchCount());
             assertEquals(0, stats.getQueryUsage().size());
             assertEquals(0, stats.getSectionsUsage().size());
@@ -62,7 +61,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
         {
-            assertAcked(client().admin().cluster().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+            putJsonStoredScript("testTemplate", """
                 {
                   "script": {
                     "lang": "mustache",
@@ -74,7 +73,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
                       }
                     }
                   }
-                }"""), XContentType.JSON));
+                }""");
             Request request = new Request("GET", "/_search/template");
             request.setJsonEntity("""
                 {
@@ -97,7 +96,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
 
-        SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+        SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
         assertEquals(4, stats.getTotalSearchCount());
         assertEquals(1, stats.getQueryUsage().size());
         assertEquals(4, stats.getQueryUsage().get("match").longValue());

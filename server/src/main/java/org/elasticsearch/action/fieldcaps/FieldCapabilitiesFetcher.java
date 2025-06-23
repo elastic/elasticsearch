@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -19,6 +23,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -26,9 +31,9 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -39,16 +44,21 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
+    private static final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
+    );
 
-    FieldCapabilitiesFetcher(IndicesService indicesService) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
         this.indicesService = indicesService;
+        this.includeEmptyFields = includeEmptyFields;
     }
 
     FieldCapabilitiesIndexResponse fetch(
         CancellableTask task,
         ShardId shardId,
-        String[] fieldPatterns,
+        Predicate<String> fieldNameFilter,
         String[] filters,
         String[] fieldTypes,
         QueryBuilder indexFilter,
@@ -57,66 +67,115 @@ class FieldCapabilitiesFetcher {
     ) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
-
-            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
-                shardId.id(),
-                0,
-                searcher,
-                () -> nowInMillis,
-                null,
-                runtimeFields
-            );
-
-            if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
-            }
-
-            final MappingMetadata mapping = indexService.getMetadata().mapping();
-            final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
-            if (indexMappingHash != null) {
-                final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
-                if (existing != null) {
-                    return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
-                }
-            }
-            task.ensureNotCancelled();
-            Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
-            final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
-                searchExecutionContext,
-                fieldPatterns,
+        final Engine.Searcher searcher;
+        if (alwaysMatches(indexFilter)) {
+            // no need to open a searcher if we aren't filtering, but make sure we are reading from an up-to-dated shard
+            indexShard.readAllowed();
+            searcher = null;
+        } else {
+            searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+        }
+        try (searcher) {
+            return doFetch(
+                task,
+                shardId,
+                fieldNameFilter,
                 filters,
                 fieldTypes,
-                fieldPredicate
+                indexFilter,
+                nowInMillis,
+                runtimeFields,
+                indexService,
+                searcher
             );
-            if (indexMappingHash != null) {
-                indexMappingHashToResponses.put(indexMappingHash, responseMap);
-            }
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
         }
+    }
+
+    private FieldCapabilitiesIndexResponse doFetch(
+        CancellableTask task,
+        ShardId shardId,
+        Predicate<String> fieldNameFilter,
+        String[] filters,
+        String[] fieldTypes,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields,
+        IndexService indexService,
+        @Nullable Engine.Searcher searcher
+    ) throws IOException {
+        final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+            shardId.id(),
+            0,
+            searcher,
+            () -> nowInMillis,
+            null,
+            runtimeFields
+        );
+        var indexMode = searchExecutionContext.getIndexSettings().getMode();
+        if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
+        }
+
+        final MappingMetadata mapping = indexService.getMetadata().mapping();
+        String indexMappingHash;
+        if (includeEmptyFields || enableFieldHasValue == false) {
+            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
+        } else {
+            // even if the mapping is the same if we return only fields with values we need
+            // to make sure that we consider all the shard-mappings pair, that is why we
+            // calculate a different hash for this particular case.
+            final String shardUuid = indexService.getShard(shardId.getId()).getShardUuid();
+            indexMappingHash = mapping == null ? shardUuid : shardUuid + mapping.getSha256();
+        }
+        FieldPredicate fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
+        if (indexMappingHash != null) {
+            indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
+            final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
+            if (existing != null) {
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
+            }
+        }
+        task.ensureNotCancelled();
+        final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
+            searchExecutionContext,
+            fieldNameFilter,
+            filters,
+            fieldTypes,
+            fieldPredicate,
+            indicesService.getShardOrNull(shardId),
+            includeEmptyFields
+        );
+        if (indexMappingHash != null) {
+            indexMappingHashToResponses.put(indexMappingHash, responseMap);
+        }
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
         SearchExecutionContext context,
-        String[] fieldPatterns,
+        Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
-        Predicate<String> indexFieldfilter
+        FieldPredicate fieldPredicate,
+        IndexShard indexShard,
+        boolean includeEmptyFields
     ) {
-
-        Set<String> fieldNames = new HashSet<>();
-        for (String pattern : fieldPatterns) {
-            fieldNames.addAll(context.getMatchingFieldNames(pattern));
-        }
-
         boolean includeParentObjects = checkIncludeParents(filters);
 
-        Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
+        var fieldInfos = indexShard.getFieldInfos();
+        includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : fieldNames) {
-            MappedFieldType ft = context.getFieldType(field);
-            if (filter.test(ft)) {
+        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
+            final String field = entry.getKey();
+            if (fieldNameFilter.test(field) == false) {
+                continue;
+            }
+            MappedFieldType ft = entry.getValue();
+            if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
+                && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
+                && (filter == null || filter.test(ft))) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -155,7 +214,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            Collections.emptyMap()
+                            Map.of()
                         );
                         responseMap.put(parentField, fieldCap);
                     }
@@ -181,27 +240,32 @@ class FieldCapabilitiesFetcher {
         long nowInMillis,
         SearchExecutionContext searchExecutionContext
     ) throws IOException {
-        if (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder) {
-            return true;
-        }
+        assert alwaysMatches(indexFilter) == false : "should not be called for always matching [" + indexFilter + "]";
         assert nowInMillis != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
-    private static Predicate<MappedFieldType> buildFilter(
-        Predicate<String> fieldFilter,
-        String[] filters,
-        String[] fieldTypes,
-        SearchExecutionContext context
-    ) {
+    private static boolean alwaysMatches(QueryBuilder indexFilter) {
+        return indexFilter == null || indexFilter instanceof MatchAllQueryBuilder;
+    }
+
+    private static Predicate<MappedFieldType> buildFilter(String[] filters, String[] fieldTypes, SearchExecutionContext context) {
         // security filters don't exclude metadata fields
-        Predicate<MappedFieldType> fcf = ft -> fieldFilter.test(ft.name()) || context.isMetadataField(ft.name());
+        Predicate<MappedFieldType> fcf = null;
         if (fieldTypes.length > 0) {
             Set<String> acceptedTypes = Set.of(fieldTypes);
-            fcf = fcf.and(ft -> acceptedTypes.contains(ft.familyTypeName()));
+            fcf = ft -> acceptedTypes.contains(ft.familyTypeName());
         }
+
+        // Exclude internal ".inference" subfields of semantic_text fields from the field capabilities response
+        Collection<InferenceFieldMetadata> inferenceFields = context.getMappingLookup().inferenceFields().values();
+        for (InferenceFieldMetadata inferenceField : inferenceFields) {
+            Predicate<MappedFieldType> next = ft -> ft.name().startsWith(inferenceField.getName() + ".inference") == false;
+            fcf = fcf == null ? next : fcf.and(next);
+        }
+
         for (String filter : filters) {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
                 continue;
@@ -213,7 +277,7 @@ class FieldCapabilitiesFetcher {
                 case "-multifield" -> ft -> context.isMultiField(ft.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };
-            fcf = fcf.and(next);
+            fcf = fcf == null ? next : fcf.and(next);
         }
         return fcf;
     }

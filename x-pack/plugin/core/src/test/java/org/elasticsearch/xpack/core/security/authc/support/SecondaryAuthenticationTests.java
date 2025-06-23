@@ -172,7 +172,7 @@ public class SecondaryAuthenticationTests extends ESTestCase {
                 assertThat(securityContext.getUser().principal(), equalTo("u2"));
                 ActionListener<Void> listener = new ContextPreservingActionListener<>(
                     threadContext.newRestorableContext(false),
-                    ActionListener.wrap(() -> listenerUser.set(securityContext.getUser()))
+                    ActionListener.running(() -> listenerUser.set(securityContext.getUser()))
                 );
                 originalContext.restore();
                 threadPool.generic().execute(() -> {

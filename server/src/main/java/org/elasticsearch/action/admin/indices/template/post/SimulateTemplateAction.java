@@ -1,23 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -30,44 +36,34 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         @Nullable
         private String templateName;
 
         @Nullable
-        private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private boolean includeDefaults = false;
 
-        public Request() {}
-
-        public Request(String templateName) {
-            if (templateName == null) {
-                throw new IllegalArgumentException("template name cannot be null");
-            }
+        public Request(TimeValue masterTimeout, String templateName) {
+            super(masterTimeout);
             this.templateName = templateName;
         }
 
-        public Request(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
-            if (indexTemplateRequest == null) {
-                throw new IllegalArgumentException("index template body must be present");
-            }
-            this.indexTemplateRequest = indexTemplateRequest;
-        }
-
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
         public Request(StreamInput in) throws IOException {
             super(in);
             templateName = in.readOptionalString();
-            indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(templateName);
-            out.writeOptionalWriteable(indexTemplateRequest);
+            indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                includeDefaults = in.readBoolean();
+            }
         }
 
         @Override
@@ -85,23 +81,32 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return validationException;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
         @Nullable
         public String getTemplateName() {
             return templateName;
         }
 
+        public boolean includeDefaults() {
+            return includeDefaults;
+        }
+
         @Nullable
-        public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
+        public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
         }
 
-        public Request templateName(String templateName) {
-            this.templateName = templateName;
+        public Request indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
+            this.indexTemplateRequest = indexTemplateRequest;
             return this;
         }
 
-        public Request indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
-            this.indexTemplateRequest = indexTemplateRequest;
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
             return this;
         }
 
@@ -114,12 +119,14 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
                 return false;
             }
             Request that = (Request) o;
-            return templateName.equals(that.templateName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+            return templateName.equals(that.templateName)
+                && Objects.equals(indexTemplateRequest, that.indexTemplateRequest)
+                && includeDefaults == that.includeDefaults;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(templateName, indexTemplateRequest);
+            return Objects.hash(templateName, indexTemplateRequest, includeDefaults);
         }
     }
 }

@@ -1,19 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
 import org.elasticsearch.xcontent.ParsedMediaType;
+import org.hamcrest.CustomTypeSafeMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import java.util.Optional;
+
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -145,7 +151,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
         assertThat(requestWith(acceptHeader(null), contentTypeHeader(CURRENT_VERSION), bodyNotPresent()), not(isCompatible()));
 
-        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), not(isCompatible()));
+        assertThat(requestWith(acceptHeader(null), contentTypeHeader(null), bodyNotPresent()), not(hasVersion()));
 
         // Accept header = application/json means current version. If body is provided then accept and content-Type should be the same
         assertThat(requestWith(acceptHeader("application/json"), contentTypeHeader(null), bodyNotPresent()), not(isCompatible()));
@@ -212,7 +218,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
                     + OBSOLETE_VERSION
                     + ". "
                     + "Content-Type="
-                    + contentTypeHeader(OBSOLETE_VERSION)
+                    + acceptHeader(OBSOLETE_VERSION)
             )
         );
     }
@@ -233,8 +239,8 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
         assertThat(
             requestWith(
-                acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
-                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=7"),
+                acceptHeader("application/vnd.elasticsearch+json;compatible-with=8"),
+                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"),
                 bodyPresent()
             ),
             isCompatible()
@@ -244,8 +250,8 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         expectThrows(
             ElasticsearchStatusException.class,
             () -> requestWith(
-                acceptHeader("application/vnd.elasticsearch+json;compatible-with=7"),
-                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=8"),
+                acceptHeader("application/vnd.elasticsearch+json;compatible-with=8"),
+                contentTypeHeader("application/vnd.elasticsearch+cbor;compatible-with=9"),
                 bodyPresent()
             )
         );
@@ -264,20 +270,20 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         // versioned
         assertThat(
             requestWith(
-                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=7"),
-                contentTypeHeader(7),
+                acceptHeader("text/vnd.elasticsearch+tab-separated-values;compatible-with=8"),
+                contentTypeHeader(8),
                 bodyNotPresent()
             ),
             isCompatible()
         );
 
         assertThat(
-            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+            requestWith(acceptHeader("text/vnd.elasticsearch+plain;compatible-with=8"), contentTypeHeader(8), bodyNotPresent()),
             isCompatible()
         );
 
         assertThat(
-            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=7"), contentTypeHeader(7), bodyNotPresent()),
+            requestWith(acceptHeader("text/vnd.elasticsearch+csv;compatible-with=8"), contentTypeHeader(8), bodyNotPresent()),
             isCompatible()
         );
     }
@@ -322,12 +328,30 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
     }
 
-    private Matcher<RestApiVersion> isCompatible() {
+    private Matcher<Optional<RestApiVersion>> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<RestApiVersion> requestHasVersion(int version) {
-        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
+    private Matcher<Optional<RestApiVersion>> hasVersion() {
+        return new CustomTypeSafeMatcher<>("has-version") {
+            @Override
+            protected boolean matchesSafely(Optional<RestApiVersion> item) {
+                return item.isPresent();
+            }
+
+            @Override
+            protected void describeMismatchSafely(Optional<RestApiVersion> item, Description mismatchDescription) {
+                if (item.isEmpty()) {
+                    mismatchDescription.appendText("optional is empty");
+                } else {
+                    mismatchDescription.appendText("optional is present");
+                }
+            }
+        };
+    }
+
+    private Matcher<Optional<RestApiVersion>> requestHasVersion(int version) {
+        return both(hasVersion()).and(transformedMatch(opt -> (int) opt.get().major, equalTo(version)));
     }
 
     private String bodyNotPresent() {
@@ -361,7 +385,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         return null;
     }
 
-    private RestApiVersion requestWith(String accept, String contentType, String body) {
+    private Optional<RestApiVersion> requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
         return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);

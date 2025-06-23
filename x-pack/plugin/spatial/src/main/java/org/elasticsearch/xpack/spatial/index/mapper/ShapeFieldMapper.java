@@ -9,35 +9,39 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicCartesianShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
@@ -67,8 +71,6 @@ import java.util.function.Function;
 public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
-
     private static Builder builder(FieldMapper in) {
         return ((ShapeFieldMapper) in).builder;
     }
@@ -78,7 +80,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues;
 
-        private final Version version;
+        private final IndexVersion version;
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
         final Parameter<Explicit<Boolean>> coerce;
@@ -86,12 +88,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(String name, IndexVersion version, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.version = version;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), Version.V_8_4_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_8_4_0.onOrBefore(version));
         }
 
         @Override
@@ -102,10 +104,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public ShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "shape_multifields",
-                    "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(
@@ -115,18 +121,19 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             );
             Parser<Geometry> parser = new ShapeParser(geometryParser);
             ShapeFieldType ft = new ShapeFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 indexed.get(),
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
+                context.isSourceSynthetic(),
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(
             n,
             c.indexVersionCreated(),
@@ -136,8 +143,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     );
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
-
-        private final ShapeQueryProcessor queryProcessor;
+        private final boolean isSyntheticSource;
 
         public ShapeFieldType(
             String name,
@@ -145,10 +151,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean hasDocValues,
             Orientation orientation,
             Parser<Geometry> parser,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
-            this.queryProcessor = new ShapeQueryProcessor();
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -163,7 +170,19 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-            return queryProcessor.shapeQuery(shape, fieldName, relation, context, hasDocValues());
+            failIfNotIndexedNorDocValuesFallback(context);
+            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
+                throw new QueryShardException(
+                    context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
+                );
+            }
+            try {
+                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
+            } catch (IllegalArgumentException e) {
+                throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
+            }
         }
 
         @Override
@@ -175,6 +194,36 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new CartesianBoundsBlockLoader(name());
+            }
+
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
+        }
+
+        static class CartesianBoundsBlockLoader extends BoundsBlockLoader {
+            protected CartesianBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
+
+            protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
+                // For cartesian_shape we store 4 values as a multi-valued field, in the same order as the fields in the Rectangle class
+                builder.beginPositionEntry();
+                builder.appendInt(Math.min(extent.negLeft, extent.posLeft));
+                builder.appendInt(Math.max(extent.negRight, extent.posRight));
+                builder.appendInt(extent.top);
+                builder.appendInt(extent.bottom);
+                builder.endPositionEntry();
+            }
+        }
     }
 
     private final Builder builder;
@@ -183,20 +232,18 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     public ShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Parser<Geometry> parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
         this.builder = builder;
@@ -204,7 +251,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     }
 
     @Override
-    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) {
         // TODO: Make common with the index method GeoShapeWithDocValuesFieldMapper
         if (geometry == null) {
             return;
@@ -234,7 +281,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
-            simpleName(),
+            leafName(),
             builder.version,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value()

@@ -1,0 +1,1003 @@
+//
+// TODO: re-enable the commented tests once the Join functionality stabilizes
+//
+
+allFieldsReturned
+required_capability: inlinestats_v7
+
+FROM hosts METADATA _index
+| INLINESTATS c = COUNT(*) BY host_group
+| SORT c
+| LIMIT 1
+;
+
+  card:keyword | description:text  | host:keyword  |                                     ip0:ip                                      |        ip1:ip           |_index:keyword |     c:long    |  host_group:text
+eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|hosts          |1              |null
+;
+
+maxOfInt
+required_capability: inlinestats_v7
+// tag::max-languages[]
+FROM employees
+| KEEP emp_no, languages
+| INLINESTATS max_lang = MAX(languages) 
+| WHERE max_lang == languages
+// end::max-languages[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::max-languages-result[]
+emp_no:integer | languages:integer | max_lang:integer
+         10002 |                 5 | 5
+         10004 |                 5 | 5
+         10011 |                 5 | 5
+         10012 |                 5 | 5
+         10014 |                 5 | 5
+// end::max-languages-result[]
+;
+
+maxOfIntByKeyword
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) BY gender 
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5;
+
+emp_no:integer | languages:integer | max_lang:integer | gender:keyword
+         10002 |                 5 | 5                | F
+         10004 |                 5 | 5                | M
+         10011 |                 5 | 5                | null
+         10012 |                 5 | 5                | null
+         10014 |                 5 | 5                | null
+;
+
+maxOfLongByKeyword
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, gender
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY gender 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT emp_no ASC;
+
+emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | gender:keyword
+         10007 |               393084805 | 393084805                   | F
+         10015 |               390266432 | 390266432                   | null 
+         10030 |               394597613 | 394597613                   | M 
+;
+
+maxOfLong
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, gender
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT emp_no ASC;
+
+emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_seconds:long
+         10030 |               394597613 | M              | 394597613
+;
+
+maxOfLongByCalculatedKeyword
+required_capability: inlinestats_v7
+
+// tag::longest-tenured-by-first[]
+FROM employees
+| KEEP emp_no, avg_worked_seconds, last_name
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+// end::longest-tenured-by-first[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::longest-tenured-by-first-result[]
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long | SUBSTRING(last_name, 0, 1):keyword
+         10065 |               372660279 | Awdeh             | 372660279                   | A
+         10074 |               382397583 | Bernatsky         | 382397583                   | B
+         10044 |               387408356 | Casley            | 387408356                   | C
+         10030 |               394597613 | Demeyer           | 394597613                   | D
+         10087 |               305782871 | Eugenio           | 305782871                   | E
+// end::longest-tenured-by-first-result[]
+;
+
+maxOfLongByCalculatedNamedKeyword
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, last_name
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT last_name ASC
+| LIMIT 5
+;
+
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long | l:keyword
+         10065 |               372660279 | Awdeh             | 372660279                   | A
+         10074 |               382397583 | Bernatsky         | 382397583                   | B
+         10044 |               387408356 | Casley            | 387408356                   | C
+         10030 |               394597613 | Demeyer           | 394597613                   | D
+         10087 |               305782871 | Eugenio           | 305782871                   | E
+;
+
+maxOfLongByCalculatedDroppedKeyword
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| KEEP emp_no, avg_worked_seconds, last_name, max_avg_worked_seconds  
+| SORT last_name ASC
+| LIMIT 5
+;
+
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long
+         10065 |               372660279 | Awdeh             | 372660279
+         10074 |               382397583 | Bernatsky         | 382397583
+         10044 |               387408356 | Casley            | 387408356
+         10030 |               394597613 | Demeyer           | 394597613
+         10087 |               305782871 | Eugenio           | 305782871
+;
+
+maxOfLongByEvaledKeyword
+required_capability: inlinestats_v7
+
+FROM employees
+| EVAL l = SUBSTRING(last_name, 0, 1)
+| KEEP emp_no, avg_worked_seconds, l
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l 
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT l ASC
+| LIMIT 5
+;
+
+emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | l:keyword
+         10065 |               372660279 | 372660279                   | A
+         10074 |               382397583 | 382397583                   | B
+         10044 |               387408356 | 387408356                   | C
+         10030 |               394597613 | 394597613                   | D
+         10087 |               305782871 | 305782871                   | E
+;
+
+maxOfLongByInt
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, languages
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY languages
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT languages ASC;
+
+emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languages:integer
+         10044 |               387408356 | 387408356                   | 1
+         10099 |               377713748 | 377713748                   | 2
+         10030 |               394597613 | 394597613                   | 3
+         10007 |               393084805 | 393084805                   | 4
+         10015 |               390266432 | 390266432                   | 5
+         10027 |               374037782 | 374037782                   | null
+;
+
+maxOfLongByIntDouble
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, languages, height
+| EVAL height=ROUND(height, 1)
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY languages, height
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT languages, height ASC
+| LIMIT 4;
+
+emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languages:integer | height:double
+         10083 |               331236443 | 331236443                   |                 1 |           1.4
+         10084 |               359067056 | 359067056                   |                 1 |           1.5
+         10033 |               208374744 | 208374744                   |                 1 |           1.6
+         10086 |               328580163 | 328580163                   |                 1 |           1.7
+;
+
+
+two-Ignore
+required_capability: join_planning_v1
+
+FROM employees
+| KEEP emp_no, languages, avg_worked_seconds, gender
+| INLINESTATS avg_avg_worked_seconds = AVG(avg_worked_seconds) BY languages
+| WHERE avg_worked_seconds > avg_avg_worked_seconds
+| INLINESTATS max_languages = MAX(languages) BY gender
+| SORT emp_no ASC
+| LIMIT 3;
+
+emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | avg_avg_worked_seconds:double | max_languages:integer
+         10002 |                 5 |               328922887 | F              | 3.133013149047619E8           | 5
+         10006 |                 3 |               372957040 | F              | 2.978159518235294E8           | 5
+         10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
+;
+
+byMultivaluedSimple
+required_capability: inlinestats_v7
+
+// tag::mv-group[]
+FROM airports
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| EVAL type=MV_SORT(type), min_scalerank=MV_SORT(min_scalerank)
+| KEEP abbrev, type, scalerank, min_scalerank
+| WHERE abbrev == "GWL"
+// end::mv-group[]
+;
+
+// tag::mv-group-result[]
+abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
+           GWL | [mid, military] | 9                 | [2, 4]
+// end::mv-group-result[]
+;
+
+byMultivaluedMvExpand
+required_capability: inlinestats_v7
+
+// tag::mv-expand[]
+FROM airports
+| KEEP abbrev, type, scalerank
+| MV_EXPAND type
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| SORT min_scalerank ASC
+| WHERE abbrev == "GWL"
+// end::mv-expand[]
+;
+
+// tag::mv-expand-result[]
+abbrev:keyword | scalerank:integer | min_scalerank:integer | type:keyword 
+GWL            |9                  |2                      |mid            
+GWL            |9                  |4                      |military
+// end::mv-expand-result[]
+;
+
+byMvExpand
+required_capability: inlinestats_v7
+
+// tag::extreme-airports[]
+FROM airports
+| MV_EXPAND type
+| EVAL lat = ST_Y(location)
+| INLINESTATS most_northern=MAX(lat), most_southern=MIN(lat) BY type
+| WHERE lat == most_northern OR lat == most_southern
+| SORT lat DESC
+| KEEP type, name, location
+// end::extreme-airports[]
+;
+
+// tag::extreme-airports-result[]
+ type:keyword |           name:text           | location:geo_point
+          mid |             Svalbard Longyear | POINT (15.495229 78.246717)
+        major |                Tromsø Langnes | POINT (18.9072624292132 69.6796790473478)
+     military | Severomorsk-3 (Murmansk N.E.) | POINT (33.2903527616285 69.0168711826804)
+    spaceport |           Baikonur Cosmodrome | POINT (63.307354423875 45.9635739403124)
+        small |                       Dhamial | POINT (73.0320498392002 33.5614146278861)
+        small |                      Sahnewal | POINT (75.9570722403652 30.8503598561702)
+    spaceport |       Centre Spatial Guyanais | POINT (-52.7684296893452 5.23941001258035)
+     military |         Santos Air Force Base | POINT (-46.3052704931003 -23.9237590410637)
+        major |            Christchurch Int'l | POINT (172.538675565223 -43.4885486784104)
+          mid |          Hermes Quijada Int'l | POINT (-67.7530268462675 -53.7814746058316)
+// end::extreme-airports-result[]
+;
+
+brokenwhy-Ignore
+required_capability: join_planning_v1
+
+FROM airports
+| INLINESTATS min_scalerank=MIN(scalerank) BY type
+| MV_EXPAND type
+| WHERE scalerank == MV_MIN(scalerank);
+
+abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
+           GWL | [mid, military] | 9                 | [2, 4]
+;
+
+afterStats-Ignore
+required_capability: join_planning_v1
+
+FROM airports
+| STATS count=COUNT(*) BY country
+| INLINESTATS avg=AVG(count)
+| WHERE count > avg * 3
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword | avg:double
+       129 |   United States | 4.455
+        50 |           India | 4.455
+        45 |          Mexico | 4.455
+        41 |           China | 4.455
+        37 |          Canada | 4.455
+        31 |          Brazil | 4.455
+        26 |          Russia | 4.455
+        19 |            null | 4.455
+        17 |       Australia | 4.455
+        17 |  United Kingdom | 4.455
+;
+
+afterWhere
+required_capability: inlinestats_v7
+
+FROM airports
+| WHERE country != "United States"
+| INLINESTATS count=COUNT(*) BY country
+| SORT count DESC, abbrev ASC
+| KEEP abbrev, country, count
+| LIMIT 4
+;
+
+abbrev:keyword | country:keyword | count:long
+           AGR |           India | 50
+           AMD |           India | 50
+           BBI |           India | 50
+           BDQ |           India | 50
+;
+
+afterLookup-Ignore
+required_capability: join_planning_v1
+
+FROM airports
+| RENAME scalerank AS int
+| LOOKUP int_number_names ON int
+| RENAME name as scalerank
+| DROP int
+| INLINESTATS count=COUNT(*) BY scalerank
+| SORT abbrev ASC
+| KEEP abbrev, scalerank
+| LIMIT 4
+;
+
+abbrev:keyword | scalerank:keyword
+           ABJ |              four
+           ABQ |               six
+           ABV |              five
+           ACA |              four
+;
+
+afterEnrich
+required_capability: join_planning_v1
+required_capability: inlinestats_v7
+required_capability: enrich_load
+
+FROM airports
+| KEEP abbrev, city
+| WHERE abbrev NOT IN ("ADJ", "ATQ") // Skip airports in regions with right-to-left text which the test file isn't good with
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| INLINESTATS COUNT(*) BY region
+| SORT abbrev ASC
+| WHERE `COUNT(*)` > 1
+| LIMIT 3
+;
+
+abbrev:keyword | city:keyword | "COUNT(*)":long |       region:text 
+           ALA |       Almaty | 2               |     Жетісу ауданы
+           BXJ |       Almaty | 2               |     Жетісу ауданы
+           FUK |      Fukuoka | 2               |             中央区
+;
+
+beforeStats
+required_capability: inlinestats_v7
+
+FROM airports
+| EVAL lat = ST_Y(location)
+| INLINESTATS avg_lat=AVG(lat)
+| STATS northern=COUNT(lat > avg_lat OR NULL), southern=COUNT(lat < avg_lat OR NULL)
+;
+
+northern:long | southern:long
+          520 | 371
+;
+
+beforeKeepSort
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary) by languages
+| KEEP emp_no, languages, max_salary
+| SORT emp_no ASC
+| LIMIT 3;
+
+emp_no:integer | languages:integer | max_salary:integer
+         10001 |                 2 | 73578
+         10002 |                 5 | 66817
+         10003 |                 4 | 74572
+;
+
+beforeKeepWhere
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary) by languages
+| KEEP emp_no, languages, max_salary
+| WHERE emp_no == 10003;
+
+ignoreOrder:true
+emp_no:integer | languages:integer | max_salary:integer
+         10003 |                 4 | 74572
+;
+
+beforeEnrich
+required_capability: join_planning_v1
+required_capability: inlinestats_v7
+required_capability: enrich_load
+
+FROM airports
+| KEEP abbrev, type, city
+| INLINESTATS COUNT(*) BY type
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| SORT abbrev ASC
+| LIMIT 3
+;
+
+abbrev:keyword |city:keyword      |"COUNT(*)":long|type:keyword   | region:text
+ABJ            |Abidjan           |499            |mid            |Abidjan               
+ABV            |Abuja             |385            |major          |Municipal Area Council
+ACA            |Acapulco de Juárez|385            |major          |Acapulco de Juárez
+;
+
+beforeAndAfterEnrich-Ignore
+required_capability: join_planning_v1
+// does not fail, but it returns null for all values of count_region
+
+FROM airports
+| KEEP abbrev, type, city
+| INLINESTATS COUNT(*) BY type
+| ENRICH city_names ON city WITH region
+| WHERE MV_COUNT(region) == 1
+| INLINESTATS count_region=COUNT(*) BY region 
+| SORT abbrev ASC
+| LIMIT 3
+;
+
+abbrev:keyword |   city:keyword   |"COUNT(*)":long |  type:keyword | count_region:long |        region:text        
+ABJ            |Abidjan           |499             |mid            | 1                 |Abidjan               
+ABV            |Abuja             |385             |major          | 1                 |Municipal Area Council
+ACA            |Acapulco de Juárez|385             |major          | 1                 |Acapulco de Juárez
+;
+
+shadowing-Ignore
+required_capability: join_planning_v1
+
+ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
+| INLINESTATS env=VALUES(right) BY client_ip
+;
+
+left:keyword | client_ip:keyword | right:keyword | env:keyword
+left         | 172.21.0.5        | right         | right
+;
+
+shadowingMulti-Ignore
+required_capability: join_planning_v1
+
+ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
+| INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
+;
+
+left:keyword | city:keyword | middle:keyword | right:keyword | airport:keyword | region:keyword | city_boundary:keyword
+left         | Zürich       | middle         | right         |            left |           left | left
+;
+
+shadowingSelf-Ignore
+required_capability: join_planning_v1
+
+ROW city="Raleigh"
+| INLINESTATS city=COUNT(city)
+;
+
+city:long
+1
+;
+
+shadowingSelfBySelf-Ignore
+required_capability: join_planning_v1
+
+ROW city="Raleigh"
+| INLINESTATS city=COUNT(city) BY city
+;
+
+city:long
+1
+;
+
+shadowingInternal-Ignore
+required_capability: join_planning_v1
+
+ROW city = "Zürich"
+| INLINESTATS x=VALUES(city), x=VALUES(city)
+;
+
+city:keyword | x:keyword
+Zürich       | Zürich
+;
+
+byConstant
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages
+| INLINESTATS max_lang = MAX(languages) BY y=1 
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | max_lang:integer | y:integer
+         10002 |                 5 |                5 | 1
+         10004 |                 5 |                5 | 1
+         10011 |                 5 |                5 | 1
+         10012 |                 5 |                5 | 1
+         10014 |                 5 |                5 | 1
+;
+
+aggConstant
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no
+| INLINESTATS one = MAX(1) BY emp_no
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+one:integer | emp_no:integer
+          1 | 10001
+          1 | 10002
+          1 | 10003
+          1 | 10004
+          1 | 10005
+;
+
+percentile
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, salary
+| INLINESTATS ninety_fifth_salary = PERCENTILE(salary, 95)
+| WHERE salary > ninety_fifth_salary
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | salary:integer | ninety_fifth_salary:double
+         10007 |          74572 | 73584.95
+         10019 |          73717 | 73584.95
+         10027 |          73851 | 73584.95
+         10029 |          74999 | 73584.95
+         10045 |          74970 | 73584.95
+;
+
+byTwoCalculated
+required_capability: inlinestats_v7
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+           BY lat_10 = ROUND(ST_Y(location), -1)
+            , lon_10 = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | min_sl:integer | lat_10:double | lon_10:double
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   | 2              |            50 |            10
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) | 4              |           -10 |            40
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) | 2              |            20 |          -100
+;
+
+byTwoCalculatedSecondOverwrites-Ignore
+required_capability: join_planning_v1
+required_capability: stats_alias_collision_warnings
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+           BY x = ROUND(ST_Y(location), -1)
+            , x = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+warning:Line 5:4: Field 'x' shadowed by field at line 6:3
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+;
+
+byTwoCalculatedSecondOverwritesReferencingFirst-Ignore
+required_capability: join_planning_v1
+required_capability: stats_alias_collision_warnings
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| EVAL x = ST_X(location)
+| INLINESTATS min_sl=MIN(scalerank)
+           BY x = ROUND(x, -1)
+            , x = ROUND(x, -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+warning:Line 6:4: Field 'x' shadowed by field at line 7:3
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+;
+
+
+groupShadowsAgg-Ignore
+required_capability: join_planning_v1
+required_capability: stats_alias_collision_warnings
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+            , lat_10 = ROUND(ST_Y(location), -1)
+           BY lat_10 = ROUND(ST_Y(location), -1)
+            , lon_10 = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+warning:Line 5:3: Field 'lat_10' shadowed by field at line 6:4
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | lat_10:double | lon_10:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |           -10 |            40 | 4
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100 | 2
+;
+
+groupShadowsField
+required_capability: inlinestats_v7
+
+  FROM employees
+| KEEP emp_no, salary, hire_date
+| INLINESTATS avg_salary = AVG(salary)
+           BY hire_date = DATE_TRUNC(1 year, hire_date)
+| WHERE salary > avg_salary
+| SORT emp_no ASC
+| LIMIT 4
+;
+
+emp_no:integer | salary:integer | avg_salary:double |  hire_date:datetime
+         10001 |          57305 | 43869.63636363636 | 1986-01-01T00:00:00Z
+         10002 |          56371 | 51831.818181818184| 1985-01-01T00:00:00Z
+         10003 |          61805 | 43869.63636363636 | 1986-01-01T00:00:00Z
+         10005 |          63528 | 53487.07692307692 | 1989-01-01T00:00:00Z
+;
+
+groupByExpression_And_ExistentField
+required_capability: inlinestats_v7
+FROM employees
+| KEEP emp_no, languages, gender
+| EVAL x = "ABC"
+| INLINESTATS max_lang = MAX(languages) BY y = to_lower(x), gender
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | x:keyword | max_lang:integer | y:keyword | gender:keyword
+10001          |2                  |ABC        |5                 |abc        |M              
+10002          |5                  |ABC        |5                 |abc        |F              
+10003          |4                  |ABC        |5                 |abc        |M              
+10004          |5                  |ABC        |5                 |abc        |M              
+10005          |1                  |ABC        |5                 |abc        |M
+;
+
+groupByRenamedColumn
+required_capability: inlinestats_v7
+FROM employees
+| KEEP emp_no, languages, gender
+| INLINESTATS max_lang = MAX(languages) BY y = gender
+| WHERE max_lang == languages
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | gender:keyword | max_lang:integer | y:keyword
+         10002 |                 5 | F              | 5                | F
+         10004 |                 5 | M              | 5                | M
+         10011 |                 5 | null           | 5                | null
+         10012 |                 5 | null           | 5                | null
+         10014 |                 5 | null           | 5                | null
+;
+
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+groupByMultipleRenamedColumns_AndOneExpression_Last-Ignore
+
+FROM employees
+| KEEP emp_no, languages, gender, first_name
+| INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(first_name,1)
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       
+10001          |2                  |M              |Georgi            |2               |M              |2              |G              
+10002          |5                  |F              |Bezalel           |5               |F              |5              |B              
+10003          |4                  |M              |Parto             |4               |M              |4              |P              
+10004          |5                  |M              |Chirstian         |5               |M              |5              |C              
+10005          |1                  |M              |Kyoichi           |1               |M              |1              |K              
+10006          |3                  |F              |Anneke            |3               |F              |3              |A              
+10007          |4                  |F              |Tzvetan           |4               |F              |4              |T              
+10008          |2                  |M              |Saniya            |2               |M              |2              |S              
+10009          |1                  |F              |Sumant            |1               |F              |1              |S              
+10010          |4                  |null           |Duangkaew         |4               |null           |4              |D              
+;
+
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+groupByMultipleRenamedColumns_AndTwoExpressions-Ignore
+
+FROM employees
+| KEEP emp_no, languages, gender, first_name
+| INLINESTATS max_lang = MAX(languages) BY f1 = left(first_name, 1), y = gender, f2 = left(first_name, 1), l = languages
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:integer|  f1:keyword   |   y:keyword   |  f2:keyword   |l:integer       
+10001          |2                  |M              |Georgi            |2               |G              |M              |G              |2              
+10002          |5                  |F              |Bezalel           |5               |B              |F              |B              |5              
+10003          |4                  |M              |Parto             |4               |P              |M              |P              |4              
+10004          |5                  |M              |Chirstian         |5               |C              |M              |C              |5              
+10005          |1                  |M              |Kyoichi           |1               |K              |M              |K              |1              
+10006          |3                  |F              |Anneke            |3               |A              |F              |A              |3              
+10007          |4                  |F              |Tzvetan           |4               |T              |F              |T              |4              
+10008          |2                  |M              |Saniya            |2               |S              |M              |S              |2              
+10009          |1                  |F              |Sumant            |1               |S              |F              |S              |1              
+10010          |4                  |null           |Duangkaew         |4               |D              |null           |D              |4              
+;
+
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+groupByMultipleRenamedColumns_AndMultipleRenames-Ignore
+
+FROM employees
+| KEEP emp_no, languages, gender, first_name
+| RENAME first_name as f
+| INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, first_name = left(f, 1)
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | gender:keyword|    f:keyword     |max_lang:integer|  y:keyword    |   l:integer   |first_name:keyword       
+10001          |2                  |M              |Georgi            |2               |M              |2              |G              
+10002          |5                  |F              |Bezalel           |5               |F              |5              |B              
+10003          |4                  |M              |Parto             |4               |M              |4              |P              
+10004          |5                  |M              |Chirstian         |5               |M              |5              |C              
+10005          |1                  |M              |Kyoichi           |1               |M              |1              |K              
+10006          |3                  |F              |Anneke            |3               |F              |3              |A              
+10007          |4                  |F              |Tzvetan           |4               |F              |4              |T              
+10008          |2                  |M              |Saniya            |2               |M              |2              |S              
+10009          |1                  |F              |Sumant            |1               |F              |1              |S              
+10010          |4                  |null           |Duangkaew         |4               |null           |4              |D              
+;
+
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+groupByMultipleRenamedColumns_AndSameNameExpressionGroupingOverride-Ignore
+
+FROM employees
+| KEEP emp_no, languages, gender, first_name
+| RENAME first_name as f
+| INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = left(f, 1)
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | gender:keyword|max_lang:integer|  y:keyword    |   l:integer   |f:keyword       
+10001          |2                  |M              |2               |M              |2              |G              
+10002          |5                  |F              |5               |F              |5              |B              
+10003          |4                  |M              |4               |M              |4              |P              
+10004          |5                  |M              |5               |M              |5              |C              
+10005          |1                  |M              |1               |M              |1              |K              
+10006          |3                  |F              |3               |F              |3              |A              
+10007          |4                  |F              |4               |F              |4              |T              
+10008          |2                  |M              |2               |M              |2              |S              
+10009          |1                  |F              |1               |F              |1              |S              
+10010          |4                  |null           |4               |null           |4              |D              
+;
+
+twoAggregatesGroupedBy_AField_And_AnExpression
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, gender, last_name
+| WHERE gender IS NOT NULL
+| INLINESTATS max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), gender
+| SORT last_name DESC
+| LIMIT 8
+;
+
+emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:integer|   f:keyword   | gender:keyword
+10053          |3                |Zschoche         |4               |3               |Z              |F              
+10083          |1                |Zockler          |1               |1               |Z              |M              
+10007          |4                |Zielinski        |4               |3               |Z              |F              
+10097          |3                |Waschkowski      |3               |3               |W              |M              
+10020          |null             |Warwick          |3               |3               |W              |M              
+10043          |1                |Tzvieli          |1               |1               |T              |M              
+10049          |5                |Tramer           |5               |5               |T              |F              
+10028          |null             |Tempesti         |1               |1               |T              |M              
+;
+
+groupByMultipleRenamedColumns_InversedOrder
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, still_hired, gender
+| INLINESTATS max_lang = MAX(languages) BY y = gender, z = still_hired
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|max_lang:integer|   y:keyword   |   z:boolean       
+10001          |2                |true               |M              |5               |M              |true           
+10002          |5                |true               |F              |5               |F              |true           
+10003          |4                |false              |M              |5               |M              |false          
+10004          |5                |true               |M              |5               |M              |true           
+10005          |1                |true               |M              |5               |M              |true           
+;
+
+groupByMultipleRenamedColumns_InversedOrder_ComplexEval
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, still_hired, gender
+| EVAL multilingual = CASE(languages <= 1, "monolingual", languages <= 2, "bilingual", "polyglot")
+| INLINESTATS max_lang = MAX(languages) BY y = gender, z = still_hired
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|multilingual:keyword|max_lang:integer|   y:keyword   |   z:boolean
+10001          |2                |true               |M              |bilingual           |5               |M              |true           
+10002          |5                |true               |F              |polyglot            |5               |F              |true           
+10003          |4                |false              |M              |polyglot            |5               |M              |false          
+10004          |5                |true               |M              |polyglot            |5               |M              |true           
+10005          |1                |true               |M              |monolingual         |5               |M              |true
+;
+
+groupByMultipleRenamedColumns_AndComplexEval
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, still_hired, gender
+| EVAL multilingual = CASE(languages <= 1, "monolingual", languages <= 2, "bilingual", "polyglot")
+| INLINESTATS max_lang = MAX(languages) BY y = gender, z = still_hired, m = multilingual
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|multilingual:keyword|max_lang:integer|   y:keyword   |   z:boolean   |m:keyword
+10001          |2                |true               |M              |bilingual           |2               |M              |true           |bilingual      
+10002          |5                |true               |F              |polyglot            |5               |F              |true           |polyglot       
+10003          |4                |false              |M              |polyglot            |5               |M              |false          |polyglot       
+10004          |5                |true               |M              |polyglot            |5               |M              |true           |polyglot       
+10005          |1                |true               |M              |monolingual         |1               |M              |true           |monolingual
+;
+
+// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+groupByMultipleRenamedColumns_AndConstantValue-Ignore
+
+FROM employees
+| KEEP emp_no, languages, gender, first_name
+| EVAL x = "ABC"
+| INLINESTATS max_lang = MAX(languages) BY y = gender, l = languages, f = to_lower(x)
+| LIMIT 10
+;
+
+emp_no:integer |languages:integer|gender:keyword |first_name:keyword  |   x:keyword   |max_lang:integer|   y:keyword   |   l:integer   |f:keyword       
+10001          |2                |M              |Georgi              |ABC            |2               |M              |2              |abc            
+10002          |5                |F              |Bezalel             |ABC            |5               |F              |5              |abc            
+10003          |4                |M              |Parto               |ABC            |4               |M              |4              |abc            
+10004          |5                |M              |Chirstian           |ABC            |5               |M              |5              |abc            
+10005          |1                |M              |Kyoichi             |ABC            |1               |M              |1              |abc            
+10006          |3                |F              |Anneke              |ABC            |3               |F              |3              |abc            
+10007          |4                |F              |Tzvetan             |ABC            |4               |F              |4              |abc            
+10008          |2                |M              |Saniya              |ABC            |2               |M              |2              |abc            
+10009          |1                |F              |Sumant              |ABC            |1               |F              |1              |abc            
+10010          |4                |null           |Duangkaew           |ABC            |4               |null           |4              |abc            
+;
+
+groupByRenamedExpression
+required_capability: inlinestats_v7
+
+FROM employees
+| KEEP emp_no, languages, gender, last_name
+| WHERE gender IS NOT NULL
+| INLINESTATS max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), gender
+| SORT last_name DESC
+| LIMIT 8
+;
+
+emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:integer|  f:keyword    | gender:keyword     
+10053          |3                |Zschoche         |4               |3               |Z              |F              
+10083          |1                |Zockler          |1               |1               |Z              |M              
+10007          |4                |Zielinski        |4               |3               |Z              |F              
+10097          |3                |Waschkowski      |3               |3               |W              |M              
+10020          |null             |Warwick          |3               |3               |W              |M              
+10043          |1                |Tzvieli          |1               |1               |T              |M              
+10049          |5                |Tramer           |5               |5               |T              |F              
+10028          |null             |Tempesti         |1               |1               |T              |M            
+;
+
+doubleFilterOnLeftAndRight_InlineStats_Sides
+required_capability: inlinestats_v7
+  
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE salary > 65000 and languages > 2
+| SORT emp_no
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer   
+10007          |4                |74572          |74572             |27215          
+10030          |3                |67492          |74970             |26436          
+10045          |3                |74970          |74970             |26436          
+10054          |4                |65367          |74572             |27215          
+10062          |3                |65030          |74970             |26436          
+10094          |5                |66817          |66817             |25324          
+10097          |3                |71165          |74970             |26436          
+10100          |4                |68431          |74572             |27215          
+;
+
+filterOnInlineStatsAggs
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE min_salary > 27000 or max_salary < 70000
+| sort salary desc
+| limit 5
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10029          |null             |74999          |74999             |28336          
+10007          |4                |74572          |74572             |27215          
+10027          |null             |73851          |74999             |28336          
+10099          |2                |73578          |73578             |29175          
+10078          |2                |69904          |73578             |29175          
+;
+
+filterOnInlineStatsAggsValues_And_Groupings
+required_capability: inlinestats_v7
+
+FROM employees
+| INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
+| KEEP emp_no, languages, *salary
+| WHERE (min_salary > 27000 or max_salary < 70000) and languages > 3
+| sort salary
+| limit 5
+;
+
+emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:integer
+10015          |5                |25324          |66817             |25324          
+10035          |5                |25945          |66817             |25324          
+10057          |4                |27215          |74572             |27215          
+10011          |5                |31120          |66817             |25324          
+10066          |5                |31897          |66817             |25324          
+;
+
+// Fails with (in json format only; for format=txt it returns empty result)
+// line 1:101: Plan [FieldExtractExec[description{f}#274, host{f}#272, ip0{f}#273, _index..]<[],[]>] optimized incorrectly due to duplicate output attribute ip1{r}#267
+// line 1:101: Plan [TopNExec[[Order[ip1{r}#267,ASC,LAST]],1[INTEGER],null]] optimized incorrectly due to duplicate output attribute ip1{r}#267
+// line 1:44: Plan [HashJoinExec[[host_group{f}#271, card{f}#276],[host_group{f}#271, card{f}#276],[host_group{r}#271, card{r}#276],[ip1{r}#267]]] optimized incorrectly due to duplicate output attribute ip1{r}#267
+inlineStatsOverrideEVALed_FieldWithSameName-Ignore
+
+FROM hosts METADATA _index
+| EVAL x = ip1
+| INLINESTATS ip1 = COUNT(*) BY host_group, card
+| SORT ip1
+| LIMIT 1
+;
+
+  description:text |  host:keyword |   ip0:ip      | _index:keyword |   x:ip  | ip1:long | host_group:text | card:keyword
+alpha db server    |alpha          |127.0.0.1      |hosts           |127.0.0.1|1         |DB servers       |eth0
+;

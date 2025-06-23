@@ -1,37 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.versioning;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -40,10 +44,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -135,7 +137,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         logger.info("--> Indexing initial doc for {} keys", numberOfKeys);
         List<Partition> partitions = IntStream.range(0, numberOfKeys)
-            .mapToObj(i -> client().prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
+            .mapToObj(i -> prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
             .map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
             .toList();
 
@@ -237,7 +239,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts
-                            IndexResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
+                            DocWriteResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
                             IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
                             historyResponse.accept(historyOutput);
                             // validate version and seqNo strictly increasing for successful CAS to avoid that overhead during
@@ -432,34 +434,55 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 history
             );
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
-            boolean linearizable = false;
+            Boolean linearizable = null;
             try {
-                final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-                final AtomicBoolean abort = new AtomicBoolean();
-                // Large histories can be problematic and have the linearizability checker run OOM
-                // Bound the time how long the checker can run on such histories (Values empirically determined)
-                if (history.size() > 300) {
-                    scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
-                }
-                linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator(), abort::get);
-                ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
-                if (abort.get() && linearizable == false) {
-                    linearizable = true; // let the test pass
-                }
+                linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator());
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check was aborted, assuming linearizable", e);
             } finally {
-                // implicitly test that we can serialize all histories.
-                String serializedHistory = base64Serialize(history);
-                if (linearizable == false) {
-                    // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                    logger.error(
-                        "Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}",
-                        spec,
-                        initialVersion,
-                        serializedHistory
-                    );
+                try {
+                    if (Boolean.TRUE.equals(linearizable)) {
+                        // ensure that we can serialize all histories.
+                        writeHistory(new OutputStreamStreamOutput(OutputStream.nullOutputStream()), history);
+                    } else {
+                        final var outcome = linearizable == null ? "inconclusive" : "unlinearizable";
+
+                        logger.error(
+                            "Linearizability check did not succeed. Spec: {}, initial version: {}, outcome: {}",
+                            spec,
+                            initialVersion,
+                            outcome
+                        );
+                        // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
+                        try (
+                            var chunkedLoggingStream = ChunkedLoggingStream.create(
+                                logger,
+                                Level.ERROR,
+                                "raw " + outcome + " history in partition " + id,
+                                ReferenceDocs.LOGGING // any old docs link will do
+                            );
+                            var output = new OutputStreamStreamOutput(chunkedLoggingStream)
+                        ) {
+                            writeHistory(output, history);
+                        }
+                        try (
+                            var chunkedLoggingStream = ChunkedLoggingStream.create(
+                                logger,
+                                Level.ERROR,
+                                "visualisation of " + outcome + " history in partition " + id,
+                                ReferenceDocs.LOGGING // any old docs link will do
+                            );
+                            var writer = new OutputStreamWriter(chunkedLoggingStream, StandardCharsets.UTF_8)
+                        ) {
+                            LinearizabilityChecker.writeVisualisation(spec, history, missingResponseGenerator(), writer);
+                        }
+                        assertNull("Must not be unlinearizable", linearizable);
+                    }
+                } catch (IOException e) {
+                    logger.error("failure writing out history", e);
+                    fail(e);
                 }
             }
-            assertTrue("Must be linearizable", linearizable);
         }
     }
 
@@ -515,7 +538,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     private static class IndexResponseHistoryOutput implements HistoryOutput {
         private final Version outputVersion;
 
-        private IndexResponseHistoryOutput(IndexResponse response) {
+        private IndexResponseHistoryOutput(DocWriteResponse response) {
             this(new Version(response.getPrimaryTerm(), response.getSeqNo()));
         }
 
@@ -635,31 +658,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         return input -> new FailureHistoryOutput();
     }
 
-    private String base64Serialize(LinearizabilityChecker.History history) {
-        BytesStreamOutput output = new BytesStreamOutput();
-        try {
-            List<LinearizabilityChecker.Event> events = history.copyEvents();
-            output.writeInt(events.size());
-            for (LinearizabilityChecker.Event event : events) {
-                writeEvent(event, output);
-            }
-            output.close();
-            return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    private static void writeHistory(StreamOutput output, LinearizabilityChecker.History history) throws IOException {
+        output.writeCollection(history.copyEvents(), ConcurrentSeqNoVersioningIT::writeEvent);
     }
 
     private static LinearizabilityChecker.History readHistory(StreamInput input) throws IOException {
-        int size = input.readInt();
-        List<LinearizabilityChecker.Event> events = new ArrayList<>(size);
-        for (int i = 0; i < size; ++i) {
-            events.add(readEvent(input));
-        }
-        return new LinearizabilityChecker.History(events);
+        return new LinearizabilityChecker.History(input.readCollectionAsList(ConcurrentSeqNoVersioningIT::readEvent));
     }
 
-    private static void writeEvent(LinearizabilityChecker.Event event, BytesStreamOutput output) throws IOException {
+    private static void writeEvent(StreamOutput output, LinearizabilityChecker.Event event) throws IOException {
         output.writeEnum(event.type());
         output.writeNamedWriteable((NamedWriteable) event.value());
         output.writeInt(event.id());
@@ -683,18 +690,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException {
+    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException,
+        LinearizabilityCheckAborted {
         StreamInput is = new InputStreamStreamInput(Base64.getDecoder().wrap(fileInputStream));
         is = new NamedWriteableAwareStreamInput(is, createNamedWriteableRegistry());
 
         LinearizabilityChecker.History history = readHistory(is);
 
         Version initialVersion = new Version(primaryTerm, seqNo);
-        boolean result = new LinearizabilityChecker().isLinearizable(
-            new CASSequentialSpec(initialVersion),
-            history,
-            missingResponseGenerator()
-        );
+        boolean result = LinearizabilityChecker.isLinearizable(new CASSequentialSpec(initialVersion), history, missingResponseGenerator());
 
         System.out.println(LinearizabilityChecker.visualize(new CASSequentialSpec(initialVersion), history, missingResponseGenerator()));
 

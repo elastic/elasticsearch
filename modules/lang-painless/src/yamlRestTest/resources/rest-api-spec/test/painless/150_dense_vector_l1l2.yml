@@ -11,6 +11,7 @@ setup:
           mappings:
             properties:
               my_dense_vector:
+                 index: false
                  type: dense_vector
                  dims: 5
   - do:

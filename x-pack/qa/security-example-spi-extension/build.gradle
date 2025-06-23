@@ -2,9 +2,9 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
-  name 'spi-extension'
-  description 'An example spi extension plugin for security'
-  classname 'org.elasticsearch.example.SpiExtensionPlugin'
+  name = 'spi-extension'
+  description = 'An example spi extension plugin for security'
+  classname = 'org.elasticsearch.example.SpiExtensionPlugin'
   extendedPlugins = ['x-pack-security']
 }
 
@@ -12,9 +12,9 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':client:rest-high-level')
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+  javaRestTestImplementation project(':modules:rest-root')
 }
 
 testClusters.configureEach {

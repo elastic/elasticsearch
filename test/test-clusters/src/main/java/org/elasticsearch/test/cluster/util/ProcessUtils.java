@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.util;
@@ -57,8 +58,8 @@ public final class ProcessUtils {
         List<String> command = new ArrayList<>();
         command.addAll(
             OS.conditional(
-                c -> c.onWindows(() -> List.of("cmd", "/c", executable.toAbsolutePath().toString()))
-                    .onUnix(() -> List.of(executable.toAbsolutePath().toString()))
+                c -> c.onWindows(() -> List.of("cmd", "/c", workingDir.relativize(executable).toString()))
+                    .onUnix(() -> List.of(workingDir.relativize(executable).toString()))
             )
         );
         command.addAll(Arrays.asList(args));
@@ -117,7 +118,11 @@ public final class ProcessUtils {
                 if (processHandle.isAlive() == false) {
                     return;
                 }
-                LOGGER.info("Process did not terminate after {}, stopping it forcefully", PROCESS_DESTROY_TIMEOUT);
+                LOGGER.info(
+                    "Process did not terminate after {}, stopping it forcefully: {}",
+                    PROCESS_DESTROY_TIMEOUT,
+                    processHandle.info()
+                );
                 processHandle.destroyForcibly();
             }
 
@@ -147,9 +152,9 @@ public final class ProcessUtils {
                 return processHandle.isAlive() == false;
             });
         } catch (ExecutionException e) {
-            LOGGER.info("Failure while waiting for process to exist", e);
+            LOGGER.info("Failure while waiting for process to exit: {}", processHandle.info(), e);
         } catch (TimeoutException e) {
-            LOGGER.info("Timed out waiting for process to exit", e);
+            LOGGER.info("Timed out waiting for process to exit: {}", processHandle.info(), e);
         }
     }
 
@@ -163,6 +168,6 @@ public final class ProcessUtils {
             } catch (IOException e) {
                 throw new UncheckedIOException("Error reading output from process.", e);
             }
-        }, name).start();
+        }, name + "-log-forwarder").start();
     }
 }

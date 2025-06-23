@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -58,5 +59,10 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         StandardValidator.instance(true).validate(new Circle(200, 10, 1, 20));
+    }
+
+    @Override
+    protected Circle mutateInstance(Circle instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

@@ -10,15 +10,15 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBucket {
+public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBucketWritable implements ToXContent {
     private final Object key;
     private final long docCount;
     private final InternalAggregations aggregations;
@@ -68,7 +68,7 @@ public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBu
     }
 
     @Override
-    public Aggregations getAggregations() {
+    public InternalAggregations getAggregations() {
         return aggregations;
     }
 

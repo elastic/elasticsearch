@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: "The bug was corrected from 7.6.0"
 
   - do:
@@ -46,8 +46,8 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
@@ -58,8 +58,8 @@ teardown:
 
 ---
 "Test two sub-queries with only one having inner_hits":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "The bug was corrected from 7.7.0"
 
   - do:
@@ -87,8 +87,8 @@ teardown:
 
 ---
 "HasParent disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Update setting to false
@@ -119,9 +119,9 @@ teardown:
 
 ---
 profile fetch:
-  - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "fetch fields and stored_fields using ValueFetcher"
 
   - do:
       search:
@@ -141,15 +141,20 @@ profile fetch:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 3 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - length: { profile.shards.0.fetch.children: 4 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.2.type: StoredFieldsPhase }
+  - match: { profile.shards.0.fetch.children.2.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.3.type: StoredFieldsPhase }

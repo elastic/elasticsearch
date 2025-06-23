@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +24,6 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -121,25 +123,25 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private RepositoriesService mockRepositoriesService() {
         var fsFactory = new Repository.Factory() {
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 var repo = mock(Repository.class);
                 doAnswer(invocation -> metadata).when(repo).getMetadata();
                 return repo;
             }
         };
 
+        ThreadPool threadPool = mock(ThreadPool.class);
         RepositoriesService repositoriesService = spy(
             new RepositoriesService(
                 Settings.EMPTY,
                 mock(ClusterService.class),
-                mock(TransportService.class),
                 Map.of(),
                 Map.of("fs", fsFactory),
-                mock(ThreadPool.class),
+                threadPool,
+                mock(NodeClient.class),
                 null
             )
         );

@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -43,6 +44,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Test that ML does not touch unnecessary indices when removing job index aliases
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
     private static final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
@@ -71,7 +74,8 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -128,7 +132,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         createBuckets(jobIdShared, 1, 10);
 
         // Manually switching over alias info
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
             IndicesAliasesRequest.AliasActions.add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
@@ -193,9 +197,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure dedicated index is gone
         assertThat(
-            client().admin()
-                .indices()
-                .prepareGetIndex()
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .setIndices(dedicatedIndex)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()
@@ -204,20 +206,16 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         );
 
         // Make sure all results referencing the dedicated job are gone
-        assertThat(
-            client().prepareSearch()
-                .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+        assertHitCount(
+            prepareSearch().setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
                 .setTrackTotalHits(true)
                 .setSize(0)
                 .setSource(
                     SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))
-                )
-                .get()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(0L)
+                ),
+            0
         );
     }
 

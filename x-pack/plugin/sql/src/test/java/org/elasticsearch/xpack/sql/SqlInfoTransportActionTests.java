@@ -6,19 +6,20 @@
  */
 package org.elasticsearch.xpack.sql;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -57,11 +58,8 @@ public class SqlInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
@@ -71,7 +69,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
             ActionListener<SqlStatsResponse> listener = (ActionListener<SqlStatsResponse>) mock.getArguments()[2];
 
             List<SqlStatsResponse.NodeStatsResponse> nodes = new ArrayList<>();
-            DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode first = DiscoveryNodeUtils.create("first");
             SqlStatsResponse.NodeStatsResponse firstNode = new SqlStatsResponse.NodeStatsResponse(first);
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
@@ -79,7 +77,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
             firstNode.setStats(firstCounters);
             nodes.add(firstNode);
 
-            DiscoveryNode second = new DiscoveryNode("second", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode second = DiscoveryNodeUtils.create("second");
             SqlStatsResponse.NodeStatsResponse secondNode = new SqlStatsResponse.NodeStatsResponse(second);
             Counters secondCounters = new Counters();
             secondCounters.inc("spam", 1);
@@ -95,17 +93,11 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new SqlUsageTransportAction(
-            mock(TransportService.class),
-            clusterService,
-            null,
-            mock(ActionFilters.class),
-            null,
-            licenseState,
-            client
-        );
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        var usageAction = new SqlUsageTransportAction(transportService, clusterService, threadPool, mock(ActionFilters.class), client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());

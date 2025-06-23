@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -148,13 +149,13 @@ public class IgnoreMalformedStoredValuesTests extends ESTestCase {
     private static StoredField ignoreMalformedStoredField(XContentType type, Object value) throws IOException {
         XContentBuilder b = XContentBuilder.builder(type.xContent());
         b.startObject().field("name", value).endObject();
-        XContentParser p = type.xContent().createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(b).streamInput());
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-        assertThat(p.currentName(), equalTo("name"));
-        p.nextToken();
-
-        return IgnoreMalformedStoredValues.storedField("foo.name", p);
+        try (XContentParser p = type.xContent().createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(b).streamInput())) {
+            assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(p.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(p.currentName(), equalTo("name"));
+            p.nextToken();
+            return IgnoreMalformedStoredValues.storedField("foo.name", p);
+        }
     }
 
     private static XContentParser parserFrom(IgnoreMalformedStoredValues values, String fieldName) throws IOException {

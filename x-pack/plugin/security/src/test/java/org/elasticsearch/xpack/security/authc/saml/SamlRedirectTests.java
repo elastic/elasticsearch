@@ -134,7 +134,7 @@ public class SamlRedirectTests extends SamlTestCase {
             invalidCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         }
         final SigningConfiguration signingConfig = new SigningConfiguration(singleton("*"), credential);
-        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, LOGOUT_URL, signingConfig, null, Collections.emptyList());
+        SpConfiguration sp = new SingleSamlSpConfiguration(SP_ENTITY_ID, ACS_URL, LOGOUT_URL, signingConfig, null, Collections.emptyList());
 
         EntityDescriptor idpDescriptor = buildIdPDescriptor(IDP_URL, IDP_ENTITY_ID);
 

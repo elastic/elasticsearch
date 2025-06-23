@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -35,12 +36,14 @@ public abstract class SearchPhaseResult extends TransportResponse {
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
-    protected SearchPhaseResult() {
+    protected SearchPhaseResult() {}
 
-    }
-
-    protected SearchPhaseResult(StreamInput in) throws IOException {
-        super(in);
+    /**
+     * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that
+     * executed the request.
+     */
+    public boolean hasSearchContext() {
+        return false;
     }
 
     /**
@@ -50,6 +53,15 @@ public abstract class SearchPhaseResult extends TransportResponse {
     @Nullable
     public ShardSearchContextId getContextId() {
         return contextId;
+    }
+
+    /**
+     * Null out the context id and request tracked in this instance. This is used to mark shards for which merging results on the data node
+     * made it clear that their search context won't be used in the fetch phase.
+     */
+    public void clearContextId() {
+        this.shardSearchRequest = null;
+        this.contextId = null;
     }
 
     /**
@@ -78,6 +90,13 @@ public abstract class SearchPhaseResult extends TransportResponse {
      * Returns the query result iff it's included in this response otherwise <code>null</code>
      */
     public QuerySearchResult queryResult() {
+        return null;
+    }
+
+    /**
+     * Returns the rank feature result iff it's included in this response otherwise <code>null</code>
+     */
+    public RankFeatureResult rankFeatureResult() {
         return null;
     }
 

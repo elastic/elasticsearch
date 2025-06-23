@@ -1,0 +1,37 @@
+{
+  "inference.completion": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
+      "description": "Perform completion inference"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/completion/{inference_id}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference payload"
+    }
+  }
+}

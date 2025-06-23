@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -23,12 +26,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
@@ -40,12 +45,7 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  */
 public class XPackSettings {
 
-    private static final boolean IS_DARWIN_AARCH64;
-    static {
-        final String name = System.getProperty("os.name");
-        final String arch = System.getProperty("os.arch");
-        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
-    }
+    private static final Logger logger = LogManager.getLogger(XPackSettings.class);
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -57,7 +57,25 @@ public class XPackSettings {
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
     /** Setting for enabling or disabling security. Defaults to true. */
-    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean value) {}
+
+        @Override
+        public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            final boolean remoteClusterServerEnabled = (boolean) settings.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED);
+            if (remoteClusterServerEnabled && false == value) {
+                throw new IllegalArgumentException(
+                    Strings.format("Security [%s] must be enabled to use the remote cluster server feature", SECURITY_ENABLED.getKey())
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED).iterator();
+        }
+    }, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -65,9 +83,44 @@ public class XPackSettings {
     /** Setting for enabling or disabling graph. Defaults to true. */
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling machine learning. Defaults to true. */
+    public static final Set<String> ML_NATIVE_CODE_PLATFORMS = Set.of("darwin-aarch64", "linux-aarch64", "linux-x86_64", "windows-x86_64");
+
+    /** Setting for enabling or disabling machine learning. Defaults to true on platforms that have the ML native code available. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
+        ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME),
+        enabled -> {
+            if (enabled && ML_NATIVE_CODE_PLATFORMS.contains(Platforms.PLATFORM_NAME) == false) {
+                SettingsException e = new SettingsException("xpack.ml.enabled cannot be set to [true] on [{}]", Platforms.PLATFORM_NAME);
+                // The exception doesn't get logged nicely on the console because it's thrown during initial plugin loading,
+                // so log separately here to make absolutely clear what happened
+                logger.fatal(e.getMessage());
+                throw e;
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling APM Data. Defaults to true. */
+    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting("xpack.apm_data.enabled", true, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling OTel Data. Defaults to true. */
+    public static final Setting<Boolean> OTEL_DATA_ENABLED = Setting.boolSetting(
+        "xpack.otel_data.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling enterprise search. Defaults to true. */
+    public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
+        "xpack.ent_search.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -128,6 +181,12 @@ public class XPackSettings {
         Property.NodeScope
     );
 
+    /** Optional setting to prevent startup if required providers are not discovered at runtime */
+    public static final Setting<List<String>> FIPS_REQUIRED_PROVIDERS = Setting.stringListSetting(
+        "xpack.security.fips_mode.required_providers",
+        Property.NodeScope
+    );
+
     /**
      * Setting for enabling the enrollment process, ie the enroll APIs are enabled, and the initial cluster node generates and displays
      * enrollment tokens (for Kibana and sometimes for ES nodes) when starting up for the first time.
@@ -153,7 +212,7 @@ public class XPackSettings {
         Property.NodeScope
     );
 
-    private static final List<String> JDK12_CIPHERS = List.of(
+    private static final List<String> PRE_JDK24_CIPHERS = List.of(
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
         "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
@@ -179,9 +238,29 @@ public class XPackSettings {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     ); // hardware support
 
-    public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
+    private static final List<String> JDK24_CIPHERS = List.of(
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
+        "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", // PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" // PFS, hardware support
+    ); // hardware support
 
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+    public static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
+
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredPasswordHashAlgorithmSetting(
         "xpack.security.authc.password_hashing.algorithm",
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
@@ -192,7 +271,7 @@ public class XPackSettings {
         }
     );
 
-    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredHashAlgorithmSetting(
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultStoredPasswordHashAlgorithmSetting(
         "xpack.security.authc.service_token_hashing.algorithm",
         (s) -> Hasher.PBKDF2_STRETCH.name()
     );
@@ -200,11 +279,17 @@ public class XPackSettings {
     /*
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
-    public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
-        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+    public static Setting<String> defaultStoredPasswordHashAlgorithmSetting(
+        String key,
+        Function<Settings, String> defaultHashingAlgorithm
+    ) {
+        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
+            if (Hasher.getAvailableAlgoStoredPasswordHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
+                    "Invalid algorithm: "
+                        + v
+                        + ". Valid values for password hashing are "
+                        + Hasher.getAvailableAlgoStoredPasswordHash().toString()
                 );
             } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
                 try {
@@ -221,22 +306,42 @@ public class XPackSettings {
         }, Property.NodeScope);
     }
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
-
-    static {
-        boolean supportsTLSv13 = false;
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            supportsTLSv13 = true;
-        } catch (NoSuchAlgorithmException e) {
-            // BCJSSE in FIPS mode doesn't support TLSv1.3 yet.
-            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
-        }
-        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    /**
+     * Similar to {@link #defaultStoredPasswordHashAlgorithmSetting(String, Function)} but for secure, high-entropy tokens so salted secure
+     * hashing algorithms are allowed, in addition to algorithms that are suitable for password hashing.
+     */
+    public static Setting<String> defaultStoredSecureTokenHashAlgorithmSetting(
+        String key,
+        Function<Settings, String> defaultHashingAlgorithm
+    ) {
+        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
+            if (Hasher.getAvailableAlgoStoredSecureTokenHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid algorithm: "
+                        + v
+                        + ". Valid values for secure token hashing are "
+                        + Hasher.getAvailableAlgoStoredSecureTokenHash().toString()
+                );
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the PBKDF2 algorithms for the ["
+                            + key
+                            + "] setting.",
+                        e
+                    );
+                }
+            }
+        }, Property.NodeScope);
     }
+
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2");
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
@@ -247,11 +352,32 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
-    public static final String REMOTE_CLUSTER_SSL_PREFIX = SecurityField.setting(RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX + "ssl.");
+    // remote cluster specific settings
+    public static final String REMOTE_CLUSTER_SERVER_SSL_PREFIX = SecurityField.setting("remote_cluster_server.ssl.");
+    public static final String REMOTE_CLUSTER_CLIENT_SSL_PREFIX = SecurityField.setting("remote_cluster_client.ssl.");
 
-    private static final SSLConfigurationSettings REMOTE_CLUSTER_SSL = SSLConfigurationSettings.withPrefix(
-        REMOTE_CLUSTER_SSL_PREFIX,
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX,
         false
+    );
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_CLIENT_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
+        false
+    );
+
+    /** Setting for enabling or disabling remote cluster server TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling remote cluster client TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_CLIENT_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
     );
 
     /** Returns all settings created in {@link XPackSettings}. */
@@ -259,17 +385,21 @@ public class XPackSettings {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.addAll(REMOTE_CLUSTER_SSL.getEnabledSettings());
-        }
+        settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
+        settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
+        settings.add(APM_DATA_ENABLED);
+        settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
+        settings.add(REMOTE_CLUSTER_SERVER_SSL_ENABLED);
+        settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);

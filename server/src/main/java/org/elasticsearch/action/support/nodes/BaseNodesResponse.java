@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
@@ -27,11 +28,11 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     private final List<TNodeResponse> nodes;
     private Map<String, TNodeResponse> nodesMap;
 
+    @SuppressWarnings("this-escape")
     protected BaseNodesResponse(StreamInput in) throws IOException {
-        super(in);
         clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
-        failures = in.readList(FailedNodeException::new);
+        failures = in.readCollectionAsList(FailedNodeException::new);
     }
 
     protected BaseNodesResponse(ClusterName clusterName, List<TNodeResponse> nodes, List<FailedNodeException> failures) {
@@ -97,7 +98,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     /**

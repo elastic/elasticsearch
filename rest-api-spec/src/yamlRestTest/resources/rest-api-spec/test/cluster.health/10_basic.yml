@@ -1,21 +1,38 @@
 ---
 "cluster health basic test":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
+
   - do:
       cluster.health: {}
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - match:     { active_primary_shards:   0 }
-  - match:     { active_shards:           0 }
-  - match:     { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - match:     { active_primary_shards:     0 }
+  - match:     { active_shards:             0 }
+  - match:     { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
+
   - do:
       indices.create:
         index: test_index
@@ -31,17 +48,26 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index with wait for active shards":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
+
   - do:
       indices.create:
         index: test_index
@@ -57,17 +83,26 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health basic test, one index with wait for all active shards":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
+
   - do:
       indices.create:
         index: test_index
@@ -83,16 +118,18 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - gt:        { active_primary_shards:     0 }
+  - gt:        { active_shards:             0 }
+  - gte:       { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
+
 "cluster health basic test, one index with wait for no initializing shards":
 
   - do:
@@ -132,9 +169,10 @@
 ---
 "cluster health with closed index (pre 7.2.0)":
   - skip:
-      version: "7.2.0 - "
+      cluster_features: ["gte_v7.2.0"]
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -181,8 +219,6 @@
   - do:
       indices.close:
         index: index-2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   # closing the index-2 turns the cluster health back to green
@@ -208,10 +244,10 @@
 
 ---
 "cluster health with closed index":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.create:
@@ -259,8 +295,6 @@
   - do:
       indices.close:
         index: index-2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:

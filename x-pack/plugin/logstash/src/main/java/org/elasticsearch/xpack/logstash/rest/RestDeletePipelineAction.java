@@ -13,8 +13,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineAction;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineRequest;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineResponse;
@@ -24,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
@@ -46,7 +48,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
                 @Override
                 protected void processResponse(DeletePipelineResponse deletePipelineResponse) {
                     final RestStatus status = deletePipelineResponse.isDeleted() ? RestStatus.OK : RestStatus.NOT_FOUND;
-                    channel.sendResponse(new RestResponse(status, XContentType.JSON.mediaType(), BytesArray.EMPTY));
+                    channel.sendResponse(new RestResponse(status, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 }
             }
         );

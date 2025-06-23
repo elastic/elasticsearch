@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -27,7 +28,11 @@ import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 /**
  * A bulk processor is a thread safe bulk processing class, allowing to easily set when to "flush" a new bulk request
@@ -71,8 +76,8 @@ public class BulkProcessor2 implements Closeable {
         private final Listener listener;
         private final ThreadPool threadPool;
         private int maxRequestsInBulk = 1000;
-        private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
-        private ByteSizeValue maxBytesInFlight = new ByteSizeValue(50, ByteSizeUnit.MB);
+        private ByteSizeValue maxBulkSizeInBytes = ByteSizeValue.of(5, ByteSizeUnit.MB);
+        private ByteSizeValue maxBytesInFlight = ByteSizeValue.of(50, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private int maxNumberOfRetries = 3;
 
@@ -207,6 +212,13 @@ public class BulkProcessor2 implements Closeable {
      */
     private final Object mutex = new Object();
 
+    /*
+     * This Lock and Condition are used to throttle calls to bulkProcessor.addWithBackpressure when the bulkProcessor already has too many
+     * bytes in flight and cannot accept more data until already-in-flight requests complete.
+     */
+    private final Lock backpressureLock = new ReentrantLock();
+    private final Condition backpressureNotRequiredCondition = backpressureLock.newCondition();
+
     BulkProcessor2(
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         int maxNumberOfRetries,
@@ -235,7 +247,7 @@ public class BulkProcessor2 implements Closeable {
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument
-     * @return true if all outstanding requests have been completed or the processor was already closed
+     * @return True if the bulk processor was able to be closed in the given time, false otherwise
      * @throws InterruptedException If the current thread is interrupted
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
@@ -257,12 +269,11 @@ public class BulkProcessor2 implements Closeable {
     }
 
     /**
-     * This method flushes any requests, prevents any future retries, closes this processor, and returns immediately without waiting to see
-     * if any pending requests complete.
+     * This method flushes any requests, prevents any future retries, closes this processor, and returns once any pending requests complete.
      */
     public void close() {
         try {
-            awaitClose(0, TimeUnit.NANOSECONDS);
+            awaitClose(30, TimeUnit.SECONDS);
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }
@@ -276,6 +287,21 @@ public class BulkProcessor2 implements Closeable {
      */
     public BulkProcessor2 add(IndexRequest request) throws EsRejectedExecutionException {
         return add((DocWriteRequest<?>) request);
+    }
+
+    /**
+     * This method is similar to {@link #add(IndexRequest) add()}, except that if adding the approximate size in bytes of the request to
+     * totalBytesInFlight would exceed maxBytesInFlight then this method will block until the request can be added without exceeding
+     * maxBytesInFlight (or until shouldAbort returns false). This method should be used carefully, ideally from a single thread. This is
+     * because calling it with multiple threads would either hang up all the threads in the pool (in the case of a bounded thread pool) or
+     * effectively create an unbounded queue (in the case of an unbounded thread pool).
+     * @param request The request to add to a batch to be consumed
+     * @param shouldAbort If this returns true then this method bails out with an EsRejectedExecutionException
+     * @return this BulkProcessor2
+     * @throws EsRejectedExecutionException if shouldAbort returns true before the request has been added to a batch
+     */
+    public BulkProcessor2 addWithBackpressure(IndexRequest request, Supplier<Boolean> shouldAbort) throws EsRejectedExecutionException {
+        return addWithBackpressure((DocWriteRequest<?>) request, shouldAbort);
     }
 
     /**
@@ -294,6 +320,44 @@ public class BulkProcessor2 implements Closeable {
      */
     private BulkProcessor2 add(DocWriteRequest<?> request) throws EsRejectedExecutionException {
         internalAdd(request);
+        return this;
+    }
+
+    private BulkProcessor2 addWithBackpressure(DocWriteRequest<?> request, Supplier<Boolean> shouldAbort)
+        throws EsRejectedExecutionException {
+        /*
+         * We want this method to block until the bulkProcessor accepts the request. Otherwise, the subsequent calls to this method will
+         * likely continue rejecting. BulkProcessor2.add does not have the ability to exert backpressure.
+         * So we have to catch the EsRejectedExecutionException that is thrown when it already has too many bytes in flight. We then
+         * wait until some bulk has been completed, reducing the amount of data in flight and (probably) making room for this request.
+         */
+        boolean successfullyAdded = false;
+        while (successfullyAdded == false) {
+            if (shouldAbort.get()) {
+                throw new EsRejectedExecutionException("Rejecting request because bulk add has been cancelled by the caller");
+            }
+            try {
+                add(request);
+                successfullyAdded = true;
+            } catch (EsRejectedExecutionException e) {
+                logger.trace("Attempt to add request to batch rejected because too many bytes are in flight already. Will try again.");
+                /*
+                 * Note: It is possible that signalAll was called between the call to add above and acquiring this lock.
+                 * But in that case, either we wait 500ms, or another batch completes and another call to signalAll wakes us up.
+                 * Either way is preferable to requiring this lock for the whole try/catch block. That is why we ignore the
+                 * result of the call to await() -- either way we are going to try calling bulkProcessor.add() again.
+                 */
+                backpressureLock.lock();
+                try {
+                    backpressureNotRequiredCondition.await(500, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ex);
+                } finally {
+                    backpressureLock.unlock();
+                }
+            }
+        }
         return this;
     }
 
@@ -366,7 +430,7 @@ public class BulkProcessor2 implements Closeable {
                         }
                         cancellableFlushTask = null;
                     }
-                }, flushInterval, ThreadPool.Names.GENERIC);
+                }, flushInterval, threadPool.generic());
             }
         }
     }
@@ -395,19 +459,36 @@ public class BulkProcessor2 implements Closeable {
                 @Override
                 public void onResponse(BulkResponse response) {
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+                    maybeNoLongerInExcessofMaxBytesInFlight();
                     listener.afterBulk(executionId, bulkRequest, response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+                    maybeNoLongerInExcessofMaxBytesInFlight();
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
             });
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             totalBytesInFlight.addAndGet(-1 * bulkRequest.estimatedSizeInBytes());
+            maybeNoLongerInExcessofMaxBytesInFlight();
             listener.afterBulk(executionId, bulkRequest, e);
+        }
+    }
+
+    /*
+     * This method is to be called whenever we deduct from totalBytesInFlight, signalling that it's worth retrying any requests blocked in
+     * addWithBackpressure.
+     */
+    private void maybeNoLongerInExcessofMaxBytesInFlight() {
+        // Signal in case any rejected docs were waiting for the space in bulkProcessor in addWithBackPressure
+        backpressureLock.lock();
+        try {
+            backpressureNotRequiredCondition.signalAll();
+        } finally {
+            backpressureLock.unlock();
         }
     }
 

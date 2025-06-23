@@ -11,17 +11,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -53,7 +54,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,7 +118,7 @@ public class JobConfigProvider {
      * @param job The anomaly detector job configuration
      * @param listener Index response listener
      */
-    public void putJob(Job job, ActionListener<IndexResponse> listener) {
+    public void putJob(Job job, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(Job.documentId(job.getId()))
@@ -127,14 +126,20 @@ public class JobConfigProvider {
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(listener::onResponse, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    // the job already exists
-                    listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.wrap(listener::onResponse, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        // the job already exists
+                        listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + job.getId() + "]", e));
@@ -196,16 +201,22 @@ public class JobConfigProvider {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
-            if (errorIfMissing) {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    l.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    return;
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            request,
+            actionListener.delegateFailure((l, deleteResponse) -> {
+                if (errorIfMissing) {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(ExceptionsHelper.missingJobException(jobId));
+                        return;
+                    }
+                    assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                 }
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-            }
-            l.onResponse(deleteResponse);
-        }));
+                l.onResponse(deleteResponse);
+            })
+        );
     }
 
     /**
@@ -223,7 +234,7 @@ public class JobConfigProvider {
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, new DelegatingActionListener<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
@@ -285,7 +296,7 @@ public class JobConfigProvider {
     ) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists() == false) {
                 listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 return;
@@ -332,7 +343,7 @@ public class JobConfigProvider {
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(indexResponse -> {
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(indexResponse -> {
                 assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                 updatedJobListener.onResponse(updatedJob);
             }, updatedJobListener::onFailure));
@@ -366,7 +377,7 @@ public class JobConfigProvider {
             getRequest.setParentTask(parentTaskId);
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists() == false) {
                 if (errorIfMissing) {
                     listener.onFailure(ExceptionsHelper.missingJobException(jobId));
@@ -672,7 +683,7 @@ public class JobConfigProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(
-                response -> listener.onResponse(response.getHits().getTotalHits().value > 0),
+                response -> listener.onResponse(response.getHits().getTotalHits().value() > 0),
                 listener::onFailure
             ),
             client::search
@@ -747,23 +758,21 @@ public class JobConfigProvider {
         return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 
-    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
-        ) {
-            jobListener.onResponse(Job.LENIENT_PARSER.apply(parser, null));
+    private static void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
+        try {
+            jobListener.onResponse(parseJobLenientlyFromSource(source));
         } catch (Exception e) {
             jobListener.onFailure(e);
         }
     }
 
-    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
+    private static Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                XContentType.JSON
+            )
         ) {
             return Job.LENIENT_PARSER.apply(parser, null);
         }

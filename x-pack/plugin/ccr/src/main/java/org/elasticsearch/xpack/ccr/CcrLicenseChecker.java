@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -23,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -39,6 +42,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -119,17 +125,25 @@ public class CcrLicenseChecker {
         final Consumer<Exception> onFailure,
         final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
     ) {
-        checkRemoteClusterLicenseAndFetchClusterState(
+        final var remoteClient = client.getRemoteClusterClient(
+            clusterAlias,
+            client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+        doCheckRemoteClusterLicenseAndFetchClusterState(
             client,
             clusterAlias,
-            client.getRemoteClusterClient(clusterAlias),
+            remoteClient,
             CcrRequests.metadataRequest(leaderIndex),
             onFailure,
             remoteClusterStateResponse -> {
                 ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().getProject().index(leaderIndex);
                 if (leaderIndexMetadata == null) {
-                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
+                        .getProject()
+                        .getIndicesLookup()
+                        .get(leaderIndex);
                     final Exception failure;
                     if (indexAbstraction == null) {
                         failure = new IndexNotFoundException(leaderIndex);
@@ -150,12 +164,17 @@ public class CcrLicenseChecker {
                     onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
                     return;
                 }
-                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getProject().getIndicesLookup().get(leaderIndex);
                 final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
-                    ? indexAbstraction.getParentDataStream().getDataStream()
+                    ? indexAbstraction.getParentDataStream()
                     : null;
-                final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
-                hasPrivilegesToFollowIndices(remoteClient, new String[] { leaderIndex }, e -> {
+                // Ensure that this leader index is not a failure store index, because they are not yet supported in CCR
+                if (remoteDataStream != null && remoteDataStream.isFailureStoreIndex(leaderIndex)) {
+                    String message = String.format(Locale.ROOT, "cannot follow [%s], because it is a failure store index", leaderIndex);
+                    onFailure.accept(new IllegalArgumentException(message));
+                    return;
+                }
+                hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, new String[] { leaderIndex }, e -> {
                     if (e == null) {
                         fetchLeaderHistoryUUIDs(
                             remoteClient,
@@ -193,7 +212,14 @@ public class CcrLicenseChecker {
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer
     ) {
         try {
-            Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
+            var remoteClient = systemClient(
+                client.threadPool().getThreadContext(),
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
+            );
             checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
@@ -209,6 +235,29 @@ public class CcrLicenseChecker {
             // connection is unknown
             onFailure.accept(e);
         }
+    }
+
+    // overridable for testing
+    protected void doCheckRemoteClusterLicenseAndFetchClusterState(
+        final Client client,
+        final String clusterAlias,
+        final RemoteClusterClient remoteClient,
+        final ClusterStateRequest request,
+        final Consumer<Exception> onFailure,
+        final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
+        final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
+        final Function<Exception, ElasticsearchStatusException> unknownLicense
+    ) {
+        checkRemoteClusterLicenseAndFetchClusterState(
+            client,
+            clusterAlias,
+            remoteClient,
+            request,
+            onFailure,
+            leaderClusterStateConsumer,
+            nonCompliantLicense,
+            unknownLicense
+        );
     }
 
     /**
@@ -229,7 +278,7 @@ public class CcrLicenseChecker {
     private static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final ClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
@@ -249,7 +298,7 @@ public class CcrLicenseChecker {
                             onFailure
                         );
                         // following an index in remote cluster, so use remote client to fetch leader index metadata
-                        remoteClient.admin().cluster().state(request, clusterStateListener);
+                        remoteClient.execute(ClusterStateAction.REMOTE_TYPE, request, clusterStateListener);
                     } else {
                         onFailure.accept(nonCompliantLicense.apply(licenseCheck));
                     }
@@ -275,7 +324,7 @@ public class CcrLicenseChecker {
     // NOTE: Placed this method here; in order to avoid duplication of logic for fetching history UUIDs
     // in case of following a local or a remote cluster.
     public static void fetchLeaderHistoryUUIDs(
-        final Client remoteClient,
+        final RemoteClusterClient remoteClient,
         final IndexMetadata leaderIndexMetadata,
         final Consumer<Exception> onFailure,
         final Consumer<String[]> historyUUIDConsumer
@@ -319,7 +368,7 @@ public class CcrLicenseChecker {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         request.indices(leaderIndex);
-        remoteClient.admin().indices().stats(request, ActionListener.wrap(indicesStatsHandler, onFailure));
+        remoteClient.execute(IndicesStatsAction.REMOTE_TYPE, request, ActionListener.wrap(indicesStatsHandler, onFailure));
     }
 
     /**
@@ -331,7 +380,12 @@ public class CcrLicenseChecker {
      * @param indices      the indices
      * @param handler      the callback
      */
-    public void hasPrivilegesToFollowIndices(final Client remoteClient, final String[] indices, final Consumer<Exception> handler) {
+    public void hasPrivilegesToFollowIndices(
+        final ThreadContext threadContext,
+        final RemoteClusterClient remoteClient,
+        final String[] indices,
+        final Consumer<Exception> handler
+    ) {
         Objects.requireNonNull(remoteClient, "remoteClient");
         Objects.requireNonNull(indices, "indices");
         if (indices.length == 0) {
@@ -343,7 +397,7 @@ public class CcrLicenseChecker {
             return;
         }
 
-        final User user = getUser(remoteClient);
+        final User user = getUser(threadContext);
         if (user == null) {
             handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
@@ -380,13 +434,50 @@ public class CcrLicenseChecker {
                 handler.accept(Exceptions.authorizationError(message.toString()));
             }
         };
-        remoteClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
+        remoteClient.execute(HasPrivilegesAction.REMOTE_TYPE, request, ActionListener.wrap(responseHandler, handler));
     }
 
-    User getUser(final Client remoteClient) {
-        final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        return securityContext.getUser();
+    User getUser(ThreadContext threadContext) {
+        return new SecurityContext(Settings.EMPTY, threadContext).getUser();
+    }
+
+    public static RemoteClusterClient wrapRemoteClusterClient(
+        ThreadContext threadContext,
+        RemoteClusterClient client,
+        Map<String, String> headers,
+        ClusterState clusterState
+    ) {
+        if (headers.isEmpty()) {
+            return client;
+        } else {
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState);
+            if (filteredHeaders.isEmpty()) {
+                return client;
+            }
+            return new RemoteClusterClient() {
+                @Override
+                public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                    Transport.Connection connection,
+                    RemoteClusterActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    ClientHelper.executeWithHeadersAsync(
+                        threadContext,
+                        filteredHeaders,
+                        null,
+                        request,
+                        listener,
+                        (r, l) -> client.execute(connection, action, r, l)
+                    );
+                }
+
+                @Override
+                public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                    client.getConnection(request, listener);
+                }
+            };
+        }
     }
 
     public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {
@@ -410,20 +501,24 @@ public class CcrLicenseChecker {
         }
     }
 
-    private static Client systemClient(Client client) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        return new FilterClient(client) {
+    private static RemoteClusterClient systemClient(ThreadContext threadContext, RemoteClusterClient delegate) {
+        return new RemoteClusterClient() {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
+            public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                Transport.Connection connection,
+                RemoteClusterActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext();
-                    super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                try (var ignore = threadContext.newEmptySystemContext()) {
+                    delegate.execute(connection, action, request, new ContextPreservingActionListener<>(supplier, listener));
                 }
+            }
+
+            @Override
+            public <Request extends ActionRequest> void getConnection(Request request, ActionListener<Transport.Connection> listener) {
+                delegate.getConnection(request, listener);
             }
         };
     }

@@ -1,14 +1,15 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.docs-test'
@@ -16,6 +17,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
   include '**/*.asciidoc'
+  include '**/*.mdx'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'
@@ -24,7 +26,10 @@ ext.docsFileTree = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
-  if (BuildParams.inFipsJvm) {
+  // These files simply don't pass yet. We should figure out how to fix them.
+  exclude 'reference/watcher/reference/actions.asciidoc'
+  exclude 'reference/rest-api/security/ssl.asciidoc'
+  if (buildParams.inFipsJvm) {
     // We don't support this component in FIPS 140
     exclude 'reference/ingest/processors/attachment.asciidoc'
     // We can't conditionally control output, this would be missing the ingest-attachment component
@@ -32,9 +37,20 @@ ext.docsFileTree = fileTree(projectDir) {
   }
 }
 
+tasks.named("yamlRestTest") {
+  enabled = false
+  if (buildParams.snapshotBuild == false) {
+    // LOOKUP is not available in snapshots
+    systemProperty 'tests.rest.blacklist', [
+      "reference/esql/processing-commands/lookup/esql-lookup-example"
+    ].join(',')
+  }
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
-  expectedUnconvertedCandidates = [
+  enabled = false
+  getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
           'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
@@ -48,8 +64,14 @@ tasks.named("buildRestTests").configure {
           'reference/ml/anomaly-detection/apis/post-data.asciidoc',
           'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
           'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-          'reference/ml/anomaly-detection/apis/update-job.asciidoc'
-  ]
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
+          'reference/security/authentication/user-cache.asciidoc',
+          'reference/security/authorization/run-as-privilege.asciidoc',
+          'reference/security/ccs-clients-integrations/http.asciidoc',
+          'reference/rest-api/watcher/put-watch.asciidoc',
+          'reference/rest-api/watcher/stats.asciidoc',
+          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
+  )
 }
 
 restResources {
@@ -65,9 +87,15 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     keystorePassword 'keystore-password'
   }
 
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
+
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
@@ -91,8 +119,48 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+
+  // TODO Rene: clean up this kind of cross project file references
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("src/main/resources/idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // disable the ILM and SLM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.logout', 'https://kibana.org/logout'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  user username: 'test_admin'
+  user username: 'test_user'
 
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
@@ -103,7 +171,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && buildParams.inFipsJvm) {
       return
     }
     plugin subproj.path
@@ -111,8 +179,9 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 }
 
 tasks.named("yamlRestTest").configure {
+  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
   doFirst {
-    delete("${buildDir}/cluster/shared/repo")
+    delete(repoFolder)
   }
 }
 
@@ -120,16 +189,8 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("buildRestTests").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listSnippets").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listConsoleCandidates").configure {
-  docs = docsFileTree
+tasks.withType(DocSnippetTask).configureEach {
+    docs = docsFileTree
 }
 
 Closure setupMyIndex = { String name, int count ->
@@ -794,6 +855,21 @@ buildRestTests.setups['library'] = '''
 
 '''
 buildRestTests.setups['sensor_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -812,9 +888,10 @@ buildRestTests.setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -844,6 +921,21 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -881,9 +973,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -912,12 +1005,35 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      raw:
-        method: POST
-        path: _rollup/job/sensor/_start
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.start_job:
+        id: sensor
 '''
 
 buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id:
+                  id: my-id
+                  index_pattern: "dummy-index-*"
+                  rollup_index: "dummy-rollup-index"
+                  cron: "*/30 * * * * ?"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: timestamp
+                      fixed_interval: 1h
+                      delay: 7d
+
   - do:
       indices.create:
         index: sensor-1
@@ -1646,6 +1762,247 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
           body: |
 #atomic_red_data#
 '''
+
+  setups['my_inactive_watch'] = '''
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')
+
+  setups['role_mapping'] = '''
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''
+
+  setups['admin_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "description": "Grants full access to all management features within the cluster.",
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+  setups['user_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_user_role"
+        body: >
+          {
+            "description": "Grants user access to some indicies.",
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "metadata" : {"version": 1}
+          }
+
+'''
+  setups['jacknich_user'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
+'''
+  setups['app0102_privileges'] = '''
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
+'''
+
   // fake data used by the correlation bucket agg
   buildRestTests.setups['correlate_latency'] = '''
   - do:
@@ -1698,4 +2055,30 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
     setups['atomic_red_regsvr32'] =
     setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
   }
+}
+
+tasks.register('verifyDocsLuceneVersion') {
+  doFirst {
+    File docsVersionsFile = file('Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'verifyDocsLuceneVersion'
 }

@@ -9,7 +9,7 @@
 ## should create one or more files in the jvm.options.d
 ## directory containing your adjustments.
 ##
-## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/jvm-options.html
+## See https://www.elastic.co/guide/en/elasticsearch/reference/@project.minor.version@/advanced-configuration.html#set-jvm-options
 ## for more information.
 ##
 ################################################################
@@ -54,6 +54,17 @@
 ## JVM temporary directory
 -Djava.io.tmpdir=${ES_TMPDIR}
 
+# Leverages accelerated vector hardware instructions; removing this may
+# result in less optimal vector performance
+20-:--add-modules=jdk.incubator.vector
+
+# Required to workaround performance issue in JDK 23, https://github.com/elastic/elasticsearch/issues/113030
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.setAsTypeCache
+23:-XX:CompileCommand=dontinline,java/lang/invoke/MethodHandle.asTypeUncached
+
+# Lucene 10: apply MADV_NORMAL advice to enable more aggressive readahead
+-Dorg.apache.lucene.store.defaultReadAdvice=normal
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps
@@ -66,13 +77,10 @@
 
 # specify an alternative path for heap dumps; ensure the directory exists and
 # has sufficient space
-@heap.dump.path@
+# -XX:HeapDumpPath=/heap/dump/path
 
 # specify an alternative path for JVM fatal error logs
-@error.file@
+-XX:ErrorFile=hs_err_pid%p.log
 
 ## GC logging
--Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,level,pid,tags:filecount=32,filesize=64m
-
-# temporarily disable the Panama-based MMapDirectory
--Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false
+-Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m

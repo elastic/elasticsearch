@@ -13,21 +13,22 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,11 +39,9 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -50,16 +49,15 @@ import static org.mockito.Mockito.mock;
 public class RestTermsEnumActionTests extends ESTestCase {
 
     private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
-    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(
-        emptySet(),
         null,
         client,
         new NoneCircuitBreakerService(),
         usageService,
-        Tracer.NOOP
+        TelemetryProvider.NOOP
     );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
@@ -75,24 +73,17 @@ public class RestTermsEnumActionTests extends ESTestCase {
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,
             new ActionFilters(Collections.emptySet()),
-            taskManager
+            taskManager,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
-        client.initialize(
-            actions,
-            taskManager,
-            () -> "local",
-            mock(Transport.Connection.class),
-            null,
-            new NamedWriteableRegistry(List.of())
-        );
+        client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);
         controller.registerHandler(action);
     }
 

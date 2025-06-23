@@ -1,5 +1,0 @@
-pr: 92026
-summary: Avoid doing I/O when fetching min and max for keyword fields
-area: Search
-type: bug
-issues: []

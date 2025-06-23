@@ -44,7 +44,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
-    private volatile WatcherService watcherService;
+    private final WatcherService watcherService;
     private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
 
     WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
@@ -123,7 +123,6 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                         } else {
                             logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
                         }
-
                     });
                 }
             }
@@ -166,7 +165,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids");
+                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                        clearAllocationIds(); // will cause reload again
+                    });
                 } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
@@ -191,8 +192,8 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     /**
      * check if watcher has been stopped manually via the stop API
      */
-    private boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+    private static boolean isWatcherStoppedManually(ClusterState state) {
+        WatcherMetadata watcherMetadata = state.getMetadata().getProject().custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 

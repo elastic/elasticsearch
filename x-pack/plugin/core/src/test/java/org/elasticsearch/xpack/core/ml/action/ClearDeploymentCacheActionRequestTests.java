@@ -20,4 +20,9 @@ public class ClearDeploymentCacheActionRequestTests extends AbstractWireSerializ
     protected ClearDeploymentCacheAction.Request createTestInstance() {
         return new ClearDeploymentCacheAction.Request(randomAlphaOfLength(5));
     }
+
+    @Override
+    protected ClearDeploymentCacheAction.Request mutateInstance(ClearDeploymentCacheAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

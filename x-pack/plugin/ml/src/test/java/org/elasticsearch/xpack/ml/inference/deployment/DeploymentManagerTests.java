@@ -16,10 +16,12 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,6 +37,7 @@ import static org.mockito.Mockito.when;
 public class DeploymentManagerTests extends ESTestCase {
 
     private ThreadPool tp;
+    private InferenceAuditor inferenceAuditor;
 
     @Before
     public void managerSetup() {
@@ -57,6 +60,7 @@ public class DeploymentManagerTests extends ESTestCase {
                 "xpack.ml.native_inference_comms_thread_pool"
             )
         );
+        inferenceAuditor = mock(InferenceAuditor.class);
     }
 
     @After
@@ -70,13 +74,15 @@ public class DeploymentManagerTests extends ESTestCase {
         when(task.getId()).thenReturn(taskId);
         when(task.isStopped()).thenReturn(Boolean.FALSE);
         when(task.getModelId()).thenReturn("test-rejected");
+        when(task.getDeploymentId()).thenReturn("test-rejected-deployment");
 
         DeploymentManager deploymentManager = new DeploymentManager(
             mock(Client.class),
             mock(NamedXContentRegistry.class),
             tp,
             mock(PyTorchProcessFactory.class),
-            10
+            10,
+            inferenceAuditor
         );
 
         PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(
@@ -101,10 +107,13 @@ public class DeploymentManagerTests extends ESTestCase {
             NlpInferenceInput.fromText("foo"),
             false,
             TimeValue.timeValueMinutes(1),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             null,
+            randomBoolean(),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );
 
         assertThat(rejectedCount.intValue(), equalTo(1));
     }
+
 }

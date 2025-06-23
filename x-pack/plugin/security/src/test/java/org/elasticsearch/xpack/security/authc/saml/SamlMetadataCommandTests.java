@@ -683,7 +683,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 encryptionCertificatesToMatch.add(certEncKeyPair1.v1());
                 encryptionCertificatesToMatch.add(certEncKeyPair2.v1());
             }
-            spDescriptor.getKeyDescriptors().stream().forEach((keyDesc) -> {
+            spDescriptor.getKeyDescriptors().forEach((keyDesc) -> {
                 UsageType usageType = keyDesc.getUse();
                 final List<X509Data> x509 = keyDesc.getKeyInfo().getX509Datas();
                 assertThat(x509, iterableWithSize(1));

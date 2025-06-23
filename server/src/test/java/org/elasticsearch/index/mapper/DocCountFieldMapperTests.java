@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,24 +47,24 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
         assertEquals(DOC_COUNT_FIELD, field.stringValue());
-        assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).length);
+        assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).size());
     }
 
     public void testInvalidDocument_NegativeDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, -100))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, -100))));
         assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
     public void testInvalidDocument_ZeroDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 0))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 0))));
         assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
     public void testInvalidDocument_NonNumericDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, "foo"))));
         assertThat(
             e.getCause().getMessage(),
             containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
@@ -71,23 +73,23 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
     public void testInvalidDocument_FractionalDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
         assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Integer without data loss"));
     }
 
     public void testInvalidDocument_ArrayDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
         assertThat(e.getCause().getMessage(), containsString("Arrays are not allowed for field [_doc_count]."));
     }
 
     public void testSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {}));
+        DocumentMapper mapper = createSytheticSourceMapperService(topMapping(b -> {})).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field(CONTENT_TYPE, 10)), equalTo("{\"_doc_count\":10}"));
     }
 
     public void testSyntheticSourceMany() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> b.startObject("doc").field("type", "integer").endObject()));
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> b.startObject("doc").field("type", "integer").endObject()));
         List<Integer> counts = randomList(2, 10000, () -> between(1, Integer.MAX_VALUE));
         withLuceneIndex(mapper, iw -> {
             int d = 0;
@@ -96,23 +98,25 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("doc", doc).field(CONTENT_TYPE, c))).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                 LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.empty().getLoader(leaf, docIds);
                 for (int docId : docIds) {
                     String source = sourceLoaderLeaf.source(storedFieldLoader, docId).internalSourceRef().utf8ToString();
-                    int doc = (int) JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source).map().get("doc");
-                    assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source)) {
+                        int doc = (int) parser.map().get("doc");
+                        assertThat("doc " + docId, source, equalTo("{\"_doc_count\":" + counts.get(doc) + ",\"doc\":" + doc + "}"));
+                    }
                 }
             }
         });
     }
 
     public void testSyntheticSourceManyDoNotHave() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> b.startObject("doc").field("type", "integer").endObject()));
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> b.startObject("doc").field("type", "integer").endObject()));
         List<Integer> counts = randomList(2, 10000, () -> randomBoolean() ? null : between(1, Integer.MAX_VALUE));
         withLuceneIndex(mapper, iw -> {
             int d = 0;
@@ -126,8 +130,8 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 })).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader();
-            assertTrue(loader.requiredStoredFields().isEmpty());
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);

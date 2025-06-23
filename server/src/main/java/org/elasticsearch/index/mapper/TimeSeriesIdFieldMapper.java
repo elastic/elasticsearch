@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -31,14 +32,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.List;
 import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -49,35 +46,36 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_tsid";
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
-    public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
 
-    /**
-     * The maximum length of the tsid. The value itself comes from a range check in
-     * Lucene's writer for utf-8 doc values.
-     */
-    private static final int LIMIT = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
-    /**
-     * Maximum length of the name of dimension. We picked this so that we could
-     * comfortable fit 16 dimensions inside {@link #LIMIT}.
-     */
-    private static final int DIMENSION_NAME_LIMIT = 512;
-    /**
-     * The maximum length of any single dimension. We picked this so that we could
-     * comfortable fit 16 dimensions inside {@link #LIMIT}. This should be quite
-     * comfortable given that dimensions are typically going to be less than a
-     * hundred bytes each, but we're being paranoid here.
-     */
-    private static final int DIMENSION_VALUE_LIMIT = 1024;
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITHOUT_SKIPPER = new TimeSeriesIdFieldMapper(false);
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITH_SKIPPER = new TimeSeriesIdFieldMapper(true);
+
+    public static TimeSeriesIdFieldMapper getInstance(boolean useDocValuesSkipper) {
+        if (useDocValuesSkipper) {
+            return INSTANCE_WITH_SKIPPER;
+        } else {
+            return INSTANCE_WITHOUT_SKIPPER;
+        }
+    }
+
+    public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
+        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
+            && context.getIndexSettings().useDocValuesSkipper();
+        return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
+    }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+        return new Builder(this.useDocValuesSkipper).init(this);
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        protected Builder() {
+        private final boolean useDocValuesSkipper;
+
+        protected Builder(boolean useDocValuesSkipper) {
             super(NAME);
+            this.useDocValuesSkipper = useDocValuesSkipper;
         }
 
         @Override
@@ -87,11 +85,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TimeSeriesIdFieldMapper build() {
-            return INSTANCE;
+            return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesIdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesIdFieldMapper(c));
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
@@ -134,20 +132,62 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+        }
     }
 
-    private TimeSeriesIdFieldMapper() {
+    private final boolean useDocValuesSkipper;
+
+    private TimeSeriesIdFieldMapper(boolean useDocValuesSkipper) {
         super(FIELD_TYPE);
+        this.useDocValuesSkipper = useDocValuesSkipper;
     }
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
-        BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
+        final RoutingPathFields routingPathFields = (RoutingPathFields) context.getRoutingFields();
+        final BytesRef timeSeriesId;
+        if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)) {
+            long limit = context.indexSettings().getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+            int size = routingPathFields.routingValues().size();
+            if (size > limit) {
+                throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
+            }
+            timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
+        } else {
+            timeSeriesId = routingPathFields.buildHash().toBytesRef();
+        }
+
+        if (this.useDocValuesSkipper) {
+            context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), timeSeriesId));
+        } else {
+            context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        }
+
+        BytesRef uidEncoded = TsidExtractingIdFieldMapper.createField(
+            context,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                ? routingPathFields.routingBuilder()
+                : null,
+            timeSeriesId
+        );
+
+        // We need to add the uid or id to nested Lucene documents so that when a document gets deleted, the nested documents are
+        // also deleted. Usually this happens when the nested document is created (in DocumentParserContext#createNestedContext), but
+        // for time-series indices the _id isn't available at that point.
+        for (LuceneDocument doc : context.nonRootDocuments()) {
+            assert doc.getField(IdFieldMapper.NAME) == null;
+            doc.add(new StringField(IdFieldMapper.NAME, uidEncoded, Field.Store.NO));
+        }
+    }
+
+    private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
+        return context.indexSettings().getIndexVersionCreated();
     }
 
     @Override
@@ -155,160 +195,48 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
     /**
      * Decode the {@code _tsid} into a human readable map.
      */
-    public static Map<String, Object> decodeTsid(StreamInput in) {
+    public static Object encodeTsid(StreamInput in) {
         try {
-            int size = in.readVInt();
-            Map<String, Object> result = new LinkedHashMap<String, Object>(size);
-
-            for (int i = 0; i < size; i++) {
-                String name = in.readBytesRef().utf8ToString();
-
-                int type = in.read();
-                switch (type) {
-                    case (byte) 's' -> // parse a string
-                        result.put(name, in.readBytesRef().utf8ToString());
-                    case (byte) 'l' -> // parse a long
-                        result.put(name, in.readLong());
-                    case (byte) 'u' -> { // parse an unsigned_long
-                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
-                        result.put(name, ul);
-                    }
-                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
-                }
-            }
-            return result;
-        } catch (IOException | IllegalArgumentException e) {
-            throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
+            return base64Encode(in.readSlicedBytesReference().toBytesRef());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to read tsid");
         }
     }
 
-    public static class TimeSeriesIdBuilder implements DocumentDimensions {
-        /**
-         * A sorted map of the serialized values of dimension fields that will be used
-         * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
-         * to build the _tsid field for the document.
-         */
-        private final SortedMap<BytesRef, BytesReference> dimensions = new TreeMap<>();
-        /**
-         * Builds the routing. Used for building {@code _id}. If null then skipped.
-         */
-        @Nullable
-        private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+    public static Object encodeTsid(final BytesRef bytesRef) {
+        return base64Encode(bytesRef);
+    }
 
-        public TimeSeriesIdBuilder(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
-            this.routingBuilder = routingBuilder;
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
+    }
+
+    public static BytesReference buildLegacyTsid(RoutingPathFields routingPathFields) throws IOException {
+        SortedMap<BytesRef, List<BytesReference>> routingValues = routingPathFields.routingValues();
+        if (routingValues.isEmpty()) {
+            throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
-        public BytesReference build() throws IOException {
-            if (dimensions.isEmpty()) {
-                throw new IllegalArgumentException("Dimension fields are missing.");
-            }
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeVInt(dimensions.size());
-                for (Map.Entry<BytesRef, BytesReference> entry : dimensions.entrySet()) {
-                    BytesRef fieldName = entry.getKey();
-                    if (fieldName.length > DIMENSION_NAME_LIMIT) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "Dimension name must be less than [%d] bytes but [%s] was [%s].",
-                                DIMENSION_NAME_LIMIT,
-                                fieldName.utf8ToString(),
-                                fieldName.length
-                            )
-                        );
-                    }
-                    out.writeBytesRef(fieldName);
-                    entry.getValue().writeTo(out);
-                }
-                BytesReference timeSeriesId = out.bytes();
-                if (timeSeriesId.length() > LIMIT) {
-                    throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
-                }
-                return timeSeriesId;
-            }
-        }
-
-        @Override
-        public void addString(String fieldName, BytesRef utf8Value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 's');
-                /*
-                 * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
-                 * so it's easier for folks to reason about the space taken up. Mostly
-                 * it'll be smaller too.
-                 */
-                if (utf8Value.length > DIMENSION_VALUE_LIMIT) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(routingValues.size());
+            for (var entry : routingValues.entrySet()) {
+                out.writeBytesRef(entry.getKey());
+                List<BytesReference> value = entry.getValue();
+                if (value.size() > 1) {
+                    // multi-value dimensions are only supported for newer indices that use buildTsidHash
                     throw new IllegalArgumentException(
-                        "Dimension fields must be less than [" + DIMENSION_VALUE_LIMIT + "] bytes but was [" + utf8Value.length + "]."
+                        "Dimension field [" + entry.getKey().utf8ToString() + "] cannot be a multi-valued field."
                     );
                 }
-                out.writeBytesRef(utf8Value);
-                add(fieldName, out.bytes());
-
-                if (routingBuilder != null) {
-                    routingBuilder.addMatching(fieldName, utf8Value);
-                }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
+                assert value.isEmpty() == false : "dimension value is empty";
+                value.get(0).writeTo(out);
             }
-        }
-
-        @Override
-        public void addIp(String fieldName, InetAddress value) {
-            addString(fieldName, NetworkAddress.format(value));
-        }
-
-        @Override
-        public void addLong(String fieldName, long value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 'l');
-                out.writeLong(value);
-                add(fieldName, out.bytes());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-            }
-        }
-
-        @Override
-        public void addUnsignedLong(String fieldName, long value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
-                if (ul instanceof Long l) {
-                    out.write((byte) 'l');
-                    out.writeLong(l);
-                } else {
-                    out.write((byte) 'u');
-                    out.writeLong(value);
-                }
-                add(fieldName, out.bytes());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-            }
-        }
-
-        private void add(String fieldName, BytesReference encoded) {
-            BytesReference old = dimensions.put(new BytesRef(fieldName), encoded);
-            if (old != null) {
-                throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
-            }
-        }
-    }
-
-    public static Map<String, Object> decodeTsid(BytesRef bytesRef) {
-        try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
-            return decodeTsid(input);
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
+            return out.bytes();
         }
     }
 }

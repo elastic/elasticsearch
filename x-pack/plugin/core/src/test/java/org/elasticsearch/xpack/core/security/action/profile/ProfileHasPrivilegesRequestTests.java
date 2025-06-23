@@ -16,9 +16,10 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
@@ -40,7 +41,7 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
     }
 
     @Override
-    protected ProfileHasPrivilegesRequest mutateInstance(ProfileHasPrivilegesRequest instance) throws IOException {
+    protected ProfileHasPrivilegesRequest mutateInstance(ProfileHasPrivilegesRequest instance) {
         if (randomBoolean()) {
             if (instance.profileUids() == null || instance.profileUids().isEmpty()) {
                 return new ProfileHasPrivilegesRequest(
@@ -135,11 +136,18 @@ public class ProfileHasPrivilegesRequestTests extends AbstractWireSerializingTes
         )];
         for (int i = 0; i < indicesPrivileges.length; i++) {
             indicesPrivileges[i] = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(randomSubsetOf(randomIntBetween(1, 5), IndexPrivilege.names()))
+                .privileges(randomSubsetOf(randomIntBetween(1, 5), validPrivilegeNames()))
                 .indices(randomList(1, 3, () -> randomAlphaOfLengthBetween(2, 8) + (randomBoolean() ? "*" : "")))
                 .build();
         }
         return indicesPrivileges;
+    }
+
+    private static Set<String> validPrivilegeNames() {
+        return IndexPrivilege.names()
+            .stream()
+            .filter(name -> false == name.equals("read_failure_store") && false == name.equals("manage_failure_store"))
+            .collect(Collectors.toSet());
     }
 
     private static RoleDescriptor.ApplicationResourcePrivileges[] randomApplicationResourcePrivileges(boolean allowEmpty) {

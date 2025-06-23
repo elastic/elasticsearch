@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -24,9 +25,9 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
-    private GapPolicy gapPolicy;
-    private Script script;
-    private Map<String, String> bucketsPathsMap;
+    private final GapPolicy gapPolicy;
+    private final Script script;
+    private final Map<String, String> bucketsPathsMap;
 
     BucketSelectorPipelineAggregator(
         String name,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -36,16 +37,15 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
     }
 
     FieldCapabilitiesNodeResponse(StreamInput in) throws IOException {
-        super(in);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readMap(ShardId::new, StreamInput::readException);
-        this.unmatchedShardIds = in.readSet(ShardId::new);
+        this.unmatchedShardIds = in.readCollectionAsSet(ShardId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
-        out.writeMap(failures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
+        out.writeMap(failures, StreamOutput::writeWriteable, StreamOutput::writeException);
         out.writeCollection(unmatchedShardIds);
     }
 

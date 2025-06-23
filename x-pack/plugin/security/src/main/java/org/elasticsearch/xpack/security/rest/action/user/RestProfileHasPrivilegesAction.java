@@ -13,10 +13,11 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.security.Security;
@@ -28,21 +29,16 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
 
-    private final SecurityContext securityContext;
-
-    public RestProfileHasPrivilegesAction(Settings settings, SecurityContext securityContext, XPackLicenseState licenseState) {
+    public RestProfileHasPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        this.securityContext = securityContext;
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/profile/_has_privileges").build(),
-            Route.builder(POST, "/_security/profile/_has_privileges").build()
-        );
+        return List.of(new Route(GET, "/_security/profile/_has_privileges"), new Route(POST, "/_security/profile/_has_privileges"));
     }
 
     @Override
@@ -64,11 +60,7 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        }
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (Security.USER_PROFILE_COLLABORATION_FEATURE.check(licenseState)) {
             return null;
         } else {

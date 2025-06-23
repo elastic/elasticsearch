@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -12,7 +13,9 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -36,6 +39,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private final AnalysisStats analysis;
     private final MappingStats mappings;
     private final VersionStats versions;
+    private final DenseVectorStats denseVectorStats;
+    private final SparseVectorStats sparseVectorStats;
 
     public ClusterStatsIndices(
         List<ClusterStatsNodeResponse> nodeResponses,
@@ -52,13 +57,16 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
+        this.denseVectorStats = new DenseVectorStats();
+        this.sparseVectorStats = new SparseVectorStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+                final String indexUuid = shardStats.getShardRouting().index().getUUID();
+                ShardStats indexShardStats = countsPerIndex.get(indexUuid);
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                    countsPerIndex.put(indexUuid, indexShardStats);
                 }
 
                 indexShardStats.total++;
@@ -67,13 +75,15 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
                 if (shardStats.getShardRouting().primary()) {
                     indexShardStats.primaries++;
-                    docs.add(shardCommonStats.docs);
+                    docs.add(shardCommonStats.getDocs());
+                    denseVectorStats.add(shardCommonStats.getDenseVectorStats());
+                    sparseVectorStats.add(shardCommonStats.getSparseVectorStats());
                 }
-                store.add(shardCommonStats.store);
-                fieldData.add(shardCommonStats.fieldData);
-                queryCache.add(shardCommonStats.queryCache);
-                completion.add(shardCommonStats.completion);
-                segments.add(shardCommonStats.segments);
+                store.add(shardCommonStats.getStore());
+                fieldData.add(shardCommonStats.getFieldData());
+                queryCache.add(shardCommonStats.getQueryCache());
+                completion.add(shardCommonStats.getCompletion());
+                segments.add(shardCommonStats.getSegments());
             }
 
             searchUsageStats.add(r.searchUsageStats());
@@ -138,6 +148,14 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return searchUsageStats;
     }
 
+    public DenseVectorStats getDenseVectorStats() {
+        return denseVectorStats;
+    }
+
+    public SparseVectorStats getSparseVectorStats() {
+        return sparseVectorStats;
+    }
+
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -162,6 +180,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
             versions.toXContent(builder, params);
         }
         searchUsageStats.toXContent(builder, params);
+        denseVectorStats.toXContent(builder, params);
+        sparseVectorStats.toXContent(builder, params);
         return builder;
     }
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -28,7 +27,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
+import org.elasticsearch.xpack.sql.proto.VersionCompatibility;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -40,7 +40,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -287,15 +286,15 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(CURRENT.id), requestInfo().version()) == false) {
+            } else if (VersionCompatibility.isClientCompatible(SqlVersions.SERVER_COMPAT_VERSION, requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
                         + "] version of the ["
                         + mode.toString()
                         + "] "
-                        + "client is not compatible with Elasticsearch version ["
-                        + CURRENT
+                        + "client is not compatible with Elasticsearch server compatibility version ["
+                        + SqlVersions.SERVER_COMPAT_VERSION
                         + "]",
                     validationException
                 );
@@ -427,18 +426,14 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
-        params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
+        params = in.readCollectionAsList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            catalog = in.readOptionalString();
-        }
+        catalog = in.readOptionalString();
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            runtimeMappings = in.readMap();
-        }
+        runtimeMappings = in.readGenericMap();
     }
 
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
@@ -457,16 +452,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeString(query);
         out.writeCollection(params, AbstractSqlQueryRequest::writeSqlTypedParamValue);
         out.writeZoneId(zoneId);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalString(catalog);
-        }
+        out.writeOptionalString(catalog);
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeGenericMap(runtimeMappings);
-        }
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override

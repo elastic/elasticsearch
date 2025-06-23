@@ -12,15 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -43,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -51,7 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * IT tests that can block SQL execution at different places
  */
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
 
     @Override
@@ -61,7 +59,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return settings.build();
     }
 
@@ -73,7 +71,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     protected List<SearchBlockPlugin> initBlockFactory(boolean searchBlock, boolean fieldCapsBlock) {
         List<SearchBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchBlockPlugin.class));
+            pluginsService.filterPlugins(SearchBlockPlugin.class).forEach(plugins::add);
         }
         for (SearchBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -213,7 +211,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                     ActionFilterChain<Request, Response> chain
                 ) {
 
-                    if (action.equals(FieldCapabilitiesAction.NAME)) {
+                    if (action.equals(TransportFieldCapabilitiesAction.NAME)) {
                         final Consumer<Response> actionWrapper = resp -> {
                             try {
                                 fieldCaps.incrementAndGet();
@@ -231,7 +229,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                             task,
                             action,
                             request,
-                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                            listener.delegateFailureAndWrap((l, resp) -> executorService.execute(() -> actionWrapper.accept(resp)))
                         );
                     } else {
                         chain.proceed(task, action, request, listener);
@@ -258,7 +256,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     }
 
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
-        ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
+        ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
             if (id.equals(task.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
                 return task;
@@ -271,7 +269,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         TaskId taskId = findTaskWithXOpaqueId(id, action);
         assertNotNull(taskId);
         logger.trace("Cancelling task " + taskId);
-        CancelTasksResponse response = client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get();
+        ListTasksResponse response = clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
         assertThat(response.getTasks().get(0).action(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);

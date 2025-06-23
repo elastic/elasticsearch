@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
@@ -16,20 +17,25 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,7 +105,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         try (var refs = new RefCountingRunnable(onCompletion)) {
             synchronized (mutex) {
-                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, just iterate over discoveryNodes here
+                for (final Iterator<DiscoveryNode> iterator = discoveryNodes.mastersFirstStream().iterator(); iterator.hasNext();) {
+                    final DiscoveryNode discoveryNode = iterator.next();
                     ConnectionTarget connectionTarget = targetsByNode.get(discoveryNode);
                     final boolean isNewNode = connectionTarget == null;
                     if (isNewNode) {
@@ -166,7 +174,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         void scheduleNextCheck() {
             if (connectionChecker == this) {
-                threadPool.scheduleUnlessShuttingDown(reconnectInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.scheduleUnlessShuttingDown(reconnectInterval, threadPool.generic(), this);
             }
         }
 
@@ -184,6 +192,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        transportService.addConnectionListener(new ConnectionChangeListener());
         final ConnectionChecker connectionChecker = new ConnectionChecker();
         this.connectionChecker = connectionChecker;
         connectionChecker.scheduleNextCheck();
@@ -205,11 +214,32 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         });
     }
 
+    // exposed for testing
+    protected DisconnectionHistory disconnectionHistoryForNode(DiscoveryNode node) {
+        synchronized (mutex) {
+            ConnectionTarget connectionTarget = targetsByNode.get(node);
+            if (connectionTarget != null) {
+                return connectionTarget.disconnectionHistory;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Time of disconnect in absolute time ({@link ThreadPool#absoluteTimeInMillis()}),
+     * and disconnect-causing exception, if any
+     */
+    record DisconnectionHistory(long disconnectTimeMillis, @Nullable Exception disconnectCause) {}
+
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
         private final AtomicReference<Releasable> connectionRef = new AtomicReference<>();
+
+        // access is synchronized by the service mutex
+        @Nullable // null when node is connected or initialized; non-null in between disconnects and connects
+        private DisconnectionHistory disconnectionHistory = null;
 
         // all access to these fields is synchronized
         private List<Releasable> pendingRefs;
@@ -307,7 +337,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 @Override
                 public void onFailure(Exception e) {
                     final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
-                    // only warn every 6th failure
+                    // Only warn every 6th failure. We work around this log while stopping integ test clusters in InternalTestCluster#close
+                    // by temporarily raising the log level to ERROR. If the nature of this log changes in the future, that workaround might
+                    // need to be adjusted.
                     final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                     logger.log(level, () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount), e);
                     setConnectionRef(null);
@@ -315,7 +347,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 }
             }, () -> {
                 releaseListener();
-                transportService.getThreadPool().generic().execute(this::doConnect);
+                threadPool.generic().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        ConnectionTarget.this.doConnect();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "ensure connection to " + discoveryNode;
+                    }
+                });
             }));
         }
 
@@ -326,8 +368,72 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
+            return "ConnectionTarget{discoveryNode=" + discoveryNode + '}';
+        }
+    }
+
+    /**
+     * Receives connection/disconnection events from the transport, and records them in per-node DisconnectionHistory
+     * structures for logging network issues. DisconnectionHistory records are stored in their node's ConnectionTarget.
+     *
+     * Network issues (that this listener monitors for) occur whenever a reconnection to a node succeeds,
+     * and it has the same ephemeral ID as it did during the last connection; this happens when a connection event
+     * occurs, and its ConnectionTarget entry has a previous DisconnectionHistory stored.
+     */
+    private class ConnectionChangeListener implements TransportConnectionListener {
+        @Override
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+            DisconnectionHistory disconnectionHistory = null;
             synchronized (mutex) {
-                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    disconnectionHistory = connectionTarget.disconnectionHistory;
+                    connectionTarget.disconnectionHistory = null;
+                }
+            }
+
+            if (disconnectionHistory != null) {
+                long millisSinceDisconnect = threadPool.absoluteTimeInMillis() - disconnectionHistory.disconnectTimeMillis;
+                TimeValue timeValueSinceDisconnect = TimeValue.timeValueMillis(millisSinceDisconnect);
+                if (disconnectionHistory.disconnectCause != null) {
+                    logger.warn(
+                        () -> format(
+                            """
+                                reopened transport connection to node [%s] \
+                                which disconnected exceptionally [%s/%dms] ago but did not \
+                                restart, so the disconnection is unexpected; \
+                                see [%s] for troubleshooting guidance""",
+                            node.descriptionWithoutAttributes(),
+                            timeValueSinceDisconnect,
+                            millisSinceDisconnect,
+                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                        ),
+                        disconnectionHistory.disconnectCause
+                    );
+                } else {
+                    logger.warn(
+                        """
+                            reopened transport connection to node [{}] \
+                            which disconnected gracefully [{}/{}ms] ago but did not \
+                            restart, so the disconnection is unexpected; \
+                            see [{}] for troubleshooting guidance""",
+                        node.descriptionWithoutAttributes(),
+                        timeValueSinceDisconnect,
+                        millisSinceDisconnect,
+                        ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                    );
+                }
+            }
+        }
+
+        @Override
+        public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+            DisconnectionHistory disconnectionHistory = new DisconnectionHistory(threadPool.absoluteTimeInMillis(), closeException);
+            synchronized (mutex) {
+                ConnectionTarget connectionTarget = targetsByNode.get(node);
+                if (connectionTarget != null) {
+                    connectionTarget.disconnectionHistory = disconnectionHistory;
+                }
             }
         }
     }

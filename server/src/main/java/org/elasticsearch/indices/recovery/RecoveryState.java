@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -20,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,11 +110,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
         this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        assert (shardRouting.recoverySource().getType() == RecoverySource.Type.PEER) == (sourceNode != null)
-            : "peer recovery requires source node, recovery type: "
-                + shardRouting.recoverySource().getType()
-                + " source node: "
-                + sourceNode;
+        assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
+            : "peer recovery requires source node but it is null";
+        assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
+            : "reshard split target recovery requires source node but it is null";
         timer.start();
     }
 
@@ -292,9 +291,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
-            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
@@ -580,7 +579,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         /**
          * Sets the total number of translog operations to be recovered locally before performing peer recovery
-         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint
          */
         public synchronized void totalLocal(int totalLocal) {
             assert totalLocal >= recovered : totalLocal + " < " + recovered;
@@ -610,6 +609,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
+
+        @Override
+        public synchronized String toString() {
+            return Strings.format(
+                "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
+                recovered,
+                total,
+                totalOnStart,
+                totalLocal
+            );
+        }
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {
@@ -631,9 +641,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
-                recoveredFromSnapshot = in.readLong();
-            }
+            recoveredFromSnapshot = in.readLong();
         }
 
         @Override
@@ -642,9 +650,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
-                out.writeLong(recoveredFromSnapshot);
-            }
+            out.writeLong(recoveredFromSnapshot);
         }
 
         void addRecoveredBytes(long bytes) {
@@ -769,23 +775,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
             fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
-            if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                complete = in.readBoolean();
-            } else {
-                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
-                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
-                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
-                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
-                complete = fileDetails.isEmpty() == false;
-            }
+            complete = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(values());
-            if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                out.writeBoolean(complete);
-            }
+            out.writeBoolean(complete);
         }
 
         @Override
@@ -831,10 +827,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public int size() {
             return fileDetails.size();
-        }
-
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
         }
 
         public void clear() {
@@ -990,8 +982,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 

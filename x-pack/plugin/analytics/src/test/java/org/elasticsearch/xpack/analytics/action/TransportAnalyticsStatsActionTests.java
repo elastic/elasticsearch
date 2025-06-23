@@ -6,16 +6,17 @@
  */
 package org.elasticsearch.xpack.analytics.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
@@ -25,12 +26,15 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -40,16 +44,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportAnalyticsStatsActionTests extends ESTestCase {
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setup() {
+        threadPool = new TestThreadPool("TransportAnalyticsStatsActionTests");
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+    }
+
     public TransportAnalyticsStatsAction action(AnalyticsUsage usage) {
         TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
-
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
@@ -82,7 +98,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
         AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
         List<AnalyticsStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request), null))
+            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(), null))
             .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
             new ClusterName("cluster_name"),

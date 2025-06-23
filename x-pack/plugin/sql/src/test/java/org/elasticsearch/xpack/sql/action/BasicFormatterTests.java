@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.CLI;
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -23,7 +23,7 @@ public class BasicFormatterTests extends ESTestCase {
     private final SqlQueryResponse firstResponse = new SqlQueryResponse(
         "",
         format == CLI ? Mode.CLI : Mode.PLAIN,
-        DATE_NANOS_SUPPORT_VERSION,
+        INTRODUCING_DATE_NANOS,
         false,
         Arrays.asList(
             new ColumnInfo("", "foo", "string", 0),

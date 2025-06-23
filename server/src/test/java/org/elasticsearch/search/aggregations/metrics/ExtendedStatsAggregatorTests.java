@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -13,16 +14,22 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.is;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -31,6 +38,37 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+        testCase(ft, iw -> {}, stats -> {
+            assertEquals(0d, stats.getCount(), 0);
+            assertEquals(0d, stats.getSum(), 0);
+            assertEquals(Float.NaN, stats.getAvg(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+            assertEquals(Double.NaN, stats.getVariance(), 0);
+            assertEquals(Double.NaN, stats.getVariancePopulation(), 0);
+            assertEquals(Double.NaN, stats.getVarianceSampling(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationPopulation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationSampling(), 0);
+            assertEquals(0d, stats.getSumOfSquares(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(stats));
+        });
+    }
+
+    public void testEmptyDate() throws IOException {
+        DateFormatter.forPattern("epoch_millis");
+        final MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "field",
+            true,
+            true,
+            false,
+            true,
+            DateFormatter.forPattern("epoch_millis"),
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            null,
+            Map.of()
+        );
         testCase(ft, iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
@@ -202,7 +240,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testSummationAccuracy() throws IOException {
         double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
-        verifyStatsOfDoubles(values, 13.5, 16.21, 0d);
+        verifyStatsOfDoubles(values, 13.5, 16.21, TOLERANCE);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         int n = randomIntBetween(5, 10);
@@ -266,6 +304,13 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             .sigma(randomDoubleBetween(0, 10, true));
 
         testCase(buildIndex, verify, new AggTestConfig(aggBuilder, ft));
+    }
+
+    @Override
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
+        throws IOException {
+        assertTrue(aggregationBuilder.getOutputFieldNames().isPresent());
+        assertThat(aggregationBuilder.getOutputFieldNames().get(), is(InternalExtendedStats.Fields.OUTPUT_FORMAT));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

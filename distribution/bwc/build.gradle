@@ -1,28 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin:"elasticsearch.internal-distribution-bwc-setup"
-
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-
-BuildParams.getBwcVersions().forPreviousUnreleased { unreleasedVersion ->
-    project(unreleasedVersion.gradleProjectPath) {
-        Version currentVersion = Version.fromString(version)
-        TaskProvider<Task> resolveAllBwcDepsTaskProvider = bwcSetup.bwcTask("resolveAllBwcDependencies", {
-            t -> t.args("resolveAllDependencies", "-Dorg.gradle.warning.mode=none")
-        }, false)
-        if (Boolean.getBoolean("recurse.bwc")) {
-            // We only want to resolve dependencies for live versions of main, without cascading this to older versions
-            tasks.named("resolveAllDependencies").configure {
-                dependsOn(resolveAllBwcDepsTaskProvider)
-            }
-        }
-    }
-}

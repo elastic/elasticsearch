@@ -1,37 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -55,27 +58,28 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
-        String dataStreamName,
-        boolean timeSeries,
-        Metadata metadata,
+        @Nullable String dataStreamName,
+        @Nullable IndexMode templateIndexMode,
+        ProjectMetadata projectMetadata,
         Instant resolvedAt,
-        Settings allSettings,
+        Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
         if (dataStreamName != null) {
-            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
+            boolean isMigratingToTimeSeries = templateIndexMode == IndexMode.TIME_SERIES;
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && timeSeries;
+                && isMigratingToTimeSeries;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = timeSeries ? dataStream.getIndexMode() : null;
-            } else if (timeSeries) {
+                indexMode = isMigratingToTimeSeries ? dataStream.getIndexMode() : null;
+            } else if (isMigratingToTimeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {
                 indexMode = null;
@@ -83,14 +87,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(allSettings);
+                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
+                    TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
                     final Instant end;
                     if (dataStream == null || migrating) {
-                        start = resolvedAt.minusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
-                        end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                        start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
+                        end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                     } else {
-                        IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
+                        IndexMetadata currentLatestBackingIndex = projectMetadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                             throw new IllegalStateException(
                                 String.format(
@@ -103,18 +108,22 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
                         if (start.isAfter(resolvedAt)) {
-                            end = start.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                            end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
                         } else {
-                            end = resolvedAt.plusMillis(lookAheadTime.getMillis()).truncatedTo(ChronoUnit.SECONDS);
+                            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
+                        List<String> routingPaths = findRoutingPaths(
+                            indexName,
+                            indexTemplateAndCreateRequestSettings,
+                            combinedTemplateMappings
+                        );
                         if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
@@ -146,28 +155,33 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         );
         int shardReplicas = allSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         var finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(allSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
-            for (var mapping : combinedTemplateMappings) {
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-            }
-
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 extractPath(routingPaths, fieldMapper);
             }
+            for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
+                if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                    if (passThroughObjectMapper.containsDimensions()) {
+                        routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
+                    }
+                }
+            }
             for (var template : mapperService.getAllDynamicTemplates()) {
-                if (template.pathMatch() == null) {
+                if (template.pathMatch().isEmpty()) {
                     continue;
                 }
 
@@ -179,10 +193,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                var mapper = parserContext.typeParser(mappingSnippetType)
-                    .parse(template.pathMatch(), mappingSnippet, parserContext)
-                    .build(MapperBuilderContext.root(false));
-                extractPath(routingPaths, mapper);
+                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext();) {
+                    var mapper = parserContext.typeParser(mappingSnippetType)
+                        .parse(iterator.next(), mappingSnippet, parserContext)
+                        .build(MapperBuilderContext.root(false, false));
+                    extractPath(routingPaths, mapper);
+                    if (iterator.hasNext()) {
+                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                        // that only the first pathMatch passed in gets recognized as a time_series_dimension.
+                        // To avoid this, each parsing call uses a new mapping snippet.
+                        // Note that a shallow copy of the mappingSnippet map is not enough if there are multi-fields.
+                        mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+                    }
+                }
             }
             return routingPaths;
         } catch (IOException e) {
@@ -196,7 +219,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     private static void extractPath(List<String> routingPaths, Mapper mapper) {
         if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
             if (keywordFieldMapper.fieldType().isDimension()) {
-                routingPaths.add(mapper.name());
+                routingPaths.add(mapper.fullPath());
             }
         }
     }

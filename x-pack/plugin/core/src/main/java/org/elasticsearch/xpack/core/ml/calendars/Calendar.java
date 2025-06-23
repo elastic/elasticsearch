@@ -100,7 +100,7 @@ public class Calendar implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeStringArray(jobIds.toArray(new String[jobIds.size()]));
+        out.writeStringCollection(jobIds);
         out.writeOptionalString(description);
     }
 

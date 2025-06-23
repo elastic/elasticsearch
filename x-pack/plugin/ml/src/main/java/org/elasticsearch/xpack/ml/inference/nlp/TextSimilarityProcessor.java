@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
@@ -63,8 +63,13 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String sequence) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do text_similarity on more than one text input at a time");
             }
@@ -80,7 +85,11 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
             NlpTask.ResultProcessor {
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.TEXT_SIMILARITY);
+            }
+
             if (pyTorchResult.getInferenceResult().length < 1) {
                 throw new ElasticsearchStatusException("text_similarity result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }
@@ -90,7 +99,7 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
                 if (result.length != 1) {
                     throw new ElasticsearchStatusException(
                         "Expected exactly [1] value in text_similarity result; got [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
+                        RestStatus.CONFLICT,
                         result.length
                     );
                 }

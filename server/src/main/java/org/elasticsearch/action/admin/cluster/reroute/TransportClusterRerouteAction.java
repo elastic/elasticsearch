@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
@@ -13,9 +14,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,8 +25,9 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
@@ -34,12 +37,15 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -49,9 +55,11 @@ import java.util.Map;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
+    public static final ActionType<ClusterRerouteResponse> TYPE = new ActionType<>("cluster:admin/reroute");
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportClusterRerouteAction(
@@ -60,20 +68,20 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ThreadPool threadPool,
         AllocationService allocationService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
-            ClusterRerouteAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             ClusterRerouteRequest::new,
-            indexNameExpressionResolver,
             ClusterRerouteResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -88,6 +96,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         final ClusterState state,
         final ActionListener<ClusterRerouteResponse> listener
     ) {
+        validateRequest(request);
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
             if (command instanceof final AllocateStalePrimaryAllocationCommand cmd) {
@@ -101,6 +110,24 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         }
     }
 
+    @FixForMultiProject(description = "consider moving the validation to ActionRequest#validate")
+    private void validateRequest(ClusterRerouteRequest request) {
+        if (projectResolver.supportsMultipleProjects() && request.isRetryFailed() && request.getCommands().commands().isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "cannot use 'retry_failed' query parameter with allocation-commands together in a cluster that supports multiple projects."
+            );
+        }
+
+        final ProjectId projectId = projectResolver.getProjectId();
+        if (request.getCommands().commands().stream().allMatch(command -> projectId.equals(command.projectId())) == false) {
+            final String message = "inconsistent project-id: expected "
+                + projectId
+                + " but got "
+                + request.getCommands().commands().stream().map(AllocationCommand::projectId).toList();
+            throw new IllegalStateException(message);
+        }
+    }
+
     private void verifyThenSubmitUpdate(
         ClusterRerouteRequest request,
         ActionListener<ClusterRerouteResponse> listener,
@@ -108,9 +135,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     ) {
         transportService.sendRequest(
             transportService.getLocalNode(),
-            IndicesShardStoresAction.NAME,
+            TransportIndicesShardStoresAction.TYPE.name(),
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((delegate, response) -> {
                 Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
@@ -151,11 +178,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     }
                 }
                 if (e == null) {
-                    submitStateUpdate(request, listener);
+                    submitStateUpdate(request, delegate);
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }, listener::onFailure), IndicesShardStoresResponse::new)
+            }), IndicesShardStoresResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

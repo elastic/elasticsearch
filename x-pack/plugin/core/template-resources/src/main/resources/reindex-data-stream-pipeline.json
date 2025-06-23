@@ -1,0 +1,16 @@
+{
+  "description": "This pipeline sanitizes documents that are being reindexed into a data stream using the reindex data stream API. It is an internal pipeline and should not be modified.",
+  "processors": [
+    {
+      "set": {
+        "field": "@timestamp",
+        "value": 0,
+        "override": false
+      }
+    }
+  ],
+  "_meta": {
+    "managed": true
+  },
+  "version": ${xpack.migrate.reindex.pipeline.version}
+}

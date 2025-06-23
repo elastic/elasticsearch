@@ -20,7 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
+public class LicensesAcknowledgementTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
@@ -29,14 +29,14 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         // try installing a signed license
         long issueDate = System.currentTimeMillis() - TimeValue.timeValueHours(24 * 2).getMillis();
         License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, issueDate, timeValueHours(10));
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).license(signedLicense);
         // ensure acknowledgement message was part of the response
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
         assertThat(licenseService.getLicense(), not(signedLicense));
         verify(clusterService, times(0)).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         // try installing a signed license with acknowledgement
-        putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
+        putLicenseRequest = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, false));
         verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));

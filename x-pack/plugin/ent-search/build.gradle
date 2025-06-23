@@ -1,0 +1,90 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  name = 'x-pack-ent-search'
+  description = 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
+  classname = 'org.elasticsearch.xpack.application.EnterpriseSearch'
+  extendedPlugins = ['x-pack-core', 'search-business-rules']
+}
+
+base {
+  archivesName = 'x-pack-ent-search'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(xpackModule('search-business-rules'))
+  api project(':modules:lang-mustache')
+
+  // JSON Schema dependencies
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
+  testImplementation(project(':modules:lang-mustache'))
+  testImplementation(project(':modules:reindex'))
+
+  javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+restResources {
+  restApi {
+    include '_common',
+      'bulk',
+      'cluster',
+      'connector',
+      'nodes',
+      'indices',
+      'index',
+      'query_rules',
+      'search_application',
+      'xpack',
+      'security',
+      'search',
+      'ml'
+  }
+}
+
+tasks.named("dependencyLicenses") {
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit") {
+  ignoreMissingClasses(
+    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+    'org.slf4j.ext.EventData'
+  )
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("uses the xpack/usage api")
+}
+
+tasks.named("yamlRestCompatTest") {
+  usesDefaultDistribution("uses the xpack/usage api")
+}
+
+tasks.named("yamlRestCompatTestTransform") { task ->
+  // Behavioral Analytics is deprecated with 9.0.0.
+  task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")
+}
+
+addQaCheckDependencies(project)
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

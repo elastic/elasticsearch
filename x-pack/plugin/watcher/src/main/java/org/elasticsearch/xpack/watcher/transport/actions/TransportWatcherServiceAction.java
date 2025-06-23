@@ -16,15 +16,12 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,6 +35,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportWatcherServiceAction(
@@ -45,7 +43,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             WatcherServiceAction.NAME,
@@ -54,9 +52,9 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             WatcherServiceRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -69,42 +67,34 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
         final boolean manuallyStopped = request.getCommand() == WatcherServiceRequest.Command.STOP;
         final String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
-        // TODO: make WatcherServiceRequest a real AckedRequest so that we have both a configurable timeout and master node timeout like
-        // we do elsewhere
-        submitUnbatchedTask(source, new AckedClusterStateUpdateTask(new AckedRequest() {
-            @Override
-            public TimeValue ackTimeout() {
-                return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-            }
+        // TODO: make WatcherServiceRequest a real AcknowledgedRequest so that we have both a configurable timeout and master node timeout
+        // like we do elsewhere
+        submitUnbatchedTask(
+            source,
+            new AckedClusterStateUpdateTask(request.masterNodeTimeout(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, listener) {
+                @Override
+                public ClusterState execute(ClusterState clusterState) {
+                    XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-            @Override
-            public TimeValue masterNodeTimeout() {
-                return request.masterNodeTimeout();
-            }
-        }, listener) {
-            @Override
-            public ClusterState execute(ClusterState clusterState) {
-                XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+                    WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
+                    final var project = projectResolver.getProjectMetadata(clusterState);
+                    WatcherMetadata currentMetadata = project.custom(WatcherMetadata.TYPE);
 
-                WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
+                    // adhere to the contract of returning the original state if nothing has changed
+                    if (newWatcherMetadata.equals(currentMetadata)) {
+                        return clusterState;
+                    } else {
+                        return clusterState.copyAndUpdateProject(project.id(), b -> b.putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
+                    }
+                }
 
-                // adhere to the contract of returning the original state if nothing has changed
-                if (newWatcherMetadata.equals(currentMetadata)) {
-                    return clusterState;
-                } else {
-                    ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                    builder.metadata(Metadata.builder(clusterState.getMetadata()).putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
-                    return builder.build();
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(() -> format("could not update watcher stopped status to [%s], source [%s]", manuallyStopped, source), e);
+                    listener.onFailure(e);
                 }
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> format("could not update watcher stopped status to [%s], source [%s]", manuallyStopped, source), e);
-                listener.onFailure(e);
-            }
-        });
+        );
     }
 
     @Override

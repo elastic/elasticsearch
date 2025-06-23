@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.selection;
@@ -11,18 +12,18 @@ package org.elasticsearch.health.node.selection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -64,12 +65,17 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private volatile boolean enabled;
 
     private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
-        super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
+    }
+
+    @Override
+    public Scope scope() {
+        return Scope.CLUSTER;
     }
 
     public static HealthNodeTaskExecutor create(
@@ -142,36 +148,34 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-            boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
-            boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster || healthNodeTaskExists) {
-                clusterService.removeListener(taskStarter);
-            }
-            if (isElectedMaster && healthNodeTaskExists == false) {
-                persistentTasksService.sendStartRequest(
-                    TASK_NAME,
-                    TASK_NAME,
-                    new HealthNodeTaskParams(),
-                    ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
-                        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                        if (t instanceof ResourceAlreadyExistsException == false) {
-                            logger.error("Failed to create the health node task", e);
-                            if (enabled) {
-                                clusterService.addListener(taskStarter);
-                            }
+        // Wait until master is stable before starting health task
+        if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
+            persistentTasksService.sendStartRequest(
+                TASK_NAME,
+                TASK_NAME,
+                new HealthNodeTaskParams(),
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
+                ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
+                    if (e instanceof NodeClosedException) {
+                        logger.debug("Failed to create health node task because node is shutting down", e);
+                        return;
+                    }
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    if (t instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("Failed to create the health node task", e);
+                        if (enabled) {
+                            clusterService.addListener(taskStarter);
                         }
-                    })
-                );
-            }
+                    }
+                })
+            );
         }
     }
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
+        if (isNodeShuttingDown(event)) {
+            var node = event.state().getNodes().getLocalNode();
             abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
         }
     }
@@ -186,9 +190,18 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return NodesShutdownMetadata.isNodeShuttingDown(event.previousState(), nodeId) == false
-            && NodesShutdownMetadata.isNodeShuttingDown(event.state(), nodeId);
+    private static boolean isNodeShuttingDown(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return false;
+        }
+        var shutdownsOld = event.previousState().metadata().nodeShutdowns();
+        var shutdownsNew = event.state().metadata().nodeShutdowns();
+        if (shutdownsNew == shutdownsOld) {
+            return false;
+        }
+        String nodeId = event.state().nodes().getLocalNodeId();
+        return shutdownsOld.contains(nodeId) == false && shutdownsNew.contains(nodeId);
+
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -19,7 +22,6 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -42,7 +44,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -62,7 +63,9 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
@@ -176,7 +179,7 @@ public class ShardStateActionTests extends ESTestCase {
         // sent to the master
         assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node().getId());
 
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -187,9 +190,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        DiscoveryNodes.Builder noMasterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-        noMasterBuilder.masterNodeId(null);
-        setState(clusterService, ClusterState.builder(clusterService.state()).nodes(noMasterBuilder));
+        var state = clusterService.state();
+        setState(clusterService, ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger retries = new AtomicInteger();
@@ -303,7 +305,7 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -317,7 +319,7 @@ public class ShardStateActionTests extends ESTestCase {
         ShardRouting failedShard = getRandomShardRouting(index);
 
         final TestListener listener = new TestListener();
-        long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(failedShard.id());
+        long primaryTerm = clusterService.state().metadata().getProject().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
         shardStateAction.remoteShardFailed(
             failedShard.shardId(),
@@ -375,7 +377,7 @@ public class ShardStateActionTests extends ESTestCase {
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
     }
@@ -393,22 +395,29 @@ public class ShardStateActionTests extends ESTestCase {
                 expectedRequests++;
                 shardStateAction.clearRemoteShardRequestDeduplicator();
             }
-            shardStateAction.shardStarted(startedShard, primaryTerm, "started", ShardLongFieldRange.EMPTY, new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    latch.countDown();
-                }
+            shardStateAction.shardStarted(
+                startedShard,
+                primaryTerm,
+                "started",
+                ShardLongFieldRange.EMPTY,
+                ShardLongFieldRange.EMPTY,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        latch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    latch.countDown();
+                    @Override
+                    public void onFailure(Exception e) {
+                        latch.countDown();
+                    }
                 }
-            });
+            );
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(expectedRequests));
         for (int i = 0; i < expectedRequests; i++) {
-            transport.handleResponse(capturedRequests[i].requestId(), TransportResponse.Empty.INSTANCE);
+            transport.handleResponse(capturedRequests[i].requestId(), ActionResponse.Empty.INSTANCE);
         }
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
@@ -422,15 +431,15 @@ public class ShardStateActionTests extends ESTestCase {
         for (int i = 0; i < failedShards.length; i++) {
             failedShards[i] = getRandomShardRouting(index);
         }
-        Thread[] clientThreads = new Thread[between(1, 6)];
+        final int clientThreads = between(1, 6);
         int iterationsPerThread = scaledRandomIntBetween(50, 500);
-        Phaser barrier = new Phaser(clientThreads.length + 2); // one for master thread, one for the main thread
+        Phaser barrier = new Phaser(clientThreads + 1); // +1 for the master thread
         Thread masterThread = new Thread(() -> {
             barrier.arriveAndAwaitAdvance();
             while (shutdown.get() == false) {
                 for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
                     if (randomBoolean()) {
-                        transport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
+                        transport.handleResponse(request.requestId(), ActionResponse.Empty.INSTANCE);
                     } else {
                         transport.handleRemoteError(request.requestId(), randomFrom(getSimulatedFailure()));
                     }
@@ -440,39 +449,32 @@ public class ShardStateActionTests extends ESTestCase {
         masterThread.start();
 
         AtomicInteger notifiedResponses = new AtomicInteger();
-        for (int t = 0; t < clientThreads.length; t++) {
-            clientThreads[t] = new Thread(() -> {
-                barrier.arriveAndAwaitAdvance();
-                for (int i = 0; i < iterationsPerThread; i++) {
-                    ShardRouting failedShard = randomFrom(failedShards);
-                    shardStateAction.remoteShardFailed(
-                        failedShard.shardId(),
-                        failedShard.allocationId().getId(),
-                        randomLongBetween(1, Long.MAX_VALUE),
-                        randomBoolean(),
-                        "test",
-                        getSimulatedFailure(),
-                        new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                notifiedResponses.incrementAndGet();
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                notifiedResponses.incrementAndGet();
-                            }
+        runInParallel(clientThreads, t -> {
+            barrier.arriveAndAwaitAdvance();
+            for (int i = 0; i < iterationsPerThread; i++) {
+                ShardRouting failedShard = randomFrom(failedShards);
+                shardStateAction.remoteShardFailed(
+                    failedShard.shardId(),
+                    failedShard.allocationId().getId(),
+                    randomLongBetween(1, Long.MAX_VALUE),
+                    randomBoolean(),
+                    "test",
+                    getSimulatedFailure(),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            notifiedResponses.incrementAndGet();
                         }
-                    );
-                }
-            });
-            clientThreads[t].start();
-        }
-        barrier.arriveAndAwaitAdvance();
-        for (Thread t : clientThreads) {
-            t.join();
-        }
-        assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads.length * iterationsPerThread)));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            notifiedResponses.incrementAndGet();
+                        }
+                    }
+                );
+            }
+        });
+        assertBusy(() -> assertThat(notifiedResponses.get(), equalTo(clientThreads * iterationsPerThread)));
         shutdown.set(true);
         masterThread.join();
     }
@@ -482,9 +484,16 @@ public class ShardStateActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final ShardRouting shardRouting = getRandomShardRouting(index);
-        final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
+        final long primaryTerm = clusterService.state().metadata().getProject().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.UNKNOWN, listener);
+        shardStateAction.shardStarted(
+            shardRouting,
+            primaryTerm,
+            "testShardStarted",
+            ShardLongFieldRange.UNKNOWN,
+            ShardLongFieldRange.UNKNOWN,
+            listener
+        );
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests[0].request(), instanceOf(ShardStateAction.StartedShardEntry.class));
@@ -495,7 +504,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
         assertThat(entry.timestampRange, sameInstance(ShardLongFieldRange.UNKNOWN));
 
-        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
         listener.await();
         assertNull(listener.failure.get());
     }
@@ -510,9 +519,12 @@ public class ShardStateActionTests extends ESTestCase {
 
     private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
-            DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().values().iterator().next().getId());
-            setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
+            var state = clusterService.state();
+            setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .nodes(state.nodes().withMasterNodeId(state.nodes().getMasterNodes().values().iterator().next().getId()))
+            );
         });
 
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> verifyRetry(numberOfRetries, retries, latch, retryLoop));
@@ -525,7 +537,7 @@ public class ShardStateActionTests extends ESTestCase {
             retries.incrementAndGet();
             if (retries.get() == numberOfRetries) {
                 // finish the request
-                transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequests[0].requestId(), ActionResponse.Empty.INSTANCE);
             } else {
                 retryLoop.accept(capturedRequests[0].requestId());
             }
@@ -548,10 +560,10 @@ public class ShardStateActionTests extends ESTestCase {
         final Exception failure = randomBoolean() ? null : getSimulatedFailure();
         final boolean markAsStale = randomBoolean();
 
-        final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
         final FailedShardEntry failedShardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             final FailedShardEntry deserialized = new FailedShardEntry(in);
             assertThat(deserialized.getShardId(), equalTo(shardId));
             assertThat(deserialized.getAllocationId(), equalTo(allocationId));
@@ -575,23 +587,50 @@ public class ShardStateActionTests extends ESTestCase {
         final long primaryTerm = randomIntBetween(0, 100);
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
-        final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
-        final StartedShardEntry startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange);
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
         try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            if (version.before(TransportVersions.V_8_15_0)) {
+                assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
+            } else {
+                assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
+            }
         }
     }
 
-    BytesReference serialize(Writeable writeable, Version version) throws IOException {
+    public void testStartedShardEntrySerializationWithOlderTransportVersion() throws Exception {
+        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
+        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final long primaryTerm = randomIntBetween(0, 100);
+        final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final TransportVersion version = randomFrom(getFirstVersion(), getPreviousVersion(TransportVersions.V_8_15_0));
+        final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
+        try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
+            in.setTransportVersion(version);
+            final StartedShardEntry deserialized = new StartedShardEntry(in);
+            assertThat(deserialized.shardId, equalTo(shardId));
+            assertThat(deserialized.allocationId, equalTo(allocationId));
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
+            assertThat(deserialized.message, equalTo(message));
+            assertThat(deserialized.timestampRange, equalTo(timestampRange));
+            assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
+        }
+    }
+
+    BytesReference serialize(Writeable writeable, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             writeable.writeTo(out);
             return out.bytes();
         }

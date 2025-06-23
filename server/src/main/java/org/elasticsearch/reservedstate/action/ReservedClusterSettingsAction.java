@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
-import org.elasticsearch.client.internal.Requests;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
 public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {
+
+    private static final Logger logger = LogManager.getLogger(ReservedClusterSettingsAction.class);
 
     public static final String NAME = "cluster_settings";
 
@@ -46,27 +49,26 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
-        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
+    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+        // load the new settings into a builder so their paths are normalized
+        @SuppressWarnings("unchecked")
+        Settings.Builder newSettings = Settings.builder().loadFromMap((Map<String, ?>) input);
 
-        Map<String, Object> persistentSettings = new HashMap<>();
+        // now the new and old settings can be compared to find which are missing for deletion
         Set<String> toDelete = new HashSet<>(previouslySet);
+        toDelete.removeAll(newSettings.keys());
+        toDelete.forEach(k -> newSettings.put(k, (String) null));
 
-        Map<String, Object> settings = (Map<String, Object>) input;
-
-        settings.forEach((k, v) -> {
-            persistentSettings.put(k, v);
-            toDelete.remove(k);
-        });
-
-        toDelete.forEach(k -> persistentSettings.put(k, null));
-
-        clusterUpdateSettingsRequest.persistentSettings(persistentSettings);
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
+            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT
+        );
+        clusterUpdateSettingsRequest.persistentSettings(newSettings);
         return clusterUpdateSettingsRequest;
     }
 
     @Override
-    public TransformState transform(Object input, TransformState prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings
@@ -74,12 +76,13 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             validate(request);
         }
 
-        ClusterState state = prevState.state();
+        final var state = new SettingsUpdater(clusterSettings).updateSettings(
+            prevState.state(),
+            request.transientSettings(),
+            request.persistentSettings(),
+            logger
+        );
 
-        TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask updateSettingsTask =
-            new TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask(clusterSettings, request);
-
-        state = updateSettingsTask.execute(state);
         Set<String> currentKeys = request.persistentSettings()
             .keySet()
             .stream()

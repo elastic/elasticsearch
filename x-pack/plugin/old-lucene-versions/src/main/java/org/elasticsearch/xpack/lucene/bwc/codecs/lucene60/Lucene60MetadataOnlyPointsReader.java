@@ -34,8 +34,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Reads the metadata of point values previously written with Lucene60PointsWriter */
-public class Lucene60MetadataOnlyPointsReader extends PointsReader {
+/**
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene60.Lucene60PointsReader}
+ * Reads the metadata of point values previously written with Lucene60PointsWriter
+ */
+public final class Lucene60MetadataOnlyPointsReader extends PointsReader {
     final IndexInput dataIn;
     final SegmentReadState readState;
     final Map<Integer, PointValues> readers = new HashMap<>();
@@ -105,7 +108,7 @@ public class Lucene60MetadataOnlyPointsReader extends PointsReader {
                 int fieldNumber = ent.getKey();
                 long fp = ent.getValue();
                 dataIn.seek(fp);
-                PointValues reader = new MetadataOnlyBKDReader(dataIn);
+                PointValues reader = new MetadataOnlyBKDReader(dataIn, false);
                 readers.put(fieldNumber, reader);
             }
 

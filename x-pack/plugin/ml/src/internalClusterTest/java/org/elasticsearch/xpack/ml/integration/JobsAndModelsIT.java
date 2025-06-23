@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
@@ -36,6 +38,8 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 
@@ -52,8 +56,10 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests that involve interactions of ML jobs that are persistent tasks
  * and trained models.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103588")
     public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
         // This test starts 2 ML nodes and then starts an anomaly detection job and a
         // trained model deployment that do not both fit in one node. We then proceed
@@ -105,7 +111,7 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             modelDefinitionDoc.toXContent(builder, null);
             client().execute(
-                IndexAction.INSTANCE,
+                TransportIndexAction.TYPE,
                 new IndexRequest(InferenceIndexConstants.nativeDefinitionStore()).source(builder)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             ).actionGet();
@@ -126,12 +132,17 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
                     BertTokenizer.UNKNOWN_TOKEN,
                     BertTokenizer.PAD_TOKEN
                 ),
-                List.of()
+                List.of(),
+                List.of(),
+                false
             )
         ).actionGet();
 
-        client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(model.getModelId()))
-            .actionGet();
+        logger.info("starting deployment: " + model.getModelId());
+        client().execute(
+            StartTrainedModelDeploymentAction.INSTANCE,
+            new StartTrainedModelDeploymentAction.Request(model.getModelId(), model.getModelId())
+        ).actionGet();
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
@@ -225,6 +236,8 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
             assertThat(jobStats.getNode(), is(not(equalTo(modelStats.getDeploymentStats().getNodeStats().get(0).getNode()))));
         });
+
+        assertRecentLastTaskStateChangeTime(MlTasks.jobTaskId(jobId), Duration.of(10, ChronoUnit.SECONDS), null);
 
         // Clean up
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();

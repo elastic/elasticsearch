@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -17,7 +20,23 @@ import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase<SimulateDocumentVerboseResult> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_document_verbose_result",
+        true,
+        a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>) a[0])
+    );
+    static {
+        PARSER.declareObjectArray(
+            constructorArg(),
+            SimulateProcessorResult.PARSER,
+            new ParseField(SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD)
+        );
+    }
 
     static SimulateDocumentVerboseResult createTestInstance(boolean withFailures) {
         int numDocs = randomIntBetween(0, 5);
@@ -42,7 +61,7 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
 
     @Override
     protected SimulateDocumentVerboseResult doParseInstance(XContentParser parser) {
-        return SimulateDocumentVerboseResult.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -42,7 +43,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         }
         config.put("value", value);
         String processorTag = randomAlphaOfLength(10);
-        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config);
+        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
         assertThat(appendProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(appendProcessor.getValue().copyAndResolve(Map.of()), equalTo(value));
@@ -52,7 +53,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("value", "value1");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -63,7 +64,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
@@ -75,7 +76,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", null);
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
@@ -90,7 +91,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
@@ -104,7 +105,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         config.put("value", "value1");
         config.put("media_type", expectedMediaType);
         String processorTag = randomAlphaOfLength(10);
-        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config);
+        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
 
         // invalid media type
@@ -116,7 +117,10 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         config2.put("field", "field1");
         config2.put("value", "value1");
         config2.put("media_type", expectedMediaType);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config2, null)
+        );
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
     }
 }

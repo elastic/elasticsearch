@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -16,8 +17,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.InetSocketAddress;
@@ -25,11 +28,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -97,16 +97,16 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             final List<HttpStats.ClientStats> clientsStats = httpClientStatsTracker.getClientStats();
             assertThat(clientsStats, hasSize(1));
             final HttpStats.ClientStats clientStats = clientsStats.get(0);
-            assertThat(clientStats.remoteAddress, equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
-            assertNull(clientStats.lastUri);
-            assertThat(clientStats.requestCount, equalTo(0L));
-            assertThat(clientStats.requestSizeBytes, equalTo(requestLength));
-            assertThat(clientStats.closedTimeMillis, equalTo(-1L));
-            assertThat(clientStats.openedTimeMillis, equalTo(openTimeMillis));
+            assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
+            assertNull(clientStats.lastUri());
+            assertThat(clientStats.requestCount(), equalTo(0L));
+            assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
+            assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
+            assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
 
-            assertNull(clientStats.agent);
-            assertNull(clientStats.forwardedFor);
-            assertNull(clientStats.opaqueId);
+            assertNull(clientStats.agent());
+            assertNull(clientStats.forwardedFor());
+            assertNull(clientStats.opaqueId());
         }
 
         threadPool.setRandomTime();
@@ -117,17 +117,17 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientsStats, hasSize(1));
 
             final HttpStats.ClientStats clientStats = clientsStats.get(0);
-            assertThat(clientStats.remoteAddress, equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
-            assertThat(clientStats.lastUri, equalTo(httpRequest1.uri()));
-            assertThat(clientStats.requestCount, equalTo(1L));
-            requestLength += httpRequest1.content().length();
-            assertThat(clientStats.requestSizeBytes, equalTo(requestLength));
-            assertThat(clientStats.closedTimeMillis, equalTo(-1L));
-            assertThat(clientStats.openedTimeMillis, equalTo(openTimeMillis));
+            assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
+            assertThat(clientStats.lastUri(), equalTo(httpRequest1.uri()));
+            assertThat(clientStats.requestCount(), equalTo(1L));
+            requestLength += httpRequest1.body().asFull().bytes().length();
+            assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
+            assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
+            assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
 
             final Map<String, String> relevantHeaders = getRelevantHeaders(httpRequest1);
             assertThat(
-                clientStats.agent,
+                clientStats.agent(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders.get("x-elastic-product-origin")))
@@ -135,8 +135,8 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                         .orElse(null)
                 )
             );
-            assertThat(clientStats.forwardedFor, equalTo(relevantHeaders.get("x-forwarded-for")));
-            assertThat(clientStats.opaqueId, equalTo(relevantHeaders.get("x-opaque-id")));
+            assertThat(clientStats.forwardedFor(), equalTo(relevantHeaders.get("x-forwarded-for")));
+            assertThat(clientStats.opaqueId(), equalTo(relevantHeaders.get("x-opaque-id")));
         }
 
         threadPool.setRandomTime();
@@ -147,18 +147,18 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientsStats, hasSize(1));
 
             final HttpStats.ClientStats clientStats = clientsStats.get(0);
-            assertThat(clientStats.remoteAddress, equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
-            assertThat(clientStats.lastUri, equalTo(httpRequest2.uri()));
-            assertThat(clientStats.requestCount, equalTo(2L));
-            requestLength += httpRequest2.content().length();
-            assertThat(clientStats.requestSizeBytes, equalTo(requestLength));
-            assertThat(clientStats.closedTimeMillis, equalTo(-1L));
-            assertThat(clientStats.openedTimeMillis, equalTo(openTimeMillis));
+            assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
+            assertThat(clientStats.lastUri(), equalTo(httpRequest2.uri()));
+            assertThat(clientStats.requestCount(), equalTo(2L));
+            requestLength += httpRequest2.body().asFull().bytes().length();
+            assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
+            assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
+            assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
 
             final Map<String, String> relevantHeaders1 = getRelevantHeaders(httpRequest1);
             final Map<String, String> relevantHeaders2 = getRelevantHeaders(httpRequest2);
             assertThat(
-                clientStats.agent,
+                clientStats.agent(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
@@ -169,7 +169,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 )
             );
             assertThat(
-                clientStats.forwardedFor,
+                clientStats.forwardedFor(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
@@ -178,7 +178,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 )
             );
             assertThat(
-                clientStats.opaqueId,
+                clientStats.opaqueId(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
@@ -196,17 +196,17 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientsStats, hasSize(1));
 
             final HttpStats.ClientStats clientStats = clientsStats.get(0);
-            assertThat(clientStats.remoteAddress, equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
-            assertThat(clientStats.lastUri, equalTo(httpRequest2.uri()));
-            assertThat(clientStats.requestCount, equalTo(2L));
-            assertThat(clientStats.requestSizeBytes, equalTo(requestLength));
-            assertThat(clientStats.closedTimeMillis, equalTo(closeTimeMillis));
-            assertThat(clientStats.openedTimeMillis, equalTo(openTimeMillis));
+            assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
+            assertThat(clientStats.lastUri(), equalTo(httpRequest2.uri()));
+            assertThat(clientStats.requestCount(), equalTo(2L));
+            assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
+            assertThat(clientStats.closedTimeMillis(), equalTo(closeTimeMillis));
+            assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
 
             final Map<String, String> relevantHeaders1 = getRelevantHeaders(httpRequest1);
             final Map<String, String> relevantHeaders2 = getRelevantHeaders(httpRequest2);
             assertThat(
-                clientStats.agent,
+                clientStats.agent(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-elastic-product-origin")))
@@ -217,7 +217,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 )
             );
             assertThat(
-                clientStats.forwardedFor,
+                clientStats.forwardedFor(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-forwarded-for")))
@@ -226,7 +226,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 )
             );
             assertThat(
-                clientStats.opaqueId,
+                clientStats.opaqueId(),
                 equalTo(
                     Optional.empty()
                         .or(() -> Optional.ofNullable(relevantHeaders1.get("x-opaque-id")))
@@ -276,12 +276,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
         for (int i = 0; i < clientThreads.length; i++) {
             clientThreads[i] = new Thread(() -> {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-
+                safeAwait(startBarrier);
                 HttpChannel httpChannel = randomHttpChannel();
                 httpClientStatsTracker.addClientStats(httpChannel);
                 while (operationPermits.tryAcquire()) {
@@ -301,17 +296,15 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
 
         final AtomicBoolean keepGoing = new AtomicBoolean(true);
         final Thread statsThread = new Thread(() -> {
-            try {
-                startBarrier.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                throw new AssertionError("unexpected", e);
-            }
-
+            safeAwait(startBarrier);
             while (keepGoing.get()) {
                 closeLock.writeLock().lock();
                 final List<HttpStats.ClientStats> clientStats = httpClientStatsTracker.getClientStats();
                 closeLock.writeLock().unlock();
-                assertThat(clientStats.stream().filter(c -> c.closedTimeMillis >= 0L).count(), lessThanOrEqualTo((long) closedClientLimit));
+                assertThat(
+                    clientStats.stream().filter(c -> c.closedTimeMillis() >= 0L).count(),
+                    lessThanOrEqualTo((long) closedClientLimit)
+                );
             }
 
         }, "stats-thread");
@@ -342,12 +335,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         );
         for (int i = 0; i < clientThreads.length; i++) {
             clientThreads[i] = new Thread(() -> {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-
+                safeAwait(startBarrier);
                 HttpChannel httpChannel = randomHttpChannel();
                 httpClientStatsTracker.addClientStats(httpChannel);
                 while (operationPermits.tryAcquire()) {
@@ -364,12 +352,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             }, "client-thread-" + i);
             clientThreads[i].start();
         }
-
-        try {
-            startBarrier.await(10, TimeUnit.SECONDS);
-        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-            throw new AssertionError("unexpected", e);
-        }
+        safeAwait(startBarrier);
         clusterSettings.applySettings(Settings.builder().put(SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build());
 
         try {
@@ -387,7 +370,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertTrue(
                 httpClientStatsTracker.getClientStats()
                     .stream()
-                    .anyMatch(cs -> cs.remoteAddress.equals(NetworkAddress.format(httpChannel.getRemoteAddress())))
+                    .anyMatch(cs -> cs.remoteAddress().equals(NetworkAddress.format(httpChannel.getRemoteAddress())))
             );
         } finally {
             for (Thread clientThread : clientThreads) {
@@ -457,7 +440,11 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
         private final long absoluteTimeOffset = randomLong();
 
         FakeTimeThreadPool() {
-            super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
+            super(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
             stopCachedTimeThread();
             setRandomTime();
         }

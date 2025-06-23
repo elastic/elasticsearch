@@ -31,6 +31,11 @@ public class CategorizerStatsTests extends AbstractXContentSerializingTestCase<C
         return createRandomized("foo");
     }
 
+    @Override
+    protected CategorizerStats mutateInstance(CategorizerStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static CategorizerStats createRandomized(String jobId) {
         CategorizerStats.Builder stats = new CategorizerStats.Builder(jobId);
         if (randomBoolean()) {

@@ -1,6 +1,0 @@
----
-jjbb-template: periodic-trigger-lgc.yml
-vars:
-  - periodic-job: elastic+elasticsearch+%BRANCH%+periodic+example-plugins
-  - lgc-job: elastic+elasticsearch+%BRANCH%+intake
-  - cron: "H H/12 * * *"

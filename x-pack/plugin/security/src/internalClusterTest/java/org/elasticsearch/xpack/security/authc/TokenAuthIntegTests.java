@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -44,8 +44,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,7 +63,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -75,6 +76,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
             .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            // used to diagnose Token authn failures, see: https://github.com/elastic/elasticsearch/issues/85697
+            .put("logger.org.elasticsearch.xpack.security.authc.TokenService", "TRACE")
             .build();
     }
 
@@ -93,20 +96,20 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final OAuth2Token token = createToken(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(token.accessToken(), userTokenFuture);
+            tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
             assertNotNull(userTokenFuture.actionGet());
         }
         // start a new node and see if it can decrypt the token
         String nodeName = internalCluster().startNode();
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
             PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-            tokenService.decodeToken(token.accessToken(), userTokenFuture);
+            tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
             assertNotNull(userTokenFuture.actionGet());
         }
 
         TokenService tokenService = internalCluster().getInstance(TokenService.class, nodeName);
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
-        tokenService.decodeToken(token.accessToken(), userTokenFuture);
+        tokenService.decodeToken(token.accessToken(), false, userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
     }
 
@@ -308,9 +311,27 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidateNotValidAccessTokens() throws Exception {
+        final TokenService tokenService = internalCluster().getInstance(TokenService.class);
         // Perform a request to invalidate a token, before the tokens index is created
-        ResponseException e = expectThrows(ResponseException.class, () -> invalidateAccessToken(generateAccessToken(Version.CURRENT)));
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> invalidateAccessToken(
+                tokenService.prependVersionAndEncodeAccessToken(
+                    TransportVersion.current(),
+                    tokenService.getRandomTokenBytes(TransportVersion.current(), randomBoolean()).v1()
+                )
+            )
+        );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
+        e = expectThrows(
+            ResponseException.class,
+            () -> invalidateAccessToken(
+                tokenService.prependVersionAndEncodeAccessToken(
+                    TransportVersions.V_7_3_2,
+                    tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, randomBoolean()).v1()
+                )
+            )
+        );
         // Create a token to trigger index creation
         createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         TokenInvalidation invalidateResponse = invalidateAccessToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it");
@@ -323,24 +344,86 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
-        invalidateResponse = invalidateAccessToken(generateInvalidShortAccessToken(Version.CURRENT));
+        byte[] longerAccessToken = new byte[randomIntBetween(17, 24)];
+        random().nextBytes(longerAccessToken);
+        invalidateResponse = invalidateAccessToken(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.V_7_3_2, longerAccessToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        longerAccessToken = new byte[randomIntBetween(25, 32)];
+        random().nextBytes(longerAccessToken);
+        invalidateResponse = invalidateAccessToken(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), longerAccessToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        byte[] shorterAccessToken = new byte[randomIntBetween(12, 15)];
+        random().nextBytes(shorterAccessToken);
+        invalidateResponse = invalidateAccessToken(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersions.V_7_3_2, shorterAccessToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        shorterAccessToken = new byte[randomIntBetween(16, 23)];
+        random().nextBytes(shorterAccessToken);
+        invalidateResponse = invalidateRefreshToken(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), shorterAccessToken)
+        );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
-        invalidateResponse = invalidateAccessToken(generateAccessToken(Version.CURRENT));
+        invalidateResponse = invalidateAccessToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersion.current(),
+                tokenService.getRandomTokenBytes(TransportVersion.current(), randomBoolean()).v1()
+            )
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        invalidateResponse = invalidateAccessToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersions.V_7_3_2,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, randomBoolean()).v1()
+            )
+        );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
     }
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
+        final TokenService tokenService = internalCluster().getInstance(TokenService.class);
         // Perform a request to invalidate a refresh token, before the tokens index is created
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> invalidateRefreshToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
+            () -> invalidateRefreshToken(
+                TokenService.prependVersionAndEncodeRefreshToken(
+                    TransportVersion.current(),
+                    tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+                )
+            )
+        );
+        assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
+        e = expectThrows(
+            ResponseException.class,
+            () -> invalidateRefreshToken(
+                TokenService.prependVersionAndEncodeRefreshToken(
+                    TransportVersions.V_7_3_2,
+                    tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, true).v2()
+                )
+            )
         );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
@@ -355,8 +438,37 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
 
+        byte[] longerRefreshToken = new byte[randomIntBetween(17, 24)];
+        random().nextBytes(longerRefreshToken);
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, randomAlphaOfLength(32))
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.V_7_3_2, longerRefreshToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        longerRefreshToken = new byte[randomIntBetween(25, 32)];
+        random().nextBytes(longerRefreshToken);
+        invalidateResponse = invalidateRefreshToken(
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), longerRefreshToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        byte[] shorterRefreshToken = new byte[randomIntBetween(12, 15)];
+        random().nextBytes(shorterRefreshToken);
+        invalidateResponse = invalidateRefreshToken(
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersions.V_7_3_2, shorterRefreshToken)
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        shorterRefreshToken = new byte[randomIntBetween(16, 23)];
+        random().nextBytes(shorterRefreshToken);
+        invalidateResponse = invalidateRefreshToken(
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), shorterRefreshToken)
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -365,7 +477,20 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Generate a token that could be a valid token string for the version we are on, and should decode fine, but is not found in our
         // tokens index
         invalidateResponse = invalidateRefreshToken(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID())
+            TokenService.prependVersionAndEncodeRefreshToken(
+                TransportVersion.current(),
+                tokenService.getRandomTokenBytes(TransportVersion.current(), true).v2()
+            )
+        );
+        assertThat(invalidateResponse.invalidated(), equalTo(0));
+        assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
+        assertThat(invalidateResponse.errors(), empty());
+
+        invalidateResponse = invalidateRefreshToken(
+            TokenService.prependVersionAndEncodeRefreshToken(
+                TransportVersions.V_7_3_2,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_3_2, true).v2()
+            )
         );
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
@@ -410,6 +535,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
+            // refresh to make sure the token docs are visible
+            Request refreshRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            getRestClient().performRequest(refreshRequest);
             Request searchRequest = new Request(HttpPost.METHOD_NAME, SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_search");
             searchRequest.setOptions(SECURITY_REQUEST_OPTIONS);
             searchRequest.setJsonEntity("""
@@ -468,7 +597,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
-        final List<RestStatus> authStatuses = Collections.synchronizedList(new ArrayList<>());
         OAuth2Token createTokenResponse = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(createTokenResponse.getRefreshToken());
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
@@ -500,15 +628,21 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getRefreshToken()
                         );
                     } else {
-                        authStatuses.add(getAuthenticationResponseCode(result.accessToken()));
                         tokens.add(result.accessToken() + result.getRefreshToken());
+                        // Assert that all requests from all threads could authenticate at the time they received the access token
+                        // see: https://github.com/elastic/elasticsearch/issues/54289
+                        try {
+                            getSecurityClient(result.accessToken()).authenticate();
+                        } catch (ResponseException esse) {
+                            fail(esse);
+                        }
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
-                    completedLatch.countDown();
                 } catch (IOException e) {
                     failed.set(true);
-                    completedLatch.countDown();
                     logger.error("caught exception", e);
+                } finally {
+                    completedLatch.countDown();
                 }
             }));
         }
@@ -524,13 +658,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(failed.get(), equalTo(false));
         // Assert that we only ever got one token/refresh_token pair
         synchronized (tokens) {
-            assertThat((int) tokens.stream().distinct().count(), equalTo(1));
-        }
-        // Assert that all requests from all threads could authenticate at the time they received the access token
-        // see: https://github.com/elastic/elasticsearch/issues/54289
-        synchronized (authStatuses) {
-            assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
-            assertThat(authStatuses, hasItem(RestStatus.OK));
+            Set<String> uniqueTokens = new HashSet<>(tokens);
+            logger.info("Unique tokens received from refreshToken call [{}]", uniqueTokens);
+            assertThat(uniqueTokens.size(), equalTo(1));
         }
     }
 
@@ -621,6 +751,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticateWithWrongToken() throws Exception {
+        final TokenService tokenService = internalCluster().getInstance(TokenService.class);
         OAuth2Token response = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(response.getRefreshToken());
         // Assert that we can authenticate with the access token
@@ -628,14 +759,31 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Now attempt to authenticate with an invalid access token string
         assertUnauthorizedToken(randomAlphaOfLengthBetween(0, 128));
         // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
-        assertUnauthorizedToken(generateAccessToken(Version.V_7_1_0));
-        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2)
-        assertUnauthorizedToken(generateAccessToken(Version.V_7_4_0));
+        assertUnauthorizedToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersions.V_7_1_0,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+            )
+        );
+        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2 pre 8.10)
+        assertUnauthorizedToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersions.V_7_4_0,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_4_0, randomBoolean()).v1()
+            )
+        );
+        // Now attempt to authenticate with an invalid access token with valid structure (current version)
+        assertUnauthorizedToken(
+            tokenService.prependVersionAndEncodeAccessToken(
+                TransportVersion.current(),
+                tokenService.getRandomTokenBytes(TransportVersion.current(), randomBoolean()).v1()
+            )
+        );
     }
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
     }
 
     @After
@@ -648,7 +796,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     public void testMetadataIsNotSentToClient() {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetadata.TYPE));
     }
 
@@ -743,18 +891,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         return super.getSecurityClient(options).invalidateRefreshToken(refreshToken);
     }
 
-    private String generateAccessToken(Version version) throws Exception {
-        TokenService tokenService = internalCluster().getInstance(TokenService.class);
-        String accessTokenString = UUIDs.randomBase64UUID();
-        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
-    }
-
-    private String generateInvalidShortAccessToken(Version version) throws Exception {
-        TokenService tokenService = internalCluster().getInstance(TokenService.class);
-        String accessTokenString = randomAlphaOfLength(32); // UUIDs are 36
-        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
-    }
-
     private void assertAuthenticateWithToken(String accessToken, String expectedUser) throws IOException {
         final TestSecurityClient securityClient = getSecurityClient(accessToken);
         final Map<String, Object> authResponse = securityClient.authenticate();
@@ -770,14 +906,5 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     private TestSecurityClient getSecurityClient(String accessToken) {
         return getSecurityClient(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build());
-    }
-
-    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
-        try {
-            getSecurityClient(accessToken).authenticate();
-            return RestStatus.OK;
-        } catch (ResponseException esse) {
-            return RestStatus.fromCode(esse.getResponse().getStatusLine().getStatusCode());
-        }
     }
 }

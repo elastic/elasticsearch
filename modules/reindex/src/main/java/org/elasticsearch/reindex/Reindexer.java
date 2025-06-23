@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -20,7 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,14 +28,19 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -60,11 +65,11 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -78,23 +83,29 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
+    private final ReindexMetrics reindexMetrics;
 
     Reindexer(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
         ScriptService scriptService,
-        ReindexSslConfig reindexSslConfig
+        ReindexSslConfig reindexSslConfig,
+        @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
+        this.reindexMetrics = reindexMetrics;
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -102,6 +113,8 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
+        long startTime = System.nanoTime();
+
         BulkByScrollParallelizationHelper.executeSlicedAction(
             task,
             request,
@@ -119,10 +132,15 @@ public class Reindexer {
                     assigningBulkClient,
                     threadPool,
                     scriptService,
-                    clusterService.state(),
+                    projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    listener
+                    ActionListener.runAfter(listener, () -> {
+                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                        if (reindexMetrics != null) {
+                            reindexMetrics.recordTookTime(elapsedTime);
+                        }
+                    })
                 );
                 searchAction.start();
             }
@@ -206,7 +224,7 @@ public class Reindexer {
             ParentTaskAssigningClient bulkClient,
             ThreadPool threadPool,
             ScriptService scriptService,
-            ClusterState state,
+            ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener
@@ -231,17 +249,20 @@ public class Reindexer {
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }
 
-        private IndexMode destinationIndexMode(ClusterState state) {
-            IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
+        private IndexMode destinationIndexMode(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
             if (destMeta != null) {
                 return IndexSettings.MODE.get(destMeta.getSettings());
             }
-            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
             if (template == null) {
                 return IndexMode.STANDARD;
             }
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
-            return IndexSettings.MODE.get(settings);
+            Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, template);
+            // We retrieve the setting without performing any validation because that the template has already been validated
+            String indexMode = settings.get(IndexSettings.MODE.getKey());
+            return indexMode == null ? IndexMode.STANDARD : IndexMode.fromString(indexMode);
         }
 
         @Override
@@ -321,8 +342,11 @@ public class Reindexer {
             if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
                 try (
-                    InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceXContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        doc.getSource(),
+                        sourceXContentType
+                    );
                     XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
                 ) {
                     parser.nextToken();

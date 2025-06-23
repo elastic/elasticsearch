@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.pipeline;
 
@@ -40,7 +41,7 @@ public class BucketSortPipelineAggregationBuilderTests extends BasePipelineAggre
             sorts.add(fieldSortBuilder);
         }
         BucketSortPipelineAggregationBuilder factory = new BucketSortPipelineAggregationBuilder(randomAlphaOfLengthBetween(3, 20), sorts);
-        Integer from = randomIntBetween(0, 20);
+        int from = randomIntBetween(0, 20);
         Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
         if (randomBoolean()) {
             factory.from(from);

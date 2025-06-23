@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,23 +16,29 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -76,14 +83,14 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(16, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
-        IndexableField dvField = fields[1];
+        IndexableField dvField = fields.get(1);
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
         assertFalse(dvField.fieldType().stored());
@@ -98,9 +105,9 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
     }
 
@@ -112,15 +119,15 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
 
         fields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals("field", fields[0].stringValue());
+        assertEquals(1, fields.size());
+        assertEquals("field", fields.get(0).stringValue());
 
         FieldMapper m = (FieldMapper) mapper.mappers().getMapper("field");
         Query existsQuery = m.fieldType().existsQuery(null);
@@ -135,13 +142,13 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(3, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        IndexableField dvField = fields[1];
+        IndexableField dvField = fields.get(1);
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        IndexableField storedField = fields.get(2);
         assertTrue(storedField.fieldType().stored());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))), storedField.binaryValue());
     }
@@ -161,7 +168,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
@@ -170,14 +177,14 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.nullField("field")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(16, pointField.fieldType().pointNumBytes());
         assertFalse(pointField.fieldType().stored());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
-        IndexableField dvField = fields[1];
+        IndexableField dvField = fields.get(1);
         assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), dvField.binaryValue());
         assertFalse(dvField.fieldType().stored());
@@ -188,11 +195,11 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
 
         doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(Version.CURRENT, fieldMapping(b -> {
+            () -> createDocumentMapper(IndexVersion.current(), fieldMapping(b -> {
                 b.field("type", "ip");
                 b.field("null_value", ":1");
             }))
@@ -202,7 +209,7 @@ public class IpFieldMapperTests extends MapperTestCase {
             "Failed to parse mapping: Error parsing [null_value] on field [field]: ':1' is not an IP string literal."
         );
 
-        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> {
+        createDocumentMapper(IndexVersions.V_7_9_0, fieldMapping(b -> {
             b.field("type", "ip");
             b.field("null_value", ":1");
         }));
@@ -252,17 +259,30 @@ public class IpFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
-        }));
+        }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", "192.168.1.1", "192.168.1.1");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field", "192.168.1.1", "192.168.1.1");
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     @Override
@@ -317,7 +337,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
-                if (v.v2()instanceof InetAddress a) {
+                if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
                 }
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
@@ -375,15 +395,11 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> b.field("type", "ip").field("doc_values", false)
-                )
-            );
+            return List.of();
         }
     }
 
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         return new IngestScriptSupport() {
             @Override
@@ -416,5 +432,10 @@ public class IpFieldMapperTests extends MapperTestCase {
                 };
             }
         };
+    }
+
+    @Override
+    protected String randomSyntheticSourceKeep() {
+        return "all";
     }
 }

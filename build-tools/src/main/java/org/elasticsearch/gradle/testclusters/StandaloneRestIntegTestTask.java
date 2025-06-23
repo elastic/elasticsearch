@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Task;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
-import org.gradle.api.specs.NotSpec;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -29,6 +27,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
+import javax.inject.Inject;
+
 import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_SERVICE_NAME;
 
 /**
@@ -37,29 +37,12 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
     private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
-        Spec<Task> taskSpec = t -> getProject().getTasks()
-            .withType(StandaloneRestIntegTestTask.class)
-            .stream()
-            .filter(task -> task != this)
-            .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false);
-        this.getOutputs()
-            .doNotCacheIf(
-                "Caching disabled for this task since it uses a cluster shared by other tasks",
-                /*
-                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
-                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
-                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
-                 * multiple tasks.
-                 */
-                taskSpec
-            );
-        this.getOutputs().upToDateWhen(new NotSpec(taskSpec));
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it is configured to preserve data directory",
@@ -71,6 +54,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebugServer(boolean enabled) {
         this.debugServer = enabled;
+        systemProperty("tests.cluster.debug.enabled", Boolean.toString(enabled));
     }
 
     @Nested
@@ -80,16 +64,21 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     }
 
     @Override
+    @Inject
+    public abstract ProviderFactory getProviderFactory();
+
+    @Override
     @Internal
     public List<ResourceLock> getSharedResources() {
+        // Since we need to have the buildservice registered for configuration cache compatibility,
+        // we already get one lock for throttle service
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
-
+        BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
+        SharedResource resource = serviceRegistry.forService(serviceProvider);
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages() - 1); i++) {
                 locks.add(resource.getResourceLock());
             }
         }
@@ -102,6 +91,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
     @Override
     public void beforeStart() {
+        TestClustersAware.super.beforeStart();
         if (debugServer) {
             enableDebug();
         }

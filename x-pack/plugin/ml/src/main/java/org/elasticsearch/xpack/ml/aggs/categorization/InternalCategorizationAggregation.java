@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -85,7 +86,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
     }
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             MultiBucketsAggregation.Bucket,
             Comparable<Bucket> {
@@ -108,13 +109,14 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         public Bucket(StreamInput in) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (in.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-                throw new ElasticsearchException(
+            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchStatusException(
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
-                        + "] or higher and others have a version before this"
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + "] or higher and others have a version before this",
+                    RestStatus.BAD_REQUEST
                 );
             }
             serializableCategory = new SerializableTokenListCategory(in);
@@ -126,21 +128,21 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (out.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-                throw new ElasticsearchException(
+            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+                throw new ElasticsearchStatusException(
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
-                        + "] or higher and others have a version before this"
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                        + "] or higher and others have a version before this",
+                    RestStatus.BAD_REQUEST
                 );
             }
             serializableCategory.writeTo(out);
             aggregations.writeTo(out);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), serializableCategory.getNumMatches());
             builder.field(CommonFields.KEY.getPreferredName());
@@ -149,7 +151,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), serializableCategory.maxMatchingStringLen());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         BucketKey getRawKey() {
@@ -172,7 +173,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -195,7 +196,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 + ", docCount="
                 + serializableCategory.getNumMatches()
                 + ", aggregations="
-                + aggregations.asMap()
+                + aggregations.asList()
                 + "}\n";
         }
 
@@ -238,17 +239,18 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchStatusException(
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         this.similarityThreshold = in.readVInt();
-        this.buckets = in.readList(Bucket::new);
+        this.buckets = in.readCollectionAsList(Bucket::new);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
     }
@@ -256,17 +258,18 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchStatusException(
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         out.writeVInt(similarityThreshold);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
     }
@@ -275,7 +278,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;
@@ -292,11 +295,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        throw new UnsupportedOperationException("For optimization purposes, typical bucket path is not supported");
-    }
-
-    @Override
     public List<Bucket> getBuckets() {
         return buckets;
     }
@@ -307,62 +305,72 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
-            TokenListCategorizer categorizer = new TokenListCategorizer(
-                hash,
-                null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
-                (float) similarityThreshold / 100.0f
-            );
-            // Merge all the categories into the newly created empty categorizer to combine them
-            for (InternalAggregation aggregation : aggregations) {
-                InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
-                for (Bucket bucket : categorizationAggregation.buckets) {
-                    categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs((InternalAggregations) bucket.getAggregations());
-                    if (reduceContext.isCanceled().get()) {
-                        break;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            final List<Bucket> buckets = new ArrayList<>();
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                buckets.addAll(((InternalCategorizationAggregation) aggregation).buckets);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
+                    TokenListCategorizer categorizer = new TokenListCategorizer(
+                        hash,
+                        null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
+                        (float) similarityThreshold / 100.0f
+                    );
+                    // Merge all the categories into the newly created empty categorizer to combine them
+                    for (Bucket bucket : buckets) {
+                        categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs(bucket.getAggregations());
+                        if (reduceContext.isCanceled().get()) {
+                            break;
+                        }
                     }
+                    final int size = reduceContext.isFinalReduce()
+                        ? Math.min(requiredSize, categorizer.getCategoryCount())
+                        : categorizer.getCategoryCount();
+                    Bucket[] mergedBuckets = categorizer.toOrderedBuckets(
+                        size,
+                        reduceContext.isFinalReduce() ? minDocCount : 0,
+                        reduceContext
+                    );
+                    // TODO: not sure if this next line is correct - if we discarded some categories due to size or minDocCount is this
+                    // handled?
+                    reduceContext.consumeBucketsAndMaybeBreak(mergedBuckets.length);
+                    // Keep the top categories top, but then sort by the key for those with duplicate counts
+                    if (reduceContext.isFinalReduce()) {
+                        Arrays.sort(mergedBuckets, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
+                    }
+                    return new InternalCategorizationAggregation(
+                        name,
+                        requiredSize,
+                        minDocCount,
+                        similarityThreshold,
+                        metadata,
+                        Arrays.asList(mergedBuckets)
+                    );
                 }
             }
-            final int size = reduceContext.isFinalReduce()
-                ? Math.min(requiredSize, categorizer.getCategoryCount())
-                : categorizer.getCategoryCount();
-            Bucket[] mergedBuckets = categorizer.toOrderedBuckets(size, reduceContext.isFinalReduce() ? minDocCount : 0, reduceContext);
-            // TODO: not sure if this next line is correct - if we discarded some categories due to size or minDocCount is this handled?
-            reduceContext.consumeBucketsAndMaybeBreak(mergedBuckets.length);
-            // Keep the top categories top, but then sort by the key for those with duplicate counts
-            if (reduceContext.isFinalReduce()) {
-                Arrays.sort(mergedBuckets, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
-            }
-            return new InternalCategorizationAggregation(
-                name,
-                requiredSize,
-                minDocCount,
-                similarityThreshold,
-                metadata,
-                Arrays.asList(mergedBuckets)
-            );
-        }
+        };
     }
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            similarityThreshold,
-            metadata,
-            buckets.stream()
-                .map(
-                    b -> new Bucket(
-                        new SerializableTokenListCategory(b.getSerializableCategory(), samplingContext.scaleUp(b.getDocCount())),
-                        b.getBucketOrd(),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
-                    )
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(
+                new Bucket(
+                    new SerializableTokenListCategory(bucket.getSerializableCategory(), samplingContext.scaleUp(bucket.getDocCount())),
+                    bucket.getBucketOrd(),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext)
                 )
-                .collect(Collectors.toList())
-        );
+            );
+        }
+        return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, metadata, buckets);
     }
 
     public int getSimilarityThreshold() {

@@ -14,11 +14,13 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -186,7 +189,10 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             ReindexPlugin.class,
             CommonAnalysisPlugin.class,
             InternalSettingsPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            MainRestPlugin.class,
+            Wildcard.class,
+            UnregisteredSecuritySettingsPlugin.class
         );
     }
 
@@ -385,5 +391,32 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public boolean isSslEnabled() {
         return sslEnabled;
+    }
+
+    // This plugin registers various normally unregistered settings such that dependent code can be tested.
+    public static class UnregisteredSecuritySettingsPlugin extends Plugin {
+
+        public static final Setting<Boolean> NATIVE_ROLE_MAPPINGS_SETTING = Setting.boolSetting(
+            "xpack.security.authc.native_role_mappings.enabled",
+            true,
+            Setting.Property.NodeScope
+        );
+        public static final Setting<Boolean> CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = Setting.boolSetting(
+            "xpack.security.authc.cluster_state_role_mappings.enabled",
+            true,
+            Setting.Property.NodeScope
+        );
+        public static final Setting<Boolean> NATIVE_ROLES_ENABLED = Setting.boolSetting(
+            "xpack.security.authc.native_roles.enabled",
+            true,
+            Setting.Property.NodeScope
+        );
+
+        public UnregisteredSecuritySettingsPlugin() {}
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(NATIVE_ROLE_MAPPINGS_SETTING, CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, NATIVE_ROLES_ENABLED);
+        }
     }
 }

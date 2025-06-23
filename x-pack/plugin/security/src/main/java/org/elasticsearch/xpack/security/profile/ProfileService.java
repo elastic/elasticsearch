@@ -9,37 +9,36 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -49,11 +48,11 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -61,16 +60,21 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -84,6 +88,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -94,12 +99,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
@@ -112,26 +117,16 @@ public class ProfileService {
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager profileIndex;
-    private final ClusterService clusterService;
     private final Function<String, DomainConfig> domainConfigLookup;
-    private final ThreadPool threadPool;
+    private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
-    public ProfileService(
-        Settings settings,
-        Clock clock,
-        Client client,
-        SecurityIndexManager profileIndex,
-        ClusterService clusterService,
-        Function<String, DomainConfig> domainConfigLookup,
-        ThreadPool threadPool
-    ) {
+    public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
         this.clock = clock;
         this.client = client;
         this.profileIndex = profileIndex;
-        this.clusterService = clusterService;
-        this.domainConfigLookup = domainConfigLookup;
-        this.threadPool = threadPool;
+        this.domainConfigLookup = realms::getDomainConfig;
+        this.realmRefLookup = realms::getRealmRef;
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -196,7 +191,7 @@ public class ProfileService {
             return;
         }
 
-        if (User.isInternal(subject.getUser())) {
+        if (subject.getUser() instanceof InternalUser) {
             listener.onFailure(
                 new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
             );
@@ -255,20 +250,16 @@ public class ProfileService {
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SuggestProfilesResponse(
-                new SuggestProfilesResponse.ProfileHit[] {},
-                0,
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
-            );
-        })).ifPresent(frozenProfileIndex -> {
+            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[] {}, 0, Lucene.TOTAL_HITS_EQUAL_TO_ZERO);
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             final SearchRequest searchRequest = buildSearchRequestForSuggest(request, parentTaskId);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
-                    SearchAction.INSTANCE,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final SearchHits searchHits = searchResponse.getHits();
@@ -312,6 +303,34 @@ public class ProfileService {
         doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
     }
 
+    public void resolveProfileUidsForApiKeys(Collection<ApiKey> apiKeyInfos, ActionListener<Collection<String>> listener) {
+        List<Subject> subjects = apiKeyInfos.stream().map(this::getApiKeyCreatorSubject).filter(Objects::nonNull).distinct().toList();
+        searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
+                assert subjects.size() == resultsAndErrors.results().size();
+                Map<Subject, String> profileUidLookup = resultsAndErrors.results()
+                    .stream()
+                    .filter(t -> Objects.nonNull(t.v2()))
+                    .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
+                    .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> {
+                    Subject subject = getApiKeyCreatorSubject(apiKeyInfo);
+                    return subject == null ? null : profileUidLookup.get(subject);
+                }).toList());
+            } else {
+                final ElasticsearchStatusException exception = new ElasticsearchStatusException(
+                    "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+                resultsAndErrors.errors().values().forEach(exception::addSuppressed);
+                listener.onFailure(exception);
+            }
+        }, listener::onFailure));
+    }
+
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {
         searchVersionedDocumentsForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
             if (resultsAndErrors == null) {
@@ -333,7 +352,7 @@ public class ProfileService {
         tryFreezeAndCheckIndex(listener.map(response -> { // index does not exist
             assert response == null : "only null response can reach here";
             return Map.of("total", 0L, "enabled", 0L, "recent", 0L);
-        })).ifPresent(frozenProfileIndex -> {
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             final MultiSearchRequest multiSearchRequest = client.prepareMultiSearch()
                 .add(
                     client.prepareSearch(SECURITY_PROFILE_ALIAS)
@@ -369,8 +388,8 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
-                    MultiSearchAction.INSTANCE,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(multiSearchResponse -> {
                         final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
@@ -380,19 +399,19 @@ public class ProfileService {
                             logger.debug("error on counting total profiles", items[0].getFailure());
                             usage.put("total", 0L);
                         } else {
-                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value);
+                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[1].isFailure()) {
                             logger.debug("error on counting enabled profiles", items[0].getFailure());
                             usage.put("enabled", 0L);
                         } else {
-                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value);
+                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[2].isFailure()) {
                             logger.debug("error on counting recent profiles", items[0].getFailure());
                             usage.put("recent", 0L);
                         } else {
-                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
+                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value());
                         }
                         listener.onResponse(usage);
                     }, listener::onFailure)
@@ -444,24 +463,30 @@ public class ProfileService {
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, getActionOrigin(), GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportGetAction.TYPE,
+                    getRequest,
+                    ActionListener.wrap(response -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            listener.onResponse(null);
+                            return;
+                        }
+                        listener.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
             );
         });
     }
@@ -471,10 +496,10 @@ public class ProfileService {
             listener.onResponse(ResultsAndErrors.empty());
             return;
         }
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
+                () -> new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<VersionedDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
@@ -543,14 +568,14 @@ public class ProfileService {
             listener.onResponse(new SubjectSearchResultsAndErrors<>(List.of(), Map.of()));
             return;
         }
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 subjects.forEach(subject -> multiSearchRequest.add(buildSearchRequestForSubject(subject)));
                 executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
-                    MultiSearchAction.INSTANCE,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(
                         multiSearchResponse -> listener.onResponse(convertSubjectMultiSearchResponse(multiSearchResponse, subjects)),
@@ -698,32 +723,33 @@ public class ProfileService {
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                getActionOrigin(),
-                BulkAction.INSTANCE,
-                bulkRequest,
-                TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                    assert docId.equals(indexResponse.getId());
-                    final VersionedDocument versionedDocument = new VersionedDocument(
-                        profileDocument,
-                        indexResponse.getPrimaryTerm(),
-                        indexResponse.getSeqNo()
-                    );
-                    listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile for the subject
-                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }))
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportBulkAction.TYPE,
+                    bulkRequest,
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                        assert docId.equals(indexResponse.getId());
+                        final VersionedDocument versionedDocument = new VersionedDocument(
+                            profileDocument,
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo()
+                        );
+                        listener.onResponse(versionedDocument.toProfile(Set.of()));
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // Document already exists with the specified ID, get the document with the ID
+                            // and check whether it is the right profile for the subject
+                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }))
+                )
+            );
     }
 
     // Package private for test
@@ -743,7 +769,7 @@ public class ProfileService {
                         .schedule(
                             () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, listener),
                             backoffTimeValue,
-                            ThreadPool.Names.GENERIC
+                            client.threadPool().generic()
                         );
                 } else {
                     // Retry has depleted. This can only happen when the document or the profile index itself gets deleted
@@ -780,7 +806,7 @@ public class ProfileService {
     void maybeIncrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
         throws IOException {
         final String uid = profileDocument.uid();
-        final int index = uid.lastIndexOf("_");
+        final int index = uid.lastIndexOf('_');
         if (index == -1) {
             listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid));
             return;
@@ -843,6 +869,34 @@ public class ProfileService {
         } else {
             return null;
         }
+    }
+
+    private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {
+        if (apiKeyInfo.getUsername() == null) {
+            logger.debug("encountered api key with id [{}] of the \"null\" username", apiKeyInfo.getId());
+            return null;
+        }
+        RealmConfig.RealmIdentifier realmIdentifier = apiKeyInfo.getRealmIdentifier();
+        if (realmIdentifier == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] that has a \"null\" realm type or realm name",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername()
+            );
+            return null;
+        }
+        Authentication.RealmRef realmRef = realmRefLookup.apply(realmIdentifier);
+        if (realmRef == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] from realm [{}], "
+                    + "where that realm is not currently configured on the local node",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername(),
+                realmIdentifier
+            );
+            return null;
+        }
+        return new Subject(new User(apiKeyInfo.getUsername(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     // package private for testing
@@ -935,29 +989,21 @@ public class ProfileService {
 
     // Package private for testing
     void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                getActionOrigin(),
-                UpdateAction.INSTANCE,
-                updateRequest,
-                ActionListener.wrap(updateResponse -> {
-                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(updateResponse);
-                }, listener::onFailure)
-            )
-        );
-    }
-
-    private String getActionOrigin() {
-        // profile origin and user is not available before v8.3.0
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(VERSION_SECURITY_PROFILE_ORIGIN)) {
-            return SECURITY_PROFILE_ORIGIN;
-        } else {
-            return SECURITY_ORIGIN;
-        }
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportUpdateAction.TYPE,
+                    updateRequest,
+                    ActionListener.wrap(updateResponse -> {
+                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                        listener.onResponse(updateResponse);
+                    }, listener::onFailure)
+                )
+            );
     }
 
     private static String uidToDocId(String uid) {
@@ -1005,17 +1051,17 @@ public class ProfileService {
      * Freeze the profile index check its availability and return it if everything is ok.
      * Otherwise it calls the listener with null and returns an empty Optional.
      */
-    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
-        final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
-        if (false == frozenProfileIndex.indexExists()) {
+    private <T> Optional<IndexState> tryFreezeAndCheckIndex(ActionListener<T> listener, SecurityIndexManager.Availability availability) {
+        final IndexState projectSecurityIndex = profileIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
             return Optional.empty();
-        } else if (false == frozenProfileIndex.isAvailable()) {
-            listener.onFailure(frozenProfileIndex.getUnavailableReason());
+        } else if (false == projectSecurityIndex.isAvailable(availability)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(availability));
             return Optional.empty();
         }
-        return Optional.of(frozenProfileIndex);
+        return Optional.of(projectSecurityIndex);
     }
 
     private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
@@ -1065,5 +1111,5 @@ public class ProfileService {
 
     }
 
-    public record SubjectSearchResultsAndErrors<T> (List<Tuple<Subject, T>> results, Map<Subject, Exception> errors) {}
+    public record SubjectSearchResultsAndErrors<T>(List<Tuple<Subject, T>> results, Map<Subject, Exception> errors) {}
 }

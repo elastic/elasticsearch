@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.discovery;
@@ -15,7 +16,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
@@ -46,15 +46,18 @@ public class Zen2RestApiIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(2);
         createIndex(
             "test",
-            Settings.builder()
+            indexSettings(2, 1) // causes rebalancing
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build()
         );
         ensureGreen("test");
 
-        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes();
         final Map<String, String> nodeIdsByName = Maps.newMapWithExpectedSize(discoveryNodes.getSize());
         discoveryNodes.forEach(n -> nodeIdsByName.put(n.getName(), n.getId()));
 
@@ -101,7 +104,7 @@ public class Zen2RestApiIT extends ESIntegTestCase {
 
                     ClusterHealthResponse clusterHealthResponse = client(viaNode).admin()
                         .cluster()
-                        .prepareHealth()
+                        .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(1))
                         .setTimeout(TimeValue.timeValueSeconds(30L))

@@ -1,29 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,26 +37,16 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     implements
         Range {
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Range.Bucket {
 
         private final transient DocValueFormat format;
-        private final transient boolean keyed;
         private final String key;
         private final BytesRef from, to;
         private final long docCount;
         private final InternalAggregations aggregations;
 
-        public Bucket(
-            DocValueFormat format,
-            boolean keyed,
-            String key,
-            BytesRef from,
-            BytesRef to,
-            long docCount,
-            InternalAggregations aggregations
-        ) {
+        public Bucket(DocValueFormat format, String key, BytesRef from, BytesRef to, long docCount, InternalAggregations aggregations) {
             this.format = format;
-            this.keyed = keyed;
             this.key = key;
             this.from = from;
             this.to = to;
@@ -63,43 +55,30 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
-                .append("-")
-                .append(to == null ? "*" : format.format(to));
-            return builder.toString();
+            return (from == null ? "*" : format.format(from)) + "-" + (to == null ? "*" : format.format(to));
         }
 
-        private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+        private static Bucket createFromStream(StreamInput in, DocValueFormat format) throws IOException {
+            // NOTE: the key is required in version == 8.0.0,
             // while it is optional for all subsequent versions.
-            String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString()
-                : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
-                : in.readString();
-            BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
-            BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
+            String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString() : in.readOptionalString();
+            BytesRef from = in.readOptional(StreamInput::readBytesRef);
+            BytesRef to = in.readOptional(StreamInput::readBytesRef);
             long docCount = in.readLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
-            return new Bucket(format, keyed, key, from, to, docCount, aggregations);
+            return new Bucket(format, key, from, to, docCount, aggregations);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().equals(Version.V_8_0_0)) {
+            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
-                out.writeOptionalString(key);
             } else {
-                out.writeString(key == null ? generateKey(from, to, format) : key);
+                out.writeOptionalString(key);
             }
-            out.writeBoolean(from != null);
-            if (from != null) {
-                out.writeBytesRef(from);
-            }
-            out.writeBoolean(to != null);
-            if (to != null) {
-                out.writeBytesRef(to);
-            }
+            out.writeOptional(StreamOutput::writeBytesRef, from);
+            out.writeOptional(StreamOutput::writeBytesRef, to);
             out.writeLong(docCount);
             aggregations.writeTo(out);
         }
@@ -120,12 +99,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
             final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
@@ -142,7 +120,6 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -188,7 +165,6 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 format,
-                keyed,
                 key,
                 from,
                 to,
@@ -216,14 +192,14 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> Bucket.createFromStream(stream, format, keyed));
+        buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format));
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override
@@ -243,63 +219,51 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(format, keyed, prototype.key, prototype.from, prototype.to, prototype.docCount, aggregations);
+        return new Bucket(format, prototype.key, prototype.from, prototype.to, prototype.docCount, aggregations);
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
-        long[] docCounts = new long[buckets.size()];
-        InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
-        for (int i = 0; i < aggs.length; ++i) {
-            aggs[i] = new InternalAggregations[aggregations.size()];
-        }
-        for (int i = 0; i < aggregations.size(); ++i) {
-            InternalBinaryRange range = (InternalBinaryRange) aggregations.get(i);
-            if (range.buckets.size() != buckets.size()) {
-                throw new IllegalStateException("Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]");
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+
+        return new AggregatorReducer() {
+
+            final FixedMultiBucketAggregatorsReducer<Bucket> reducer = new FixedMultiBucketAggregatorsReducer<>(
+                reduceContext,
+                size,
+                getBuckets()
+            ) {
+
+                @Override
+                protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
+                    return new Bucket(proto.format, proto.key, proto.from, proto.to, docCount, aggregations);
+                }
+            };
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalBinaryRange binaryRange = (InternalBinaryRange) aggregation;
+                reducer.accept(binaryRange.getBuckets());
             }
-            for (int j = 0; j < buckets.size(); ++j) {
-                Bucket bucket = range.buckets.get(j);
-                docCounts[j] += bucket.docCount;
-                aggs[j][i] = bucket.aggregations;
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalBinaryRange(name, format, keyed, reducer.get(), metadata);
             }
-        }
-        List<Bucket> buckets = new ArrayList<>(this.buckets.size());
-        for (int i = 0; i < this.buckets.size(); ++i) {
-            Bucket b = this.buckets.get(i);
-            buckets.add(
-                new Bucket(
-                    format,
-                    keyed,
-                    b.key,
-                    b.from,
-                    b.to,
-                    docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
-                )
-            );
-        }
-        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
+            }
+        };
     }
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalBinaryRange(
-            name,
-            format,
-            keyed,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            metadata
-        );
-    }
-
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).toList();
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return createBucket(aggs, buckets.get(0));
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override
@@ -310,7 +274,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket range : buckets) {
-            range.toXContent(builder, params);
+            range.bucketToXContent(builder, params, keyed);
         }
         if (keyed) {
             builder.endObject();

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -27,8 +26,14 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
     protected Request createTestInstance() {
         return new Request(
             randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : randomBoolean() ? Metadata.ALL : null,
-            randomBoolean() ? TimeValue.parseTimeValue(randomTimeValue(), "timeout") : null
+            randomBoolean() ? randomTimeValue() : null,
+            randomBoolean()
         );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -37,7 +42,7 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
     }
 
     public void testCreateTask() {
-        Request request = new Request("some-transform", null);
+        Request request = new Request("some-transform", null, false);
         Task task = request.createTask(123, "type", "action", TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task, is(instanceOf(CancellableTask.class)));
         assertThat(task.getDescription(), is(equalTo("get_transform_stats[some-transform]")));

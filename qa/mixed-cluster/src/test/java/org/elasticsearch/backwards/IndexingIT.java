@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -29,9 +28,10 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingIT extends ESRestTestCase {
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -58,33 +59,23 @@ public class IndexingIT extends ESRestTestCase {
      */
     private int indexDocWithConcurrentUpdates(String index, final int docId, int nUpdates) throws IOException, InterruptedException {
         indexDocs(index, docId, 1);
-        Thread[] indexThreads = new Thread[nUpdates];
-        for (int i = 0; i < nUpdates; i++) {
-            indexThreads[i] = new Thread(() -> {
-                try {
-                    indexDocs(index, docId, 1);
-                } catch (IOException e) {
-                    throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
-                }
-            });
-            indexThreads[i].start();
-        }
-        for (Thread indexThread : indexThreads) {
-            indexThread.join();
-        }
+        runInParallel(nUpdates, i -> {
+            try {
+                indexDocs(index, docId, 1);
+            } catch (IOException e) {
+                throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
+            }
+        });
         return nUpdates + 1;
     }
 
     public void testIndexVersionPropagation() throws Exception {
-        Nodes nodes = buildNodeAndVersions();
+        MixedClusterTestNodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
-        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::nodeName).collect(Collectors.toList());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(1, 2).put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
         final int maxUpdates = 10;
@@ -92,7 +83,7 @@ public class IndexingIT extends ESRestTestCase {
         try (
             RestClient newNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
 
@@ -166,29 +157,26 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     public void testSeqNoCheckpoints() throws Exception {
-        Nodes nodes = buildNodeAndVersions();
+        MixedClusterTestNodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
-        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::nodeName).collect(Collectors.toList());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(1, 2).put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test";
         createIndex(index, settings.build());
         try (
             RestClient newNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
             numDocs += indexDocs(index, 0, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen(index);
@@ -199,7 +187,7 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::primary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.node().nodeName());
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.node().nodeName()));
@@ -209,7 +197,7 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -226,14 +214,14 @@ public class IndexingIT extends ESRestTestCase {
             assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
 
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
-                assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
+                assertCount(index, "_only_nodes:" + shard.node.nodeName(), numDocs);
             }
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
         }
     }
 
     public void testUpdateSnapshotStatus() throws Exception {
-        Nodes nodes = buildNodeAndVersions();
+        MixedClusterTestNodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
 
@@ -254,13 +242,10 @@ public class IndexingIT extends ESRestTestCase {
 
         assertOK(client().performRequest(request));
 
-        String bwcNames = nodes.getBWCNodes().stream().map(Node::nodeName).collect(Collectors.joining(","));
+        String bwcNames = nodes.getBWCNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.joining(","));
 
         // Allocating shards on the BWC nodes to makes sure that taking snapshot happens on those nodes.
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            .put("index.routing.allocation.include._name", bwcNames);
+        Settings.Builder settings = indexSettings(between(5, 10), 1).put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test-snapshot-index";
         createIndex(index, settings.build());
@@ -283,31 +268,51 @@ public class IndexingIT extends ESRestTestCase {
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
+    /**
+     * Tries to extract a major version from a version string, if this is in the major.minor.revision format
+     * @param version a string representing a version. Can be opaque or semantic
+     * @return Optional.empty() if the format is not recognized, or an Optional containing the major Integer otherwise
+     */
+    private static Optional<Integer> extractLegacyMajorVersion(String version) {
+        var semanticVersionMatcher = Pattern.compile("^(\\d+)\\.\\d+\\.\\d+\\D?.*").matcher(version);
+        if (semanticVersionMatcher.matches() == false) {
+            return Optional.empty();
+        }
+        var major = Integer.parseInt(semanticVersionMatcher.group(1));
+        return Optional.of(major);
+    }
+
+    private static boolean syncedFlushDeprecated() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 7).orElse(true);
+    }
+
+    private static boolean syncedFlushRemoved() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 8).orElse(true);
+    }
+
     public void testSyncedFlushTransition() throws Exception {
-        Nodes nodes = buildNodeAndVersions();
-        assumeTrue("bwc version is on 7.x", nodes.getBWCVersion().before(Version.V_8_0_0));
+        MixedClusterTestNodes nodes = buildNodeAndVersions();
+        assumeTrue(
+            "bwc version is on 7.x (synced flush deprecated but not removed yet)",
+            syncedFlushDeprecated() && syncedFlushRemoved() == false
+        );
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
-        String newNodes = nodes.getNewNodes().stream().map(Node::nodeName).collect(Collectors.joining(","));
+        String newNodes = nodes.getNewNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.joining(","));
         int numShards = randomIntBetween(1, 10);
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_synced_flush";
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put("index.routing.allocation.include._name", newNodes)
-                .build()
-        );
+        createIndex(index, indexSettings(numShards, numOfReplicas).put("index.routing.allocation.include._name", newNodes).build());
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (
             RestClient oldNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getBWCNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getBWCNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
             Request request = new Request("POST", index + "/_flush/synced");
@@ -335,7 +340,7 @@ public class IndexingIT extends ESRestTestCase {
         try (
             RestClient newNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
             Request request = new Request("POST", index + "/_flush/synced");
@@ -364,29 +369,22 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     public void testFlushTransition() throws Exception {
-        Nodes nodes = buildNodeAndVersions();
+        MixedClusterTestNodes nodes = buildNodeAndVersions();
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         // Allocate shards to new nodes then verify flush requests processed by old nodes/new nodes
-        String newNodes = nodes.getNewNodes().stream().map(Node::nodeName).collect(Collectors.joining(","));
+        String newNodes = nodes.getNewNodes().stream().map(MixedClusterTestNode::nodeName).collect(Collectors.joining(","));
         int numShards = randomIntBetween(1, 10);
         int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
         int totalShards = numShards * (numOfReplicas + 1);
         final String index = "test_flush";
-        createIndex(
-            index,
-            Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put("index.routing.allocation.include._name", newNodes)
-                .build()
-        );
+        createIndex(index, indexSettings(numShards, numOfReplicas).put("index.routing.allocation.include._name", newNodes).build());
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (
             RestClient oldNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getBWCNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getBWCNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
             Request request = new Request("POST", index + "/_flush");
@@ -403,7 +401,7 @@ public class IndexingIT extends ESRestTestCase {
         try (
             RestClient newNodeClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::publishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
             Request request = new Request("POST", index + "/_flush");
@@ -437,7 +435,7 @@ public class IndexingIT extends ESRestTestCase {
         assertThat("version mismatch for doc [" + docId + "] preference [" + preference + "]", actualVersion, equalTo(expectedVersion));
     }
 
-    private void assertSeqNoOnShards(String index, Nodes nodes, int numDocs, RestClient client) throws Exception {
+    private void assertSeqNoOnShards(String index, MixedClusterTestNodes nodes, int numDocs, RestClient client) throws Exception {
         assertBusy(() -> {
             try {
                 List<Shard> shards = buildShards(index, nodes, client);
@@ -467,7 +465,7 @@ public class IndexingIT extends ESRestTestCase {
         });
     }
 
-    private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException {
+    private List<Shard> buildShards(String index, MixedClusterTestNodes nodes, RestClient client) throws IOException {
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
         Response response = client.performRequest(request);
@@ -476,7 +474,7 @@ public class IndexingIT extends ESRestTestCase {
         for (Object shard : shardStats) {
             final String nodeId = ObjectPath.evaluate(shard, "routing.node");
             final Boolean primary = ObjectPath.evaluate(shard, "routing.primary");
-            final Node node = nodes.getSafe(nodeId);
+            final MixedClusterTestNode node = nodes.getSafe(nodeId);
             final SeqNoStats seqNoStats;
             Integer maxSeqNo = ObjectPath.evaluate(shard, "seq_no.max_seq_no");
             Integer localCheckpoint = ObjectPath.evaluate(shard, "seq_no.local_checkpoint");
@@ -488,86 +486,9 @@ public class IndexingIT extends ESRestTestCase {
         return shards;
     }
 
-    private Nodes buildNodeAndVersions() throws IOException {
-        return buildNodeAndVersions(client());
+    private MixedClusterTestNodes buildNodeAndVersions() throws IOException {
+        return MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);
     }
 
-    static Nodes buildNodeAndVersions(RestClient client) throws IOException {
-        Response response = client.performRequest(new Request("GET", "_nodes"));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Nodes nodes = new Nodes();
-        for (String id : nodesAsMap.keySet()) {
-            nodes.add(
-                new Node(
-                    id,
-                    objectPath.evaluate("nodes." + id + ".name"),
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
-                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
-                )
-            );
-        }
-        response = client.performRequest(new Request("GET", "_cluster/state"));
-        nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
-        return nodes;
-    }
-
-    static final class Nodes extends HashMap<String, Node> {
-
-        private String masterNodeId = null;
-
-        public Node getMaster() {
-            return get(masterNodeId);
-        }
-
-        public void setMasterNodeId(String id) {
-            if (get(id) == null) {
-                throw new IllegalArgumentException("node with id [" + id + "] not found. got:" + toString());
-            }
-            masterNodeId = id;
-        }
-
-        public void add(Node node) {
-            put(node.id(), node);
-        }
-
-        public List<Node> getNewNodes() {
-            Version bwcVersion = getBWCVersion();
-            return values().stream().filter(n -> n.version().after(bwcVersion)).collect(Collectors.toList());
-        }
-
-        public List<Node> getBWCNodes() {
-            Version bwcVersion = getBWCVersion();
-            return values().stream().filter(n -> n.version().equals(bwcVersion)).collect(Collectors.toList());
-        }
-
-        public Version getBWCVersion() {
-            if (isEmpty()) {
-                throw new IllegalStateException("no nodes available");
-            }
-            return Version.fromId(values().stream().map(node -> node.version().id).min(Integer::compareTo).get());
-        }
-
-        public Node getSafe(String id) {
-            Node node = get(id);
-            if (node == null) {
-                throw new IllegalArgumentException("node with id [" + id + "] not found");
-            }
-            return node;
-        }
-
-        @Override
-        public String toString() {
-            return "Nodes{"
-                + "masterNodeId='"
-                + masterNodeId
-                + "'\n"
-                + values().stream().map(Node::toString).collect(Collectors.joining("\n"))
-                + '}';
-        }
-    }
-
-    record Node(String id, String nodeName, Version version, HttpHost publishAddress) {}
-
-    record Shard(Node node, boolean primary, SeqNoStats seqNoStats) {}
+    private record Shard(MixedClusterTestNode node, boolean primary, SeqNoStats seqNoStats) {}
 }

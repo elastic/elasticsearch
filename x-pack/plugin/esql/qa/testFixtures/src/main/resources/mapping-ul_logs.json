@@ -1,0 +1,19 @@
+{
+    "properties" : {
+        "id" : {
+            "type" : "integer"
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "bytes_in" : {
+          "type" : "unsigned_long"
+        },
+        "bytes_out" : {
+          "type" : "unsigned_long"
+        },
+        "status" : {
+            "type" : "keyword"
+        }
+    }
+}

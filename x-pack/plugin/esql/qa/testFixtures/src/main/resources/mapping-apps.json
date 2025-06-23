@@ -1,0 +1,13 @@
+{
+    "properties" : {
+        "id" : {
+            "type" : "integer"
+        },
+        "version" : {
+            "type" : "version"
+        },
+        "name" : {
+            "type" : "keyword"
+        }
+    }
+}

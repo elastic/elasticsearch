@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ParseField;
 
 /*
@@ -26,6 +27,7 @@ public final class TransformField {
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
+    public static final ParseField BASIC_STATS = new ParseField("basic");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -36,6 +38,7 @@ public final class TransformField {
     public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField DELETE_DEST_INDEX = new ParseField("delete_dest_index");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
@@ -97,7 +100,16 @@ public final class TransformField {
     public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
-    public static String DOCUMENT_ID_FIELD = "_id";
+    public static final String DOCUMENT_ID_FIELD = "_id";
+
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned while upgrade mode is enabled."
+    );
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned as a feature reset is in progress."
+    );
 
     private TransformField() {}
 }

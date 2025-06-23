@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -15,11 +16,15 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -29,9 +34,9 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportRankEvalActionTests extends ESTestCase {
+public final class TransportRankEvalActionTests extends ESTestCase {
 
-    private Settings settings = Settings.builder()
+    private final Settings settings = Settings.builder()
         .put("path.home", createTempDir().toString())
         .put("node.name", "test-" + getTestName())
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -64,7 +69,7 @@ public class TransportRankEvalActionTests extends ESTestCase {
         );
         rankEvalRequest.indicesOptions(expectedIndicesOptions);
 
-        NodeClient client = new NodeClient(settings, null) {
+        NodeClient client = new NodeClient(settings, null, TestProjectResolvers.alwaysThrow()) {
             @Override
             public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                 assertEquals(1, request.requests().size());
@@ -74,12 +79,15 @@ public class TransportRankEvalActionTests extends ESTestCase {
             }
         };
 
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportRankEvalAction action = new TransportRankEvalAction(
             mock(ActionFilters.class),
             client,
-            mock(TransportService.class),
+            transportService,
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            mock(ClusterService.class),
+            mock(FeatureService.class)
         );
         action.doExecute(null, rankEvalRequest, null);
     }

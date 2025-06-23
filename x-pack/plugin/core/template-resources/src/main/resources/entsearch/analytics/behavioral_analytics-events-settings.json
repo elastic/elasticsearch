@@ -1,0 +1,28 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "behavioral_analytics-events-default_policy",
+          "prefer_ilm": false
+        },
+        "codec": "best_compression",
+        "number_of_shards": 1,
+        "auto_expand_replicas": "0-1",
+        "final_pipeline": "behavioral_analytics-events-final_pipeline",
+        "sort": {
+          "field": ["session.id", "@timestamp"],
+          "order": ["asc", "asc"]
+        }
+      }
+    },
+    "lifecycle": {
+      "data_retention": "180d"
+    }
+  },
+  "_meta": {
+    "description": "Built-in settings applied by default to behavioral analytics event data streams.",
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

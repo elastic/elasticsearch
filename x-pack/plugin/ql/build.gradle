@@ -2,20 +2,18 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'x-pack-ql'
-  description 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.ql.plugin.QlPlugin'
+  name = 'x-pack-ql'
+  description = 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
+  classname ='org.elasticsearch.xpack.ql.plugin.QlPlugin'
   extendedPlugins = ['x-pack-core']
 }
 
-ext {
-  antlrVersion = "4.9.2"
+base {
+  archivesName = 'x-pack-ql'
 }
 
-archivesBaseName = 'x-pack-ql'
-
 dependencies {
-  api "org.antlr:antlr4-runtime:${antlrVersion}"
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(path: xpackModule('mapper-version'))
   compileOnly project(path: xpackModule('core'))
   testApi(project(xpackModule('ql:test-fixtures'))) {

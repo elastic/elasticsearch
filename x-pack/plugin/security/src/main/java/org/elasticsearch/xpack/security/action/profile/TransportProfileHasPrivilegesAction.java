@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
@@ -51,7 +51,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final ProfileService profileService;
-    private final SecurityContext securityContext;
     private final ThreadPool threadPool;
 
     @Inject
@@ -61,14 +60,18 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
         ProfileService profileService,
-        SecurityContext securityContext,
         ThreadPool threadPool
     ) {
-        super(ProfileHasPrivilegesAction.NAME, transportService, actionFilters, ProfileHasPrivilegesRequest::new);
+        super(
+            ProfileHasPrivilegesAction.NAME,
+            transportService,
+            actionFilters,
+            ProfileHasPrivilegesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.profileService = profileService;
-        this.securityContext = securityContext;
         this.threadPool = threadPool;
     }
 

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -88,7 +88,7 @@ public class NerProcessor extends NlpTask.Processor {
     /**
      * Checks labels are valid entity tags and none are duplicated
      */
-    private void validate(List<String> classificationLabels) {
+    private static void validate(List<String> classificationLabels) {
         if (classificationLabels == null || classificationLabels.isEmpty()) {
             return;
         }
@@ -172,6 +172,7 @@ public class NerProcessor extends NlpTask.Processor {
     }
 
     record NerResultProcessor(IobTag[] iobMap, String resultsField, boolean ignoreCase) implements NlpTask.ResultProcessor {
+
         NerResultProcessor(IobTag[] iobMap, String resultsField, boolean ignoreCase) {
             this.iobMap = iobMap;
             this.resultsField = Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD);
@@ -179,11 +180,14 @@ public class NerProcessor extends NlpTask.Processor {
         }
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
             if (tokenization.isEmpty()) {
                 throw new ElasticsearchStatusException("no valid tokenization to build result", RestStatus.INTERNAL_SERVER_ERROR);
             }
             // TODO - process all results in the batch
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.NER);
+            }
 
             // TODO It might be best to do the soft max after averaging scores for
             // sub-tokens. If we had a word that is "elastic" which is tokenized to

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * tasks to be forked off in a loop with the same listener and respond to a
  * higher level listener once all tasks responded.
  */
-public final class GroupedActionListener<T> extends ActionListener.Delegating<T, Collection<T>> {
+public final class GroupedActionListener<T> extends DelegatingActionListener<T, Collection<T>> {
     private final CountDown countDown;
     private final AtomicInteger pos = new AtomicInteger();
     private final AtomicArray<T> results;
@@ -59,14 +61,9 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
 
     @Override
     public void onFailure(Exception e) {
-        if (failure.compareAndSet(null, e) == false) {
-            failure.accumulateAndGet(e, (current, update) -> {
-                // we have to avoid self-suppression!
-                if (update != current) {
-                    current.addSuppressed(update);
-                }
-                return current;
-            });
+        final var firstException = failure.compareAndExchange(null, e);
+        if (firstException != null && firstException != e) {
+            firstException.addSuppressed(e);
         }
         if (countDown.countDown()) {
             super.onFailure(failure.get());

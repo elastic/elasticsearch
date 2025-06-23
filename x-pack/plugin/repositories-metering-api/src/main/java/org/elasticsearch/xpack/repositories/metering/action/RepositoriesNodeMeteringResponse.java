@@ -30,7 +30,7 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
 
     public RepositoriesNodeMeteringResponse(StreamInput in) throws IOException {
         super(in);
-        this.repositoryStatsSnapshots = in.readList(RepositoryStatsSnapshot::new);
+        this.repositoryStatsSnapshots = in.readCollectionAsList(RepositoryStatsSnapshot::new);
     }
 
     @Override
@@ -46,6 +46,6 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(repositoryStatsSnapshots);
+        out.writeCollection(repositoryStatsSnapshots);
     }
 }

@@ -1,5 +1,0 @@
-pr: 92742
-summary: "Improve node-{join,left} logging for troubleshooting"
-area: Cluster Coordination
-type: enhancement
-issues: []

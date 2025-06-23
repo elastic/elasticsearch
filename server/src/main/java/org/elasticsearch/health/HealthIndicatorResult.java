@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -24,15 +26,14 @@ public record HealthIndicatorResult(
     List<HealthIndicatorImpact> impacts,
     List<Diagnosis> diagnosisList
 ) implements ChunkedToXContentObject {
+
+    private boolean hasDiagnosis() {
+        return diagnosisList != null && diagnosisList.isEmpty() == false;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> diagnosisIterator;
-        if (diagnosisList == null) {
-            diagnosisIterator = Collections.emptyIterator();
-        } else {
-            diagnosisIterator = Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
             builder.startObject();
             builder.field("status", status.xContentValue());
             builder.field("symptom", symptom);
@@ -42,16 +43,21 @@ public record HealthIndicatorResult(
             if (impacts != null && impacts.isEmpty() == false) {
                 builder.field("impacts", impacts);
             }
-            if (diagnosisList != null && diagnosisList.isEmpty() == false) {
+            if (hasDiagnosis()) {
+                // don't want to have a new chunk & nested iterator for this, so we start the object here
                 builder.startArray("diagnosis");
             }
             return builder;
-        }), diagnosisIterator, Iterators.single((builder, params) -> {
-            if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-                builder.endArray();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        }),
+            hasDiagnosis()
+                ? Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams))
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (hasDiagnosis()) {
+                    b.endArray();
+                }
+                return b.endObject();
+            })
+        );
     }
 }

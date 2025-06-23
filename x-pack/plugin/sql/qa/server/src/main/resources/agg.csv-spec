@@ -63,7 +63,7 @@ SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test
 
 gender:s             | p1:d                 | p2:d
 null                 |10018.745             |10018.599999999999
-F                    |10098.0085            |10096.119999999999
+F                    |10096.336             |10094.48
 M                    |10091.393             |10090.37       
 ;
 
@@ -72,8 +72,8 @@ SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_em
 
 gender:s             | p1:d                 | p2:d
 null                 |10018.599999999999    |10018.4        
-F                    |10096.119999999999    |10093.74       
-M                    |10090.37              |10086.92       
+F                    |10094.48              |10093.74       
+M                    |10090.37              |10085.84       
 ;
 
 multiplePercentilesWithComma
@@ -81,7 +81,7 @@ SELECT gender, PERCENTILE(emp_no, 85.7) p1, PERCENTILE(emp_no, 94.3) p2 FROM tes
 
 gender:s             | p1:d                 | p2:d
 null                 |10018.070000000002    |10018.929999999998
-F                    |10091.343             |10098.619         
+F                    |10090.272             |10098.619         
 M                    |10084.349             |10093.502         
 ;
 
@@ -198,7 +198,7 @@ SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages
 null           |null           |null           |null          |null           |null           |null           |null           
 1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
 2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN            
-3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN            
+3              |3              |51             |3             |3.0            |50.0           |NaN            |NaN            
 4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
 ;
 
@@ -1208,9 +1208,9 @@ GROUP BY gender ORDER BY gender;
 
    percentile    | percentile_rank  |    gender
 -----------------+------------------+---------------
-86857.79999999999|32.69659025378865 |null
-94042.92000000001|37.03569653103581 |F
-87348.36         |44.337514210592246|M
+85906.31999999999|32.69659025378865 |null
+93503.28         |37.03569653103581 |F
+86754.72         |44.337514210592246|M
 ;
 
 extendedStatsAggregateFunctionsWithScalars
@@ -1497,7 +1497,7 @@ SELECT PERCENTILE_RANK(bytes_in, 0) as "PERCENTILE_RANK_AllZeros" FROM logs WHER
 
 PERCENTILE_RANK_AllZeros
 ------------------------
-100.0                   
+50.0                   
 ;
 
 

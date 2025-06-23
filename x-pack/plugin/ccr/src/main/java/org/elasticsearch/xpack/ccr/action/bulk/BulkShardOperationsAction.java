@@ -14,6 +14,6 @@ public class BulkShardOperationsAction extends ActionType<BulkShardOperationsRes
     public static final String NAME = "indices:data/write/bulk_shard_operations[s]";
 
     private BulkShardOperationsAction() {
-        super(NAME, BulkShardOperationsResponse::new);
+        super(NAME);
     }
 }

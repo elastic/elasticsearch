@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -37,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ServerSocketFactory;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -153,7 +153,7 @@ public class SimpleKdcLdapServer {
             + "admin_pw=secret\n"
             + "base_dn="
             + baseDn;
-        Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(this.workDir.resolve("backend.conf"), backendConf);
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
 
@@ -183,6 +183,13 @@ public class SimpleKdcLdapServer {
         final TimeValue maxRenewableLifeTime = new TimeValue(7, TimeUnit.DAYS);
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, minimumTicketLifeTime.getMillis());
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, maxRenewableLifeTime.getMillis());
+        if (inFipsJvm()) {
+            // Triple DES is not allowed when running in FIPS mode
+            String encryptionTypes = (String) KdcConfigKey.ENCRYPTION_TYPES.getDefaultValue();
+            simpleKdc.getKdcConfig()
+                .setString(KdcConfigKey.ENCRYPTION_TYPES, encryptionTypes.toLowerCase().replace("des3-cbc-sha1-kd", ""));
+        }
+
         simpleKdc.init();
         simpleKdc.start();
     }

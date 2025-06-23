@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
@@ -20,26 +21,24 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder()
-            .put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String) null)
-            .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(
+            Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String) null)
+        );
     }
 
     public void testCloseAllRequiresName() {
         createIndex("test1", "test2", "test3");
 
-        assertAcked(client().admin().indices().prepareClose("test3", "test2"));
+        assertAcked(indicesAdmin().prepareClose("test3", "test2"));
         assertIndexIsClosed("test2", "test3");
 
         // disable closing
         createIndex("test_no_close");
-        Settings settings = Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), false).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), false));
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> client().admin().indices().prepareClose("test_no_close").get()
+            indicesAdmin().prepareClose("test_no_close")
         );
         assertEquals(
             illegalStateException.getMessage(),
@@ -49,9 +48,9 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
     }
 
     private void assertIndexIsClosed(String... indices) {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         for (String index : indices) {
-            IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().indices().get(index);
+            IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().getProject().indices().get(index);
             assertNotNull(indexMetadata);
             assertEquals(IndexMetadata.State.CLOSE, indexMetadata.getState());
         }

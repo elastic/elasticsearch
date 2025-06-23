@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -31,7 +32,7 @@ import java.util.Map;
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  */
-public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource valuesSource;
 
@@ -46,27 +47,21 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
         if (valuesSource instanceof ValuesSource.Numeric) {
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, values) {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -78,8 +73,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    counts = bigArrays().grow(counts, bucket + 1);
                     if (values.advanceExact(doc)) {
+                        counts = bigArrays().grow(counts, bucket + 1);
                         counts.increment(bucket, values.docValueCount());
                     }
                 }
@@ -91,8 +86,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays().grow(counts, bucket + 1);
                 if (values.advanceExact(doc)) {
+                    counts = bigArrays().grow(counts, bucket + 1);
                     counts.increment(bucket, values.docValueCount());
                 }
             }
@@ -102,12 +97,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
+        return owningBucketOrd >= counts.size() ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalValueCount(name, counts.get(bucket), metadata());
@@ -115,12 +110,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, metadata());
+        return InternalValueCount.empty(name, metadata());
     }
 
     @Override

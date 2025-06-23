@@ -2,14 +2,16 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-autoscaling'
-  description 'Elasticsearch Expanded Pack Plugin - Autoscaling'
-  classname 'org.elasticsearch.xpack.autoscaling.Autoscaling'
+  name = 'x-pack-autoscaling'
+  description = 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname ='org.elasticsearch.xpack.autoscaling.Autoscaling'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController =false
+  requiresKeystore =true
 }
-archivesBaseName = 'x-pack-autoscaling'
+base {
+  archivesName = 'x-pack-autoscaling'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -18,6 +20,8 @@ dependencies {
   testImplementation project(path: xpackModule('blob-cache'))
   testImplementation project(path: xpackModule('searchable-snapshots'))
   testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('slm'))
+  testImplementation project(path: xpackModule('ccr'))
 
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }

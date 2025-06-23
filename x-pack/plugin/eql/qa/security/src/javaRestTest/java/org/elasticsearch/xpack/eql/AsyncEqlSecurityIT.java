@@ -13,12 +13,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
@@ -29,6 +31,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncEqlSecurityIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.

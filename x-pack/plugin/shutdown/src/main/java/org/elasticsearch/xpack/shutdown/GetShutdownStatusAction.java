@@ -12,14 +12,22 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.Response> {
@@ -28,23 +36,26 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
     public static final String NAME = "cluster:admin/shutdown/get";
 
     public GetShutdownStatusAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
         private final String[] nodeIds;
 
-        public Request(String... nodeIds) {
+        public Request(TimeValue masterNodeTimeout, String... nodeIds) {
+            super(masterNodeTimeout);
             this.nodeIds = nodeIds;
         }
 
-        public static Request readFrom(StreamInput in) throws IOException {
-            return new Request(in.readStringArray());
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            nodeIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeStringArray(this.nodeIds);
         }
 
@@ -69,9 +80,14 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         public int hashCode() {
             return Arrays.hashCode(nodeIds);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
         final List<SingleNodeShutdownStatus> shutdownStatuses;
 
         public Response(List<SingleNodeShutdownStatus> shutdownStatuses) {
@@ -79,7 +95,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.shutdownStatuses = in.readList(SingleNodeShutdownStatus::new);
+            this.shutdownStatuses = in.readCollectionAsList(SingleNodeShutdownStatus::new);
         }
 
         public List<SingleNodeShutdownStatus> getShutdownStatuses() {
@@ -87,22 +103,19 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.startArray("nodes");
-                for (SingleNodeShutdownStatus nodeShutdownStatus : shutdownStatuses) {
-                    nodeShutdownStatus.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.startArray("nodes"),
+                Iterators.flatMap(shutdownStatuses.iterator(), status -> status.toXContentChunked(params)),
+                ChunkedToXContentHelper.endArray(),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(shutdownStatuses);
+            out.writeCollection(shutdownStatuses);
         }
 
         @Override

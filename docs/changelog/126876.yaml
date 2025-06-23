@@ -1,0 +1,5 @@
+pr: 126876
+summary: Improve HNSW filtered search speed through new heuristic
+area: Vector Search
+type: enhancement
+issues: []

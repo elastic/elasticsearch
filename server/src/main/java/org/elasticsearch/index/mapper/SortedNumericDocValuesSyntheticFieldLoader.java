@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -60,7 +61,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             values = NO_VALUES;
             return null;
         }
-        if (docIdsInLeaf.length > 1) {
+        if (docIdsInLeaf != null && docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up all
              * values for the field at once. If there's just a single
@@ -104,8 +105,12 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
                 values.write(b);
                 ignoreMalformedValues.write(b);
                 b.endArray();
-                return;
         }
+    }
+
+    @Override
+    public void reset() {
+        ignoreMalformedValues.reset();
     }
 
     private interface Values {
@@ -231,5 +236,10 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             return DocValues.singleton(single);
         }
         return null;
+    }
+
+    @Override
+    public String fieldName() {
+        return name;
     }
 }

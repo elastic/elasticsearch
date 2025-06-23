@@ -1,6 +1,0 @@
-include::rest.asciidoc[]
-include::translate.asciidoc[]
-include::cli.asciidoc[]
-include::jdbc.asciidoc[]
-include::odbc.asciidoc[]
-include::client-apps/index.asciidoc[]

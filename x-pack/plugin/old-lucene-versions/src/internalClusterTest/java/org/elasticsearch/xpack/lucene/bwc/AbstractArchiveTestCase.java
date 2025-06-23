@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.lucene.bwc;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.PostStartTrialAction;
@@ -21,6 +22,7 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -60,17 +62,27 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 FAKE_VERSIONS_TYPE,
-                metadata -> new FakeVersionsRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new FakeVersionsRepo(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
 
         // fakes an old index version format to activate license checks
         private static class FakeVersionsRepo extends FsRepository {
             FakeVersionsRepo(
+                ProjectId projectId,
                 RepositoryMetadata metadata,
                 Environment env,
                 NamedXContentRegistry namedXContentRegistry,
@@ -78,7 +90,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings
             ) {
-                super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+                super(projectId, metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             }
 
             @Override
@@ -92,7 +104,7 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                             .put(
                                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 metadata.settings()
-                                    .getAsVersion("version", randomBoolean() ? Version.fromString("5.0.0") : Version.fromString("6.0.0"))
+                                    .getAsVersionId("version", IndexVersion::fromId, IndexVersion.fromId(randomFrom(5000099, 6000099)))
                             )
                     )
                     .build();
@@ -112,7 +124,8 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         client().execute(PostStartTrialAction.INSTANCE, request).get();
     }
 }

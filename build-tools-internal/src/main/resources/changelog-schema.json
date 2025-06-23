@@ -21,20 +21,28 @@
             "Aggregations",
             "Allocation",
             "Analysis",
+            "Application",
             "Audit",
             "Authentication",
             "Authorization",
             "Autoscaling",
             "CAT APIs",
             "CCR",
+            "CCS",
             "CRUD",
             "Client",
             "Cluster Coordination",
+            "Codec",
             "Data streams",
+            "DLM",
             "Discovery-Plugins",
             "Distributed",
+            "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
+            "Experiences",
+            "Extract&Transform",
             "FIPS",
             "Features",
             "Geo",
@@ -44,6 +52,7 @@
             "ILM+SLM",
             "IdentityProvider",
             "Indices APIs",
+            "Inference",
             "Infra/CLI",
             "Infra/Circuit Breakers",
             "Infra/Core",
@@ -55,11 +64,13 @@
             "Infra/Scripting",
             "Infra/Settings",
             "Infra/Transport API",
+            "Infra/Metrics",
             "Ingest",
             "Ingest Node",
             "Java High Level REST Client",
             "Java Low Level REST Client",
             "License",
+            "Logs",
             "Machine Learning",
             "Mapping",
             "Monitoring",
@@ -71,9 +82,11 @@
             "Ranking",
             "Recovery",
             "Reindex",
+            "Relevance",
             "Rollup",
             "SQL",
             "Search",
+            "Searchable Snapshots",
             "Security",
             "Snapshot/Restore",
             "Stats",
@@ -169,7 +182,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         },
         {
@@ -181,7 +196,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         }
       ],
@@ -193,7 +210,9 @@
         }
       },
       "then": {
-        "required": ["deprecation"]
+        "required": [
+          "deprecation"
+        ]
       },
       "additionalProperties": false
     },
@@ -261,17 +280,25 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Aggregations",
+        "Analysis",
+        "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",
+        "ES|QL",
         "Index setting",
+        "Ingest",
         "JVM option",
         "Java API",
         "Logging",
+        "Logs",
         "Mapping",
         "Packaging",
         "Painless",
         "REST API",
+        "Rollup",
+        "Search",
         "System requirement",
         "Transform"
       ]

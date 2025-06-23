@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
@@ -24,15 +24,20 @@ import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTas
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
 
 group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-client'
+
+base {
+  archivesName = 'elasticsearch-rest-client'
+}
 
 // LLRC is licenses under Apache 2.0
-projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+licenseFile.set(layout.getSettingsDirectory().file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -55,7 +60,7 @@ tasks.named("processResources").configure {
   ]
 }
 
-tasks.withType(CheckForbiddenApis).configureEach {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
@@ -66,12 +71,15 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
+  modifyBundledSignatures { signatures ->
+    signatures -= 'jdk-non-portable'
+    signatures += 'jdk-internal'
+    signatures
+  }
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 tasks.named("jarHell").configure {
   enabled = false
 }

@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -47,7 +47,7 @@ public final class ClientHelper {
     );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
-        if (org.elasticsearch.Assertions.ENABLED) {
+        if (Assertions.ENABLED) {
             for (String header : headers.keySet()) {
                 if (authorizationHeaderPattern.matcher(header).find()) {
                     assert false : "headers contain \"Authorization\"";
@@ -93,7 +93,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.getMinTransportVersion()
         );
     }
 
@@ -109,14 +109,14 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.getMinTransportVersion()
         );
     }
 
     private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
         Map<String, String> filteredHeaders,
         CheckedFunction<String, Authentication, IOException> authenticationReader,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         Map<String, String> newHeaders = null;
 
@@ -154,11 +154,11 @@ public final class ClientHelper {
     private static String maybeRewriteSingleAuthenticationHeaderForVersion(
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         String authenticationHeaderKey,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getEffectiveSubject().getVersion().after(minNodeVersion)) {
+            if (authentication != null && authentication.getEffectiveSubject().getTransportVersion().after(minNodeVersion)) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {
@@ -185,10 +185,18 @@ public final class ClientHelper {
     public static final String TRANSFORM_ORIGIN = "transform";
     public static final String ASYNC_SEARCH_ORIGIN = "async_search";
     public static final String IDP_ORIGIN = "idp";
+    public static final String PROFILING_ORIGIN = "profiling";
     public static final String STACK_ORIGIN = "stack";
     public static final String SEARCHABLE_SNAPSHOTS_ORIGIN = "searchable_snapshots";
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
+    public static final String ENT_SEARCH_ORIGIN = "enterprise_search";
+    public static final String CONNECTORS_ORIGIN = "connectors";
+    public static final String INFERENCE_ORIGIN = "inference";
+    public static final String APM_ORIGIN = "apm";
+    public static final String OTEL_ORIGIN = "otel";
+    public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
+    public static final String ESQL_ORIGIN = "esql";
 
     private ClientHelper() {}
 
@@ -204,7 +212,7 @@ public final class ClientHelper {
     /**
      * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+    public static <Request, Response> void executeAsyncWithOrigin(
         ThreadContext threadContext,
         String origin,
         Request request,
@@ -221,21 +229,14 @@ public final class ClientHelper {
      * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
      * is wrapped to ensure the proper context is restored
      */
-    public static <
-        Request extends ActionRequest,
-        Response extends ActionResponse,
-        RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-            Client client,
-            String origin,
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
-            client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-        }
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
+        Client client,
+        String origin,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), origin, request, listener, (r, l) -> client.execute(action, r, l));
     }
 
     /**
@@ -268,7 +269,7 @@ public final class ClientHelper {
                 return supplier.get();
             }
         } else {
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashContext()) {
+            try (var ignore = client.threadPool().getThreadContext().stashContext()) {
                 client.threadPool().getThreadContext().copyHeaders(filteredHeaders.entrySet());
                 return supplier.get();
             }
@@ -298,17 +299,34 @@ public final class ClientHelper {
         Request request,
         ActionListener<Response> listener
     ) {
+        executeWithHeadersAsync(
+            client.threadPool().getThreadContext(),
+            headers,
+            origin,
+            request,
+            listener,
+            (r, l) -> client.execute(action, r, l)
+        );
+    }
+
+    public static <Request, Response> void executeWithHeadersAsync(
+        ThreadContext threadContext,
+        Map<String, String> headers,
+        String origin,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
         // No need to rewrite authentication header because it will be handled by Security Interceptor
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
         // No headers (e.g. security not installed/in use) so execute as origin
         if (filteredHeaders.isEmpty()) {
-            ClientHelper.executeAsyncWithOrigin(client, origin, action, request, listener);
+            executeAsyncWithOrigin(threadContext, origin, request, listener, consumer);
         } else {
             // Otherwise stash the context and copy in the saved headers before executing
             final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                client.execute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
             }
         }
     }

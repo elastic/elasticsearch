@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.watcher;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -85,7 +85,6 @@ public class FileWatcherTests extends ESTestCase {
     }
 
     public void testSimpleFileOperations() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/81305", Constants.MAC_OS_X);
 
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
@@ -266,7 +265,6 @@ public class FileWatcherTests extends ESTestCase {
     }
 
     public void testSimpleDirectoryOperationsWithContentChecking() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/81305", Constants.MAC_OS_X);
 
         final long startTime = System.currentTimeMillis();
 

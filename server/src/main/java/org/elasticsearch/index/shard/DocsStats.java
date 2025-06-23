@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,7 +65,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
 
     /**
      * Returns the total size in bytes of all documents in this stats.
-     * This value may be more reliable than {@link StoreStats#getSizeInBytes()} in estimating the index size.
+     * This value may be more reliable than {@link StoreStats#sizeInBytes()} in estimating the index size.
      */
     public long getTotalSizeInBytes() {
         return totalSizeInBytes;
@@ -81,6 +83,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.DOCS);
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
+        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, ByteSizeValue.ofBytes(totalSizeInBytes));
         builder.endObject();
         return builder;
     }
@@ -102,5 +105,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String DOCS = "docs";
         static final String COUNT = "count";
         static final String DELETED = "deleted";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String TOTAL_SIZE = "total_size";
     }
 }

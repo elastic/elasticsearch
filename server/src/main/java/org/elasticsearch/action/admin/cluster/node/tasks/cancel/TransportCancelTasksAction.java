@@ -1,30 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Transport action that can be used to cancel currently running cancellable tasks.
@@ -32,41 +34,44 @@ import java.util.function.Consumer;
  * For a task to be cancellable it has to return an instance of
  * {@link CancellableTask} from {@link TransportRequest#createTask}
  */
-public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
+public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, ListTasksResponse, TaskInfo> {
+
+    public static final String NAME = "cluster:admin/tasks/cancel";
+
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-            CancelTasksAction.NAME,
+            NAME,
             clusterService,
             transportService,
             actionFilters,
             CancelTasksRequest::new,
-            CancelTasksResponse::new,
             TaskInfo::from,
             // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
             // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
-            ThreadPool.Names.GENERIC
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
     }
 
     @Override
-    protected CancelTasksResponse newResponse(
+    protected ListTasksResponse newResponse(
         CancelTasksRequest request,
         List<TaskInfo> tasks,
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-        return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
+    protected List<CancellableTask> processTasks(CancelTasksRequest request) {
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    return List.of(task);
                 } else {
                     throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support this operation");
                 }
@@ -79,17 +84,19 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 }
             }
         } else {
+            final var tasks = new ArrayList<CancellableTask>();
             for (CancellableTask task : taskManager.getCancellableTasks().values()) {
                 if (request.match(task)) {
-                    operation.accept(task);
+                    tasks.add(task);
                 }
             }
+            return tasks;
         }
     }
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         CancelTasksRequest request,
         CancellableTask cancellableTask,
         ActionListener<TaskInfo> listener

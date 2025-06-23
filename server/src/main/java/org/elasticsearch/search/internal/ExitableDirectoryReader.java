@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -13,23 +14,26 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.FilterVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
@@ -137,72 +141,146 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
-                return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
-            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
-            Bits timeoutCheckingAcceptDocs = new Bits() {
-                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
-                private int calls;
-
-                @Override
-                public boolean get(int index) {
-                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
-                        queryCancellation.checkCancelled();
-                    }
-
-                    return updatedAcceptDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return updatedAcceptDocs.length();
-                }
-            };
-
-            return in.searchNearestVectors(field, target, k, timeoutCheckingAcceptDocs, visitedLimit);
+            in.searchNearestVectors(field, target, collector, createTimeOutCheckingBits(acceptDocs));
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
-            VectorValues vectorValues = in.getVectorValues(field);
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            FloatVectorValues vectorValues = in.getFloatVectorValues(field);
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
-                return in.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
-            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
-            Bits timeoutCheckingAcceptDocs = new Bits() {
-                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
-                private int calls;
+            in.searchNearestVectors(field, target, collector, createTimeOutCheckingBits(acceptDocs));
+        }
 
-                @Override
-                public boolean get(int index) {
-                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
-                        queryCancellation.checkCancelled();
-                    }
+        private Bits createTimeOutCheckingBits(Bits acceptDocs) {
+            if (acceptDocs == null || acceptDocs instanceof BitSet) {
+                return new TimeOutCheckingBitSet((BitSet) acceptDocs);
+            }
+            return new TimeOutCheckingBits(acceptDocs);
+        }
 
-                    return updatedAcceptDocs.get(index);
+        private class TimeOutCheckingBitSet extends BitSet {
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private int calls;
+            private final BitSet inner;
+            private final int maxDoc;
+
+            private TimeOutCheckingBitSet(BitSet inner) {
+                this.inner = inner;
+                this.maxDoc = maxDoc();
+            }
+
+            @Override
+            public void set(int i) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public boolean getAndSet(int i) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public void clear(int i) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public void clear(int startIndex, int endIndex) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public int cardinality() {
+                if (inner == null) {
+                    return maxDoc;
                 }
+                return inner.cardinality();
+            }
 
-                @Override
-                public int length() {
-                    return updatedAcceptDocs.length();
+            @Override
+            public int approximateCardinality() {
+                if (inner == null) {
+                    return maxDoc;
                 }
-            };
+                return inner.approximateCardinality();
+            }
 
-            return in.searchNearestVectors(field, target, k, timeoutCheckingAcceptDocs, visitedLimit);
+            @Override
+            public int prevSetBit(int index) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public int nextSetBit(int start, int end) {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                throw new UnsupportedOperationException("not supported on TimeOutCheckingBitSet");
+            }
+
+            @Override
+            public boolean get(int index) {
+                if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    queryCancellation.checkCancelled();
+                }
+                if (inner == null) {
+                    // if acceptDocs is null, we assume all docs are accepted
+                    return index >= 0 && index < maxDoc;
+                }
+                return inner.get(index);
+            }
+
+            @Override
+            public int length() {
+                if (inner == null) {
+                    // if acceptDocs is null, we assume all docs are accepted
+                    return maxDoc;
+                }
+                return 0;
+            }
+        }
+
+        private class TimeOutCheckingBits implements Bits {
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private final Bits updatedAcceptDocs;
+            private int calls;
+
+            private TimeOutCheckingBits(Bits acceptDocs) {
+                // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
+                // match all docs to allow timeout checking.
+                this.updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
+            }
+
+            @Override
+            public boolean get(int index) {
+                if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    queryCancellation.checkCancelled();
+                }
+                return updatedAcceptDocs.get(index);
+            }
+
+            @Override
+            public int length() {
+                return updatedAcceptDocs.length();
+            }
         }
     }
 
@@ -474,7 +552,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static class ExitableByteVectorValues extends ByteVectorValues {
-        private int calls;
         private final QueryCancellation queryCancellation;
         private final ByteVectorValues in;
 
@@ -494,13 +571,162 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public BytesRef vectorValue() throws IOException {
-            return in.vectorValue();
+        public byte[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
+        }
+
+        @Override
+        public VectorScorer scorer(byte[] bytes) throws IOException {
+            VectorScorer scorer = in.scorer(bytes);
+            if (scorer == null) {
+                return null;
+            }
+            return new VectorScorer() {
+                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+
+                @Override
+                public float score() throws IOException {
+                    return scorer.score();
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return iterator;
+                }
+            };
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return createExitableIterator(in.iterator(), queryCancellation);
+        }
+
+        @Override
+        public ByteVectorValues copy() throws IOException {
+            return in.copy();
+        }
+    }
+
+    private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
+        private final QueryCancellation queryCancellation;
+
+        ExitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues);
+            this.queryCancellation = queryCancellation;
+            this.queryCancellation.checkCancelled();
+        }
+
+        @Override
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) throws IOException {
+            VectorScorer scorer = in.scorer(target);
+            if (scorer == null) {
+                return null;
+            }
+            return new VectorScorer() {
+                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+
+                @Override
+                public float score() throws IOException {
+                    return scorer.score();
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return iterator;
+                }
+            };
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return createExitableIterator(in.iterator(), queryCancellation);
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
+        }
+    }
+
+    private static KnnVectorValues.DocIndexIterator createExitableIterator(
+        KnnVectorValues.DocIndexIterator delegate,
+        QueryCancellation queryCancellation
+    ) {
+        return new KnnVectorValues.DocIndexIterator() {
+            private int calls;
+
+            @Override
+            public int index() {
+                return delegate.index();
+            }
+
+            @Override
+            public int docID() {
+                return delegate.docID();
+            }
+
+            @Override
+            public long cost() {
+                return delegate.cost();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                int nextDoc = delegate.nextDoc();
+                checkAndThrowWithSampling();
+                return nextDoc;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                final int advance = delegate.advance(target);
+                checkAndThrowWithSampling();
+                return advance;
+            }
+
+            private void checkAndThrowWithSampling() {
+                if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                    queryCancellation.checkCancelled();
+                }
+            }
+        };
+    }
+
+    private static class ExitableDocSetIterator extends DocIdSetIterator {
+        private int calls;
+        private final DocIdSetIterator in;
+        private final QueryCancellation queryCancellation;
+
+        private ExitableDocSetIterator(DocIdSetIterator in, QueryCancellation queryCancellation) {
+            this.in = in;
+            this.queryCancellation = queryCancellation;
         }
 
         @Override
         public int docID() {
             return in.docID();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            final int advance = in.advance(target);
+            checkAndThrowWithSampling();
+            return advance;
         }
 
         @Override
@@ -511,10 +737,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public int advance(int target) throws IOException {
-            final int advance = in.advance(target);
-            checkAndThrowWithSampling();
-            return advance;
+        public long cost() {
+            return in.cost();
         }
 
         private void checkAndThrowWithSampling() {
@@ -524,44 +748,42 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableVectorValues extends FilterVectorValues {
-        private int calls;
-        private final QueryCancellation queryCancellation;
+    /** Delegates all methods to a wrapped {@link FloatVectorValues}. */
+    private abstract static class FilterFloatVectorValues extends FloatVectorValues {
 
-        ExitableVectorValues(VectorValues vectorValues, QueryCancellation queryCancellation) {
-            super(vectorValues);
-            this.queryCancellation = queryCancellation;
-            this.queryCancellation.checkCancelled();
+        /** Wrapped values */
+        protected final FloatVectorValues in;
+
+        /** Sole constructor */
+        protected FilterFloatVectorValues(FloatVectorValues in) {
+            Objects.requireNonNull(in);
+            this.in = in;
         }
 
         @Override
-        public int advance(int target) throws IOException {
-            final int advance = super.advance(target);
-            checkAndThrowWithSampling();
-            return advance;
+        public DocIndexIterator iterator() {
+            return in.iterator();
         }
 
         @Override
-        public int nextDoc() throws IOException {
-            final int nextDoc = super.nextDoc();
-            checkAndThrowWithSampling();
-            return nextDoc;
-        }
-
-        private void checkAndThrowWithSampling() {
-            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
-                this.queryCancellation.checkCancelled();
-            }
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
         }
 
         @Override
-        public float[] vectorValue() throws IOException {
-            return in.vectorValue();
+        public FloatVectorValues copy() throws IOException {
+            return in.copy();
         }
 
         @Override
-        public BytesRef binaryValue() throws IOException {
-            return in.binaryValue();
+        public int dimension() {
+            return in.dimension();
         }
+
+        @Override
+        public int size() {
+            return in.size();
+        }
+
     }
 }

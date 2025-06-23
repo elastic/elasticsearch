@@ -22,12 +22,16 @@ import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.planner.Planner;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-import static org.elasticsearch.action.ActionListener.wrap;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class EqlSession {
 
@@ -83,7 +87,7 @@ public class EqlSession {
     }
 
     public void eql(String eql, ParserParams params, ActionListener<Results> listener) {
-        eqlExecutable(eql, params, wrap(e -> e.execute(this, map(listener, Results::fromPayload)), listener::onFailure));
+        eqlExecutable(eql, params, listener.delegateFailureAndWrap((l, e) -> e.execute(this, map(l, Results::fromPayload))));
     }
 
     public void eqlExecutable(String eql, ParserParams params, ActionListener<PhysicalPlan> listener) {
@@ -117,19 +121,32 @@ public class EqlSession {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
         }
+        Set<String> fieldNames = fieldNames(parsed);
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
+            fieldNames,
             configuration.indicesOptions(),
             configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }
 
+    static Set<String> fieldNames(LogicalPlan parsed) {
+        Set<String> fieldNames = new LinkedHashSet<>();
+        parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> {
+            fieldNames.add(ua.name());
+            if (ua.name().endsWith(WILDCARD) == false) {
+                fieldNames.add(ua.name() + ".*");
+            }
+        });
+        return fieldNames.isEmpty() ? IndexResolver.ALL_FIELDS : fieldNames;
+    }
+
     private LogicalPlan postAnalyze(LogicalPlan verified) {
         return postAnalyzer.postAnalyze(verified, configuration);
     }
 
-    private LogicalPlan doParse(String eql, ParserParams params) {
+    private static LogicalPlan doParse(String eql, ParserParams params) {
         return new EqlParser().createStatement(eql, params);
     }
 }

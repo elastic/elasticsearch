@@ -9,12 +9,15 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
 public class GetBasicStatusRequest extends MasterNodeReadRequest<GetBasicStatusRequest> {
 
-    public GetBasicStatusRequest() {}
+    public GetBasicStatusRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     public GetBasicStatusRequest(StreamInput in) throws IOException {
         super(in);

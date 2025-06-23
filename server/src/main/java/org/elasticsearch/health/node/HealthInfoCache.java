@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -14,10 +15,14 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
 
 /**
  * Keeps track of several health statuses per node that can be used in health.
@@ -26,6 +31,10 @@ public class HealthInfoCache implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthInfoCache.class);
     private volatile ConcurrentHashMap<String, DiskHealthInfo> diskInfoByNode = new ConcurrentHashMap<>();
+    @Nullable
+    private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
+    private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
+    private volatile FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
 
     private HealthInfoCache() {}
 
@@ -35,8 +44,25 @@ public class HealthInfoCache implements ClusterStateListener {
         return healthInfoCache;
     }
 
-    public void updateNodeHealth(String nodeId, DiskHealthInfo diskHealthInfo) {
-        diskInfoByNode.put(nodeId, diskHealthInfo);
+    public void updateNodeHealth(
+        String nodeId,
+        @Nullable DiskHealthInfo diskHealthInfo,
+        @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
+        @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
+        @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
+    ) {
+        if (diskHealthInfo != null) {
+            diskInfoByNode.put(nodeId, diskHealthInfo);
+        }
+        if (latestDslHealthInfo != null) {
+            dslHealthInfo = latestDslHealthInfo;
+        }
+        if (repositoriesHealthInfo != null) {
+            repositoriesInfoByNode.put(nodeId, repositoriesHealthInfo);
+        }
+        if (fileSettingsHealthInfo != null) {
+            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+        }
     }
 
     @Override
@@ -47,15 +73,19 @@ public class HealthInfoCache implements ClusterStateListener {
             if (event.nodesRemoved()) {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
+                    repositoriesInfoByNode.remove(removedNode.getId());
                 }
             }
             // Resetting the cache is not synchronized for efficiency and simplicity.
             // Processing a delayed update after the cache has been emptied because
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
-        } else if (diskInfoByNode.isEmpty() == false) {
+        } else if (diskInfoByNode.isEmpty() == false || dslHealthInfo != null || repositoriesInfoByNode.isEmpty() == false) {
             logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
             diskInfoByNode = new ConcurrentHashMap<>();
+            dslHealthInfo = null;
+            repositoriesInfoByNode = new ConcurrentHashMap<>();
+            fileSettingsHealthInfo = INDETERMINATE;
         }
     }
 
@@ -65,6 +95,6 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode));
+        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
     }
 }

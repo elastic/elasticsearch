@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshotsIntegritySuppressor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -82,7 +84,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
     @After
     public void stopSecondCluster() throws IOException {
-        IOUtils.close(secondCluster);
+        IOUtils.close(secondCluster::close);
     }
 
     @Override
@@ -98,7 +100,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), getTestTransportPlugin());
     }
 
-    public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
+    public void testConcurrentDeleteFromOtherCluster() {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoNameOnFirstCluster = "test-repo";
@@ -118,22 +120,20 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.client()
             .admin()
             .cluster()
-            .preparePutRepository(repoNameOnSecondCluster)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoNameOnSecondCluster)
             .setType("fs")
             .setSettings(Settings.builder().put("location", repoPath))
             .get();
-        secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-1").get();
-        secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-2").get();
+        secondCluster.client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnSecondCluster, "snap-1").get();
+        secondCluster.client().admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnSecondCluster, "snap-2").get();
 
-        final SnapshotException sne = expectThrows(
-            SnapshotException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4")
-                .setWaitForCompletion(true)
-                .execute()
-                .actionGet()
-        );
+        final SnapshotException sne;
+        try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
+            sne = expectThrows(
+                SnapshotException.class,
+                clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
+            );
+        }
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
         assertThat(
@@ -143,16 +143,16 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                     + repoNameOnFirstCluster
                     + "] concurrent modification of the index-N file, expected current generation [2] but it was not found in "
                     + "the repository. The last cluster to write to this repository was ["
-                    + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                    + secondCluster.client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().clusterUUID()
                     + "] at generation [4]."
             )
         );
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
     }
 
-    public void testConcurrentWipeAndRecreateFromOtherCluster() throws InterruptedException, IOException {
+    public void testConcurrentWipeAndRecreateFromOtherCluster() throws IOException {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -160,9 +160,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoName, "snap-1");
-        final String repoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String repoUuid = clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName)
             .get()
             .repositories()
             .stream()
@@ -177,7 +175,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             secondCluster.client()
                 .admin()
                 .cluster()
-                .preparePutRepository(repoName)
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", repoPath).put(READONLY_SETTING_KEY, true))
         );
@@ -185,7 +183,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             secondCluster.client()
                 .admin()
                 .cluster()
-                .prepareGetRepositories(repoName)
+                .prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName)
                 .get()
                 .repositories()
                 .stream()
@@ -196,14 +194,12 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             equalTo(repoUuid)
         );
 
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
-        IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
+        IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoDir(repoPath.toString()));
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snap-1");
 
-        final String newRepoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String newRepoUuid = clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName)
             .get()
             .repositories()
             .stream()
@@ -213,12 +209,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             .uuid();
         assertThat(newRepoUuid, not(equalTo((repoUuid))));
 
-        secondCluster.client().admin().cluster().prepareGetSnapshots(repoName).get(); // force another read of the repo data
+        secondCluster.client().admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get(); // force another read of the
+                                                                                                            // repo data
         assertThat(
             secondCluster.client()
                 .admin()
                 .cluster()
-                .prepareGetRepositories(repoName)
+                .prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName)
                 .get()
                 .repositories()
                 .stream()

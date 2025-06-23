@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -76,6 +76,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -244,7 +246,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        waitForecastStatus(inFipsJvm() ? 300 : 90, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId, String forecastId, ForecastRequestStats.ForecastRequestStatus... status)
@@ -265,121 +267,143 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         }, maxWaitTimeSeconds, TimeUnit.SECONDS);
     }
 
-    protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {
+    protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws Exception {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
-        client().admin()
-            .indices()
-            .prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .execute()
-            .actionGet();
+            .get();
 
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
         );
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        List<Annotation> annotations = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
-                annotations.add(Annotation.fromXContent(parser, null));
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            List<Annotation> annotations = new ArrayList<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
             }
-        }
-        assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
+            assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
+        });
     }
 
-    protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)))
+    protected List<Annotation> getAnnotations() throws Exception {
+        List<Annotation> annotations = new ArrayList<>();
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();
 
-        if (searchResponse.getHits().getHits().length == 0) {
-            return null;
-        }
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
 
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    searchResponse.getHits().getHits()[0].getSourceRef().streamInput()
-                )
-        ) {
-            return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
+            }
+        });
+        return annotations;
     }
 
-    protected List<ForecastRequestStats> getForecastStats() {
-        List<ForecastRequestStats> forecastStats = new ArrayList<>();
+    protected ForecastRequestStats getForecastStats(String jobId, String forecastId) throws Exception {
+        SetOnce<ForecastRequestStats> forecastRequestStats = new SetOnce<>();
+        assertCheckedResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
+                QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId))
+            ),
+            searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    return;
+                }
+                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setSize(1000)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
-            )
-            .execute()
-            .actionGet();
-        SearchHits hits = searchResponse.getHits();
-        for (SearchHit hit : hits) {
-            try {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        hit.getSourceRef().streamInput()
-                    );
-                forecastStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
+                try (
+                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                        .createParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            searchResponse.getHits().getHits()[0].getSourceRef().streamInput()
+                        )
+                ) {
+                    forecastRequestStats.set(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
+                }
             }
-        }
+        );
+        return forecastRequestStats.get();
+    }
+
+    protected List<ForecastRequestStats> getForecastStats() throws Exception {
+        List<ForecastRequestStats> forecastStats = new ArrayList<>();
+        assertCheckedResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setSize(1000)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
+                ),
+            searchResponse -> {
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                            .createParser(
+                                NamedXContentRegistry.EMPTY,
+                                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                                hit.getSourceRef().streamInput()
+                            )
+                    ) {
+                        forecastStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
+                    }
+                }
+            }
+        );
         return forecastStats;
     }
 
     protected long countForecastDocs(String jobId, String forecastId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
-                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                    .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
-            )
-            .execute()
-            .actionGet();
-        return searchResponse.getHits().getTotalHits().value;
+        SetOnce<Long> count = new SetOnce<>();
+        assertResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setSize(0)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
+                ),
+            searchResponse -> count.set(searchResponse.getHits().getTotalHits().value())
+        );
+        return count.get();
     }
 
-    protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {
+    protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) throws Exception {
         List<Forecast> forecasts = new ArrayList<>();
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setSize((int) forecastRequestStats.getRecordCount())
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
-                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                    .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastRequestStats.getForecastId()))
-            )
-            .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC))
-            .execute()
-            .actionGet();
-        SearchHits hits = searchResponse.getHits();
-        for (SearchHit hit : hits) {
-            try {
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        hit.getSourceRef().streamInput()
-                    );
-                forecasts.add(Forecast.STRICT_PARSER.apply(parser, null));
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
+        assertCheckedResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setSize((int) forecastRequestStats.getRecordCount())
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                        .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastRequestStats.getForecastId()))
+                )
+                .addSort(SortBuilders.fieldSort(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC)),
+            searchResponse -> {
+                SearchHits hits = searchResponse.getHits();
+                for (SearchHit hit : hits) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                            .createParser(
+                                NamedXContentRegistry.EMPTY,
+                                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                                hit.getSourceRef().streamInput()
+                            )
+                    ) {
+                        forecasts.add(Forecast.STRICT_PARSER.apply(parser, null));
+                    }
+                }
             }
-        }
+        );
         return forecasts;
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -15,7 +16,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * A stream whose output is sent to the configured logger, line by line.
@@ -43,12 +43,9 @@ class LoggingOutputStream extends OutputStream {
 
     private final Level level;
 
-    private final List<String> messageFilters;
-
-    LoggingOutputStream(Logger logger, Level level, List<String> messageFilters) {
+    LoggingOutputStream(Logger logger, Level level) {
         this.logger = logger;
         this.level = level;
-        this.messageFilters = messageFilters;
     }
 
     @Override
@@ -107,17 +104,8 @@ class LoggingOutputStream extends OutputStream {
         threadLocal = null;
     }
 
-    private void log(String msg) {
-        for (String filter : messageFilters) {
-            if (msg.contains(filter)) {
-                return;
-            }
-        }
-        this.log0(msg);
-    }
-
     // pkg private for testing
-    protected void log0(String msg) {
+    protected void log(String msg) {
         logger.log(level, msg);
     }
 }

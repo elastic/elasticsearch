@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -35,6 +37,12 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, CardinalityAggregatorSupplier.class);
 
+    /**
+     * Pre-2.0 rehashing was configurable, but it hasn't been for ~10 years. We always rehash because it's
+     * quite cheap. Attempting to enable or disable it is just a noop with a deprecation message. We have
+     * no plans to remove this parameter because it isn't worth breaking even the tiny fraction of users
+     * who are sending it. Deprecation was in #12931.
+     */
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
@@ -85,7 +93,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             executionHint = in.readOptionalString();
         }
     }
@@ -102,7 +110,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalString(executionHint);
         }
     }
@@ -113,7 +121,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -129,25 +137,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         }
         this.precisionThreshold = precisionThreshold;
         return this;
-    }
-
-    /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
-     */
-    public Long precisionThreshold() {
-        return precisionThreshold;
-    }
-
-    /**
-     * Get the execution hint.  This is an optional user specified hint that
-     * will be used to decide on the specific collection algorithm.  Since this
-     * is a hint, the implementation may choose to ignore it (typically when
-     * the specified method is not applicable to the given field type)
-     */
-    public String ExecutionHint() {
-        return executionHint;
     }
 
     /**
@@ -213,12 +202,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

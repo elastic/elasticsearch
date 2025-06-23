@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.EclatMapReducer.EclatResult;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
@@ -51,6 +51,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder.EXECUTION_HINT_ALLOWED_MODES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
@@ -65,7 +66,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     @Override
@@ -87,7 +88,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
             FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
     }
 
@@ -134,7 +136,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -337,7 +340,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -552,7 +556,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -719,16 +724,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 )
             )
             .filter(fi -> fi.getSupport() >= minSupport)
-            .filter(
-                fi -> {
-                    return fi.getFields()
-                        .values()
-                        .stream()
-                        .map(v -> v.stream().count())
-                        .mapToLong(e -> e.longValue())
-                        .sum() >= minimumSetSize;
-                }
-            )
+            .filter(fi -> {
+                return fi.getFields().values().stream().map(v -> v.stream().count()).mapToLong(e -> e.longValue()).sum() >= minimumSetSize;
+            })
             .sorted((a, b) -> {
                 if (a.getDocCount() == b.getDocCount()) {
                     if (b.getFields().size() == a.getFields().size()) {

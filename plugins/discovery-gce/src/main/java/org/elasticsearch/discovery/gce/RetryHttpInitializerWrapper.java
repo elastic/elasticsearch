@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.gce;
@@ -19,7 +20,6 @@ import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -59,7 +59,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     // Use only for testing
     static MockGoogleCredential.Builder newMockCredentialBuilder() {
         // TODO: figure out why GCE is so bad like this
-        return Access.doPrivileged(MockGoogleCredential.Builder::new);
+        return new MockGoogleCredential.Builder();
     }
 
     @Override

@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -22,14 +23,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -47,13 +45,12 @@ import java.util.Locale;
 
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class MultiGetRequest extends ActionRequest
+public class MultiGetRequest extends LegacyActionRequest
     implements
         Iterable<MultiGetRequest.Item>,
         CompositeIndicesRequest,
         RealtimeRequest,
         ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");
@@ -85,7 +82,7 @@ public class MultiGetRequest extends ActionRequest
 
         public Item(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readOptionalString();
             }
             id = in.readString();
@@ -179,7 +176,7 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeString(id);
@@ -262,8 +259,8 @@ public class MultiGetRequest extends ActionRequest
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-        items = in.readList(Item::new);
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        items = in.readCollectionAsList(Item::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -276,8 +273,8 @@ public class MultiGetRequest extends ActionRequest
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-        out.writeList(items);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        out.writeCollection(items);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -358,8 +355,9 @@ public class MultiGetRequest extends ActionRequest
      * of the worst case performance. Fetches with this enabled will be slower the
      * enabling synthetic source natively in the index.
      */
-    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+    public MultiGetRequest setForceSyntheticSource(boolean forceSyntheticSource) {
         this.forceSyntheticSource = forceSyntheticSource;
+        return this;
     }
 
     /**
@@ -452,47 +450,41 @@ public class MultiGetRequest extends ActionRequest
                         index = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
-                    } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                        && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
-                        } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                            routing = parser.text();
-                        } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "Unsupported field [fields] used, expected [stored_fields] instead"
-                            );
-                        } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            storedFields = new ArrayList<>();
-                            storedFields.add(parser.text());
-                        } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            version = parser.longValue();
-                        } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            versionType = VersionType.fromString(parser.text());
-                        } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            if (parser.isBooleanValue()) {
-                                fetchSourceContext = fetchSourceContext == null
-                                    ? FetchSourceContext.of(parser.booleanValue())
-                                    : FetchSourceContext.of(
-                                        parser.booleanValue(),
-                                        fetchSourceContext.includes(),
-                                        fetchSourceContext.excludes()
-                                    );
-                            } else if (token == Token.VALUE_STRING) {
-                                fetchSourceContext = FetchSourceContext.of(
-                                    fetchSourceContext == null || fetchSourceContext.fetchSource(),
-                                    new String[] { parser.text() },
-                                    fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
+                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                        routing = parser.text();
+                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unsupported field [fields] used, expected [stored_fields] instead"
+                        );
+                    } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        storedFields = new ArrayList<>();
+                        storedFields.add(parser.text());
+                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        version = parser.longValue();
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        versionType = VersionType.fromString(parser.text());
+                    } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (parser.isBooleanValue()) {
+                            fetchSourceContext = fetchSourceContext == null
+                                ? FetchSourceContext.of(parser.booleanValue())
+                                : FetchSourceContext.of(
+                                    parser.booleanValue(),
+                                    fetchSourceContext.includes(),
+                                    fetchSourceContext.excludes()
                                 );
-                            } else {
-                                throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
-                            }
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse multi get request. unknown field [{}]",
-                                currentFieldName
+                        } else if (token == Token.VALUE_STRING) {
+                            fetchSourceContext = FetchSourceContext.of(
+                                fetchSourceContext == null || fetchSourceContext.fetchSource(),
+                                new String[] { parser.text() },
+                                fetchSourceContext == null ? Strings.EMPTY_ARRAY : fetchSourceContext.excludes()
                             );
+                        } else {
+                            throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
                         }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
+                    }
                 } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         throw new ParsingException(

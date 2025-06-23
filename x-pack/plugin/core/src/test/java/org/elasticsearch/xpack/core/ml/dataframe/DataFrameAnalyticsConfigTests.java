@@ -10,7 +10,8 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,10 +20,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,7 +35,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -96,7 +99,12 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
+    protected DataFrameAnalyticsConfig mutateInstance(DataFrameAnalyticsConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, TransportVersion version) {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance).setSource(
             DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version)
         ).setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));
@@ -108,6 +116,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (instance.getAnalysis() instanceof Classification) {
             builder.setAnalysis(ClassificationTests.mutateForVersion((Classification) instance.getAnalysis(), version));
+        }
+        if (version.before(TransportVersions.V_8_8_0)) {
+            builder.setMeta(null);
         }
         return builder.build();
     }
@@ -154,7 +165,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             );
         }
         if (randomBoolean()) {
-            builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
+            builder.setModelMemoryLimit(ByteSizeValue.of(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
         }
         if (randomBoolean()) {
             builder.setDescription(randomAlphaOfLength(20));
@@ -164,7 +175,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 builder.setCreateTime(Instant.now());
             }
             if (randomBoolean()) {
-                builder.setVersion(Version.CURRENT);
+                builder.setVersion(MlConfigVersion.CURRENT);
             }
         }
         if (randomBoolean()) {
@@ -172,6 +183,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            builder.setMeta(randomMeta());
         }
         return builder;
     }
@@ -271,31 +285,31 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(-1, ByteSizeUnit.BYTES)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.BYTES)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.KB)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.MB)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(1023, ByteSizeUnit.BYTES)).build()
             )
         );
     }
@@ -315,7 +329,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig defaultLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(null).build();
 
-        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        ByteSizeValue maxLimit = ByteSizeValue.of(randomIntBetween(500, 1000), ByteSizeUnit.MB);
         if (maxLimit.compareTo(defaultLimitConfig.getModelMemoryLimit()) < 0) {
             assertThat(maxLimit, equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
         } else {
@@ -328,10 +342,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     public void testExplicitModelMemoryLimitTooHigh() {
 
-        ByteSizeValue configuredLimit = new ByteSizeValue(randomIntBetween(5, 10), ByteSizeUnit.GB);
+        ByteSizeValue configuredLimit = ByteSizeValue.of(randomIntBetween(5, 10), ByteSizeUnit.GB);
         DataFrameAnalyticsConfig explicitLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(configuredLimit).build();
 
-        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        ByteSizeValue maxLimit = ByteSizeValue.of(randomIntBetween(500, 1000), ByteSizeUnit.MB);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build()
@@ -392,7 +406,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         Regression regression = new Regression("foo");
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(Version.CURRENT)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(MlConfigVersion.CURRENT)
             .setId("test_config")
             .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
@@ -458,5 +472,19 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             json.streamInput()
         );
+    }
+
+    public static Map<String, Object> randomMeta() {
+        return rarely() ? null : randomMap(0, 10, () -> {
+            String key = randomAlphaOfLengthBetween(1, 10);
+            Object value = switch (randomIntBetween(0, 3)) {
+                case 0 -> null;
+                case 1 -> randomLong();
+                case 2 -> randomAlphaOfLengthBetween(1, 10);
+                case 3 -> randomMap(0, 3, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                default -> throw new AssertionError("Error in test code");
+            };
+            return Tuple.tuple(key, value);
+        });
     }
 }

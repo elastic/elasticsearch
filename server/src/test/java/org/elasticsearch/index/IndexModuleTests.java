@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
@@ -23,21 +23,21 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -60,18 +60,20 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.SafeCommitInfo;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.shard.ReplicationGroup;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -85,10 +87,11 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.rewriter.MockQueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -113,16 +116,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.IndexServiceTests.closeIndexService;
+import static org.elasticsearch.index.shard.IndexShardTestCase.flushAndCloseShardNoCheck;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,6 +131,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class IndexModuleTests extends ESTestCase {
@@ -144,24 +145,25 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
-        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {}
+        public void deleteShardStore(String reasonText, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason) {}
 
         @Override
-        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {}
+        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason reason) {}
     };
 
     private IndexStorePlugin.IndexFoldersDeletionListener indexDeletionListener = new IndexStorePlugin.IndexFoldersDeletionListener() {
         @Override
-        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {}
+        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason) {}
 
         @Override
-        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {}
+        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason) {}
     };
 
     private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {
     };
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
@@ -172,8 +174,9 @@ public class IndexModuleTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -196,8 +199,13 @@ public class IndexModuleTests extends ESTestCase {
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings));
         nodeEnvironment = new NodeEnvironment(settings, environment);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            nodeEnvironment
+        );
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
     }
@@ -218,6 +226,7 @@ public class IndexModuleTests extends ESTestCase {
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeExecutorService,
             scriptService,
             clusterService,
             null,
@@ -228,7 +237,8 @@ public class IndexModuleTests extends ESTestCase {
             module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
             null,
             indexDeletionListener,
-            emptyMap()
+            emptyMap(),
+            new MockQueryRewriteInterceptor()
         );
     }
 
@@ -241,19 +251,24 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testRegisterIndexStore() throws IOException {
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
@@ -266,19 +281,24 @@ public class IndexModuleTests extends ESTestCase {
             indexStoreFactories,
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testDirectoryWrapper() throws IOException {
         final Path homeDir = createTempDir();
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir.toString())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
@@ -289,7 +309,12 @@ public class IndexModuleTests extends ESTestCase {
             Map.of(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -301,11 +326,23 @@ public class IndexModuleTests extends ESTestCase {
 
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 5));
         final Path dataPath = new NodeEnvironment.DataPath(homeDir).resolve(shardId);
-        final Directory directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId));
+        Directory directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId));
         assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, nullValue());
         assertThat(directory, instanceOf(FilterDirectory.class));
 
-        indexService.close("test done", false);
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomIdentifier(),
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING
+        );
+        directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId), shardRouting);
+        assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
+        assertThat(directory, instanceOf(FilterDirectory.class));
+
+        closeIndexService(indexService);
     }
 
     public void testOtherServiceBound() throws IOException {
@@ -325,7 +362,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(x.getIndex(), index);
         indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testListener() throws IOException {
@@ -346,7 +383,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexService indexService = newIndexService(module);
         assertSame(booleanSetting, indexService.getIndexSettings().getScopedSettings().get(booleanSetting.getKey()));
 
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddIndexOperationListener() throws IOException {
@@ -370,14 +407,14 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
+        Engine.Index index = new Engine.Index(Uid.encodeId(doc.id()), randomNonNegativeLong(), doc);
         ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
             l.preIndex(shardId, index);
         }
         assertTrue(executed.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddSearchOperationListener() throws IOException {
@@ -403,12 +440,12 @@ public class IndexModuleTests extends ESTestCase {
             l.onNewReaderContext(mock(ReaderContext.class));
         }
         assertTrue(executed.get());
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testAddSimilarity() throws IOException {
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.similarity.my_similarity.type", "test_similarity")
             .put("index.similarity.my_similarity.key", "there is a key")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -429,7 +466,7 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(similarity, Matchers.instanceOf(TestSimilarity.class));
         assertEquals("my_similarity", similarityService.getSimilarity("my_similarity").name());
         assertEquals("there is a key", ((TestSimilarity) similarity).key);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testFrozen() {
@@ -445,13 +482,12 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setDirectoryWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setIndexCommitListener(null)).getMessage());
-        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReplicationTrackerFactory(null)).getMessage());
     }
 
     public void testSetupUnknownSimilarity() {
         Settings settings = Settings.builder()
             .put("index.similarity.my_similarity.type", "test_similarity")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -464,7 +500,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("index.similarity.my_similarity.foo", "bar")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
@@ -475,7 +511,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testForceCustomQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
@@ -491,40 +527,40 @@ public class IndexModuleTests extends ESTestCase {
         );
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
         assertThat(liveQueryCaches, empty());
     }
 
     public void testDefaultQueryCacheImplIsSelected() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
         module.forceQueryCacheProvider((a, b) -> new CustomQueryCache(null));
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
-        indexService.close("simon says", false);
+        closeIndexService(indexService);
     }
 
     public void testCustomQueryCacheCleanedUpIfIndexServiceCreationFails() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
         IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
@@ -542,7 +578,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testIndexAnalyzersCleanedUpIfIndexServiceCreationFails() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
 
@@ -609,7 +645,7 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testRegisterCustomRecoveryStateFactory() throws IOException {
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey(), "test_recovery")
             .build();
@@ -629,7 +665,12 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -638,7 +679,7 @@ public class IndexModuleTests extends ESTestCase {
 
         assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
 
-        indexService.close("closing", false);
+        closeIndexService(indexService);
     }
 
     public void testIndexCommitListenerIsBound() throws IOException, ExecutionException, InterruptedException {
@@ -649,7 +690,12 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -687,27 +733,13 @@ public class IndexModuleTests extends ESTestCase {
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
-            closeables.add(() -> indexService.close("close index service at end of test", false));
+            closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
-            closeables.add(() -> indexShard.close("close shard at end of test", true));
-            indexShard.markAsRecovering(
-                "test",
-                new RecoveryState(
-                    shardRouting,
-                    new DiscoveryNode(
-                        "_node_id",
-                        "_node_id",
-                        buildNewFakeTransportAddress(),
-                        Collections.emptyMap(),
-                        DiscoveryNodeRole.roles(),
-                        Version.CURRENT
-                    ),
-                    null
-                )
-            );
+            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
+            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 
-            final PlainActionFuture<Boolean> recoveryFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);
             recoveryFuture.get();
 
@@ -739,80 +771,6 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public void testCustomReplicationTrackerFactory() throws IOException {
-        IndexModule module = new IndexModule(
-            indexSettings,
-            emptyAnalysisRegistry,
-            InternalEngine::new,
-            Collections.emptyMap(),
-            () -> true,
-            indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
-
-        class CustomReplicationTracker extends ReplicationTracker {
-            CustomReplicationTracker(
-                ShardId shardId,
-                String allocationId,
-                IndexSettings indexSettings,
-                long operationPrimaryTerm,
-                long globalCheckpoint,
-                LongConsumer onGlobalCheckpointUpdated,
-                LongSupplier currentTimeMillisSupplier,
-                BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-                Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-                Consumer<ReplicationGroup> onReplicationGroupUpdated
-            ) {
-                super(
-                    shardId,
-                    allocationId,
-                    indexSettings,
-                    operationPrimaryTerm,
-                    globalCheckpoint,
-                    onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
-                    onSyncRetentionLeases,
-                    safeCommitInfoSupplier,
-                    onReplicationGroupUpdated
-                );
-            }
-        }
-        module.setReplicationTrackerFactory(
-            (
-                shardId,
-                allocationId,
-                indexSettings,
-                operationPrimaryTerm,
-                onGlobalCheckpointUpdated,
-                currentTimeMillisSupplier,
-                onSyncRetentionLeases,
-                safeCommitInfoSupplier,
-                onReplicationGroupUpdated) -> new CustomReplicationTracker(
-                    shardId,
-                    allocationId,
-                    indexSettings,
-                    operationPrimaryTerm,
-                    UNASSIGNED_SEQ_NO,
-                    onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
-                    onSyncRetentionLeases,
-                    safeCommitInfoSupplier,
-                    onReplicationGroupUpdated
-                )
-        );
-        final IndexService indexService = newIndexService(module);
-        ShardId shardId = new ShardId("index", UUIDs.randomBase64UUID(random()), 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(
-            shardId,
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
-        ).initialize("_node_id", null, -1);
-        IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
-        assertThat(indexShard.getReplicationTracker(), instanceOf(CustomReplicationTracker.class));
-    }
-
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -837,7 +795,12 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             indexNameExpressionResolver,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 
@@ -901,16 +864,20 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private static final class TestDirectoryWrapper implements IndexModule.DirectoryWrapper {
+
         @Override
-        public Directory apply(Directory directory) {
-            return new WrappedDirectory(directory);
+        public Directory wrap(Directory delegate, ShardRouting shardRouting) {
+            return new WrappedDirectory(delegate, shardRouting);
         }
     }
 
     private static final class WrappedDirectory extends FilterDirectory {
 
-        protected WrappedDirectory(Directory in) {
+        final ShardRouting shardRouting;
+
+        protected WrappedDirectory(Directory in, ShardRouting shardRouting) {
             super(in);
+            this.shardRouting = shardRouting;
         }
     }
 }

@@ -19,13 +19,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,20 +48,23 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
     private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
+    private final RerouteService rerouteService;
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMigrateToDataTiersAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
         super(
             MigrateToDataTiersAction.NAME,
@@ -67,13 +73,14 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             MigrateToDataTiersRequest::new,
-            indexNameExpressionResolver,
             MigrateToDataTiersResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -86,6 +93,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         if (request.isDryRun()) {
             MigratedEntities entities = migrateToDataTiersRouting(
                 state,
+                projectResolver,
                 request.getNodeAttributeName(),
                 request.getLegacyTemplateToDelete(),
                 xContentRegistry,
@@ -95,22 +103,25 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             ).v2();
             listener.onResponse(
                 new MigrateToDataTiersResponse(
-                    entities.removedIndexTemplateName,
-                    entities.migratedPolicies,
-                    entities.migratedIndices,
-                    entities.migratedTemplates.migratedLegacyTemplates,
-                    entities.migratedTemplates.migratedComposableTemplates,
-                    entities.migratedTemplates.migratedComponentTemplates,
+                    entities.removedIndexTemplateName(),
+                    entities.migratedPolicies(),
+                    entities.migratedIndices(),
+                    entities.migratedTemplates().migratedLegacyTemplates(),
+                    entities.migratedTemplates().migratedComposableTemplates(),
+                    entities.migratedTemplates().migratedComponentTemplates(),
                     true
                 )
             );
             return;
         }
 
-        IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentILMMode(state) != STOPPED) {
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null && currentILMMode(projectMetadata) != STOPPED) {
             listener.onFailure(
-                new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")
+                new IllegalStateException(
+                    "stop ILM before migrating to data tiers, current state is [" + currentILMMode(projectMetadata) + "]"
+                )
             );
             return;
         }
@@ -118,9 +129,10 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         final SetOnce<MigratedEntities> migratedEntities = new SetOnce<>();
         submitUnbatchedTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
-                    state,
+                    currentState,
+                    projectResolver,
                     request.getNodeAttributeName(),
                     request.getLegacyTemplateToDelete(),
                     xContentRegistry,
@@ -140,29 +152,28 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                clusterService.getRerouteService()
-                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {}
+                rerouteService.reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void ignored) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.log(
-                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
-                                "unsuccessful reroute after migration to data tiers routing",
-                                e
-                            );
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                            "unsuccessful reroute after migration to data tiers routing",
+                            e
+                        );
+                    }
+                });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(
-                        entities.removedIndexTemplateName,
-                        entities.migratedPolicies,
-                        entities.migratedIndices,
-                        entities.migratedTemplates.migratedLegacyTemplates,
-                        entities.migratedTemplates.migratedComposableTemplates,
-                        entities.migratedTemplates.migratedComponentTemplates,
+                        entities.removedIndexTemplateName(),
+                        entities.migratedPolicies(),
+                        entities.migratedIndices(),
+                        entities.migratedTemplates().migratedLegacyTemplates(),
+                        entities.migratedTemplates().migratedComposableTemplates(),
+                        entities.migratedTemplates().migratedComponentTemplates(),
                         false
                     )
                 );

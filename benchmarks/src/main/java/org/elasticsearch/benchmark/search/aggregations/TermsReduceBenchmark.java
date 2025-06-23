@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
@@ -71,7 +72,7 @@ public class TermsReduceBenchmark {
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
         public AggregationReduceContext forPartialReduction() {
-            return new AggregationReduceContext.ForPartial(null, null, task, builder);
+            return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {});
         }
 
         @Override
@@ -110,7 +111,7 @@ public class TermsReduceBenchmark {
                 dict[i] = new BytesRef(Long.toString(rand.nextLong()));
             }
             for (int i = 0; i < numShards; i++) {
-                aggsList.add(InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, true))));
+                aggsList.add(InternalAggregations.from(newTerms(rand, dict, true)));
             }
         }
 
@@ -123,7 +124,7 @@ public class TermsReduceBenchmark {
             for (BytesRef term : randomTerms) {
                 InternalAggregations subAggs;
                 if (withNested) {
-                    subAggs = InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, false)));
+                    subAggs = InternalAggregations.from(newTerms(rand, dict, false));
                 } else {
                     subAggs = InternalAggregations.EMPTY;
                 }

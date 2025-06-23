@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
@@ -25,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.internal.Requests.putRepositoryRequest;
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
 /**
@@ -67,7 +67,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
+    public TransformState transform(List<PutRepositoryRequest> source, TransformState prevState) throws Exception {
         var requests = prepare(source);
 
         ClusterState state = prevState.state();
@@ -83,7 +83,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         toDelete.removeAll(entities);
 
         for (var repositoryToDelete : toDelete) {
-            var task = new RepositoriesService.UnregisterRepositoryTask(repositoryToDelete);
+            var task = new RepositoriesService.UnregisterRepositoryTask(RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT, repositoryToDelete);
             state = task.execute(state);
         }
 
@@ -98,7 +98,11 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         Map<String, ?> source = parser.map();
 
         for (var entry : source.entrySet()) {
-            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(entry.getKey());
+            PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                entry.getKey()
+            );
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) entry.getValue();
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {

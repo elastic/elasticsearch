@@ -71,8 +71,8 @@ public class QueuedWatch implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("watch_id", watchId);
         builder.field("watch_record_id", watchRecordId);
-        builder.timeField("triggered_time", triggeredTime);
-        builder.timeField("execution_time", executionTime);
+        builder.timestampField("triggered_time", triggeredTime);
+        builder.timestampField("execution_time", executionTime);
         builder.endObject();
         return builder;
     }

@@ -10,20 +10,23 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
+import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 /**
  * CSV test specification for DOC examples.
@@ -38,6 +41,13 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
  * at this stage and, to not keep things stalling, started with this approach.
  */
 public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private final CsvTestCase testCase;
 
@@ -71,11 +81,6 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
         //
         // JdbcTestUtils.logLikeCLI(elastic, log);
         JdbcAssert.assertResultSets(expected, elastic, log, true, true);
-    }
-
-    @Override
-    protected boolean logEsResultSet() {
-        return false;
     }
 
     @Override

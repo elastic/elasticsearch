@@ -1,0 +1,3124 @@
+maxOfLong
+from employees | stats l = max(languages.long);
+
+l:long
+5
+;
+
+maxOfInteger
+// tag::max[]
+FROM employees
+| STATS MAX(languages)
+// end::max[]
+;
+
+// tag::max-result[]
+MAX(languages):integer
+5
+// end::max-result[]
+;
+
+minOfInteger
+// tag::min[]
+FROM employees
+| STATS MIN(languages)
+// end::min[]
+;
+
+// tag::min-result[]
+MIN(languages):integer
+1
+// end::min-result[]
+;
+
+maxOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = max(still_hired);
+
+s:boolean
+true
+;
+
+maxOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = max(salary is not null), b = max(x), c = max(case(salary is null, true, false)), d = max(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | true
+;
+
+maxOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1));
+
+max(ip0):ip | a:ip | b:ip | c:ip
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0
+;
+
+
+maxOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats max(ip0), a = max(ip0), b = max(x), c = max(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+max(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | fe82::cae2:65ff:fece:fec0 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | gamma
+;
+
+maxOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "iiiii", "100.0.0"::version, version));
+
+max(version):version | a:version | b:version | c:version
+bad                  | bad       | bad       | 100.0.0
+;
+
+maxOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats max(version), a = max(version), b = max(x), c = max(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+max(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+maxOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword
+ZAH                 | ZAH       | ZAH       | ___
+;
+
+maxOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats max(abbrev), a = max(abbrev), b = max(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+max(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+IXC                 | IXC       | IXC       | IXC       | major
+ZAH                 | ZAH       | ZAH       | ZAH       | mid
+VIBY                | VIBY      | VIBY      | VIBY      | military
+OPQS                | OPQS      | OPQS      | ___       | small
+;
+
+maxOfText
+required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x);
+
+max(name):keyword | a:keyword        | b:keyword
+Zaporozhye Int'l  | Zaporozhye Int'l | Zaporozhye Int'l
+;
+
+maxOfTextGrouping
+required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats max(name), a = max(name), b = max(x) by type
+| sort type asc
+| limit 4;
+
+max(name):keyword| a:keyword        | b:keyword        | type:keyword
+Cheongju Int'l   | Cheongju Int'l   | Cheongju Int'l   | major
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | mid
+Zaporozhye Int'l | Zaporozhye Int'l | Zaporozhye Int'l | military
+Sahnewal         | Sahnewal         | Sahnewal         | small
+;
+
+minOfVersion
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "iiiii", "1.0"::version, version));
+
+min(version):version | a:version | b:version | c:version
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.0
+;
+
+minOfVersionGrouping
+required_capability: agg_max_min_string_support
+from apps
+| eval x = version
+| where id > 2
+| stats min(version), a = min(version), b = min(x), c = min(case(name == "ccccc", "100.0.0"::version, version)) by name
+| sort name asc
+| limit 3;
+
+min(version):version | a:version | b:version | c:version | name:keyword
+1.2.3.4              | 1.2.3.4   | 1.2.3.4   | 1.2.3.4   | aaaaa
+2.3.4                | 2.3.4     | 2.3.4     | 100.0.0   | ccccc
+2.12.0               | 2.12.0    | 2.12.0    | 2.12.0    | ddddd
+;
+
+minOfKeyword
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = max(case(mv_first(type) == "small", "___"::keyword, abbrev));
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword
+AWZ                 | AWZ       | AWZ       | ___
+;
+
+minOfKeywordGrouping
+required_capability: agg_max_min_string_support
+from airports
+| eval x = abbrev
+| where scalerank >= 9
+| stats min(abbrev), a = min(abbrev), b = min(x), c = min(case(mv_first(type) == "small", "___"::keyword, abbrev)) by type
+| sort type asc
+| limit 4;
+
+min(abbrev):keyword | a:keyword | b:keyword | c:keyword | type:keyword
+CJJ                 | CJJ       | CJJ       | CJJ       | major
+AWZ                 | AWZ       | AWZ       | AWZ       | mid
+GWL                 | GWL       | GWL       | GWL       | military
+LUH                 | LUH       | LUH       | ___       | small
+;
+
+minOfText
+required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x);
+
+min(name):keyword   | a:keyword           | b:keyword
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh
+;
+
+minOfTextGrouping
+required_capability: agg_max_min_string_support
+required_capability: functions_never_emit_text
+from airports
+| eval x = name
+| where scalerank >= 9
+| stats min(name), a = min(name), b = min(x) by type
+| sort type asc
+| limit 4;
+
+min(name):keyword   | a:keyword           | b:keyword           | type:keyword
+Chandigarh Int'l    | Chandigarh Int'l    | Chandigarh Int'l    | major
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | mid
+Abdul Rachman Saleh | Abdul Rachman Saleh | Abdul Rachman Saleh | military
+Dhamial             | Dhamial             | Dhamial             | small
+;
+
+minOfBooleanExpression
+required_capability: agg_max_min_boolean_support
+from employees
+| eval x = salary is not null
+| where emp_no > 10050
+| stats a = min(salary is not null), b = min(x), c = min(case(salary is null, true, false)), d = min(is_rehired);
+
+a:boolean | b:boolean | c:boolean | d:boolean
+true      | true      | false     | false
+;
+
+minOfBoolean
+required_capability: agg_max_min_boolean_support
+from employees | stats s = min(still_hired);
+
+s:boolean
+false
+;
+
+minOfIp
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1));
+
+min(ip0):ip | a:ip | b:ip | c:ip
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1
+;
+
+
+minOfIpGrouping
+required_capability: agg_max_min_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats min(ip0), a = min(ip0), b = min(x), c = min(case(host == "beta", ip0, ip1)) by host
+| sort host asc;
+
+min(ip0):ip | a:ip | b:ip | c:ip | host:keyword
+127.0.0.1 | 127.0.0.1 | 127.0.0.1 | 127.0.0.1 | beta
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.1 | epsilon
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9 | 127.0.0.3 | gamma
+;
+
+maxOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = max(languages.short);
+
+l:integer
+5
+;
+
+maxOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = max(languages.byte);
+
+l:integer
+5
+;
+
+maxOfDouble
+from employees | stats h = max(height);
+
+h:double
+2.1
+;
+
+maxOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.float);
+
+h:double
+2.0999999046325684
+;
+
+maxOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.half_float);
+
+h:double
+2.099609375
+;
+
+
+maxOfScaledFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = max(height.scaled_float);
+
+h:double
+2.1
+;
+
+
+maxOfManyLongs
+from employees | stats l = max(salary_change.long);
+
+l:long
+14
+;
+
+
+maxOfManyInts
+from employees | stats l = max(salary_change.int);
+
+l:integer
+14
+;
+
+
+maxOfManyDoubles
+from employees | stats l = max(salary_change);
+
+l:double
+14.74
+;
+
+
+avgOfLong
+from employees | stats l = avg(languages.long);
+
+l:double
+3.1222222222222222
+;
+
+avgOfInteger
+from employees | stats l = avg(languages);
+
+l:double
+3.1222222222222222
+;
+
+avgOfShort
+from employees | stats l = avg(languages.short);
+
+l:double
+3.1222222222222222
+;
+
+avgOfByte
+from employees | stats l = avg(languages.byte);
+
+l:double
+3.1222222222222222
+;
+
+avgOfDouble
+// tag::avg[]
+FROM employees
+| STATS AVG(height)
+// end::avg[]
+| EVAL `AVG(height)` = ROUND(`AVG(height)`, 5)
+;
+
+// tag::avg-result[]
+AVG(height):double
+1.7682
+// end::avg-result[]
+;
+
+avgOfFloat
+from employees | stats h = avg(height.float);
+
+h:double
+1.7681999909877777
+;
+
+avgOfHalfFloat
+from employees | stats h = avg(height.half_float);
+
+h:double
+1.76818359375
+;
+avgOfScaledFloat
+from employees | stats h = avg(height.scaled_float) | eval h = round(h, 4);
+
+h:double
+1.7682
+;
+
+countOfDouble
+// tag::count[]
+FROM employees
+| STATS COUNT(height)
+// end::count[]
+;
+
+// tag::count-result[]
+COUNT(height):long
+100
+// end::count-result[]
+;
+
+sumOfLong
+from employees | stats l = sum(languages.long);
+
+l:long
+281
+;
+
+sumOfInteger
+// tag::sum[]
+FROM employees
+| STATS SUM(languages)
+// end::sum[]
+;
+
+// tag::sum-result[]
+SUM(languages):long
+281
+// end::sum-result[]
+;
+
+sumOfByte
+from employees | stats l = sum(languages.byte);
+
+l:long
+281
+;
+
+sumOfShort
+from employees | stats l = sum(languages.short);
+
+l:long
+281
+;
+
+sumOfDouble#[skip:-8.12.99,reason:expressions in aggs added in 8.13]
+from employees | stats h = round(sum(height), 10);
+
+h:double
+176.82
+;
+
+sumOfFloat
+from employees | stats h = sum(height.float);
+
+h:double
+176.81999909877777
+;
+
+sumOfHalfFloat
+from employees | stats h = sum(height.half_float);
+
+h:double
+176.818359375
+;
+
+sumOfScaledFloat
+from employees | stats h = sum(height.scaled_float) | eval h = round(h, 10);
+
+h:double
+176.82
+;
+
+groupWithMin
+// declared to double check the tests below
+from employees | stats m = min(height) by languages | sort languages;
+
+m:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+1.41 | null
+; 
+
+IfDuplicateNamesLastOneWins
+required_capability: stats_alias_collision_warnings
+from employees | stats h = avg(height), h = min(height) by languages | sort languages;
+warning:Line 1:24: Field 'h' shadowed by field at line 1:41
+
+h:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+1.41 | null
+;
+
+groupByAlias
+from employees | rename languages as l | keep l, height | stats m = min(height) by l | sort l;
+
+m:d  | l:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+1.41 | null
+; 
+
+IfDuplicateNamesGroupingHasPriority
+required_capability: stats_alias_collision_warnings
+from employees | stats languages = avg(height), languages = min(height) by languages | sort languages;
+warning:Line 1:24: Field 'languages' shadowed by field at line 1:76
+warning:Line 1:49: Field 'languages' shadowed by field at line 1:76
+
+languages:i
+1
+2
+3
+4
+5
+null
+;
+
+byStringAndLong
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = COUNT(gender) by gender, trunk_worked_seconds
+| SORT c desc, gender, trunk_worked_seconds desc;
+
+c:long | gender:keyword | trunk_worked_seconds:long
+30     | M              | 300000000
+27     | M              | 200000000
+22     | F              | 300000000
+11     | F              | 200000000
+ 0     | null           | 300000000
+ 0     | null           | 200000000
+;
+
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+byStringAndLongWithAlias#[skip:-8.12.99]
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| RENAME  gender as g, trunk_worked_seconds as tws
+| KEEP g, tws
+| STATS c = count(g) by g, tws
+| SORT c desc, g, tws desc;
+
+c:long | g:keyword | tws:long
+30     | M         | 300000000
+27     | M         | 200000000
+22     | F         | 300000000
+11     | F         | 200000000
+ 0     | null      | 300000000
+ 0     | null      | 200000000
+;
+
+byStringAndString
+from employees | eval hire_year_str = date_format("yyyy", hire_date) | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
+
+c:long | gender:keyword | hire_year_str:keyword
+8 | F | 1989
+8 | M | 1987
+8 | M | 1990
+7 | M | 1986
+6 | M | 1985
+6 | M | 1988
+5 | M | 1991
+5 | M | 1992
+;
+
+byLongAndLong
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = COUNT(languages.long) BY languages.long, trunk_worked_seconds
+| SORT c DESC, languages.long, trunk_worked_seconds;
+
+c:long         | languages.long:long | trunk_worked_seconds:long
+15             |5                    |300000000
+11             |2                    |300000000
+10             |4                    |300000000
+9              |3                    |200000000
+8              |1                    |200000000
+8              |2                    |200000000
+8              |3                    |300000000
+8              |4                    |200000000
+7              |1                    |300000000
+6              |5                    |200000000
+0              |null                 |200000000
+0              |null                 |300000000
+;
+
+byUnmentionedLongAndLong
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = count(gender) by languages.long, trunk_worked_seconds
+| SORT c desc, trunk_worked_seconds, languages.long;
+
+c:long | languages.long:long | trunk_worked_seconds:long
+13     |5                    |300000000           
+10     |2                    |300000000           
+9      |3                    |200000000           
+9      |4                    |300000000           
+8      |4                    |200000000           
+8      |3                    |300000000           
+7      |1                    |200000000           
+6      |2                    |200000000           
+6      |1                    |300000000           
+6      |null                 |300000000           
+4      |5                    |200000000           
+4      |null                 |200000000
+;
+
+byUnmentionedIntAndLong
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc, languages, trunk_worked_seconds;
+
+c:long | languages:integer | trunk_worked_seconds:long
+13             |5              |300000000           
+10             |2              |300000000           
+9              |3              |200000000           
+9              |4              |300000000           
+8              |3              |300000000           
+8              |4              |200000000           
+7              |1              |200000000           
+6              |1              |300000000           
+6              |2              |200000000           
+6              |null           |300000000           
+4              |5              |200000000       
+4              |null           |200000000           
+;
+
+byUnmentionedIntAndBoolean
+from employees | stats c = count(gender) by languages, still_hired | sort c desc, languages desc;
+
+c:long | languages:integer | still_hired:boolean
+    11 |                 3 | false
+    11 |                 2 | true
+    10 |                 4 | false
+     9 |                 5 | true
+     8 |                 5 | false
+     8 |                 1 | false
+     7 |                 4 | true
+     6 |              null | false
+     6 |                 3 | true
+     5 |                 2 | false
+     5 |                 1 | true
+     4 |              null | true
+;
+
+byUnmentionedIntAndBooleanFollowedByProjection
+from employees | stats c = count(gender) by languages, still_hired | where languages > 3 | sort languages | keep languages;
+
+languages:integer 
+                4 
+                4
+                5
+                5 
+;
+
+byTwoGroupReturnedInDifferentOrder
+from employees | stats c = count(emp_no) by gender, languages | rename languages as l, gender as g | where l > 3 | keep g, l | sort g, l;
+
+g:keyword  | l:integer
+ F         | 4        
+ F         | 5
+ M         | 4        
+ M         | 5
+ null      | 4
+ null      | 5
+;
+
+repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
+from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
+
+m1:i | m2:i | m3:i | m4:i
+74999| 25324| 25324| 74999
+;
+
+
+byDateAndKeywordAndInt
+from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc, gender desc | limit 10;
+
+c:long |           d:date         | gender:keyword | languages:integer
+     3 | 1986-01-01T00:00:00.000Z | M              | 2
+     3 | 1987-01-01T00:00:00.000Z | M              | 2
+     2 | 1985-01-01T00:00:00.000Z | M              | 5
+     2 | 1985-01-01T00:00:00.000Z | M              | 3
+     2 | 1986-01-01T00:00:00.000Z | M              | 5
+     2 | 1986-01-01T00:00:00.000Z | M              | 4
+     2 | 1987-01-01T00:00:00.000Z | null           | 5
+     2 | 1987-01-01T00:00:00.000Z | F              | 5
+     2 | 1987-01-01T00:00:00.000Z | M              | 3
+     2 | 1987-01-01T00:00:00.000Z | M              | 1
+;
+
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+byDateAndKeywordAndIntWithAlias#[skip:-8.12.99]
+from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc, g desc | limit 10;
+
+c:long |           d:date         | g:keyword | l:integer
+     3 | 1986-01-01T00:00:00.000Z | M         | 2
+     3 | 1987-01-01T00:00:00.000Z | M         | 2
+     2 | 1985-01-01T00:00:00.000Z | M         | 5
+     2 | 1985-01-01T00:00:00.000Z | M         | 3
+     2 | 1986-01-01T00:00:00.000Z | M         | 5
+     2 | 1986-01-01T00:00:00.000Z | M         | 4
+     2 | 1987-01-01T00:00:00.000Z | null      | 5
+     2 | 1987-01-01T00:00:00.000Z | F         | 5
+     2 | 1987-01-01T00:00:00.000Z | M         | 3
+     2 | 1987-01-01T00:00:00.000Z | M         | 1
+;
+
+byDoubleAndBoolean
+from employees | stats c = count(gender) by height, still_hired | sort c desc, height | limit 10;
+
+c:long | height:double | still_hired:boolean
+4 | 1.52 | true
+4 | 1.77 | true
+3 | 1.83 | false
+3 | 2.1  | true
+2 | 1.44 | true
+2 | 1.53 | false
+2 | 1.55 | false
+2 | 1.57 | true
+2 | 1.59 | false
+2 | 1.61 | false
+;
+
+byMvBoolean
+from employees | stats min(salary), max(salary) by is_rehired | sort is_rehired;
+
+min(salary):integer | max(salary):integer | is_rehired:boolean
+25324               | 74970               | false
+25324               | 74999               | true
+27215               | 66174               | null
+;
+
+byMvInt
+from employees | stats min(salary), max(salary) by salary_change.int | sort salary_change.int desc | limit 5;
+
+min(salary):integer | max(salary):integer | salary_change.int:integer
+26436               | 74970               | null
+25324               | 73578               | 14
+36174               | 68547               | 13
+25324               | 69904               | 12
+28336               | 56760               | 11
+;
+
+aggsWithoutGroupingCount
+from employees | stats count(salary);
+
+count(salary):l
+100
+;
+
+aggsWithoutGroupingMinMax
+from employees | stats min(salary), max(salary), c = count(salary);
+
+min(salary):i | max(salary):i | c:l
+25324         | 74999         | 100
+;
+
+statsWithLiterals
+from employees | limit 10 | eval x = 1 | stats c = count(x);
+
+c:l
+10
+;
+
+countStar
+from employees | stats count=count(*) | sort count desc | limit 0;
+
+count:l
+;
+
+countAllGrouped
+from employees | stats c = count(*) by languages | rename languages as l | sort l DESC;
+
+c:l | l:i
+10  |null
+21  |5 
+18  |4
+17  |3
+19  |2
+15  |1
+;
+
+countAllAndOtherStatGrouped
+from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
+
+c:l | min:i    | languages:i
+15  | 10005    | 1 
+19  | 10001    | 2
+17  | 10006    | 3
+18  | 10003    | 4
+21  | 10002    | 5
+10  | 10020    | null
+;
+
+countAllWithEval
+from employees | rename languages as l | stats min = min(salary) by l | eval x = min + 1 | stats ca = count(*), cx = count(x) by l | sort l; 
+
+ca:l | cx:l | l:i
+1    | 1    | 1 
+1    | 1    | 2
+1    | 1    | 3
+1    | 1    | 4
+1    | 1    | 5
+1    | 1    | null
+;
+
+///////////////////////////////////////////////////////////////
+// Test edge case interaction with push down past a rename
+// https://github.com/elastic/elasticsearch/issues/108008
+///////////////////////////////////////////////////////////////
+
+countSameFieldWithEval
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | eval b = gender | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithDissect
+required_capability: fixed_pushdown_past_project
+from employees | stats b = count(gender), c = count(gender) by gender | dissect gender "%{b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithGrok
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | grok gender "%{USERNAME:b}" | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | F
+57  | M        | M
+;
+
+countSameFieldWithEnrich
+required_capability: fixed_pushdown_past_project
+required_capability: enrich_load
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
+;
+
+c:l | gender:s | b:s
+0   | null     | null
+33  | F        | null
+57  | M        | null
+;
+
+countSameFieldWithEnrichLimit0
+required_capability: fixed_pushdown_past_project
+from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
+;
+
+c:l | gender:s | b:s
+;
+///////////////////////////////////////////////////////////////
+
+aggsWithoutStats
+from employees | stats by gender | sort gender;
+
+gender:keyword
+F
+M
+null
+;
+
+aggsWithoutStatsTwo
+FROM employees | STATS BY gender, still_hired | SORT gender, still_hired;
+
+gender:keyword | still_hired:boolean
+F              | false
+F              | true
+M              | false
+M              | true
+null           | false
+null           | true
+;
+
+aggsWithoutStatsFormula
+FROM employees | EVAL birth_decade = ROUND(DATE_EXTRACT("YEAR", birth_date), -1) | STATS BY gender, birth_decade | SORT gender, birth_decade;
+
+gender:keyword | birth_decade:long
+F              | 1950
+F              | 1960
+F              | null
+M              | 1950
+M              | 1960
+M              | 1970
+M              | null
+null           | 1950
+null           | 1960
+;
+
+countAllOnly
+from employees | stats c = count()
+;
+
+c:l
+100
+;
+
+
+countFieldNoGrouping
+from employees | where emp_no < 10050 | stats c = count(salary);
+
+c:l
+49
+;
+
+countFieldWithRenamingNoGrouping
+from employees | rename emp_no as e, salary as s | where e < 10050 | stats c = count(s);
+
+c:l
+49
+;
+
+
+countFieldWithAliasNoGrouping
+from employees | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050 | stats c = count(hidden_s);
+
+c:l
+49
+;
+
+countFieldWithGrouping
+from employees | rename languages as l | where emp_no < 10050 | stats c = count(emp_no) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;
+
+countFieldWithAliasWithGrouping
+from employees | rename languages as l | eval e = emp_no | where emp_no < 10050 | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;         
+
+countEvalExpNoGrouping
+from employees | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e);
+
+c:l 
+49  
+;         
+
+countEvalExpWithGrouping
+from employees | rename languages as l | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9   | 1   
+7   | 2   
+6   | 3   
+9   | 4   
+8   | 5   
+10  | null
+;         
+
+countAllOnOrdinalField
+from employees | stats ca = count() by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+10  |null
+;
+
+countFieldOnOrdinalField
+from employees | stats ca = count(gender) by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+0   |null
+;
+
+countFieldVsAll#[skip:-8.13.99, reason:Fixed count(null) in 8.14]
+from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
+
+ca:l|cn:l|cf:l|gender:s
+33  |0   |33  |F
+57  |0   |57  |M
+10  |0   |0   |null
+;
+
+countMultiValue
+from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+
+c:l |  job_positions:s  
+4   |Architect        
+4   |Purchase Manager 
+4   |Reporting Analyst
+4   |Tech Lead    
+;
+
+duplicateAggregationsWithoutGrouping#[skip:-8.11.99]
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
+
+c:l | m:i | m1:i | c1:l
+100 | 25324 | 25324  | 100
+;
+
+duplicateAggregationsWithGrouping#[skip:-8.11.99]
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
+
+c:l| m:i   | m1:i  | c1:l| gender:s
+33 | 25976 | 25976 | 33  | F
+57 | 25945 | 25945 | 57  | M
+10 | 25324 | 25324 | 10  | null
+;
+
+
+twoCountStarInStats#[skip:-8.11.99]
+row x = 1 | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoCountStarInStatsOnRealData-Ignore
+from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoStatsSameExp#[skip:-8.11.99]
+row x = 1 | stats  a = max(x), b = max(x) | stats  c = max(a);
+
+c:integer
+1
+;
+
+
+twoCountStarByXInStats#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoCountStarPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+
+
+twoCountStarByPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+
+docsGettingStartedStats
+// tag::gs-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration)
+// end::gs-stats[]
+;
+
+median_duration:double
+2764889.0
+;
+
+docsGettingStartedTwoStats
+// tag::gs-two-stats[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration), max_duration = MAX(event_duration)
+// end::gs-two-stats[]
+;
+
+median_duration:double | max_duration:long
+2764889.0      |8268153   
+;
+
+docsGettingStartedStatsBy
+// tag::gs-stats-by[]
+FROM sample_data
+| STATS median_duration = MEDIAN(event_duration) BY client_ip
+// end::gs-stats-by[]
+| LIMIT 0
+;
+
+median_duration:double | client_ip:ip
+;
+
+fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
+FROM sample_data
+| stats count(`event_duration`) |  keep `count(``event_duration``)`
+;
+
+count(`event_duration`):l
+7
+;
+
+docsStats
+// tag::stats[]
+FROM employees
+| STATS count = COUNT(emp_no) BY languages
+| SORT languages
+// end::stats[]
+;
+
+// tag::stats-result[]
+    count:long | languages:integer
+15             |1
+19             |2
+17             |3
+18             |4
+21             |5
+10             |null
+// end::stats-result[]
+;
+
+docsStatsWithoutBy
+// tag::statsWithoutBy[]
+FROM employees
+| STATS avg_lang = AVG(languages)
+// end::statsWithoutBy[]
+;
+
+// tag::statsWithoutBy-result[]
+avg_lang:double
+3.1222222222222222
+// end::statsWithoutBy-result[]
+;
+
+docsStatsMultiple
+// tag::statsCalcMultipleValues[]
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+// end::statsCalcMultipleValues[]
+;
+
+// tag::statsCalcMultipleValues-result[]
+avg_lang:double | max_lang:integer
+3.1222222222222222|5
+// end::statsCalcMultipleValues-result[]
+;
+
+docsStatsGroupByMultipleValues
+// tag::statsGroupByMultipleValues[]
+FROM employees
+| EVAL hired = DATE_FORMAT("yyyy", hire_date)
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+// end::statsGroupByMultipleValues[]
+| LIMIT 4
+;
+
+hired:keyword |languages.long:long | avg_salary:double
+1985           |1              |54668.0        
+1985           |3              |47723.0        
+1985           |4              |44817.0        
+1985           |5              |47720.0  
+;
+
+docsStatsUnnamedColumn
+// tag::statsUnnamedColumn[]
+FROM employees
+| STATS AVG(salary)
+// end::statsUnnamedColumn[]
+;
+
+// tag::statsUnnamedColumn-result[]
+AVG(salary):double
+48248.55
+// end::statsUnnamedColumn-result[]
+;
+
+docsStatsUnnamedColumnEval
+// tag::statsUnnamedColumnEval[]
+FROM employees
+| STATS AVG(salary)
+| EVAL avg_salary_rounded = ROUND(`AVG(salary)`)
+// end::statsUnnamedColumnEval[]
+;
+
+// tag::statsUnnamedColumnEval-result[]
+AVG(salary):double | avg_salary_rounded:double
+48248.55           | 48249.0
+// end::statsUnnamedColumnEval-result[]
+;
+
+nestedExpressionNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
+;
+
+s: long | c: long
+1005350 | 100
+;
+
+nestedExpressionInSurrogateAgg#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
+;
+
+a:double | s:long | c:long
+2.0      | 200    | 100
+;
+
+nestedExpressionInGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
+| SORT l
+;
+
+s:long | c:long | l : i
+39     | 15     | 21  
+36     | 19     | 22  
+30     | 17     | 23  
+32     | 18     | 24  
+43     | 21     | 25  
+20     | 10     | null
+;
+
+nestedMultiExpressionInGroupingsAndAggs#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees 
+| EVAL sal = salary + 10000 
+| STATS sum(sal), sum(salary + 10000) BY left(first_name, 1), concat(gender,   to_string(languages))
+| SORT `left(first_name, 1)`, `concat(gender,   to_string(languages))`
+| LIMIT 5
+;
+
+sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   to_string(languages)):s
+54307      | 54307                  |  A                    | F2
+70335      | 70335                  |  A                    | F3
+76817      | 76817                  |  A                    | F5
+123675     | 123675                 |  A                    | M3
+43370      | 43370                  |  B                    | F2
+;
+
+nestedExpressionMultipleParams#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS p = percentile(emp_no + 10, 50), m = median(emp_no + 10) BY languages
+| SORT languages
+;
+
+p:double     | m:double      | languages:integer
+10053.0      | 10053.0       | 1
+10069.0      | 10069.0       | 2
+10068.0      | 10068.0       | 3
+10060.5      | 10060.5       | 4
+10076.0      | 10076.0       | 5
+10034.5      | 10034.5       | null
+;
+
+groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(a) BY c;
+
+COUNT(a):long | c:null
+            1 | null
+;
+
+groupByNullAndString#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY c, b;
+
+COUNT(a):long | c:null | b:keyword
+            1 | null   | foo
+;
+
+groupByStringAndNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, b = "foo", c = null
+| STATS COUNT(a) BY b, c;
+
+COUNT(a):long | b:keyword | c:null
+            1 | foo       | null
+;
+
+countNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+ROW a = 1, c = null
+| STATS COUNT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+countDistinctNull#[skip:-9.99.99,reason:not yet fixed]
+ROW a = 1, c = null
+| STATS COUNT_DISTINCT(c) BY a;
+
+COUNT(c):long | a:integer
+            0 | 1
+;
+
+
+countVersion#[skip:-8.12.99,reason:bug fixed in 8.13+]
+from apps | stats c = count(version), cd = count_distinct(version);
+
+c:long | cd:long
+12     | 9
+;
+
+
+docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsAvgNestedExpression[]
+FROM employees
+| STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)
+// end::docsStatsAvgNestedExpression[]
+;
+
+// tag::docsStatsAvgNestedExpression-result[]
+avg_salary_change:double
+1.3904535865
+// end::docsStatsAvgNestedExpression-result[]
+;
+
+docsStatsByExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsByExpression[]
+FROM employees
+| STATS my_count = COUNT() BY LEFT(last_name, 1)
+| SORT `LEFT(last_name, 1)`
+// end::docsStatsByExpression[]
+;
+
+// tag::docsStatsByExpression-result[]
+my_count:long  |LEFT(last_name, 1):keyword
+2              |A                 
+11             |B                 
+5              |C                 
+5              |D                 
+2              |E                 
+4              |F                 
+4              |G                 
+6              |H                 
+2              |J                 
+3              |K                 
+5              |L                 
+12             |M                 
+4              |N                 
+1              |O                 
+7              |P                 
+5              |R                 
+13             |S                 
+4              |T                 
+2              |W                 
+3              |Z
+// end::docsStatsByExpression-result[]
+;
+
+docsStatsMaxNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMaxNestedExpression[]
+FROM employees
+| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))
+// end::docsStatsMaxNestedExpression[]
+;
+
+// tag::docsStatsMaxNestedExpression-result[]
+max_avg_salary_change:double
+13.75
+// end::docsStatsMaxNestedExpression-result[]
+;
+
+docsStatsMinNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMinNestedExpression[]
+FROM employees
+| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))
+// end::docsStatsMinNestedExpression[]
+;
+
+// tag::docsStatsMinNestedExpression-result[]
+min_avg_salary_change:double
+-8.46
+// end::docsStatsMinNestedExpression-result[]
+;
+
+docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsSumNestedExpression[]
+FROM employees
+| STATS total_salary_changes = SUM(MV_MAX(salary_change))
+// end::docsStatsSumNestedExpression[]
+| EVAL total_salary_changes = ROUND(total_salary_changes, 2)
+;
+
+// tag::docsStatsSumNestedExpression-result[]
+total_salary_changes:double
+446.75
+// end::docsStatsSumNestedExpression-result[]
+;
+
+docsCountWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS word_count = COUNT(SPLIT(words, ";"))
+// end::docsCountWithExpression[]
+;
+
+// tag::docsCountWithExpression-result[]
+word_count:long
+6
+// end::docsCountWithExpression-result[]
+;
+
+count_where#[skip:-8.12.1,reason:implemented in 8.12]
+// tag::count-where[]
+ROW n=1
+| WHERE n < 0
+| STATS COUNT(n)
+// end::count-where[]
+;
+
+// tag::count-where-result[]
+COUNT(n):long
+            0
+// end::count-where-result[]
+;
+
+
+count_or_null#[skip:-8.14.1,reason:implemented in 8.14]
+// tag::count-or-null[]
+ROW n=1
+| STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
+// end::count-or-null[]
+;
+
+// tag::count-or-null-result[]
+COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long
+                        1 | 0
+// end::count-or-null-result[]
+;
+
+countMultiValuesRow
+ROW keyword_field = ["foo", "bar"], int_field = [1, 2, 3] | STATS ck = COUNT(keyword_field), ci = COUNT(int_field), c = COUNT(*);
+
+ck:l | ci:l | c:l 
+2    | 3    | 1
+;
+
+countSource
+FROM employees | 
+STATS ck = COUNT(job_positions), 
+      cb = COUNT(is_rehired), 
+      cd = COUNT(salary_change), 
+      ci = COUNT(salary_change.int), 
+      c = COUNT(*), 
+      csv = COUNT(emp_no);
+
+ck:l | cb:l | cd:l | ci:l | c:l | csv:l 
+221  | 204  | 183  | 183  | 100 | 100
+;
+
+nestedAggsNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = AVG(salary) / 2 + MAX(salary), a = AVG(salary), m = MAX(salary)
+;
+
+x:d       | a:d      | m:i
+99123.275 | 48248.55 |74999
+;
+
+nestedAggsWithGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = ROUND(AVG(salary % 3)) + MAX(emp_no), y = MIN(emp_no / 3) + 10 - MEDIAN(salary) by z = languages % 2
+| SORT z
+;
+
+x:d   | y:d       | z:i
+10101 | -41474.0  | 0
+10098 | -45391.0  | 1
+10030 | -44714.5  | null
+;
+
+nestedAggsWithScalars#[skip:-8.12.99,reason:supported in 8.13+]
+FROM employees
+| STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
+        y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 
+        BY z = languages % 2
+| SORT z
+;
+
+x:s        | y:d        | z:i
+1.010100   | -15260.0   | 0
+1.010097   | -16701.0   | 1
+1.010029   | -16452.0   | null
+;
+
+nestedAggsOverGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS e = max(languages) + 1 by l = languages
+| SORT l
+| LIMIT 3
+;
+
+e:i | l:i
+2   | 1
+3   | 2
+4   | 3
+;
+
+nestedAggsOverGroupingExpressionWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10004 | 10003
+10007 | 10006
+10008 | 10007
+;
+
+nestedAggsOverGroupingExpressionMultiGroupWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, f = emp_no % 3
+| SORT e, f
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i | f:i
+10014 | 10003                | 2
+10017 | 10006                | 0
+10018 | 10007                | 0
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10014 | 10003
+10017 | 10006
+10018 | 10007
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(a), f = min(a), g = count(a) + 1 by a = languages + emp_no
+| SORT a
+| LIMIT 3
+;
+
+e: i  | f:i   | g:l | a:i
+10003 | 10003 | 2   | 10003
+10006 | 10006 | 2   | 10006
+10007 | 10007 | 3   | 10007
+;
+
+nestedAggsOverGroupingTwiceWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS vals = COUNT() BY x = emp_no, x = languages
+| SORT x
+| LIMIT 3
+;
+warning:Line 2:27: Field 'x' shadowed by field at line 2:39
+
+vals: l| x:i
+15     | 1
+19     | 2
+17     | 3
+;
+
+nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, count(*) by f = first_name
+| SORT f
+| LIMIT 3
+;
+
+e:i | count(*):l | f:s
+10  | 1          | Alejandro
+8   | 1          | Amabile
+7   | 1          | Anneke
+;
+
+nestedAggsOverGroupingWithAliasInsideExpression#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS m = max(l), o = min(s) by l = languages, s = salary + 1
+| SORT l, s
+| LIMIT 5
+;
+
+m:i | o:i   | l:i | s:i
+1   | 25977 | 1   | 25977
+1   | 28036 | 1   | 28036
+1   | 34342 | 1   | 34342
+1   | 39111 | 1   | 39111
+1   | 39729 | 1   | 39729
+;
+
+byTwoCalculatedSecondSameNameAsFirst#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS m = MAX(salary) by l = salary + 1, l = languages + 1
+| SORT m
+| LIMIT 5
+;
+warning:Line 2:28: Field 'l' shadowed by field at line 2:44
+
+ m:i  | l:i
+66817 | 6
+73578 | 3
+73717 | 2
+74572 | 5
+74970 | 4
+;
+
+byTwoCalculatedSecondShadowingAndReferencingFirst#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| EVAL l = languages
+| STATS m = MAX(salary) by l = l + 1, l = l + 1
+| SORT m
+| LIMIT 5
+;
+warning:Line 3:28: Field 'l' shadowed by field at line 3:39
+
+ m:i  | l:i
+66817 | 6
+73578 | 3
+73717 | 2
+74572 | 5
+74970 | 4
+;
+
+nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, c = count(*) by f = first_name
+| KEEP e
+| SORT e
+| LIMIT 5
+;
+
+e:i
+4
+4
+4
+4
+5
+;
+
+nestedAggsOverGroupingAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + count(*), m = max(emp_no) by f = first_name
+| KEEP e
+| SORT e
+| LIMIT 5
+;
+
+e:l
+4
+4
+4
+4
+5  
+;
+
+nestedAggsOverGroupingExpAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = f + count(*), m = max(emp_no) by f = length(first_name) % 2
+| KEEP e
+| SORT e
+| LIMIT 3
+;
+
+e:l
+44
+47
+null
+;
+
+defaultNameWithSpace
+ROW a = 1 | STATS couNt(*) | SORT `couNt(*)`
+;
+
+couNt(*):l
+1
+;
+
+isNullWithStatsCount_On_TextField
+FROM airports
+| EVAL s = name, x = name
+| WHERE s IS NULL
+| STATS c = COUNT(x)
+;
+
+c:l
+0
+;
+
+isNotNullWithStatsCount_On_TextField
+FROM airports
+| EVAL s = name, x = name
+| WHERE s IS NOT NULL
+| STATS c = COUNT(x)
+;
+
+c:l
+891
+;
+
+countMV#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS vals = COUNT(salary_change.int)
+;
+
+vals:l
+183
+;
+
+emptyProjectInStatWithEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary)
+| EVAL x = 3.14
+| DROP c
+;
+
+x:d
+3.14
+;
+
+emptyProjectInStatWithCountGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary) BY gender
+| EVAL x = 3.14
+| DROP c, gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+
+emptyProjectInStatWithMinGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS m = MIN(salary) BY gender
+| EVAL x = 3.14
+| DROP m, gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatOnlyGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS BY gender
+| EVAL x = 3.14
+| DROP gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatWithTwoGroupsAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary) BY gender, still_hired
+| EVAL x = 3.14
+| DROP c, gender, still_hired
+;
+
+x:d
+3.14
+3.14
+3.14
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatDueToAnotherStat#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS s = SUM(salary), m = MIN(salary)
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+1
+;
+
+emptyProjectInStatDueToAnotherStatWithGroups#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS m = MEDIAN(salary) BY gender, still_hired
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+6
+;
+
+countOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*)
+;
+
+s1:l | s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l
+100  | 100        | 900    | 0        | 100      | 0             | 100
+;
+
+countOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i 
+15         | 45     | 0        | 15       | 0             | 15     | 1
+19         | 57     | 0        | 19       | 0             | 19     | 2
+17         | 51     | 0        | 17       | 0             | 17     | 3
+18         | 54     | 0        | 18       | 0             | 18     | 4
+21         | 63     | 0        | 21       | 0             | 21     | 5
+10         | 30     | 0        | 10       | 0             | 10     | null
+;
+
+sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
+;
+
+s1:l | s2point1:d | s_mv:l | s_null:d | s_expr:l | s_expr_null:l | rows:l
+100  | 210.0      | 600    | null     | 200      | null          | 100
+;
+
+sumOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = round(sum(2.1), 1), s_mv = sum([-1, 0, 3]), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l | languages:i
+31.5       | 30     | 30       | null          | 15     | 1
+39.9       | 38     | 38       | null          | 19     | 2
+35.7       | 34     | 34       | null          | 17     | 3
+37.8       | 36     | 36       | null          | 18     | 4
+44.1       | 42     | 42       | null          | 21     | 5
+21.0       | 20     | 20       | null          | 10     | null
+;
+
+avgOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = avg(1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null), s_expr = avg(1+1), s_expr_null = avg(1+null)
+;
+
+s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
+1.0  | 2.0    | null     | 2.0      | null
+;
+
+avgOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3, s_expr = avg(1+1), s_expr_null = avg(1+null) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
+2.1        | 2.0    | 2.0      | null          | 1
+2.1        | 2.0    | 2.0      | null          | 2
+2.1        | 2.0    | 2.0      | null          | 3
+2.1        | 2.0    | 2.0      | null          | 4
+2.1        | 2.0    | 2.0      | null          | 5
+2.1        | 2.0    | 2.0      | null          | null
+;
+
+minOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = min(1), s_mv = min([-1, 0, 3]), s_null = min(null), s_expr = min(1+1), s_expr_null = min(1+null)
+;
+
+s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
+1    | -1     | null        | 2        | null
+;
+
+minOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = min(2.1), s_mv = min([-1, 0, 3]), s_expr = min(1+1), s_expr_null = min(1+null) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
+2.1        | -1     | 2        | null          | 1
+2.1        | -1     | 2        | null          | 2
+2.1        | -1     | 2        | null          | 3
+2.1        | -1     | 2        | null          | 4
+2.1        | -1     | 2        | null          | 5
+2.1        | -1     | 2        | null          | null
+;
+
+maxOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = max(1), s_mv = max([-1, 0, 3]), s_null = max(null), s_expr = max(1+1), s_expr_null = max(1+null)
+;
+
+s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
+1    | 3      | null        | 2        | null
+;
+
+maxOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = max(2.1), s_mv = max([-1, 0, 3]), s_expr = max(1+1), s_expr_null = max(1+null) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
+2.1        | 3      | 2        | null          | 1
+2.1        | 3      | 2        | null          | 2
+2.1        | 3      | 2        | null          | 3
+2.1        | 3      | 2        | null          | 4
+2.1        | 3      | 2        | null          | 5
+2.1        | 3      | 2        | null          | null
+;
+
+medianOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null), s_expr = median(1+1), s_expr_null = median(1+null)
+;
+
+s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
+1.0  | 0.5    | null     | 2.0      | null
+;
+
+medianOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]), s_expr = median(1+1), s_expr_null = median(1+null) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
+2.1        | 0.5    | 2.0      | null          | 1
+2.1        | 0.5    | 2.0      | null          | 2
+2.1        | 0.5    | 2.0      | null          | 3
+2.1        | 0.5    | 2.0      | null          | 4
+2.1        | 0.5    | 2.0      | null          | 5
+2.1        | 0.5    | 2.0      | null          | null
+;
+
+countDistinctOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null)
+;
+
+s1:l | s_mv:l | s_null:l | s_param:l | s_expr:l | s_expr_null:l
+1    | 4      | 0        | 4         | 1        | 0
+;
+
+countDistinctOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_param:l | s_expr:l | s_expr_null:l | languages:i
+1          | 4      | 4         | 1        | 0             | 1
+1          | 4      | 4         | 1        | 0             | 2
+1          | 4      | 4         | 1        | 0             | 3
+1          | 4      | 4         | 1        | 0             | 4
+1          | 4      | 4         | 1        | 0             | 5
+1          | 4      | 4         | 1        | 0             | null
+;
+
+evalOverridingKey#[skip:-8.13.1,reason:fixed in 8.13.2]
+FROM employees
+| EVAL k = languages
+| STATS c = COUNT() BY languages, k
+| DROP k
+| SORT languages
+;
+
+c:l| languages:i
+15 | 1
+19 | 2
+17 | 3
+18 | 4
+21 | 5
+10 | null
+;
+
+evalMultipleOverridingKeys#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+warning:Line 3:24: Field 'languages' shadowed by field at line 3:42
+
+c:l | k1:i | languages:i
+15  | 1    | 1
+19  | 2    | 2
+17  | 3    | 3
+18  | 4    | 4
+21  | 5    | 5
+10  | null | null
+;
+
+evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = 3*COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+warning:Line 3:26: Field 'languages' shadowed by field at line 3:44
+
+c:l | k1:i | languages:i
+45  | 1    | 1
+57  | 2    | 2
+51  | 3    | 3
+54  | 4    | 4
+63  | 5    | 5
+30  | null | null
+;
+
+minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + languages;
+
+     min:i     |   languages:i   
+25324          |5              
+25976          |1              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;
+
+minWithSortExpression2#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + CASE(languages == 5, 655, languages);
+
+     min:i     |   languages:i   
+25976          |1              
+25324          |5              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;
+
+
+weightedAvg
+required_capability: agg_weighted_avg
+FROM employees
+| STATS w_avg_1 = weighted_avg(salary, 1), avg = avg(salary), w_avg_2 = weighted_avg(salary, height)
+| EVAL w_avg_1 = ROUND(w_avg_1), avg = ROUND(avg), w_avg_2 = ROUND(w_avg_2)
+;
+
+w_avg_1:double | avg:double | w_avg_2:double
+48249.0        | 48249.0   | 48474.0
+;
+
+weightedAvgGrouping
+required_capability: agg_weighted_avg
+// tag::weighted-avg[]
+FROM employees
+| STATS w_avg = WEIGHTED_AVG(salary, height) BY languages
+| EVAL w_avg = ROUND(w_avg)
+| KEEP w_avg, languages
+| SORT languages
+// end::weighted-avg[]
+;
+
+// tag::weighted-avg-result[]
+w_avg:double | languages:integer
+51464.0      | 1
+48477.0      | 2
+52379.0      | 3
+47990.0      | 4
+42119.0      | 5
+52142.0      | null
+// end::weighted-avg-result[]
+;
+
+weightedAvgConstant
+required_capability: agg_weighted_avg
+row v = [1, 2, 3]
+| stats w_avg_1 = weighted_avg(v, 1), w_avg_2 = weighted_avg([1, 2, 3], 1), avg = avg(v)
+| EVAL w_avg_1 = ROUND(w_avg_1), w_avg_2 = ROUND(w_avg_2), avg = ROUND(avg)
+;
+
+w_avg_1:double |w_avg_2:double |avg:double
+2.0            | 2.0           | 2.0
+;
+
+weightedAvgBothConstantsMvWarning
+required_capability: agg_weighted_avg
+row v = [1, 2, 3], w = [1, 2, 3]
+| stats w_avg = weighted_avg(v, w)
+;
+warning:Line 2:17: evaluation of [weighted_avg(v, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+w_avg:double
+null
+;
+
+weightedAvgWeightConstantMvWarning
+required_capability: agg_weighted_avg
+from employees
+| eval w = [1, 2, 3]
+| stats w_avg = weighted_avg(salary, w)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+w_avg:double
+null
+;
+
+weightedAvgWeightMvWarning
+required_capability: agg_weighted_avg
+from employees
+| where emp_no == 10002 or emp_no == 10003
+| stats w_avg = weighted_avg(salary, salary_change.int)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary, salary_change.int)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+w_avg:double
+null
+;
+
+weightedAvgFieldMvWarning
+required_capability: agg_weighted_avg
+from employees
+| where emp_no == 10002 or emp_no == 10003
+| stats w_avg = weighted_avg(salary_change.int, height)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary_change.int, height)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+w_avg:double
+null
+;
+
+weightedAvgWeightZero
+required_capability: agg_weighted_avg
+from employees
+| eval w = 0
+| stats w_avg = weighted_avg(salary, w)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.ArithmeticException: / by zero
+
+w_avg:double
+null
+;
+
+weightedAvgWeightZeroExp
+required_capability: agg_weighted_avg
+from employees
+| eval w = 0 + 0
+| stats w_avg = weighted_avg(salary, w)
+;
+warning:Line 3:17: evaluation of [weighted_avg(salary, w)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.ArithmeticException: / by zero
+
+w_avg:double
+null
+;
+
+shadowingInternal
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no)
+;
+warning:Line 2:9: Field 'x' shadowed by field at line 2:26
+
+x:integer
+10001
+;
+
+shadowingInternalWithGroup#[skip:-8.14.1,reason:implemented in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
+| SORT x ASC
+;
+warning:Line 2:26: Field 'x' shadowed by field at line 2:45
+warning:Line 2:9: Field 'x' shadowed by field at line 2:45
+
+x:keyword
+F
+M
+null
+;
+
+shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
+| SORT x ASC
+;
+warning:Line 2:42: Field 'x' shadowed by field at line 2:54
+warning:Line 2:9: Field 'x' shadowed by field at line 2:54
+
+y:long | x:keyword
+    33 | F
+    57 | M
+     0 | null
+;
+
+
+shadowingTheGroup
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
+| SORT gender ASC
+;
+warning:Line 2:31: Field 'gender' shadowed by field at line 2:55
+warning:Line 2:9: Field 'gender' shadowed by field at line 2:55
+
+gender:keyword
+F
+M
+null
+;
+
+docsStatsMvGroup
+// tag::mv-group[]
+ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
+// end::mv-group[]
+;
+
+// tag::mv-group-result[]
+MIN(i):integer | a:keyword
+             1 | a
+             1 | b
+// end::mv-group-result[]
+;
+
+docsStatsMultiMvGroup
+// tag::multi-mv-group[]
+ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
+// end::multi-mv-group[]
+;
+
+// tag::multi-mv-group-result[]
+MIN(i):integer | a:keyword | b:integer
+             1 | a         | 2
+             1 | a         | 3
+             1 | b         | 2
+             1 | b         | 3
+// end::multi-mv-group-result[]
+;
+
+statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
+from employees
+| stats m = max(salary), a = round(avg(salary)) by 0
+;
+
+m:integer |a:double |0:integer
+74999     |48249.0  |0
+;
+
+statsByConstantFromStats#[skip:-8.12.1,reason:implemented in 8.12]
+from employees
+| stats c = count(languages)
+| stats a = count(*) by c
+;
+
+a:long |c:long
+1      |90
+;
+
+statsByConstantFromEval#[skip:-8.14.1,reason:implemented in 8.14]
+from employees
+| eval x = 0
+| stats m = max(salary), a = round(avg(salary)) by x
+;
+
+m:integer |a:double |x:integer
+74999     |48249.0  |0
+;
+
+statsWithFilterOnGroups
+required_capability: fix_filter_pushdown_past_stats
+FROM employees
+| STATS v = VALUES(emp_no) by job_positions | WHERE job_positions == "Accountant" | MV_EXPAND v | SORT v
+;
+
+v:integer | job_positions:keyword
+    10001 | Accountant
+    10012 | Accountant
+    10016 | Accountant
+    10023 | Accountant
+    10025 | Accountant
+    10028 | Accountant
+    10034 | Accountant
+    10037 | Accountant
+    10044 | Accountant
+    10045 | Accountant
+    10050 | Accountant
+    10051 | Accountant
+    10066 | Accountant
+    10081 | Accountant
+    10085 | Accountant
+    10089 | Accountant
+    10092 | Accountant
+    10094 | Accountant
+;
+
+docsStatsWithSimpleFiltering
+required_capability: per_agg_filtering
+// tag::aggFiltering[]
+FROM employees
+| STATS avg50s = AVG(salary)::LONG WHERE birth_date < "1960-01-01",
+        avg60s = AVG(salary)::LONG WHERE birth_date >= "1960-01-01"
+        BY gender
+| SORT gender
+// end::aggFiltering[]
+| WHERE gender IS NOT NULL
+;
+
+// tag::aggFiltering-result[]
+avg50s:long    |avg60s:long    |gender:keyword
+55462          |46637          |F
+48279          |44879          |M
+// end::aggFiltering-result[]
+;
+
+docsStatsWithFilteringNoGroups
+required_capability: per_agg_filtering
+// tag::aggFilteringNoGroup[]
+FROM employees
+| EVAL Ks = salary / 1000 // thousands
+| STATS under_40K = COUNT(*) WHERE Ks < 40,
+        inbetween = COUNT(*) WHERE 40 <= Ks AND Ks < 60,
+        over_60K  = COUNT(*) WHERE 60 <= Ks,
+        total     = COUNT(*)
+// end::aggFilteringNoGroup[]
+;
+
+// tag::aggFilteringNoGroup-result[]
+under_40K:long |inbetween:long |over_60K:long  |total:long
+36             |39             |25             |100
+// end::aggFilteringNoGroup-result[]
+;
+
+statsWithFiltering
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000, max_a = max(salary) where salary > 100,
+        min = min(salary), min_f = min(salary) where salary > 50000, min_a = min(salary) where salary > 100  
+;
+
+max:integer |max_f:integer |max_a:integer | min:integer | min_f:integer | min_a:integer
+74999       |49818         |74999         | 25324       | 50064         | 25324
+;
+
+statsWithEverythingFiltered
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_a = max(salary) where salary < 100,
+        min = min(salary), min_a = min(salary) where salary > 99999  
+;
+
+max:integer |max_a:integer|min:integer | min_a:integer
+74999       |null         |25324       | null        
+;
+
+statsWithNullFilter
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_a = max(salary) where null,
+        min = min(salary), min_a = min(salary) where to_string(null) == "abc"  
+;
+
+max:integer |max_a:integer|min:integer | min_a:integer
+74999       |null         |25324       | null        
+;
+
+statsWithAllFiltersFalse
+required_capability: per_agg_filtering
+from employees
+| stats max = max(height.float) where false,
+        min = min(height.float) where to_string(null) == "abc",
+        count = count(height.float) where false,
+        count_distinct = count_distinct(salary) where to_string(null) == "def"
+;
+
+max:double |min:double |count:long |count_distinct:long
+null       |null       |0          |0
+;
+
+statsWithExpressionsAllFiltersFalse
+required_capability: per_agg_filtering
+from employees
+| stats max = max(height.float + 1) where null,
+        count = count(height.float) + 2 where false,
+        mix = min(height.float + 1) + count_distinct(emp_no) + 2 where length(null) == 3
+;
+
+max:double |count:long |mix:double
+null       |2          |null
+;
+
+statsWithFalseFilterAndGroup
+required_capability: per_agg_filtering
+from employees
+| stats max = max(height.float + 1) where null,
+        count = count(height.float) + 2 where false
+  by job_positions
+| sort job_positions
+| limit 4
+;
+
+max:double |count:long |job_positions:keyword
+null       |2          |Accountant
+null       |2          |Architect
+null       |2          |Business Analyst
+null       |2          |Data Scientist
+;
+
+statsWithFalseFiltersAndGroups
+required_capability: per_agg_filtering
+from employees
+| eval my_length = length(concat(first_name, null))
+| stats count_distinct = count_distinct(height.float + 1) where null,
+        count = count(height.float) + 2 where false,
+        values = values(first_name) where my_length > 3
+  by job_positions, is_rehired
+| sort job_positions, is_rehired
+| limit 10
+;
+
+count_distinct:long |count:long |values:keyword |job_positions:keyword |is_rehired:boolean
+0                   |2          |null           |Accountant            |false
+0                   |2          |null           |Accountant            |true
+0                   |2          |null           |Accountant            |null
+0                   |2          |null           |Architect             |false
+0                   |2          |null           |Architect             |true
+0                   |2          |null           |Architect             |null
+0                   |2          |null           |Business Analyst      |false
+0                   |2          |null           |Business Analyst      |true
+0                   |2          |null           |Business Analyst      |null
+0                   |2          |null           |Data Scientist        |false
+;
+
+statsWithMixedFiltersAndGroup
+required_capability: per_agg_filtering
+from employees
+| eval my_length = length(concat(first_name, null))
+| stats count = count(my_length) where false,
+        values = mv_slice(mv_sort(values(first_name)), 0, 1)
+  by job_positions
+| sort job_positions
+| limit 4
+;
+
+count:long     |values:keyword        |job_positions:keyword
+0              |[Arumugam, Bojan]     |Accountant
+0              |[Alejandro, Charlene] |Architect
+0              |[Basil, Breannda]     |Business Analyst
+0              |[Berni, Breannda]     |Data Scientist
+;
+
+prunedStatsFollowedByStats
+required_capability: per_agg_filtering
+from employees
+| eval my_length = length(concat(first_name, null))
+| stats count = count(my_length) where false,
+        values = mv_slice(values(first_name), 0, 1) where my_length > 0
+| stats count_distinct = count_distinct(count)
+;
+
+count_distinct:long
+1
+;
+
+statsWithFalseFiltersFromRow
+required_capability: per_agg_filtering
+row x = null, a = 1, b = [2,3,4]
+| stats c=max(a) where x
+  by b
+;
+
+c:integer |b:integer
+null      |2
+null      |3
+null      |4
+;
+
+statsWithBasicExpressionFiltered
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_p = max(salary) + 10000 where salary < 50000,
+        exp_m = min(salary) % 10000 where salary > 50000  
+;
+
+max:integer |max_f:integer|min:integer | min_f:integer|exp_p:integer | exp_m:integer
+74999       |49818        |25324       | 50064        |59818         | 64
+;
+
+statsWithExpressionOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary), max_f = max(salary) where salary < 50000,
+        min = min(salary), min_f = min(salary) where salary > 50000,
+        exp_gt = max(salary) - min(salary) where salary > 50000,
+        exp_lt = max(salary) - min(salary) where salary < 50000
+          
+;
+
+max:integer |max_f:integer | min:integer | min_f:integer |exp_gt:integer | exp_lt:integer
+74999       |49818         | 25324       | 50064         |24935          | 24494        
+;
+
+
+statsWithExpressionOfExpressionsOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats max = max(salary + 1), max_f = max(salary + 2) where salary < 50000,
+        min = min(salary - 1), min_f = min(salary - 2) where salary > 50000,
+        exp_gt = max(salary + 3) - min(salary - 3) where salary > 50000,
+        exp_lt = max(salary + 4) - min(salary - 4) where salary < 50000
+          
+;
+
+max:integer |max_f:integer | min:integer | min_f:integer |exp_gt:integer | exp_lt:integer
+75000       |49820         | 25323       | 50062         |24941          | 24502        
+;
+
+statsWithSubstitutedExpressionOverFilters
+required_capability: per_agg_filtering
+from employees
+| stats sum = sum(salary), s_l = sum(salary) where salary < 50000, s_u = sum(salary) where salary > 50000,
+        count = count(salary), c_l = count(salary) where salary < 50000, c_u = count(salary) where salary > 50000, 
+        avg = round(avg(salary), 2), a_l = round(avg(salary), 2) where salary < 50000, a_u = round(avg(salary),2) where salary > 50000
+;
+
+sum:l   |s_l:l   | s_u:l   | count:l |c_l:l |c_u:l |avg:double |a_l:double | a_u:double
+4824855 |2220951 | 2603904 | 100     |58    |42    |48248.55   |38292.26   | 61997.71
+;
+
+
+statsWithFilterAndGroupBy
+required_capability: per_agg_filtering
+from employees
+| stats m = max(height),
+        m_f = max(height + 1) where gender == "M" OR is_rehired is null
+        BY gender, is_rehired
+| sort gender, is_rehired
+;
+
+m:d |m_f:d |gender:s|is_rehired:bool
+2.1 |null  |F       |false    
+2.1 |null  |F       |true     
+1.85|2.85  |F       |null     
+2.1 |3.1   |M       |false    
+2.1 |3.1   |M       |true     
+2.01|3.01  |M       |null     
+2.06|null  |null    |false    
+1.97|null  |null    |true     
+1.99|2.99  |null    |null     
+;
+
+statsWithFilterOnGroupBy
+required_capability: per_agg_filtering
+from employees
+| stats m_f = max(height) where gender == "M" BY gender
+| sort gender
+;
+
+m_f:d   |gender:s
+null    |F
+2.1     |M
+null    |null
+;
+
+statsWithGroupByLiteral
+required_capability: per_agg_filtering
+from employees
+| stats m = max(languages) by salary = 2
+;
+
+m:i |salary:i
+5   |2
+;
+
+
+statsWithFilterOnSameColumn
+required_capability: per_agg_filtering
+from employees
+| stats m = max(languages), m_f = max(languages) where salary > 50000 by salary = 2
+| sort salary
+;
+
+m:i |m_f:i |salary:i
+5   |null  |2
+;
+
+# the query is reused below in a multi-stats
+statsWithFilteringAndGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c = count(), c_f = count(languages) where l > 1, 
+        m_f = max(height) where salary > 50000 
+        by l = languages
+| sort c
+;
+
+c:l |c_f:l |m_f:d |l:i
+10  |0     |2.08  |null        
+15  |0     |2.06  |1           
+17  |17    |2.1   |3           
+18  |18    |1.83  |4           
+19  |19    |2.03  |2           
+21  |21    |2.1   |5           
+;
+ 
+multiStatsWithFiltering
+required_capability: per_agg_filtering
+from employees
+| stats c = count(), c_f = count(languages) where l > 1, 
+        m_f = max(height) where salary > 50000 
+        by l = languages
+| stats c2 = count(), c2_f = count() where m_f > 2.06 , m2 = max(l), m2_f = max(l) where l > 1 by c
+| sort c
+;
+
+c2:l |c2_f:l |m2:i |m2_f:i |c:l
+1    |1      |null |null   |10
+1    |0      |1    |null   |15
+1    |1      |3    |3      |17
+1    |0      |4    |4      |18
+1    |0      |2    |2      |19
+1    |1      |5    |5      |21
+;
+
+simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(emp_no) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(hire_date) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(*) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(birth_date) where emp_no <= 10050
+;
+
+c1:long
+40
+;
+
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(job_positions) where emp_no <= 10003
+;
+
+c1:long
+3
+;
+
+commonFilterExtractionWithAliasing
+required_capability: per_agg_filtering
+from employees
+| eval eno = emp_no
+| drop emp_no
+| stats min_sal = min(salary) where eno <= 10010,
+        min_hei = min(height) where eno <= 10010
+;
+
+min_sal:integer |min_hei:double
+36174           |1.56
+;
+
+commonFilterExtractionWithAliasAndOriginal
+required_capability: per_agg_filtering
+from employees
+| eval eno = emp_no
+| stats min_sal = min(salary) where eno <= 10010,
+        min_hei = min(height) where emp_no <= 10010
+;
+
+// same results as above in commonFilterExtractionWithAliasing
+min_sal:integer |min_hei:double
+36174           |1.56
+;
+
+commonFilterExtractionWithAliasAndOriginalNeedingNormalization
+required_capability: per_agg_filtering
+from employees
+| eval eno = emp_no
+| stats min_sal = min(salary) where eno <= 10010,
+        min_hei = min(height) where emp_no <= 10010,
+        max_hei = max(height) where 10010 >= emp_no
+;
+
+min_sal:integer |min_hei:double |max_hei:double
+36174           |1.56           |2.1
+;
+
+commonFilterExtractionWithAliasAndOriginalNeedingNormalizationAndSimplification
+required_capability: per_agg_filtering
+from employees
+| eval eno = emp_no
+| stats min_sal = min(salary) where eno <= 10010,
+        min_hei = min(height) where not (emp_no > 10010),
+        max_hei = max(height) where 10010 >= emp_no
+;
+
+min_sal:integer |min_hei:double |max_hei:double
+36174           |1.56           |2.1
+;
+
+statsByConstantExpressionNoAggs
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats by y+1
+;
+
+y+1:integer
+12
+;
+
+
+statsByConstantExpressionNoAggsWithAlias
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats by yy = y+1
+;
+
+yy:integer
+12
+;
+
+statsByConstantExpression
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
+;
+
+m:integer | y+1:integer
+11        | 12
+;
+
+statsByConstantExpressionWithAliasAndSort
+required_capability: fix_stats_by_foldable_expression_2
+FROM employees
+| EVAL y = "a"
+| STATS count = COUNT() BY x = y
+| SORT x
+;
+
+count:long | x:keyword
+100        | a
+;
+
+filterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE salary > 0
+;
+
+max:integer
+74999
+;
+
+filterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name == ""
+;
+
+max:integer
+null
+;
+
+filterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL
+;
+
+max:integer
+70011
+;
+
+groupingFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE salary > 0 BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | A
+58121       | B
+74999       | D
+58715       | H
+;
+
+groupingFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name == "" BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | A
+null        | B
+null        | D
+null        | H
+;
+
+groupingFilterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+62233       | A
+39878       | B
+67492       | D
+null        | H
+;
+
+groupingByOrdinalsFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE salary > 0 BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | Accountant
+69904       | Architect
+58121       | Business Analyst
+74999       | Data Scientist
+;
+
+groupingByOrdinalsFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE first_name == "" BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | Accountant
+null        | Architect
+null        | Business Analyst
+null        | Data Scientist
+;
+
+groupingByOrdinalsFilterSometimesMatches
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+39878       | Accountant
+62233       | Architect
+39878       | Business Analyst
+67492       | Data Scientist
+;
+
+stdDeviation
+required_capability: std_dev
+// tag::stdev[]
+FROM employees
+| STATS STD_DEV(height)
+// end::stdev[]
+;
+
+// tag::stdev-result[]
+STD_DEV(height):double
+0.20637044362020449
+// end::stdev-result[]
+;
+
+stdDeviationNested
+required_capability: std_dev
+// tag::docsStatsStdDevNestedExpression[]
+FROM employees
+| STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
+// end::docsStatsStdDevNestedExpression[]
+;
+
+// tag::docsStatsStdDevNestedExpression-result[]
+stddev_salary_change:double
+6.875829592924112
+// end::docsStatsStdDevNestedExpression-result[]
+;
+
+
+stdDeviationWithLongs
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(avg_worked_seconds)
+;
+
+STD_DEV(avg_worked_seconds):double
+5.76010425971634E7
+;
+
+stdDeviationWithInts
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(salary)
+;
+
+STD_DEV(salary):double
+13765.12550278783
+;
+
+stdDeviationConstantValue
+required_capability: std_dev
+FROM employees
+| WHERE languages == 2
+| STATS STD_DEV(languages)
+;
+
+STD_DEV(languages):double
+0.0
+;
+
+stdDeviationGroupedDoublesOnly
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(height) BY languages
+| SORT languages asc
+;
+
+STD_DEV(height):double | languages:integer
+0.22106409327010415    | 1
+0.22797190865484734    | 2
+0.18893070075713295    | 3
+0.14656141004227627    | 4
+0.17733860152780256    | 5
+0.2486543786061287     | null
+;
+
+stdDeviationGroupedAllTypes
+required_capability: std_dev
+FROM employees
+| WHERE languages < 3
+| STATS
+    double_std_dev = STD_DEV(height),
+    int_std_dev = STD_DEV(salary),
+    long_std_dev = STD_DEV(avg_worked_seconds)
+  BY languages
+| SORT languages asc
+;
+
+double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
+0.22106409327010415   | 15166.244178730898 | 5.1998715922156096E7 | 1
+0.22797190865484734   | 12139.61099378116  | 5.309085506583288E7  | 2
+;
+
+stdDeviationNoRows
+required_capability: std_dev
+FROM employees
+| WHERE languages IS null
+| STATS STD_DEV(languages)
+;
+
+STD_DEV(languages):double
+null
+;
+
+stdDevMultiValue
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(salary_change)
+;
+
+STD_DEV(salary_change):double
+7.062226788733394
+;
+
+stdDevFilter
+required_capability: std_dev
+FROM employees
+| STATS greater_than = STD_DEV(salary_change) WHERE languages > 3
+, less_than = STD_DEV(salary_change) WHERE languages <= 3
+, salary = STD_DEV(salary * 2)
+, count = COUNT(*) BY gender
+| SORT gender asc
+;
+
+greater_than:double | less_than:double  | salary:double      | count:long | gender:keyword
+6.4543266953142835  | 7.57786788789264  | 29045.770666969744 | 33         | F
+6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
+6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
+;
+
+stdDevRow
+required_capability: std_dev
+ROW a = [1,2,3], b = 5
+| STATS STD_DEV(a), STD_DEV(b)
+;
+
+STD_DEV(a):double | STD_DEV(b):double
+0.816496580927726 | 0.0
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date) BY d = (date == "2025-01-01")
+;
+
+m:datetime               | d:boolean
+1999-04-30T00:00:00.000Z | true
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date), x = d::int + 1 BY d = (date == "2025-01-01")
+;
+
+m:datetime               | x:integer | d:boolean
+1999-04-30T00:00:00.000Z | 2         | true
+;

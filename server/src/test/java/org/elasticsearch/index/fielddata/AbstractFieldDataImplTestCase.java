@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -60,6 +62,13 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         return 1;
     }
 
+    protected IndexSearcher newIndexSearcher(IndexReader indexReader) {
+        // IndexReader can't randomly wrapped with these field data tests.
+        // Sometimes ParallelCompositeReader is used and its getCoreCacheHelper() method sometimes returns null,
+        // and IndicesFieldDataCache can't handle this.
+        return newSearcher(indexReader, false);
+    }
+
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
         IndexFieldData<?> indexFieldData = getForField("value");
@@ -83,6 +92,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNotNull(FieldData.unwrapSingleton(bytesValues));
 
             assertTrue(bytesValues.advanceExact(0));
             assertThat(bytesValues.docValueCount(), equalTo(1));
@@ -99,11 +109,11 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());
 
-            IndexSearcher searcher = new IndexSearcher(readerContext.reader());
+            IndexSearcher searcher = newIndexSearcher(readerContext.reader());
             TopFieldDocs topDocs;
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -113,10 +123,13 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
+            // No need to close the index reader here, because it gets closed on test teardown.
+            // (This test uses refreshReader(...) which sets topLevelReader in super class and
+            // that gets closed.
         }
     }
 
@@ -172,25 +185,27 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            assertNull(FieldData.unwrapSingleton(bytesValues));
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, one());
             assertValues(bytesValues, 2, three());
 
-            IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+            IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
+            searcher.getIndexReader().close();
         }
     }
 
@@ -240,10 +255,10 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         fillExtendedMvSet();
         IndexFieldData<?> indexFieldData = getForField("value");
 
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
+        IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("!08"));
@@ -264,7 +279,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
         sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
         topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));
@@ -282,6 +297,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         assertThat(((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
         assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
         assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
+        searcher.getIndexReader().close();
     }
 
     protected abstract void fillExtendedMvSet() throws Exception;

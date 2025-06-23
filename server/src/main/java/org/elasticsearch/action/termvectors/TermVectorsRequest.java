@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -19,13 +20,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -50,8 +49,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
+public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
@@ -65,7 +63,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField DFS = new ParseField("dfs");
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
-    private static final ParseField TYPE = new ParseField("_type");
 
     private String id;
 
@@ -79,7 +76,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private long version = Versions.MATCH_ANY;
 
-    protected String preference;
+    private String preference;
 
     private static final AtomicInteger randomInt = new AtomicInteger(0);
 
@@ -128,7 +125,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             in.readString();
         }
@@ -156,7 +153,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             }
         }
         if (in.readBoolean()) {
-            perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
+            perFieldAnalyzer = readPerFieldAnalyzer(in.readGenericMap());
         }
         if (in.readBoolean()) {
             filterSettings = new FilterSettings();
@@ -477,7 +474,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeString("_doc");
         }
@@ -582,8 +579,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.version = parser.longValue();
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
-                } else if (restApiVersion == RestApiVersion.V_7 && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleCritical("termvectors_with_types", RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }

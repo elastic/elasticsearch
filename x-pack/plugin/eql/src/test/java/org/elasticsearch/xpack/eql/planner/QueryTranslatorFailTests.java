@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
@@ -292,11 +293,11 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     public void testSamplesWithIncorrectOptions() {
         assertThat(
             errorParsing("sample by pid with maxspan=1h [any where true] [any where true]"),
-            startsWith("1:15: mismatched input 'with' expecting '['")
+            startsWith("1:15: mismatched input 'with' expecting {'[', '!['}")
         );
         assertThat(
             errorParsing("sample with maxspan=1h [any where true] by pid [any where true] by pid"),
-            startsWith("1:8: mismatched input 'with' expecting {'by', '['}")
+            startsWith("1:8: mismatched input 'with' expecting {'by', '[', '!['}")
         );
         assertThat(
             errorParsing("sample by pid [any where true] [any where true] until [process where event.type == \"termination\"]"),
@@ -318,6 +319,38 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
             errorParsing("sample by host [success where true] by ?x [failure where true] by host"),
             startsWith("1:65: Join keys must be used only once, found duplicates: [host]")
         );
+    }
 
+    public void testNegativeHeadTail() {
+        String query = randomFrom("head -5", "tail -5");
+        assertThat(errorParsing("any where true | " + query), endsWith("expects a positive integer but found [-5]"));
+    }
+
+    public void testNegativeFoldedValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        String value = "-10 + 5";
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [-10 + 5]"));
+    }
+
+    public void testLongValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        Long value = randomLongBetween(Integer.MAX_VALUE + 1, Long.MAX_VALUE);
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [" + value + "]"));
+    }
+
+    public void testFoldedLongValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        int validInt1 = Integer.MAX_VALUE - 5;
+        int validInt2 = 10;
+        assertThat(
+            errorParsing("any where true |" + query + validInt1 + " + " + validInt2),
+            endsWith("expects a positive integer but found [2147483642 + 10]")
+        );
+    }
+
+    public void testFloatingPointValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        Double value = randomFrom(0.0d, 1.0d, .0d, randomDouble());
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [" + value + "]"));
     }
 }

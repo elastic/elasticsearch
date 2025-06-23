@@ -44,10 +44,9 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
     private final List<ElasticsearchException> errors;
 
     public InvalidateApiKeyResponse(StreamInput in) throws IOException {
-        super(in);
-        this.invalidatedApiKeys = in.readList(StreamInput::readString);
-        this.previouslyInvalidatedApiKeys = in.readList(StreamInput::readString);
-        this.errors = in.readList(StreamInput::readException);
+        this.invalidatedApiKeys = in.readCollectionAsList(StreamInput::readString);
+        this.previouslyInvalidatedApiKeys = in.readCollectionAsList(StreamInput::readString);
+        this.errors = in.readCollectionAsList(StreamInput::readException);
     }
 
     /**

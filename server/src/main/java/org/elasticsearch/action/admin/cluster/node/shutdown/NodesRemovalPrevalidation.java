@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,14 +46,14 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     }
 
     public static NodesRemovalPrevalidation readFrom(final StreamInput in) throws IOException {
-        return new NodesRemovalPrevalidation(in.readBoolean(), in.readString(), in.readList(NodeResult::readFrom));
+        return new NodesRemovalPrevalidation(in.readBoolean(), in.readString(), in.readCollectionAsList(NodeResult::readFrom));
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeBoolean(isSafe);
         out.writeString(message);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override
@@ -148,14 +149,14 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(isSafe);
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 reason.writeTo(out);
             }
             out.writeString(message);
         }
 
         public static Result readFrom(final StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_8_7_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 return new Result(in.readBoolean(), null, in.readString());
             }
             return new Result(in.readBoolean(), Reason.readFrom(in), in.readString());

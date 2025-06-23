@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -17,8 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +47,7 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
 
         for (Setting.AffixSetting<?> profileSetting : transportProfileSettings) {
             Settings testSettings = Settings.builder()
-                .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
+                .put(REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
                 // We can just stick a random value in, even if it doesn't match the type - that validation happens at a different layer
                 .put(profileSetting.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), randomAlphaOfLength(5))
                 .build();
@@ -67,7 +68,7 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
     public void testPortSettingsConstruction() {
         String hostValue = NetworkAddress.format(randomIp(true));
         Settings.Builder testSettingsBuilder = Settings.builder()
-            .put(REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
+            .put(REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
             .put(randomFrom(RemoteClusterPortSettings.HOST, TransportSettings.BIND_HOST, TransportSettings.HOST).getKey(), hostValue);
 
         boolean publishHostSet = randomBoolean();

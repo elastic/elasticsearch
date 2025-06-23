@@ -1,16 +1,24 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-security-cli'
+base {
+  archivesName = 'elasticsearch-security-cli'
+}
 
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  api "commons-io:commons-io:2.5"
+  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"
@@ -34,15 +42,7 @@ tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false' // the main code under test runs without the SecurityManager
 }
 
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
-    'junit.framework.Assert',
-    'junit.framework.TestCase'
-  )
-}
-
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   tasks.named("test").configure {
     enabled = false
   }
@@ -51,7 +51,10 @@ if (BuildParams.inFipsJvm) {
   }
   // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
   // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
-  tasks.withType(CheckForbiddenApis).configureEach {
-    bundledSignatures -= "jdk-non-portable"
+  tasks.withType(CheckForbiddenApisTask).configureEach {
+    modifyBundledSignatures { bundledSignatures ->
+      bundledSignatures -= "jdk-non-portable"
+      bundledSignatures
+    }
   }
 }

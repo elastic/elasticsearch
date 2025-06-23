@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -25,18 +24,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TrainedModelAssignmentService {
@@ -61,7 +60,7 @@ public class TrainedModelAssignmentService {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
-            logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
+            logger.warn("[{}] no master known for assignment update [{}]", request.getDeploymentId(), request.getUpdate());
             waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
             return;
         }
@@ -72,7 +71,7 @@ public class TrainedModelAssignmentService {
                 if (isMasterChannelException(failure)) {
                     logger.info(
                         "[{}] master channel exception will retry on new master node for assignment update [{}]",
-                        request.getModelId(),
+                        request.getDeploymentId(),
                         request.getUpdate()
                     );
                     waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
@@ -84,10 +83,10 @@ public class TrainedModelAssignmentService {
     }
 
     public void createNewModelAssignment(
-        StartTrainedModelDeploymentAction.TaskParams taskParams,
+        CreateTrainedModelAssignmentAction.Request request,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        client.execute(CreateTrainedModelAssignmentAction.INSTANCE, new CreateTrainedModelAssignmentAction.Request(taskParams), listener);
+        client.execute(CreateTrainedModelAssignmentAction.INSTANCE, request, listener);
     }
 
     public void deleteModelAssignment(String modelId, ActionListener<AcknowledgedResponse> listener) {
@@ -95,39 +94,40 @@ public class TrainedModelAssignmentService {
     }
 
     public void waitForAssignmentCondition(
-        final String modelId,
+        final String deploymentId,
         final Predicate<ClusterState> predicate,
         final @Nullable TimeValue timeout,
         final WaitForAssignmentListener listener
     ) {
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(state, deploymentId).orElse(null));
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        final ClusterState clusterState = observer.setAndGetObservedState();
-        if (predicate.test(clusterState)) {
-            listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId).orElse(null));
-        } else {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(state, modelId).orElse(null));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onTimeout(timeout);
-                }
-            }, predicate);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onTimeout(timeout);
+            }
+        }, predicate, timeout, logger);
     }
 
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {
         default void onTimeout(TimeValue timeout) {
-            onFailure(new ElasticsearchStatusException("Starting deployment timed out after [{}]", RestStatus.REQUEST_TIMEOUT, timeout));
+            onFailure(
+                new ModelDeploymentTimeoutException(
+                    format(
+                        "Timed out after [%s] waiting for trained model deployment to start. "
+                            + "Use the trained model stats API to track the state of the deployment and try again once it has started.",
+                        timeout
+                    )
+                )
+            );
         }
     }
 

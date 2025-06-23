@@ -16,27 +16,30 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.ilm.action.RetryAction;
-import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
-public class TransportRetryAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportRetryAction extends TransportMasterNodeAction<RetryActionRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportRetryAction.class);
 
-    IndexLifecycleService indexLifecycleService;
+    private final IndexLifecycleService indexLifecycleService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportRetryAction(
@@ -44,52 +47,63 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexLifecycleService indexLifecycleService
+        IndexLifecycleService indexLifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
-            RetryAction.NAME,
+            ILMActions.RETRY.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            Request::new,
-            indexNameExpressionResolver,
+            RetryActionRequest::new,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexLifecycleService = indexLifecycleService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        RetryActionRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final var projectState = projectResolver.getProjectState(state);
+        if (request.requireError() == false) {
+            maybeRunAsyncAction(projectState, request.indices());
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
         submitUnbatchedTask("ilm-re-run", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
+                final var project = state.metadata().getProject(projectState.projectId());
+                final var updatedProject = indexLifecycleService.moveIndicesToPreviouslyFailedStep(project, request.indices());
+                return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
             }
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                for (String index : request.indices()) {
-                    IndexMetadata idxMeta = newState.metadata().index(index);
-                    LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                    StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
-                    if (idxMeta == null) {
-                        // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
-                        logger.debug(
-                            "index ["
-                                + index
-                                + "] has been deleted after moving to step ["
-                                + lifecycleState.step()
-                                + "], skipping async action check"
-                        );
-                        return;
-                    }
-                    indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
-                }
+                maybeRunAsyncAction(newState.projectState(projectState.projectId()), request.indices());
             }
         });
+    }
+
+    private void maybeRunAsyncAction(ProjectState state, String[] indices) {
+        for (String index : indices) {
+            IndexMetadata idxMeta = state.metadata().index(index);
+            if (idxMeta == null) {
+                // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
+                logger.debug("index [" + index + "] has been deleted, skipping async action check");
+                return;
+            }
+            LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+            StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
+            indexLifecycleService.maybeRunAsyncAction(state, idxMeta, retryStep);
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -98,7 +112,8 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(RetryActionRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
+
 }

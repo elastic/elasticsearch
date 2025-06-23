@@ -8,19 +8,22 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,9 +32,12 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
-    // can't add a second test method, because each test run creates a new instance of this class and that will will result
-    // in a new random value:
-    private final int numberOfRoles = scaledRandomIntBetween(3, 99);
+    private static volatile int numberOfRoles;
+
+    @BeforeClass
+    public static void setupRoleCount() throws Exception {
+        numberOfRoles = scaledRandomIntBetween(3, 99);
+    }
 
     @Override
     protected String configUsers() {
@@ -92,28 +98,101 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
     }
 
     public void testDuelWithAliasFilters() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);
-        IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
+        IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (int i = 1; i <= numberOfRoles; i++) {
             String value = "value" + i;
-            requests.add(client().prepareIndex("test").setId(value).setSource("field1", value));
+            requests.add(prepareIndex("test").setId(value).setSource("field1", value));
             builder.addAlias("test", "alias" + i, QueryBuilders.termQuery("field1", value));
         }
         indexRandom(true, requests);
         builder.get();
 
         for (int roleI = 1; roleI <= numberOfRoles; roleI++) {
-            SearchResponse searchResponse1 = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD))
-            ).prepareSearch("test").get();
-            SearchResponse searchResponse2 = client().prepareSearch("alias" + roleI).get();
-            assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(searchResponse2.getHits().getTotalHits().value));
-            for (int hitI = 0; hitI < searchResponse1.getHits().getHits().length; hitI++) {
-                assertThat(searchResponse1.getHits().getAt(hitI).getId(), equalTo(searchResponse2.getHits().getAt(hitI).getId()));
-            }
+            final int role = roleI;
+            assertResponse(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user" + roleI, USERS_PASSWD)))
+                    .prepareSearch("test"),
+                searchResponse1 -> assertResponse(prepareSearch("alias" + role), searchResponse2 -> {
+                    assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(searchResponse2.getHits().getTotalHits().value()));
+                    for (int hitI = 0; hitI < searchResponse1.getHits().getHits().length; hitI++) {
+                        assertThat(searchResponse1.getHits().getAt(hitI).getId(), equalTo(searchResponse2.getHits().getAt(hitI).getId()));
+                    }
+                })
+            );
         }
     }
 
+    public void testWithRuntimeFields() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("runtime")
+                        .startObject("field1")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("field2")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    public void testWithRuntimeFieldsAndSyntheticSource() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_source")
+                        .field("mode", "synthetic")
+                        .endObject()
+                        .startObject("runtime")
+                        .startObject("field1")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    private void doTestWithRuntimeFieldsInTestIndex() {
+        List<IndexRequestBuilder> requests = new ArrayList<>(47);
+        for (int i = 1; i <= 42; i++) {
+            requests.add(prepareIndex("test").setSource("field1", "value1", "field2", "foo" + i));
+        }
+        for (int i = 42; i <= 57; i++) {
+            requests.add(prepareIndex("test").setSource("field1", "value2", "field2", "foo" + i));
+        }
+        indexRandom(true, requests);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test"),
+            42L
+        );
+    }
 }

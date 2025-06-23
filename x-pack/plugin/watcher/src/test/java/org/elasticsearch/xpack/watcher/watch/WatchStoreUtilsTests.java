@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
     public void testGetConcreteIndexForDataStream() {
         String dataStreamName = randomAlphaOfLength(20);
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Map<String, Metadata.Custom> customsBuilder = new HashMap<>();
+        Map<String, Metadata.ProjectCustom> customsBuilder = new HashMap<>();
         Map<String, DataStream> dataStreams = new HashMap<>();
         Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         List<String> indexNames = new ArrayList<>();
@@ -54,7 +54,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
             dataStreamAliases
         );
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
-        metadataBuilder.customs(customsBuilder);
+        metadataBuilder.projectCustoms(customsBuilder);
         IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(indexNames.size() - 1), concreteIndex.getIndex().getName());
@@ -133,11 +133,8 @@ public class WatchStoreUtilsTests extends ESTestCase {
 
     private IndexMetadata createIndexMetaData(String indexName, AliasMetadata aliasMetadata) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_PRIORITY, 5)
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+        Settings settings = indexSettings(1, 1).put(IndexMetadata.SETTING_PRIORITY, 5)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .build();
         indexMetadataBuilder.settings(settings);
         if (aliasMetadata != null) {

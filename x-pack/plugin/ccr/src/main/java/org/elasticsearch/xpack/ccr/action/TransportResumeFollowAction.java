@@ -16,18 +16,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -38,13 +38,16 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -60,22 +63,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
+
+import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
-    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
-    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = ByteSizeValue.of(512, ByteSizeUnit.MB);
     private static final int DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_OUTSTANDING_READ_REQUESTS = 12;
     static final TimeValue DEFAULT_READ_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
-    private final ThreadPool threadPool;
+    private final Executor remoteClientResponseExecutor;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -87,7 +93,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ActionFilters actionFilters,
         final Client client,
         final ClusterService clusterService,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService,
         final IndicesService indicesService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -100,11 +105,10 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             ResumeFollowAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
-        this.threadPool = threadPool;
+        this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -127,7 +131,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
@@ -139,7 +143,11 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(leaderCluster);
+        client.getRemoteClusterClient(
+            leaderCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
@@ -196,7 +204,13 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 followIndexMetadata,
                 filteredHeaders
             );
-            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
+            persistentTasksService.sendStartRequest(
+                taskId,
+                ShardFollowTask.NAME,
+                shardFollowTask,
+                request.masterNodeTimeout(),
+                handler.getActionListener(shardId)
+            );
         }
     }
 
@@ -466,16 +480,17 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
         IndexSettings.MAX_SLICES_PER_SCROLL,
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
-        IndexSettings.INDEX_SEARCH_THROTTLED,
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
@@ -491,15 +506,19 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
@@ -510,7 +529,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
+        DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC
     );
 
     public static Settings filter(Settings originalSettings) {

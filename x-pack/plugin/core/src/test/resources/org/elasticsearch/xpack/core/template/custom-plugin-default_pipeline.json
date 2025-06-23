@@ -1,0 +1,15 @@
+{
+  "description": "my custom default pipeline",
+  "processors": [
+    {
+      "set": {
+        "field": "test_field",
+        "copy_from": "other_field"
+      }
+    }
+  ],
+  "_meta": {
+    "managed": true
+  },
+  "version": ${xpack.custom_plugin.template.version}
+}

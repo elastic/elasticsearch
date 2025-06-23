@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
+
+import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
@@ -19,13 +22,11 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.hppc.BitMixer;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
@@ -170,7 +171,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private Set<Long> valids;
         private Set<Long> invalids;
 
-        private Long spare = new Long(0);
+        private final Long spare = new Long(0);
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
@@ -357,8 +358,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-        this.include = include == null ? null : new RegExp(include);
-        this.exclude = exclude == null ? null : new RegExp(exclude);
+        this.include = include == null ? null : new RegExp(include, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+        this.exclude = exclude == null ? null : new RegExp(exclude, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
@@ -387,13 +388,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             include = includeString == null ? null : new RegExp(includeString);
             String excludeString = in.readOptionalString();
             exclude = excludeString == null ? null : new RegExp(excludeString);
-            if (in.getVersion().before(Version.V_7_11_0)) {
-                incZeroBasedPartition = 0;
-                incNumPartitions = 0;
-                includeValues = null;
-                excludeValues = null;
-                return;
-            }
         } else {
             include = null;
             exclude = null;
@@ -427,9 +421,6 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (regexBased) {
             out.writeOptionalString(include == null ? null : include.getOriginalString());
             out.writeOptionalString(exclude == null ? null : exclude.getOriginalString());
-            if (out.getVersion().before(Version.V_7_11_0)) {
-                return;
-            }
         }
         boolean hasIncludes = includeValues != null;
         out.writeBoolean(hasIncludes);
@@ -538,7 +529,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null) {
             a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
-        return a;
+        return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     public StringFilter convertToStringFilter(DocValueFormat format) {

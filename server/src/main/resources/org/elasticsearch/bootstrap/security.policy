@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 // Default security policy file.
@@ -31,6 +32,10 @@ grant codeBase "${codebase.elasticsearch}" {
 
   // for plugin api dynamic settings instances
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
+
+  // For vector off-heap statistics, remove in Lucene 10.3
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Very special jar permissions:
@@ -52,11 +57,6 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
-grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
-  // needed to create the classloader which allows plugins to extend other plugins
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
 grant codeBase "${codebase.elasticsearch-core}" {
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
@@ -67,13 +67,14 @@ grant codeBase "${codebase.elasticsearch-cli}" {
   permission java.util.PropertyPermission "*", "read,write";
 };
 
-grant codeBase "${codebase.jna}" {
-  // for registering native methods
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
-
 grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-simdvec}" {
+  // for access MemorySegmentIndexInput internals
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:

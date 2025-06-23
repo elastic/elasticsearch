@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -36,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -60,9 +62,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithFewDocuments() throws Exception {
         String sourceIndex = "test-outlier-detection-with-few-docs";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -104,40 +104,41 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        double scoreOfOutlier = 0.0;
-        double scoreOfNonOutlier = -1.0;
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            assertThat(destDoc.containsKey("ml"), is(true));
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            double scoreOfOutlier = 0.0;
+            double scoreOfNonOutlier = -1.0;
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                assertThat(destDoc.containsKey("ml"), is(true));
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
-            assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            if (hit.getId().equals("outlier")) {
-                scoreOfOutlier = outlierScore;
-            } else {
-                if (scoreOfNonOutlier < 0) {
-                    scoreOfNonOutlier = outlierScore;
+                assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                double outlierScore = (double) resultsObject.get("outlier_score");
+                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                if (hit.getId().equals("outlier")) {
+                    scoreOfOutlier = outlierScore;
                 } else {
-                    assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    if (scoreOfNonOutlier < 0) {
+                        scoreOfNonOutlier = outlierScore;
+                    } else {
+                        assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    }
                 }
             }
-        }
-        assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+            assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -157,9 +158,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testPreview() throws Exception {
         String sourceIndex = "test-outlier-detection-preview";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=unsigned_long", "categorical_1", "type=keyword")
             .get();
 
@@ -199,9 +198,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -236,18 +233,17 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), docCount);
 
         // Check they all have an outlier_score
-        searchResponse = client().prepareSearch(config.getDest().getIndex())
-            .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+        assertHitCount(
+            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
+                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")),
+            docCount
+        );
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -269,7 +265,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).get();
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
         getSettingsRequest.indices(sourceIndex);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
         getSettingsRequest.includeDefaults(true);
@@ -318,28 +314,29 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                assertThat(destDoc.containsKey("ml"), is(true));
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
+                assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                double outlierScore = (double) resultsObject.get("outlier_score");
+                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
-            assertThat(destDoc.containsKey("ml"), is(true));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-
-            assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-        }
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -359,9 +356,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -400,17 +395,18 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             return;
         }
 
-        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
-        if (searchResponse.getHits().getTotalHits().value == docCount) {
-            searchResponse = client().prepareSearch(config.getDest().getIndex())
-                .setTrackTotalHits(true)
-                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
-                .get();
-            logger.debug("We stopped during analysis: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
-            assertThat(searchResponse.getHits().getTotalHits().value, lessThan((long) docCount));
-        } else {
-            logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
-        }
+        assertResponse(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), searchResponse -> {
+            if (searchResponse.getHits().getTotalHits().value() == docCount) {
+                long seenCount = SearchResponseUtils.getTotalHitsValue(
+                    prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
+                        .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
+                );
+                logger.debug("We stopped during analysis: [{}] < [{}]", seenCount, docCount);
+                assertThat(seenCount, lessThan((long) docCount));
+            } else {
+                logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value(), docCount);
+            }
+        });
 
         assertThatAuditMessagesMatch(
             id,
@@ -429,15 +425,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String destIndex = "test-outlier-detection-with-multiple-source-indices-results";
         String[] sourceIndex = new String[] { sourceIndex1, sourceIndex2 };
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex1)
+        indicesAdmin().prepareCreate(sourceIndex1)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex2)
+        indicesAdmin().prepareCreate(sourceIndex2)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -471,18 +463,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
 
         // Check they all have an outlier_score
-        searchResponse = client().prepareSearch(config.getDest().getIndex())
-            .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("ml.outlier_score"))
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+        assertHitCount(
+            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
+            bulkRequestBuilder.numberOfActions()
+        );
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -503,15 +493,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
         String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin()
-            .indices()
-            .prepareCreate(destIndex)
+        indicesAdmin().prepareCreate(destIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -539,18 +525,15 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
-
+        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), bulkRequestBuilder.numberOfActions());
         // Check they all have an outlier_score
-        searchResponse = client().prepareSearch(config.getDest().getIndex())
-            .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("ml.outlier_score"))
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+        assertHitCount(
+            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).setQuery(QueryBuilders.existsQuery("ml.outlier_score")),
+            bulkRequestBuilder.numberOfActions()
+        );
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -570,11 +553,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
         String sourceIndex = "test-model-memory-limit";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
-            .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
-            .get();
+        indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
@@ -607,11 +586,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testLazyAssignmentWithModelMemoryLimitTooHighForAssignment() throws Exception {
         String sourceIndex = "test-lazy-assign-model-memory-limit-too-high";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
-            .setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
-            .get();
+        indicesAdmin().prepareCreate(sourceIndex).setMapping("col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexRequest indexRequest = new IndexRequest(sourceIndex).id("doc_1").source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
@@ -662,9 +637,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -716,26 +689,23 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+        assertHitCount(prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true), docCount);
 
         // Check they all have an outlier_score
-        searchResponse = client().prepareSearch(config.getDest().getIndex())
-            .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score"))
-            .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+        assertHitCount(
+            prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true)
+                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")),
+            docCount
+        );
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
     }
 
     public void testOutlierDetectionWithCustomParams() throws Exception {
         String sourceIndex = "test-outlier-detection-with-custom-params";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping("numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
@@ -778,42 +748,43 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        double scoreOfOutlier = 0.0;
-        double scoreOfNonOutlier = -1.0;
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            assertThat(destDoc.containsKey("ml"), is(true));
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            double scoreOfOutlier = 0.0;
+            double scoreOfNonOutlier = -1.0;
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                assertThat(destDoc.containsKey("ml"), is(true));
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
-            assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            assertThat(resultsObject.containsKey("feature_influence"), is(false));
+                assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                assertThat(resultsObject.containsKey("feature_influence"), is(false));
 
-            double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            if (hit.getId().equals("outlier")) {
-                scoreOfOutlier = outlierScore;
-            } else {
-                if (scoreOfNonOutlier < 0) {
-                    scoreOfNonOutlier = outlierScore;
+                double outlierScore = (double) resultsObject.get("outlier_score");
+                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                if (hit.getId().equals("outlier")) {
+                    scoreOfOutlier = outlierScore;
                 } else {
-                    assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    if (scoreOfNonOutlier < 0) {
+                        scoreOfNonOutlier = outlierScore;
+                    } else {
+                        assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    }
                 }
             }
-        }
-        assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+            assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -887,45 +858,46 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        double scoreOfOutlier = 0.0;
-        double scoreOfNonOutlier = -1.0;
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            assertThat(destDoc.containsKey("ml"), is(true));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-
-            assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            if (hit.getId().equals("outlier")) {
-                scoreOfOutlier = outlierScore;
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            double scoreOfOutlier = 0.0;
+            double scoreOfNonOutlier = -1.0;
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                assertThat(destDoc.containsKey("ml"), is(true));
 
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> featureInfluence = (List<Map<String, Object>>) resultsObject.get("feature_influence");
-                assertThat(featureInfluence.size(), equalTo(1));
-                assertThat(featureInfluence.get(0).get("feature_name"), equalTo("runtime_numeric"));
-            } else {
-                if (scoreOfNonOutlier < 0) {
-                    scoreOfNonOutlier = outlierScore;
+                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
+                assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                double outlierScore = (double) resultsObject.get("outlier_score");
+                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                if (hit.getId().equals("outlier")) {
+                    scoreOfOutlier = outlierScore;
+
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> featureInfluence = (List<Map<String, Object>>) resultsObject.get("feature_influence");
+                    assertThat(featureInfluence.size(), equalTo(1));
+                    assertThat(featureInfluence.get(0).get("feature_name"), equalTo("runtime_numeric"));
                 } else {
-                    assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    if (scoreOfNonOutlier < 0) {
+                        scoreOfNonOutlier = outlierScore;
+                    } else {
+                        assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    }
                 }
             }
-        }
-        assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+            assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",
@@ -992,45 +964,46 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        double scoreOfOutlier = 0.0;
-        double scoreOfNonOutlier = -1.0;
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            assertThat(destDoc.containsKey("ml"), is(true));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-
-            assertThat(resultsObject.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            if (hit.getId().equals("outlier")) {
-                scoreOfOutlier = outlierScore;
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            double scoreOfOutlier = 0.0;
+            double scoreOfNonOutlier = -1.0;
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                assertThat(destDoc.containsKey("ml"), is(true));
 
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> featureInfluence = (List<Map<String, Object>>) resultsObject.get("feature_influence");
-                assertThat(featureInfluence.size(), equalTo(1));
-                assertThat(featureInfluence.get(0).get("feature_name"), equalTo("runtime_numeric"));
-            } else {
-                if (scoreOfNonOutlier < 0) {
-                    scoreOfNonOutlier = outlierScore;
+                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
+                assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                double outlierScore = (double) resultsObject.get("outlier_score");
+                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                if (hit.getId().equals("outlier")) {
+                    scoreOfOutlier = outlierScore;
+
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> featureInfluence = (List<Map<String, Object>>) resultsObject.get("feature_influence");
+                    assertThat(featureInfluence.size(), equalTo(1));
+                    assertThat(featureInfluence.get(0).get("feature_name"), equalTo("runtime_numeric"));
                 } else {
-                    assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    if (scoreOfNonOutlier < 0) {
+                        scoreOfNonOutlier = outlierScore;
+                    } else {
+                        assertThat(outlierScore, equalTo(scoreOfNonOutlier));
+                    }
                 }
             }
-        }
-        assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+            assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
         assertThatAuditMessagesMatch(
             id,
             "Created analytics with type [outlier_detection]",

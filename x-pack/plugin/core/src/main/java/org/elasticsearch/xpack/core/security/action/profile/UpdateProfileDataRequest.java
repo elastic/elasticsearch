@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdateProfileDataRequest extends ActionRequest {
+public class UpdateProfileDataRequest extends LegacyActionRequest {
 
     private final String uid;
     private final Map<String, Object> labels;
@@ -50,8 +50,8 @@ public class UpdateProfileDataRequest extends ActionRequest {
     public UpdateProfileDataRequest(StreamInput in) throws IOException {
         super(in);
         this.uid = in.readString();
-        this.labels = in.readMap();
-        this.data = in.readMap();
+        this.labels = in.readGenericMap();
+        this.data = in.readGenericMap();
         this.ifPrimaryTerm = in.readLong();
         this.ifSeqNo = in.readLong();
         this.refreshPolicy = RefreshPolicy.readFrom(in);

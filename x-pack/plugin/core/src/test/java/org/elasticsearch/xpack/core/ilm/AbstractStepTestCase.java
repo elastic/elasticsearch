@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -18,15 +20,14 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
     protected Client client;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
-
-    public static ClusterState emptyClusterState() {
-        return ClusterState.builder(ClusterName.DEFAULT).build();
-    }
 
     @Before
     public void setupClient() {
@@ -34,6 +35,7 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
 
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(client);
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }
@@ -66,5 +68,29 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         assertFalse(ErrorStep.NAME.equals(stepKey.name()));
         StepKey nextStepKey = instance.getKey();
         assertFalse(ErrorStep.NAME.equals(nextStepKey.name()));
+    }
+
+    protected void performActionAndWait(
+        AsyncActionStep step,
+        IndexMetadata indexMetadata,
+        ProjectState currentState,
+        ClusterStateObserver observer
+    ) throws Exception {
+        final var future = new PlainActionFuture<Void>();
+        step.performAction(indexMetadata, currentState, observer, future);
+        try {
+            future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof Exception exception) {
+                throw exception;
+            } else {
+                fail(e, "unexpected");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "unexpected");
+        } catch (Exception e) {
+            fail(e, "unexpected");
+        }
     }
 }

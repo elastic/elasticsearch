@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
@@ -25,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Cat API class to display information about the size of fielddata fields per node
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestFielddataAction extends AbstractCatAction {
 
     @Override
@@ -40,6 +44,7 @@ public class RestFielddataAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+        nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.clear();
         nodesStatsRequest.indices(true);
         String[] fields = request.paramAsStringArray("fields", null);

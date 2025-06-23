@@ -1,0 +1,45 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  managed: true
+description: Built-in ingest pipeline for traces-apm-* data streams
+processors:
+- set:
+    if: ctx.transaction?.type != null
+    field: processor.event
+    value: transaction
+- set:
+    field: processor.event
+    value: span
+    override: false
+- script:
+    # Older versions of apm-server write 'transaction.duration.us' or
+    # 'span.duration.us'. Newer versions write 'event.duration', which
+    # should be rewritten.
+    if: 'ctx[ctx.processor.event]?.duration == null'
+    source: |
+      def eventDuration = ctx.event?.duration ?: 0;
+      def rootObjectName = ctx.processor?.event;
+      def rootObject = ctx[rootObjectName];
+      if (rootObject == null) {
+        rootObject = [:];
+        ctx[rootObjectName] = rootObject;
+      }
+      rootObject.duration = ["us": (long)(eventDuration/1000)];
+- remove:
+    field: ["event.duration"]
+    ignore_failure: true
+    ignore_missing: true
+- set:
+    if: ctx.event?.outcome == 'failure'
+    field: event.success_count
+    value: 0
+- set:
+    if: ctx.event?.outcome == 'success'
+    field: event.success_count
+    value: 1
+- script:
+    if: ctx.event?.outcome == 'success' && ctx[ctx.processor?.event]?.representative_count != null
+    source: ctx.event.success_count = ctx[ctx.processor?.event]?.representative_count;
+- pipeline:
+    name: apm@pipeline

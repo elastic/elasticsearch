@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.enrich.action;
 
 import org.apache.logging.log4j.util.BiConsumer;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,15 +16,13 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,26 +87,39 @@ public class CoordinatorTests extends ESTestCase {
         // Replying a response and that should trigger another coordination round
         MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[5];
         for (int i = 0; i < 5; i++) {
+            emptyResponse.incRef();
             responseItems[i] = new MultiSearchResponse.Item(emptyResponse, null);
         }
-        lookupFunction.capturedConsumers.get(0).accept(new MultiSearchResponse(responseItems, 1L), null);
-        assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
-        assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
+        emptyResponse.decRef();
+        final MultiSearchResponse res1 = new MultiSearchResponse(responseItems, 1L);
+        try {
+            lookupFunction.capturedConsumers.get(0).accept(res1, null);
+            assertThat(coordinator.queue.size(), equalTo(0));
+            assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
+            assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
 
-        // Replying last response, resulting in an empty queue and no outstanding requests.
-        responseItems = new MultiSearchResponse.Item[5];
-        for (int i = 0; i < 5; i++) {
-            responseItems[i] = new MultiSearchResponse.Item(emptyResponse, null);
-        }
-        lookupFunction.capturedConsumers.get(1).accept(new MultiSearchResponse(responseItems, 1L), null);
-        assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
-        assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
+            // Replying last response, resulting in an empty queue and no outstanding requests.
+            responseItems = new MultiSearchResponse.Item[5];
+            for (int i = 0; i < 5; i++) {
+                emptyResponse.incRef();
+                responseItems[i] = new MultiSearchResponse.Item(emptyResponse, null);
+            }
+            var res2 = new MultiSearchResponse(responseItems, 1L);
+            try {
+                lookupFunction.capturedConsumers.get(1).accept(res2, null);
+                assertThat(coordinator.queue.size(), equalTo(0));
+                assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+                assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
 
-        // All individual action listeners for the search requests should have been invoked:
-        for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
-            Mockito.verify(searchActionListener).onResponse(Mockito.eq(emptyResponse));
+                // All individual action listeners for the search requests should have been invoked:
+                for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
+                    Mockito.verify(searchActionListener).onResponse(Mockito.eq(emptyResponse));
+                }
+            } finally {
+                res2.decRef();
+            }
+        } finally {
+            res1.decRef();
         }
     }
 
@@ -187,14 +197,19 @@ public class CoordinatorTests extends ESTestCase {
         for (int i = 0; i < 5; i++) {
             responseItems[i] = new MultiSearchResponse.Item(null, e);
         }
-        lookupFunction.capturedConsumers.get(0).accept(new MultiSearchResponse(responseItems, 1L), null);
-        assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
-        assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
+        var res = new MultiSearchResponse(responseItems, 1L);
+        try {
+            lookupFunction.capturedConsumers.get(0).accept(res, null);
+            assertThat(coordinator.queue.size(), equalTo(0));
+            assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+            assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
 
-        // All individual action listeners for the search requests should have been invoked:
-        for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
-            Mockito.verify(searchActionListener).onFailure(Mockito.eq(e));
+            // All individual action listeners for the search requests should have been invoked:
+            for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
+                Mockito.verify(searchActionListener).onFailure(Mockito.eq(e));
+            }
+        } finally {
+            res.decRef();
         }
     }
 
@@ -239,16 +254,16 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(lookupFunction.capturedConsumers.size(), is(1));
 
         // Fulfill the captured consumer which will schedule the next item in the queue.
-        lookupFunction.capturedConsumers.get(0)
-            .accept(
-                new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L),
-                null
-            );
-
-        // Ensure queue was drained and that the item in it was scheduled
-        assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
-        assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
+        var res = new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L);
+        try {
+            lookupFunction.capturedConsumers.get(0).accept(res, null);
+            // Ensure queue was drained and that the item in it was scheduled
+            assertThat(coordinator.queue.size(), equalTo(0));
+            assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
+            assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
+        } finally {
+            res.decRef();
+        }
     }
 
     public void testLookupFunction() {
@@ -302,42 +317,60 @@ public class CoordinatorTests extends ESTestCase {
         Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
         Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new HashMap<>();
 
-        MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(emptySearchResponse(), null);
-        itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
-        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item1, item1, item1 }, 1), null));
+        try {
+            var empty = emptySearchResponse();
+            // use empty response 3 times below and we start out with ref-count 1
+            empty.incRef();
+            empty.incRef();
+            MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(empty, null);
+            itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
+            shardResponses.put(
+                "index1",
+                new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item1, item1, item1 }, 1), null)
+            );
 
-        Exception failure = new RuntimeException();
-        itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
-        shardResponses.put("index2", new Tuple<>(null, failure));
+            Exception failure = new RuntimeException();
+            itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
+            shardResponses.put("index2", new Tuple<>(null, failure));
 
-        MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(emptySearchResponse(), null);
-        itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
-        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item2, item2, item2 }, 1), null));
+            // use empty response 3 times below
+            empty.incRef();
+            empty.incRef();
+            empty.incRef();
+            MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(empty, null);
+            itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
+            shardResponses.put(
+                "index3",
+                new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item2, item2, item2 }, 1), null)
+            );
 
-        MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
-        assertThat(result.getResponses().length, equalTo(9));
-        assertThat(result.getResponses()[0], sameInstance(item1));
-        assertThat(result.getResponses()[1], sameInstance(item1));
-        assertThat(result.getResponses()[2], sameInstance(item1));
-        assertThat(result.getResponses()[3].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[4].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[5].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[6], sameInstance(item2));
-        assertThat(result.getResponses()[7], sameInstance(item2));
-        assertThat(result.getResponses()[8], sameInstance(item2));
+            MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
+            try {
+                assertThat(result.getResponses().length, equalTo(9));
+                assertThat(result.getResponses()[0], sameInstance(item1));
+                assertThat(result.getResponses()[1], sameInstance(item1));
+                assertThat(result.getResponses()[2], sameInstance(item1));
+                assertThat(result.getResponses()[3].getFailure(), sameInstance(failure));
+                assertThat(result.getResponses()[4].getFailure(), sameInstance(failure));
+                assertThat(result.getResponses()[5].getFailure(), sameInstance(failure));
+                assertThat(result.getResponses()[6], sameInstance(item2));
+                assertThat(result.getResponses()[7], sameInstance(item2));
+                assertThat(result.getResponses()[8], sameInstance(item2));
+            } finally {
+                result.decRef();
+            }
+        } finally {
+            for (Tuple<MultiSearchResponse, Exception> value : shardResponses.values()) {
+                var res = value.v1();
+                if (res != null) {
+                    res.decRef();
+                }
+            }
+        }
     }
 
     private static SearchResponse emptySearchResponse() {
-        InternalSearchResponse response = new InternalSearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-            InternalAggregations.EMPTY,
-            null,
-            null,
-            false,
-            null,
-            1
-        );
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        return SearchResponseUtils.successfulResponse(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN));
     }
 
     private class MockLookupFunction implements BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> {
@@ -360,7 +393,12 @@ public class CoordinatorTests extends ESTestCase {
             for (int i = 0; i < items.length; i++) {
                 items[i] = new MultiSearchResponse.Item(emptySearchResponse(), null);
             }
-            responseConsumer.accept(new MultiSearchResponse(items, 0L), null);
+            var res = new MultiSearchResponse(items, 0L);
+            try {
+                responseConsumer.accept(res, null);
+            } finally {
+                res.decRef();
+            }
         }), 5, 2, 20);
         try {
 
@@ -370,7 +408,7 @@ public class CoordinatorTests extends ESTestCase {
                 threadPool.generic().execute(() -> {
                     while (schedulePermits.tryAcquire()) {
                         final AtomicBoolean completed = new AtomicBoolean();
-                        coordinator.schedule(new SearchRequest("index"), ActionListener.wrap(() -> {
+                        coordinator.schedule(new SearchRequest("index"), ActionListener.running(() -> {
                             assertTrue(completed.compareAndSet(false, true)); // no double-completion
                             completionCountdown.countDown();
                         }));

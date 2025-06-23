@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -11,6 +12,9 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VersionTypeTests extends ESTestCase {
@@ -162,5 +166,36 @@ public class VersionTypeTests extends ESTestCase {
         // } else { // external version type
         // updatedVersion = expectedVersion;
         // }
+    }
+
+    public void testStaticFromString() {
+        assertThat(VersionType.fromString("internal"), equalTo(VersionType.INTERNAL));
+        assertThat(VersionType.fromString("external"), equalTo(VersionType.EXTERNAL));
+        assertThat(VersionType.fromString("external_gt"), equalTo(VersionType.EXTERNAL));
+        assertThat(VersionType.fromString("external_gte"), equalTo(VersionType.EXTERNAL_GTE));
+
+        IllegalArgumentException exception;
+        exception = expectThrows(IllegalArgumentException.class, () -> VersionType.fromString("other"));
+        assertThat(exception.toString(), containsString("No version type match [other]"));
+
+        exception = expectThrows(IllegalArgumentException.class, () -> VersionType.fromString(null));
+        assertThat(exception.toString(), containsString("No version type match [null]"));
+    }
+
+    public void testStaticToString() {
+        assertThat(VersionType.toString(VersionType.INTERNAL), equalTo("internal"));
+        assertThat(VersionType.toString(VersionType.EXTERNAL), equalTo("external"));
+        assertThat(VersionType.toString(VersionType.EXTERNAL_GTE), equalTo("external_gte"));
+
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> VersionType.toString(null));
+        assertThat(
+            npe.toString(),
+            containsString("Cannot invoke \"org.elasticsearch.index.VersionType.ordinal()\" because \"versionType\" is null")
+        );
+
+        // compare the current implementation with the previous implementation
+        for (VersionType type : VersionType.values()) {
+            assertThat(VersionType.toString(type), equalTo(type.name().toLowerCase(Locale.ROOT)));
+        }
     }
 }

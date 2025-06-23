@@ -225,6 +225,9 @@ public class ExtractedFields {
                 // We check if the parent is an object or nested field. If so, it's not a multi field.
                 return false;
             }
+            if (isAggregatable(parent) && isAggregatable(field)) {
+                return false;
+            }
             return true;
         }
 
@@ -260,8 +263,8 @@ public class ExtractedFields {
         }
 
         @Override
-        public Object[] value(SearchHit hit) {
-            Object[] value = field.value(hit);
+        public Object[] value(SearchHit hit, SourceSupplier source) {
+            Object[] value = field.value(hit, source);
             if (value != null) {
                 return Arrays.stream(value).map(v -> {
                     boolean asBoolean;

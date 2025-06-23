@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -19,6 +23,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
+import java.lang.ref.SoftReference;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -26,7 +31,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DateProcessor extends AbstractProcessor {
 
@@ -40,7 +48,7 @@ public final class DateProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final List<BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
     DateProcessor(
@@ -72,36 +80,45 @@ public final class DateProcessor extends AbstractProcessor {
         this.targetField = targetField;
         this.formats = formats;
         this.dateParsers = new ArrayList<>(this.formats.size());
+
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
+            dateParsers.add(
+                (documentTimezone, documentLocale) -> Cache.INSTANCE.getOrCompute(
+                    new Cache.Key(format, documentTimezone, documentLocale),
+                    () -> dateFormat.getFunction(format, documentTimezone, documentLocale)
+                )
+            );
         }
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
-    private ZoneId newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
-    }
-
-    private Locale newLocale(Map<String, Object> params) {
-        return locale == null ? Locale.ROOT : LocaleUtils.parse(locale.newInstance(params).execute());
-    }
-
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
-        Object obj = ingestDocument.getFieldValue(field, Object.class);
+    public IngestDocument execute(IngestDocument document) {
+        Object obj = document.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
-            // Not use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
+            // Don't use Objects.toString(...) here, because null gets changed to "null" which may confuse some date parsers
             value = obj.toString();
+        }
+
+        // run (potential) mustache application just a single time for this document in order to
+        // extract the timezone and locale to use for date parsing
+        final ZoneId documentTimezone;
+        final Locale documentLocale;
+        try {
+            documentTimezone = getTimezone(document);
+            documentLocale = getLocale(document);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
         }
 
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
+        for (BiFunction<ZoneId, Locale, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
-                dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                dateTime = dateParser.apply(documentTimezone, documentLocale).apply(value);
                 break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions
@@ -113,8 +130,8 @@ public final class DateProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setFieldValue(targetField, formatter.format(dateTime));
-        return ingestDocument;
+        document.setFieldValue(targetField, formatter.format(dateTime));
+        return document;
     }
 
     @Override
@@ -122,12 +139,24 @@ public final class DateProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    TemplateScript.Factory getTimezone() {
-        return timezone;
+    // visible for testing
+    ZoneId getTimezone(IngestDocument document) {
+        String value = timezone == null ? null : document.renderTemplate(timezone);
+        if (value == null) {
+            return ZoneOffset.UTC;
+        } else {
+            return ZoneId.of(value);
+        }
     }
 
-    TemplateScript.Factory getLocale() {
-        return locale;
+    // visible for testing
+    Locale getLocale(IngestDocument document) {
+        String value = locale == null ? null : document.renderTemplate(locale);
+        if (value == null) {
+            return Locale.ENGLISH;
+        } else {
+            return LocaleUtils.parse(value);
+        }
     }
 
     String getField() {
@@ -156,30 +185,25 @@ public final class DateProcessor extends AbstractProcessor {
 
         public DateProcessor create(
             Map<String, Processor.Factory> registry,
-            String processorTag,
+            String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
-            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", DEFAULT_TARGET_FIELD);
+            String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             TemplateScript.Factory compiledTimezoneTemplate = null;
             if (timezoneString != null) {
-                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(
-                    TYPE,
-                    processorTag,
-                    "timezone",
-                    timezoneString,
-                    scriptService
-                );
+                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(TYPE, tag, "timezone", timezoneString, scriptService);
             }
-            String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "locale");
+            String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             TemplateScript.Factory compiledLocaleTemplate = null;
             if (localeString != null) {
-                compiledLocaleTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "locale", localeString, scriptService);
+                compiledLocaleTemplate = ConfigurationUtils.compileTemplate(TYPE, tag, "locale", localeString, scriptService);
             }
-            List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
-            String outputFormat = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
+            List<String> formats = ConfigurationUtils.readList(TYPE, tag, config, "formats");
+            String outputFormat = ConfigurationUtils.readStringProperty(TYPE, tag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
             try {
                 DateFormatter.forPattern(outputFormat);
             } catch (Exception e) {
@@ -187,7 +211,7 @@ public final class DateProcessor extends AbstractProcessor {
             }
 
             return new DateProcessor(
-                processorTag,
+                tag,
                 description,
                 compiledTimezoneTemplate,
                 compiledLocaleTemplate,
@@ -197,5 +221,51 @@ public final class DateProcessor extends AbstractProcessor {
                 outputFormat
             );
         }
+    }
+
+    /**
+     * An ad-hoc cache class that just throws away the cached values once it's full because we don't want to affect the performance
+     * while applying eviction policies when adding new values or retrieving them.
+     */
+    static final class Cache {
+
+        private static final String CACHE_CAPACITY_SETTING = "es.ingest.date_processor.cache_capacity";
+        static final Cache INSTANCE;
+
+        static {
+            var cacheSizeStr = System.getProperty(CACHE_CAPACITY_SETTING, "256");
+            try {
+                INSTANCE = new Cache(Integer.parseInt(cacheSizeStr));
+            } catch (NumberFormatException e) {
+                throw new SettingsException("{} must be a valid number but was [{}]", CACHE_CAPACITY_SETTING, cacheSizeStr);
+            }
+        }
+        private final ConcurrentMap<Key, SoftReference<Function<String, ZonedDateTime>>> map;
+        private final int capacity;
+
+        Cache(int capacity) {
+            if (capacity <= 0) {
+                throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
+            }
+            this.capacity = capacity;
+            this.map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(this.capacity);
+        }
+
+        Function<String, ZonedDateTime> getOrCompute(Key key, Supplier<Function<String, ZonedDateTime>> supplier) {
+            Function<String, ZonedDateTime> fn;
+            var element = map.get(key);
+            // element exist and wasn't GCed
+            if (element != null && (fn = element.get()) != null) {
+                return fn;
+            }
+            if (map.size() >= capacity) {
+                map.clear();
+            }
+            fn = supplier.get();
+            map.put(key, new SoftReference<>(fn));
+            return fn;
+        }
+
+        record Key(String format, ZoneId zoneId, Locale locale) {}
     }
 }

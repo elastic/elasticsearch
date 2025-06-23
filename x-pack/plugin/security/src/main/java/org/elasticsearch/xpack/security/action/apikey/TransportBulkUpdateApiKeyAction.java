@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -18,17 +18,16 @@ import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Set;
 
 public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<
     BulkUpdateApiKeyRequest,
     BulkUpdateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
+    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     @Inject
     public TransportBulkUpdateApiKeyAction(
@@ -39,16 +38,9 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(
-            BulkUpdateApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            BulkUpdateApiKeyRequest::new,
-            context,
-            rolesStore,
-            xContentRegistry
-        );
+        super(BulkUpdateApiKeyAction.NAME, transportService, actionFilters, context);
         this.apiKeyService = apiKeyService;
+        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
@@ -56,9 +48,14 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final Task task,
         final BulkUpdateApiKeyRequest request,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener);
+        resolver.resolveUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
     }
 }

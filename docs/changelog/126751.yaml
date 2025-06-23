@@ -1,0 +1,5 @@
+pr: 126751
+summary: Allow float settings to be configured with other settings as default
+area: Infra/Settings
+type: enhancement
+issues: []

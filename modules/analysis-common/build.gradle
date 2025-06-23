@@ -1,34 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" analyzers to Elasticsearch.'
-  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  description = 'Adds "built in" analyzers to Elasticsearch.'
+  classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count', 'capabilities'
   }
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:mapper-extras')
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest("indices.analyze/10_analyze/htmlStrip_deprecated", "Cleanup versioned deprecations in analysis #41560")
-  task.skipTest("analysis-common/40_token_filters/delimited_payload_filter_error", "Remove preconfigured delimited_payload_filter #43686")
-  task.skipTest("analysis-common/20_analyzers/standard_html_strip", "Cleanup versioned deprecations in analysis #41560")
-  task.skipTest("search.query/50_queries_with_synonyms/Test common terms query with stacked tokens", "#42654 -  `common` query throws an exception")
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
+  task.skipTest("indices.analyze/15_analyze/Custom analyzer is not buildable", "error response changed with #123743")
+}

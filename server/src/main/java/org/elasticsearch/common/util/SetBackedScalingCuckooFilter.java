@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -111,9 +112,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = in.readDouble();
 
         if (isSetMode) {
-            this.hashes = in.readSet(StreamInput::readZLong);
+            this.hashes = in.readCollectionAsSet(StreamInput::readZLong);
         } else {
-            this.filters = in.readList(in12 -> new CuckooFilter(in12, rng));
+            this.filters = in.readCollectionAsList(in12 -> new CuckooFilter(in12, rng));
             this.numBuckets = filters.get(0).getNumBuckets();
             this.fingerprintMask = filters.get(0).getFingerprintMask();
             this.bitsPerEntry = filters.get(0).getBitsPerEntry();
@@ -129,7 +130,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         if (isSetMode) {
             out.writeCollection(hashes, StreamOutput::writeZLong);
         } else {
-            out.writeList(filters);
+            out.writeCollection(filters);
         }
     }
 
@@ -340,7 +341,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else if (isSetMode == false && other.isSetMode) {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
-            other.hashes.forEach(this::add);
+            other.hashes.forEach(this::addHash);
         } else {
             // Both are in cuckoo mode, merge raw fingerprints
 

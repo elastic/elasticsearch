@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -56,7 +57,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -77,23 +78,15 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     /**
      * Attempting to use HDRPercentileAggregation on a range field throws IllegalArgumentException
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42949")
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, RangeType.DOUBLE);
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(RangeType.DOUBLE, 1.0D, 5.0D, true, true);
         BytesRef encodedRange = RangeType.DOUBLE.encodeRanges(Collections.singleton(range));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                new FieldExistsQuery(fieldName),
-                iw -> { iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange))); },
-                hdr -> {},
-                fieldType,
-                fieldName
-            )
-        );
+        expectThrows(IllegalArgumentException.class, () -> testCase(new FieldExistsQuery(fieldName), iw -> {
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange)));
+        }, hdr -> {}, fieldType, fieldName));
     }
 
     public void testNoMatchingField() throws IOException {
@@ -101,7 +94,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -113,7 +106,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 20)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
         }, hdr -> {
-            assertEquals(4L, hdr.state.getTotalCount());
+            assertEquals(4L, hdr.getState().getTotalCount());
             double approximation = 0.05d;
             assertEquals(10.0d, hdr.percentile(25), approximation);
             assertEquals(20.0d, hdr.percentile(50), approximation);
@@ -130,7 +123,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 20)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
         }, hdr -> {
-            assertEquals(4L, hdr.state.getTotalCount());
+            assertEquals(4L, hdr.getState().getTotalCount());
             double approximation = 0.05d;
             assertEquals(10.0d, hdr.percentile(25), approximation);
             assertEquals(20.0d, hdr.percentile(50), approximation);
@@ -149,13 +142,13 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         };
 
         testCase(LongPoint.newRangeQuery("row", 0, 2), docs, hdr -> {
-            assertEquals(2L, hdr.state.getTotalCount());
+            assertEquals(2L, hdr.getState().getTotalCount());
             assertEquals(10.0d, hdr.percentile(randomDoubleBetween(1, 50, true)), 0.05d);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
 
         testCase(LongPoint.newRangeQuery("row", 5, 10), docs, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -169,6 +162,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 .field("value");
         });
         assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
+    }
+
+    public void testInvalidNegativeNumber() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            testCase(new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", -20)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
+            }, hdr -> { fail("Aggregation should have failed due to negative value"); });
+        });
+        assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)

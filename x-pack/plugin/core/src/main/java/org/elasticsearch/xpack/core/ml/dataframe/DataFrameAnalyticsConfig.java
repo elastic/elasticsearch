@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -67,6 +68,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
     public static final ParseField MAX_NUM_THREADS = new ParseField("max_num_threads");
+    public static final ParseField META = new ParseField("_meta");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -94,6 +96,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         );
         parser.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
         parser.declareInt(Builder::setMaxNumThreads, MAX_NUM_THREADS);
+        parser.declareObject(Builder::setMeta, (p, c) -> p.mapOrdered(), META);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
@@ -106,7 +109,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 ObjectParser.ValueType.VALUE
             );
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
-            parser.declareString(Builder::setVersion, Version::fromString, VERSION);
+            parser.declareString(Builder::setVersion, MlConfigVersion::fromString, VERSION);
         }
         return parser;
     }
@@ -136,9 +139,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
     private final Instant createTime;
-    private final Version version;
+    private final MlConfigVersion version;
     private final boolean allowLazyStart;
     private final int maxNumThreads;
+    private final Map<String, Object> meta;
 
     private DataFrameAnalyticsConfig(
         String id,
@@ -150,9 +154,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         ByteSizeValue modelMemoryLimit,
         FetchSourceContext analyzedFields,
         Instant createTime,
-        Version version,
+        MlConfigVersion version,
         boolean allowLazyStart,
-        Integer maxNumThreads
+        Integer maxNumThreads,
+        Map<String, Object> meta
     ) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.description = description;
@@ -170,6 +175,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", MAX_NUM_THREADS.getPreferredName());
         }
         this.maxNumThreads = maxNumThreads == null ? 1 : maxNumThreads;
+        this.meta = meta == null ? null : Collections.unmodifiableMap(meta);
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
@@ -180,11 +186,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
         this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::readFrom);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        this.headers = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        this.headers = in.readImmutableMap(StreamInput::readString);
         this.createTime = in.readOptionalInstant();
-        this.version = in.readBoolean() ? Version.readVersion(in) : null;
+        this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            Map<String, Object> readMeta = in.readGenericMap();
+            this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
+        } else {
+            this.meta = null;
+        }
     }
 
     public String getId() {
@@ -223,7 +235,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return createTime;
     }
 
-    public Version getVersion() {
+    public MlConfigVersion getVersion() {
         return version;
     }
 
@@ -235,6 +247,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return maxNumThreads;
     }
 
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);
@@ -242,7 +258,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (createTime != null) {
-                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    CREATE_TIME.getPreferredName(),
+                    CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
             }
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);
@@ -277,6 +297,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
         builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
+        if (meta != null) {
+            builder.field(META.getPreferredName(), meta);
+        }
         builder.endObject();
         return builder;
     }
@@ -290,16 +313,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalInstant(createTime);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            MlConfigVersion.writeVersion(version, out);
         } else {
             out.writeBoolean(false);
         }
         out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeGenericMap(meta);
+        }
     }
 
     @Override
@@ -319,7 +345,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(version, other.version)
             && Objects.equals(allowLazyStart, other.allowLazyStart)
-            && maxNumThreads == other.maxNumThreads;
+            && maxNumThreads == other.maxNumThreads
+            && Objects.equals(meta, other.meta);
     }
 
     @Override
@@ -336,7 +363,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             createTime,
             version,
             allowLazyStart,
-            maxNumThreads
+            maxNumThreads,
+            meta
         );
     }
 
@@ -370,9 +398,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private ByteSizeValue maxModelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
         private Instant createTime;
-        private Version version;
+        private MlConfigVersion version;
         private boolean allowLazyStart;
         private Integer maxNumThreads;
+        private Map<String, Object> meta;
 
         public Builder() {}
 
@@ -396,6 +425,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             this.version = config.version;
             this.allowLazyStart = config.allowLazyStart;
             this.maxNumThreads = config.maxNumThreads;
+            this.meta = config.meta;
         }
 
         public String getId() {
@@ -448,7 +478,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        public Builder setVersion(MlConfigVersion version) {
             this.version = version;
             return this;
         }
@@ -460,6 +490,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setMaxNumThreads(Integer maxNumThreads) {
             this.maxNumThreads = maxNumThreads;
+            return this;
+        }
+
+        public Builder setMeta(Map<String, Object> meta) {
+            this.meta = meta;
             return this;
         }
 
@@ -480,7 +515,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 createTime,
                 version,
                 allowLazyStart,
-                maxNumThreads
+                maxNumThreads,
+                meta
             );
         }
 
@@ -502,7 +538,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 createTime,
                 version,
                 allowLazyStart,
-                maxNumThreads
+                maxNumThreads,
+                meta
             );
         }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.ssl.EmptyKeyConfig;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
@@ -75,41 +75,69 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(globalConfig.supportedProtocols(), not(hasItem("TLSv1")));
     }
 
-    /**
-     * Tests that the Remote Cluster port is configured if enabled and properly uses the default settings.
-     */
-    public void testRemoteClusterPortConfigurationIsInjectedWithDefaultsIfEnabled() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
-        Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true).build();
-        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
-        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
-        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+    public void testRemoteClusterSslConfigurationsWhenPortNotEnabled() {
+        final Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
+        }
+        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build());
+        // Server (SSL is not built when port is not enabled)
+        assertThat(settingsMap, not(hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)));
+        // Client (SSL is always built)
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+        final SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
         assertThat(sslConfiguration.keyConfig(), sameInstance(EmptyKeyConfig.INSTANCE));
         assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
         assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
         assertThat(sslConfiguration.supportedProtocols(), not(hasItem("TLSv1")));
+        assertThat(sslConfiguration.verificationMode(), is(SslVerificationMode.FULL));
     }
 
     /**
-     * Tests that settings are correctly read from the `remote_cluster.ssl.*` settings to set up the {@link SslConfiguration} object used by
+     * Tests that the Remote Cluster port is configured if enabled and properly uses the default settings.
+     */
+    public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
+        Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        // Server
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        assertThat(sslConfiguration.keyConfig(), sameInstance(EmptyKeyConfig.INSTANCE));
+        assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
+        assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(sslConfiguration.supportedProtocols(), not(hasItem("TLSv1")));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.NONE));
+        // Client
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+    }
+
+    /**
+     * Tests that settings are correctly read from the remote cluster SSL settings to set up the {@link SslConfiguration} object used by
      * all the SSL infrastructure to define per-profile settings. Makes sure to use both regular and secure settings to be sure both are
      * covered.
      */
-    public void testRemoteClusterPortConfigurationIsInjectedWithItsSettingsIfEnabled() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+    public void testRemoteClusterPortConfigurationIsInjectedWithItsSettings() {
         final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, "testnode");
+        secureSettings.setString(
+            XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
+            "testnode"
+        );
         Settings testSettings = Settings.builder()
-            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
-            .put(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
-            .putList(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
+            .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
+            .putList(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
+            .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.CLIENT_AUTH, "required")
+            .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX + SslConfigurationKeys.VERIFICATION_MODE, "certificate")
             .setSecureSettings(secureSettings)
             .build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
-        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
-        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SSL_PREFIX));
+
+        // Server
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
         assertThat(sslConfiguration.supportedProtocols(), contains("TLSv1.3", "TLSv1.2"));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.REQUIRED));
 
         SslKeyConfig keyStore = sslConfiguration.keyConfig();
         assertThat(keyStore.getDependentFiles(), contains(path));
@@ -123,6 +151,13 @@ public class SslSettingsLoaderTests extends ESTestCase {
         );
 
         assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
+
+        // Client
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+        final SslConfiguration clientSslConfiguration = getSslConfiguration(
+            settingsMap.get(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX)
+        );
+        assertThat(clientSslConfiguration.verificationMode(), is(SslVerificationMode.CERTIFICATE));
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
@@ -194,7 +229,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -209,7 +244,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { configurationSettings.x509KeyPair.legacyKeystorePassword });
     }
@@ -228,7 +263,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -244,7 +279,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] {
@@ -263,7 +298,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -279,7 +314,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -293,7 +328,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -312,10 +347,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
-        assertThat(
-            ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
-        );
+        assertThat(ksKeyInfo, equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir())));
     }
 
     public void testThatEmptySettingsAreEqual() {

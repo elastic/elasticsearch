@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAlloc
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,32 +37,34 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
 
     private MockAllocationService strategy;
+    private ProjectId projectId;
     private ClusterState clusterState;
     private final String INDEX_NAME = "index";
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        projectId = randomProjectIdOrDefault();
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
+            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index(INDEX_NAME))
+            .addAsNew(project.index(INDEX_NAME))
             .build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTable)
+            .putProjectMetadata(project)
+            .putRoutingTable(projectId, routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         strategy = createAllocationService(Settings.EMPTY);
     }
 
     private ShardRouting getPrimary() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).primaryShard();
+        return clusterState.routingTable(projectId).index(INDEX_NAME).shard(0).primaryShard();
     }
 
     private ShardRouting getReplica() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).replicaShards().get(0);
+        return clusterState.routingTable(projectId).index(INDEX_NAME).shard(0).replicaShards().get(0);
     }
 
     public void testRetryFailedResetForAllocationCommands() {
@@ -83,7 +87,12 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         AllocationService.CommandsResult result = strategy.reroute(
             clusterState,
             new AllocationCommands(
-                new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
+                new AllocateReplicaAllocationCommand(
+                    INDEX_NAME,
+                    0,
+                    getPrimary().currentNodeId().equals("node1") ? "node2" : "node1",
+                    projectId
+                )
             ),
             false,
             true,

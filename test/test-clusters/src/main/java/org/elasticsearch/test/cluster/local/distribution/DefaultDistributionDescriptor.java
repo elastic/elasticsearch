@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local.distribution;
@@ -18,10 +19,10 @@ public class DefaultDistributionDescriptor implements DistributionDescriptor {
     private final Path distributionDir;
     private final DistributionType type;
 
-    public DefaultDistributionDescriptor(Version version, boolean snapshot, Path distributionDir, DistributionType type) {
+    public DefaultDistributionDescriptor(Version version, boolean snapshot, Path extractedDir, DistributionType type) {
         this.version = version;
         this.snapshot = snapshot;
-        this.distributionDir = distributionDir;
+        this.distributionDir = extractedDir;
         this.type = type;
     }
 
@@ -34,7 +35,7 @@ public class DefaultDistributionDescriptor implements DistributionDescriptor {
     }
 
     public Path getDistributionDir() {
-        return distributionDir;
+        return distributionDir.resolve("elasticsearch-" + version + (snapshot ? "-SNAPSHOT" : ""));
     }
 
     public DistributionType getType() {

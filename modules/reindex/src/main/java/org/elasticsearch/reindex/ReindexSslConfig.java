@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -28,17 +29,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
-import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 /**
  * Loads "reindex.ssl.*" configuration from Settings, and makes the applicable configuration (trust manager / key manager / hostname
@@ -63,7 +62,7 @@ public class ReindexSslConfig {
         for (String key : SslConfigurationKeys.getListKeys()) {
             String settingName = "reindex.ssl." + key;
             final Setting.Property[] properties = SslConfigurationKeys.isDeprecated(key) ? deprecatedProperties : defaultProperties;
-            SETTINGS.put(settingName, listSetting(settingName, Collections.emptyList(), Function.identity(), properties));
+            SETTINGS.put(settingName, stringListSetting(settingName, properties));
         }
         for (String key : SslConfigurationKeys.getSecureStringKeys()) {
             String settingName = "reindex.ssl." + key;
@@ -107,7 +106,7 @@ public class ReindexSslConfig {
                 return settings.getAsList(key);
             }
         };
-        configuration = loader.load(environment.configFile());
+        configuration = loader.load(environment.configDir());
         reload();
 
         final FileChangesListener listener = new FileChangesListener() {

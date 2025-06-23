@@ -1,0 +1,1005 @@
+// Integral types-specific tests
+
+inLongAndInt
+
+from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
+warningRegex:evaluation of \[avg_worked_seconds in \(372957040, salary_change.long, 236703986\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer |avg_worked_seconds:long
+10017          |236703986
+;
+
+inShortAndByte
+from employees | keep emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+ignoreOrder:true
+
+emp_no:integer |languages.short:short|languages.byte:byte
+10003          |4                    |4
+10007          |4                    |4
+;
+
+inCast
+from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+ignoreOrder:true
+
+emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
+10003          |4                   |200296405               |1.83
+10007          |4                   |393084805               |1.7
+;
+
+// `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
+inOverNulls
+from employees | keep emp_no, languages | where languages is null or emp_no <= 10030 | where languages in (2, 3, emp_no);
+ignoreOrder:true
+
+emp_no:integer |languages:integer
+10001          |2
+10006          |3
+10008          |2
+10016          |2
+10017          |2
+10018          |2
+10030          |3
+;
+
+// conversions to UNSIGNED_LONG
+
+convertULtoUL
+row ul = [9223372036854775808, 18446744073709551615] | eval ulul = to_unsigned_long(ul);
+
+                    ul:ul                  |                   ulul:ul
+[9223372036854775808, 18446744073709551615]|[9223372036854775808, 18446744073709551615]
+;
+
+convertIntToUL
+row int = [5013792, 520128] | eval ul = to_ulong(int);
+
+int:integer       |ul:ul
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToUL
+row long = [501379200000, 520128000000] | eval ul = to_ul(long);
+
+long:long                    |ul:ul
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertDoubleToUL
+
+row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
+warningRegex:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:48: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
+
+d:double       |ul:ul      |overflow:ul
+123.4          |123        |null
+;
+
+convertBooleanToUL
+row tf = [true, false] | eval t2ul = to_ul(true), f2ul = to_ul(false), tf2ul = to_ul(tf);
+
+tf:boolean     |t2ul:ul      |f2ul:ul      |tf2ul:ul
+[true, false]  |1            |0            |[1, 0]
+;
+
+convertDatetimeToUL
+from employees | sort emp_no | eval hired_ul = to_ul(hire_date) | keep emp_no, hire_date, hired_ul  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_ul:ul
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertStringToUL
+// tag::to_unsigned_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_UNSIGNED_LONG(str1), long2 = TO_ULONG(str2), long3 = TO_UL(str3)
+// end::to_unsigned_long-str[]
+;
+warning:Line 2:72: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:72: java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.
+
+
+// tag::to_unsigned_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:unsigned_long  |long2:unsigned_long |long3:unsigned_long
+2147483648   |2147483648.2 |foo          |2147483648           |2147483648          |null
+// end::to_unsigned_long-str-result[]
+;
+
+// conversions to LONG
+
+convertLongToLong
+row long = [501379200000, 520128000000] | eval ll = to_long(long);
+
+long:long                    |ll:long
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertIntToLong
+row int = [5013792, 520128] | eval long = to_long(int);
+
+int:integer       |long:long
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertULToLong
+
+row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
+warningRegex:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:67: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
+
+                    ul:ul                 |       long:long
+[9223372036854775807, 9223372036854775808]|9223372036854775807
+;
+
+convertDatetimeToLong
+from employees | sort emp_no | eval hired_long = to_long(hire_date) | keep emp_no, hire_date, hired_long  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_long:long
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertBooleanToLong
+row tf = [true, false] | eval t2l = to_long(true), f2l = to_long(false), tf2l = to_long(tf);
+
+tf:boolean     |t2l:long       |f2l:long       |tf2l:long
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
+// tag::to_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
+// end::to_long-str[]
+;
+warningRegex:Line 2:62: evaluation of \[TO_LONG\(str3\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:62: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
+
+
+// tag::to_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
+2147483648   |2147483648.2 |foo          |2147483648  |2147483648 |null
+// end::to_long-str-result[]
+;
+
+convertDoubleToLong
+
+row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
+warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
+
+d:double       |d2l:long      |overflow:long     
+123.4          |123           |null    
+;
+
+// conversions to INTEGER
+
+convertIntToInt
+row int = [5013792, 520128] | eval ii = to_integer(int);
+
+int:integer       |ii:integer
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToInt
+
+// tag::to_int-long[]
+ROW long = [5013792, 2147483647, 501379200000]
+| EVAL int = TO_INTEGER(long)
+// end::to_int-long[]
+;
+warningRegex:Line 2:14: evaluation of \[TO_INTEGER\(long\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:14: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
+
+// tag::to_int-long-result[]
+long:long                           |int:integer
+[5013792, 2147483647, 501379200000] |[5013792, 2147483647]
+// end::to_int-long-result[]
+;
+
+convertULToInt
+
+row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
+warningRegex:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:57: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
+
+                    ul:ul        |int:integer
+[2147483647, 9223372036854775808]|2147483647
+;
+
+convertDatetimeToInt
+row int = [5013792, 520128] | eval dt = to_datetime(int) | eval ii = to_integer(dt);
+
+int:integer      |dt:date                                             |ii:integer
+[5013792, 520128]|[1970-01-01T01:23:33.792Z, 1970-01-01T00:08:40.128Z]|[5013792, 520128]
+;
+
+convertBooleanToInt
+row tf = [true, false] | eval t2i = to_integer(true), f2i = to_integer(false), tf2i = to_integer(tf);
+
+tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToInt
+row int_str = "2147483647", int_dbl_str = "2147483646.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str);
+
+int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
+2147483647       |2147483646.2        |2147483647  |2147483646
+;
+
+convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
+
+row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
+warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:79: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483647.2\]
+warningRegex:Line 1:102: evaluation of \[to_integer\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:102: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483648\]
+warningRegex:Line 1:126: evaluation of \[to_integer\(non\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:126: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[no number\]
+
+str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
+2147483647.2   |2147483648     |no number      |null           |null           |null
+;
+
+convertDoubleToInt
+
+row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
+warningRegex:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:54: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
+
+d:double       |d2i:integer   |overflow:integer
+123.4          |123           |null    
+;
+
+lessThanMultivalue
+
+from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warningRegex:evaluation of \[salary_change.int < 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          |-3
+10012          | 0
+10017          |-6
+10020          |-5
+10030          | 0
+;
+
+greaterThanMultivalue
+
+from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warningRegex:evaluation of \[salary_change.int > 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+10086          |13
+;
+
+equalToMultivalue
+
+from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
+warningRegex:evaluation of \[salary_change.int == 0\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          | 0
+10030          | 0
+10077          | 0
+10093          | 0
+;
+
+equalToOrEqualToMultivalue
+
+from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
+warningRegex:evaluation of \[salary_change.int\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10044          |8
+;
+
+inMultivalue
+
+from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
+warningRegex:evaluation of \[salary_change.int in \(1, 7\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10079          |7
+;
+
+notLessThanMultivalue
+
+from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warningRegex:evaluation of \[.*salary_change.int < 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10001          | 1
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+;
+
+notGreaterThanMultivalue
+
+from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warningRegex:evaluation of \[.*salary_change.int > 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10001          |  1
+10006          | -3
+10012          |  0
+10017          | -6
+10020          | -5
+;
+
+notEqualToMultivalue
+
+from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warningRegex:evaluation of \[.*salary_change.int == 1.*\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          | -3
+10012          |  0
+10017          | -6
+10020          | -5
+10030          |  0
+;
+
+notEqualToAndEqualToMultivalue-Ignore
+from employees | where not(salary_change.int == 1 or salary_change.int == -4) | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          |  0
+10017          | -6
+10020          | -5
+10030          |  0
+10030          |  0
+;
+
+notInMultivalue-Ignore
+from employees | where not(salary_change.int in (1, -4)) | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          |  0
+10017          | -6
+10020          | -6
+10030          | -0
+10030          | -0
+;
+
+mvDedupe
+row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
+
+   a:integer | da:integer
+[1, 2, 2, 3] | [1, 2, 3]
+;
+
+mvSort
+required_capability: mv_sort
+
+// tag::mv_sort[]
+ROW a = [4, 2, -3, 2]
+| EVAL sa = mv_sort(a), sd = mv_sort(a, "DESC")
+// end::mv_sort[]
+;
+
+// tag::mv_sort-result[]
+a:integer     | sa:integer    | sd:integer
+[4, 2, -3, 2] | [-3, 2, 2, 4] | [4, 2, 2, -3]
+// end::mv_sort-result[]
+;
+
+mvSortEmpInt
+required_capability: mv_sort
+
+FROM employees
+| eval sd = mv_sort(salary_change.int, "DESC"), sa = mv_sort(salary_change.int)
+| sort emp_no
+| keep emp_no, salary_change.int, sa, sd
+| limit 9
+;
+
+emp_no:integer | salary_change.int:integer | sa:integer    | sd:integer
+10001          | 1                         | 1             | 1
+10002          | [-7, 11]                  | [-7, 11]      | [11, -7]
+10003          | [12, 14]                  | [12, 14]      | [14, 12]
+10004          | [0, 1, 3, 13]             | [0, 1, 3, 13] | [13, 3, 1, 0]
+10005          | [-2,13]                   | [-2,13]       | [13, -2]
+10006          | -3                        | -3            | -3
+10007          | [-7,0, 1]                 | [-7, 0, 1]    | [1,0, -7]
+10008          | [-2,0,3,12]               | [-2,0,3,12]   | [12,3,0,-2]
+10009          | null                      | null          | null
+;
+
+mvSortEmpLong
+required_capability: mv_sort
+
+FROM employees
+| eval sd = mv_sort(salary_change.long, "DESC"), sa = mv_sort(salary_change.long)
+| sort emp_no
+| keep emp_no, salary_change.long, sa, sd
+| limit 9
+;
+
+emp_no:integer | salary_change.long:long | sa:long        | sd:long
+10001          | 1                       | 1              | 1
+10002          | [-7, 11]                | [-7, 11]       | [11, -7]
+10003          | [12, 14]                | [12, 14]       | [14, 12]
+10004          | [0, 1, 3, 13]           | [0, 1, 3, 13]  | [13, 3, 1, 0]
+10005          | [-2, 13]                | [-2, 13]       | [13, -2]
+10006          | -3                      | -3             | -3
+10007          | [-7, 0, 1]              | [-7, 0, 1]     | [1, 0, -7]
+10008          | [-2, 0, 3, 12]          | [-2, 0, 3, 12] | [12, 3, 0, -2]
+10009          | null                    | null           | null
+;
+
+mvSlice
+required_capability: mv_sort
+
+// tag::mv_slice_positive[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
+// end::mv_slice_positive[]
+;
+// tag::mv_slice_positive-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 3]
+// end::mv_slice_positive-result[]
+;
+
+mvSliceNegativeOffset
+required_capability: mv_sort
+
+// tag::mv_slice_negative[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)
+// end::mv_slice_negative[]
+;
+// tag::mv_slice_negative-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 2, 3]
+// end::mv_slice_negative-result[]
+;
+
+mvSliceSingle
+required_capability: mv_sort
+
+row a = 1
+| eval a1 = mv_slice(a, 0);
+
+a:integer | a1:integer
+1         | 1
+;
+
+mvSliceOutOfBound
+required_capability: mv_sort
+
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 4), a2 = mv_slice(a, 2, 6), a3 = mv_slice(a, 4, 6);
+
+a:integer    | a1:integer | a2:integer | a3:integer
+[1, 2, 2, 3] | null          | [2, 3]     | null
+;
+
+mvSliceEmpInt
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, 0, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | 1
+10002          | [-7, 11]                  | [-7, 11]
+10003          | [12, 14]                  | [12, 14]
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | [-2, 13]
+;
+
+mvSliceEmpIntSingle
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | 1
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntEndOutOfBound
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, 1, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | [1, 3, 13]
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntOutOfBound
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, 2, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [3, 13]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpIntStartOutOfBoundNegative
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -2)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | -7
+10003          | [12, 14]                  | 12
+10004          | [0, 1, 3, 13]             | [0, 1, 3]
+10005          | [-2, 13]                  | -2
+;
+
+mvSliceEmpIntOutOfBoundNegative
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -3)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpLong
+required_capability: mv_sort
+
+from employees
+| eval a1 = mv_slice(salary_change.long, 0, 1)
+| keep emp_no, salary_change.long, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.long:long | a1:long
+10001          | 1                       | 1
+10002          | [-7, 11]                | [-7, 11]
+10003          | [12, 14]                | [12, 14]
+10004          | [0, 1, 3, 13]           | [0, 1]
+10005          | [-2, 13]                | [-2, 13]
+;
+
+cos
+ROW a=2 | EVAL cos=COS(a);
+
+a:integer | cos:double
+        2 | -0.4161468365471424
+;
+
+acos
+ROW a=1 | EVAL acos=ACOS(a);
+
+a:integer | acos:double
+        1 | 0.0
+;
+
+cosh
+ROW a=2 | EVAL cosh=COSH(a);
+
+a:integer | cosh:double
+        2 | 3.7621956910836314
+;
+
+sin
+ROW a=2 | EVAL sin=SIN(a);
+
+a:integer | sin:double
+        2 | 0.9092974268256817
+;
+
+sinh
+ROW a=2 | EVAL sinh=SINH(a);
+
+a:integer | sinh:double
+        2 | 3.626860407847019
+;
+
+asin
+ROW a=1 | EVAL asin=ASIN(a);
+
+a:integer | asin:double
+        1 | 1.5707963267948966
+;
+
+
+tan
+ROW a=2 | EVAL tan=TAN(a);
+
+a:integer | tan:double
+        2 | -2.185039863261519
+;
+
+tanh
+ROW a=2 | EVAL tanh=TANH(a);
+
+a:integer | tanh:double
+        2 | 0.9640275800758169
+;
+
+atan
+ROW a=2 | EVAL atan=ATAN(a);
+
+a:integer | atan:double
+        2 | 1.1071487177940904
+;
+
+atan2
+ROW y=2, x=12 | EVAL atan2=ATAN2(y, x);
+
+y:integer | x:integer | atan2:double
+        2 |        12 | 0.16514867741462683
+;
+
+toDegrees
+ROW rad = [1, 2, 3, 4]
+| EVAL deg = TO_DEGREES(rad)
+;
+
+   rad:integer | deg:double
+  [1, 2, 3, 4] | [57.29577951308232, 114.59155902616465, 171.88733853924697, 229.1831180523293]
+;
+
+toRadians
+ROW deg = [90, 180, 270]
+| EVAL rad = TO_RADIANS(deg)
+;
+
+   deg:integer | rad:double
+[90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+;
+
+warningWithFromSource
+from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
+warningRegex:Line 1:89: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:89: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+
+y:boolean
+null
+;
+
+// the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
+multipleWarnings
+from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
+warningRegex:Line 1:76: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:76: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+
+x:long
+;
+
+valuesLong
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long))
+;
+
+   l:long
+[1, 2, 3, 4, 5]
+;
+
+valuesLongGrouped
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.long)) BY first_letter
+| SORT first_letter
+;
+
+   l:long | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesLongGroupedByOrdinals
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long)) BY job_positions
+| SORT job_positions
+;
+
+      l:long | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesInt
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesIntGrouped
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesIntGroupedByOrdinals
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesShort
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesShortGrouped
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.short)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesShortGroupedByOrdinals
+required_capability: agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 100 | eval s = signum(i);
+
+i:integer | s:double
+100       | 1.0
+;
+
+signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = -100 | eval s = signum(i);
+
+i:integer | s:double
+-100      | -1.0
+;
+
+signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 0 | eval s = signum(i);
+
+i:integer | s:double
+0         | 0.0
+;
+
+signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(100) | eval s = signum(l);
+
+l:long | s:double
+100    | 1.0
+;
+
+signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(-100) | eval s = signum(l);
+
+l:long | s:double
+-100   | -1.0
+;
+
+signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(0) | eval s = signum(l);
+
+l:long | s:double
+0      | 0.0
+;
+
+signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from employees
+| eval s = signum(mv_min(salary_change.int))
+| where signum(mv_max(salary_change.int)) >= 0
+| STATS x=AVG(signum(60000 - salary));
+
+x:double
+0.5409836065573771
+;
+
+signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+from employees
+| eval s = signum(60000 - salary)
+| where signum(salary - 55000) >= 0
+| keep s, emp_no, salary
+| sort s DESC, salary ASC
+| limit 3;
+
+s:double | emp_no:integer | salary:integer
+1.0     | 10052          | 55360
+1.0     | 10002          | 56371
+1.0     | 10041          | 56415
+;
+
+CombineBinaryComparisonsMv
+required_capability: combine_binary_comparisons
+
+row x = [1,2,3]
+| where 12 * (-x - 5) >= -120 OR x < 5
+;
+warning:Line 2:15: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:34: evaluation of [x < 5] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:34: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+x:integer
+;
+
+CombineBinaryComparisonsEmp
+required_capability: combine_binary_comparisons
+
+from employees
+| where salary_change.int == 2 OR salary_change.int > 1
+| keep emp_no, salary_change.int
+| sort emp_no
+;
+warning:Line 2:35: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:35: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer |salary_change.int:integer
+10044 | 8
+10046 | 2
+10066 | 5
+10079 | 7
+10086 | 13
+;

@@ -15,9 +15,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +40,7 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
 
     private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateTrainedModelDeploymentAction(
@@ -46,9 +48,9 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
-        InferenceAuditor auditor
+        InferenceAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateTrainedModelDeploymentAction.NAME,
@@ -57,12 +59,12 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             threadPool,
             actionFilters,
             UpdateTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = Objects.requireNonNull(trainedModelAssignmentClusterService);
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -75,17 +77,19 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         logger.debug(
             () -> format(
                 "[%s] received request to update number of allocations to [%s]",
-                request.getModelId(),
+                request.getDeploymentId(),
                 request.getNumberOfAllocations()
             )
         );
 
-        trainedModelAssignmentClusterService.updateNumberOfAllocations(
-            request.getModelId(),
+        trainedModelAssignmentClusterService.updateDeployment(
+            request.getDeploymentId(),
             request.getNumberOfAllocations(),
+            request.getAdaptiveAllocationsSettings(),
+            request.isInternal(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
-                    request.getModelId(),
+                    request.getDeploymentId(),
                     Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS, request.getNumberOfAllocations())
                 );
                 listener.onResponse(new CreateTrainedModelAssignmentAction.Response(updatedAssignment));
@@ -95,6 +99,6 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
 
     @Override
     protected ClusterBlockException checkBlock(UpdateTrainedModelDeploymentAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

@@ -11,7 +11,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -69,7 +68,7 @@ public class ChunkingConfigTests extends AbstractXContentSerializingTestCase<Chu
     }
 
     @Override
-    protected ChunkingConfig mutateInstance(ChunkingConfig instance) throws IOException {
+    protected ChunkingConfig mutateInstance(ChunkingConfig instance) {
         ChunkingConfig.Mode mode = instance.getMode();
         TimeValue timeSpan = instance.getTimeSpan();
         switch (between(0, 1)) {

@@ -11,7 +11,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
@@ -33,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -82,31 +82,20 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         request.scroll(TimeValue.timeValueHours(10L));
 
         String scrollId = randomAlphaOfLength(5);
-        SearchHit[] hits = new SearchHit[] { new SearchHit(1), new SearchHit(2) };
-        InternalSearchResponse internalResponse = new InternalSearchResponse(
-            new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1),
-            null,
-            null,
-            null,
-            false,
-            false,
-            1
-        );
-        SearchResponse response = new SearchResponse(
-            internalResponse,
-            scrollId,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response(
+                    SearchHits.unpooled(
+                        new SearchHit[] { SearchHit.unpooled(1), SearchHit.unpooled(2) },
+                        new TotalHits(3, TotalHits.Relation.EQUAL_TO),
+                        1
+                    )
+                ).scrollId(scrollId).build()
+            );
             return null;
         };
         doAnswer(returnResponse).when(client).search(eq(request), any());
@@ -116,17 +105,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         doAnswer(returnResponse).when(client).searchScroll(any(), any());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        ScrollHelper.fetchAllByEntity(client, request, new ActionListener<Collection<SearchHit>>() {
-            @Override
-            public void onResponse(Collection<SearchHit> response) {
-                fail("This shouldn't succeed.");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-            }
-        }, Function.identity());
+        ScrollHelper.fetchAllByEntity(client, request, assertNoSuccessListener(failure::set), Function.identity());
 
         assertNotNull("onFailure wasn't called", failure.get());
         assertEquals(

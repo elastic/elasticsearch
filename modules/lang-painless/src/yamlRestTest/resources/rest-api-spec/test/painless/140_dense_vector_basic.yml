@@ -12,6 +12,7 @@ setup:
             properties:
               vector:
                  type: dense_vector
+                 index: false
                  dims: 5
               indexed_vector:
                 type: dense_vector
@@ -134,3 +135,119 @@ setup:
   - match: {hits.hits.2._id: "1"}
   - gte: {hits.hits.2._score: 0.78}
   - lte: {hits.hits.2._score: 0.791}
+
+---
+"L2 similarity with indexed cosine similarity vector":
+  - skip:
+      features: close_to
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l2norm(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 301.36, error: 0.01}}
+
+  - match: {hits.hits.1._id: "2"}
+  - close_to: {hits.hits.1._score: {value: 11.34, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 0.01, error: 0.01}}
+---
+"L1 similarity with indexed cosine similarity vector":
+  - skip:
+      features: close_to
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 485.18, error: 0.01}}
+
+  - match: {hits.hits.1._id: "2"}
+  - close_to: {hits.hits.1._score: {value: 12.30, error: 0.01}}
+
+  - match: {hits.hits.2._id: "3"}
+  - close_to: {hits.hits.2._score: {value: 0.01, error: 0.01}}
+---
+"Test vector magnitude equality":
+  - skip:
+      features: close_to
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "doc['vector'].magnitude"
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - close_to: {hits.hits.0._score: {value: 429.6021, error: 0.01}}
+
+  - match: {hits.hits.1._id: "3"}
+  - close_to: {hits.hits.1._score: {value: 192.6447, error: 0.01}}
+
+  - match: {hits.hits.2._id: "2"}
+  - close_to: {hits.hits.2._score: {value: 186.34454, error: 0.01}}
+---
+"Test hamming distance fails on float":
+  - do:
+      headers:
+        Content-Type: application/json
+      catch: bad_request
+      search:
+        allow_partial_search_results: false
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      headers:
+        Content-Type: application/json
+      catch: bad_request
+      search:
+        allow_partial_search_results: false
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "hamming(params.query_vector, 'indexed_vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+

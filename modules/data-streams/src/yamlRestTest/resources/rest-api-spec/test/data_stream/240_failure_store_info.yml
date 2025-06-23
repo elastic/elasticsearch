@@ -1,0 +1,256 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      reason: "Exposing failures lifecycle config in templates was added in 9.1+"
+      capabilities:
+        - method: GET
+          path: /_data_stream/{target}
+          capabilities: [ 'failure_store.lifecycle' ]
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [fs-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [fs-data-stream]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [fs-default-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [ fs-default-* ]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+          data_stream: { }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template3] has index patterns [no-fs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template3
+        body:
+          index_patterns: [ no-fs-* ]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+          data_stream: { }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.failure_store.enabled: 'fs-default*'
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: fs-data-stream
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: fs-default-data-stream
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: no-fs-data-stream
+        ignore: 404
+
+---
+"Get failure store info from explicitly enabled failure store":
+  - do:
+      indices.create_data_stream:
+        name: fs-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-data-stream"
+  - match: { data_streams.0.name: fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true}
+  - match: { data_streams.0.failure_store.indices: [] }
+
+  # Initialize failure store
+  - do:
+      index:
+        index: fs-data-stream
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-data-stream"
+  - match: { data_streams.0.name: fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Data stream lifecycle' }
+
+---
+"Get failure store info from disabled failure store":
+  - do:
+      indices.create_data_stream:
+        name: no-fs-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "no-fs-data-stream"
+  - match: { data_streams.0.name: no-fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-no-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template3' }
+  - match: { data_streams.0.failure_store.enabled: false }
+  - is_false: data_streams.0.failure_store.lifecycle
+  - match: { data_streams.0.failure_store.indices: [] }
+
+---
+"Get failure store info from explicitly enabled failure store and disabled lifecycle":
+  - do:
+      indices.create_data_stream:
+        name: fs-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.put_data_stream_options:
+        name: "fs-data-stream"
+        body:
+          failure_store:
+            enabled: true
+            lifecycle:
+              enabled: false
+
+  - is_true: acknowledged
+
+  # Initialize failure store
+  - do:
+      index:
+        index: fs-data-stream
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-data-stream"
+  - match: { data_streams.0.name: fs-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: false }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - is_false: data_streams.0.failure_store.lifecycle.effective_retention
+  - is_false: data_streams.0.failure_store.lifecycle.retention_determined_by
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Unmanaged' }
+
+---
+"Get failure store info from cluster setting enabled failure store":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: "Default retention for failures was added in 9.1+"
+      capabilities:
+        - method: GET
+          path: /_data_stream/{target}
+          capabilities: [ 'failure_store.lifecycle.default_retention' ]
+  - do:
+      indices.create_data_stream:
+        name: fs-default-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-default-data-stream"
+  - match: { data_streams.0.name: fs-default-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template2' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - match: { data_streams.0.failure_store.lifecycle.effective_retention: '30d' }
+  - match: { data_streams.0.failure_store.lifecycle.retention_determined_by: 'default_failures_retention' }
+  - match: { data_streams.0.failure_store.indices: [] }
+
+  # Initialize failure store
+  - do:
+      index:
+        index: fs-default-data-stream
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: "fs-default-data-stream"
+  - match: { data_streams.0.name: fs-default-data-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.template: 'my-template2' }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - match: { data_streams.0.failure_store.lifecycle.enabled: true }
+  - is_false: data_streams.0.failure_store.lifecycle.data_retention
+  - match: { data_streams.0.failure_store.lifecycle.effective_retention: '30d' }
+  - match: { data_streams.0.failure_store.lifecycle.retention_determined_by: 'default_failures_retention' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-fs-default-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - is_false: data_streams.0.failure_store.indices.0.prefer_ilm
+  - match: { data_streams.0.failure_store.indices.0.managed_by: 'Data stream lifecycle' }

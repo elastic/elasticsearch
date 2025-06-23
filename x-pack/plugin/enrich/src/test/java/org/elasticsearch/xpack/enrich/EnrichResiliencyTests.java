@@ -12,10 +12,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -23,7 +20,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -34,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -52,7 +49,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             .put(EnrichPlugin.CACHE_SIZE.getKey(), 0)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.getKey(), 1)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.getKey(), 1)
-            .put(EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.getKey(), 10)
+            .put(EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.getKey(), 2)
             // TODO Fix the test so that it runs with security enabled
             // https://github.com/elastic/elasticsearch/issues/75940
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
@@ -79,6 +76,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         client().execute(
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 enrichPolicyName,
                 new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
             )
@@ -86,12 +84,10 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, enrichPolicyName).setWaitForCompletion(true)
         ).actionGet();
 
-        XContentBuilder pipe1 = JsonXContent.contentBuilder();
-        pipe1.startObject();
-        {
+        putJsonPipeline(enrichPipelineName, (pipe1, params) -> {
             pipe1.startArray("processors");
             {
                 pipe1.startObject();
@@ -117,14 +113,8 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
                 }
                 pipe1.endObject();
             }
-            pipe1.endArray();
-        }
-        pipe1.endObject();
-
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(enrichPipelineName, BytesReference.bytes(pipe1), XContentType.JSON)
-        ).actionGet();
+            return pipe1.endArray();
+        });
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 
@@ -153,7 +143,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 
     public void testWriteThreadLivenessWithPipeline() throws Exception {
@@ -178,6 +168,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         client().execute(
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 enrichPolicyName,
                 new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
             )
@@ -185,12 +176,10 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
 
         client().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request(enrichPolicyName).setWaitForCompletion(true)
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, enrichPolicyName).setWaitForCompletion(true)
         ).actionGet();
 
-        XContentBuilder pipe1 = JsonXContent.contentBuilder();
-        pipe1.startObject();
-        {
+        putJsonPipeline(enrichPipelineName1, (pipe1, params) -> {
             pipe1.startArray("processors");
             {
                 pipe1.startObject();
@@ -214,13 +203,10 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
                 }
                 pipe1.endObject();
             }
-            pipe1.endArray();
-        }
-        pipe1.endObject();
+            return pipe1.endArray();
+        });
 
-        XContentBuilder pipe2 = JsonXContent.contentBuilder();
-        pipe2.startObject();
-        {
+        putJsonPipeline(enrichPipelineName2, (pipe2, params) -> {
             pipe2.startArray("processors");
             {
                 pipe2.startObject();
@@ -235,19 +221,8 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
                 }
                 pipe2.endObject();
             }
-            pipe2.endArray();
-        }
-        pipe2.endObject();
-
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(enrichPipelineName1, BytesReference.bytes(pipe1), XContentType.JSON)
-        ).actionGet();
-
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(enrichPipelineName2, BytesReference.bytes(pipe2), XContentType.JSON)
-        ).actionGet();
+            return pipe2.endArray();
+        });
 
         client().admin().indices().create(new CreateIndexRequest(enrichedIndexName)).actionGet();
 
@@ -276,6 +251,6 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 }

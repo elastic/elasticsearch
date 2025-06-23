@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.4.99"
+  - requires:
+      cluster_features: ["gte_v7.5.0"]
       reason:  "analytics wasn't available before 7.5"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
   - do:
       bulk:
         index: analytics_usage
@@ -18,8 +18,8 @@ setup:
 
 ---
 "Basic test for usage stats on analytics indices":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason:  "stats are not working in earlier versions"
   - do:
       xpack.info: {}

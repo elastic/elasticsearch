@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -13,14 +14,16 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapperTests;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -33,14 +36,19 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ScaledFloatFieldMapperTests extends MapperTestCase {
+public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -93,16 +101,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(1230, dvField.numericValue().longValue());
-        assertFalse(dvField.fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
     }
 
     public void testMissingScalingFactor() {
@@ -134,9 +135,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1230, dvField.numericValue().longValue());
     }
@@ -154,11 +155,30 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
+    }
+
+    public void testDocValuesSearchable() throws Exception {
+        boolean[] indexables = new boolean[] { true, false };
+        boolean[] hasDocValues = new boolean[] { true, false };
+        for (boolean indexable : indexables) {
+            for (boolean hasDocValue : hasDocValues) {
+                MapperService mapperService = createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "scaled_float")
+                            .field("index", indexable)
+                            .field("doc_values", hasDocValue)
+                            .field("scaling_factor", 10.0)
+                    )
+                );
+                MappedFieldType fieldType = mapperService.fieldType("field");
+                assertEquals(fieldType.isSearchable(), indexable || hasDocValue);
+            }
+        }
     }
 
     public void testStore() throws Exception {
@@ -174,19 +194,15 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        IndexableField storedField = fields[2];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
+        IndexableField storedField = fields.get(1);
         assertTrue(storedField.fieldType().stored());
         assertEquals(1230, storedField.numericValue().longValue());
     }
 
-    public void testCoerce() throws Exception {
+    public void testCoerce() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
@@ -195,13 +211,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertEquals(1230, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
 
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
@@ -213,7 +225,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
@@ -228,7 +240,8 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("a").errorMatches("For input string: \"a\""),
             exampleMalformedValue("NaN").errorMatches("[scaled_float] only supports finite values, but got [NaN]"),
             exampleMalformedValue("Infinity").errorMatches("[scaled_float] only supports finite values, but got [Infinity]"),
-            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]")
+            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]"),
+            exampleMalformedValue(b -> b.value(true)).errorMatches("Current token (VALUE_TRUE) not numeric")
         );
     }
 
@@ -241,7 +254,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("null_value", 2.5))
@@ -253,15 +266,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
-        assertFalse(pointField.fieldType().stored());
-        assertEquals(25, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertFalse(dvField.fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:25>", fields.get(0).toString());
     }
 
     /**
@@ -320,7 +327,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {
-        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.values());
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
         var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
@@ -356,38 +363,88 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("scaled_float doesn't support ignore_malformed with synthetic _source", ignoreMalformed);
-        return new ScaledFloatSyntheticSourceSupport();
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new ScaledFloatSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
     }
 
     private static class ScaledFloatSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final boolean ignoreMalformedEnabled;
         private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         private final Double nullValue = usually() ? null : round(randomValue());
+
+        private ScaledFloatSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+            this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
-                Tuple<Double, Double> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                Value v = generateValue();
+                if (v.malformedOutput == null) {
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
+                }
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
-            List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
-            List<Double> in = values.stream().map(Tuple::v1).toList();
-            List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
+            List<Value> values = randomList(1, maxValues, this::generateValue);
+            List<Object> in = values.stream().map(Value::input).toList();
+
+            List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
+            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+            // Malformed values are always last in the implementation.
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
+
             return new SyntheticSourceExample(in, out, this::mapping);
         }
 
-        private Tuple<Double, Double> generateValue() {
+        private record Value(Object input, Double output, Object malformedOutput) {}
+
+        private Value generateValue() {
             if (nullValue != null && randomBoolean()) {
-                return Tuple.tuple(null, nullValue);
+                return new Value(null, nullValue, null);
+            }
+            // Examples in #exampleMalformedValues() are also tested with synthetic source
+            // so this is not an exhaustive list.
+            // Here we mostly want to verify behavior of arrays that contain malformed
+            // values since there are modifications specific to synthetic source.
+            if (ignoreMalformedEnabled && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(
+                    () -> randomAlphaOfLengthBetween(1, 10),
+                    () -> Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+                );
+                var malformedInput = randomFrom(choices).get();
+                return new Value(malformedInput, null, malformedInput);
             }
             double d = randomValue();
-            return Tuple.tuple(d, round(d));
+            return new Value(d, round(d), null);
         }
 
         private double round(double d) {
             long encoded = Math.round(d * scalingFactor);
             double decoded = encoded / scalingFactor;
+            // Special case due to rounding, see implementation.
+            if (Double.isInfinite(decoded)) {
+                var sign = decoded == Double.POSITIVE_INFINITY ? 1 : -1;
+                return sign * Double.MAX_VALUE;
+            }
+
             long reencoded = Math.round(decoded * scalingFactor);
             if (encoded != reencoded) {
                 if (encoded > reencoded) {
@@ -410,20 +467,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             if (rarely()) {
                 b.field("store", false);
             }
+            if (ignoreMalformedEnabled) {
+                b.field("ignore_malformed", true);
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("doc_values", false)
-                ),
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("ignore_malformed", true)
-                )
-            );
+            return List.of();
         }
     }
 
@@ -432,9 +483,50 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    @Override
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
+        // No outOfRangeSpecs are specified because ScaledFloatFieldMapper doesn't extend NumberFieldMapper and doesn't use a
+        // NumberFieldMapper.NumberType that is present in OutOfRangeSpecs
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testScriptableTypes() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    public void testDimension() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+
+    @Override
+    protected Number missingValue() {
+        return 0.123;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        /*
+         * The source parser and doc values round trip will both reduce
+         * the precision to 32 bits if the value is more precise.
+         * randomDoubleBetween will smear the values out across a wide
+         * range of valid values.
+         */
+        return randomBoolean() ? randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : randomFloat();
+    }
+
     public void testEncodeDecodeExactScalingFactor() {
         double v = randomValue();
-        assertThat(encodeDecode(1 / v, v), equalTo(1 / v));
+        double expected = 1 / v;
+        // We don't produce infinities while decoding. See #testDecodeHandlingInfinity().
+        if (Double.isInfinite(expected)) {
+            var sign = expected == Double.POSITIVE_INFINITY ? 1 : -1;
+            expected = sign * Double.MAX_VALUE;
+        }
+        assertThat(encodeDecode(1 / v, v), equalTo(expected));
     }
 
     /**
@@ -443,7 +535,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     public void testEncodeDecodeNoSaturation() {
         double scalingFactor = randomValue();
         double unsaturated = randomDoubleBetween(Long.MIN_VALUE / scalingFactor, Long.MAX_VALUE / scalingFactor, true);
-        assertThat(encodeDecode(unsaturated, scalingFactor), equalTo(Math.round(unsaturated * scalingFactor) / scalingFactor));
+        assertEquals(
+            encodeDecode(unsaturated, scalingFactor),
+            Math.round(unsaturated * scalingFactor) / scalingFactor,
+            unsaturated * 1e-10
+        );
     }
 
     /**
@@ -465,7 +561,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * Tests that numbers whose encoded value is {@code Long.MAX_VALUE} can be round
      * tripped through synthetic source.
      */
     public void testEncodeDecodeSaturatedHigh() {
@@ -517,6 +613,28 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor),
             equalTo(encoded)
         );
+    }
+
+    /**
+     * Tests the case when decoded value is infinite due to rounding.
+     */
+    public void testDecodeHandlingInfinity() {
+        for (var sign : new long[] { 1, -1 }) {
+            long encoded = 101;
+            double encodedNoRounding = 100.5;
+            assertEquals(encoded, Math.round(encodedNoRounding));
+
+            var signedMax = sign * Double.MAX_VALUE;
+            // We need a scaling factor that will
+            // 1. make encoded long small resulting in significant loss of precision due to rounding
+            // 2. result in long value being rounded in correct direction.
+            //
+            // So we take a scaling factor that would put us right at MAX_VALUE
+            // without rounding and hence go beyond MAX_VALUE with rounding.
+            double scalingFactor = (encodedNoRounding / signedMax);
+
+            assertThat(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), equalTo(signedMax));
+        }
     }
 
     private double encodeDecode(double value, double scalingFactor) {

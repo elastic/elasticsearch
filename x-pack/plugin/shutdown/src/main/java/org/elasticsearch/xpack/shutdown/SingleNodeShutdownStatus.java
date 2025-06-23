@@ -12,17 +12,24 @@ import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Objects;
 
-public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
+
+public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObject {
 
     private final SingleNodeShutdownMetadata metadata;
     private final ShutdownShardMigrationStatus shardMigrationStatus;
@@ -108,10 +115,10 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(startObject(), chunk((builder, p) -> {
             builder.field(SingleNodeShutdownMetadata.NODE_ID_FIELD.getPreferredName(), metadata.getNodeId());
+            builder.field(SingleNodeShutdownMetadata.NODE_EPHEMERAL_ID_FIELD.getPreferredName(), metadata.getNodeEphemeralId());
             builder.field(SingleNodeShutdownMetadata.TYPE_FIELD.getPreferredName(), metadata.getType());
             builder.field(SingleNodeShutdownMetadata.REASON_FIELD.getPreferredName(), metadata.getReason());
             if (metadata.getAllocationDelay() != null) {
@@ -120,20 +127,26 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
                     metadata.getAllocationDelay().getStringRep()
                 );
             }
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
                 SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
                 metadata.getStartedAtMillis()
             );
             builder.field(STATUS.getPreferredName(), overallStatus());
-            builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
+            return builder;
+        }), ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus, params), chunk((builder, p) -> {
             builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
             builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
             if (metadata.getTargetNodeName() != null) {
                 builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
             }
-        }
-        builder.endObject();
-        return builder;
+            if (metadata.getGracePeriod() != null) {
+                builder.timestampField(
+                    SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
+                    metadata.getGracePeriod().getStringRep()
+                );
+            }
+            return builder;
+        }), endObject());
     }
 }

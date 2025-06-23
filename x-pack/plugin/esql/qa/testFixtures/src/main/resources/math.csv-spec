@@ -1,0 +1,1869 @@
+addIntAndInt
+from employees | eval s = emp_no + languages | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:integer
+         10001 |     10003
+         10002 |     10007
+;
+
+addLongAndLong
+from employees | eval s = avg_worked_seconds + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 | 268728051
+         10002 | 328922892
+;
+
+addLongOverflow
+row max = 9223372036854775807 | eval sum = max + 1 | keep sum;
+
+warning:Line 1:44: evaluation of [max + 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
+
+sum:long
+null
+;
+
+subLongUnderflow
+row l = -9223372036854775807 | eval sub = l - 2 | keep sub;
+
+warning:Line 1:43: evaluation of [l - 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:43: java.lang.ArithmeticException: long overflow
+
+sub:long
+null
+;
+
+mulLongOverflow
+row max = 9223372036854775807 | eval mul = max * 2 | keep mul;
+
+warning:Line 1:44: evaluation of [max * 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
+
+mul:long
+null
+;
+
+divLongByZero
+row max = 9223372036854775807 | eval div = max / 0 | keep div;
+
+warning:Line 1:44: evaluation of [max / 0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
+
+div:long
+null
+;
+
+modLongByZero
+row max = 9223372036854775807 | eval mod = max % 0 | keep mod;
+
+// ascii(%) == %25
+warning:Line 1:44: evaluation of [max %25 0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
+
+mod:long
+null
+;
+
+addDoubleAndDouble
+from employees | eval s = height + 5 | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 7.029999999999999
+         10002 | 7.08
+;
+
+addIntAndLong
+from employees | eval s = emp_no + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 |  10003
+         10002 |  10007
+;
+
+addLongAndInt
+from employees | eval s = languages.long + emp_no | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:long
+         10001 |  10003
+         10002 |  10007
+;
+
+addIntAndDouble
+from employees | eval s = emp_no + height | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 10003.03
+         10002 | 10004.08
+;
+
+addDoubleAndInt
+from employees | eval s = height + emp_no | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 10003.03
+         10002 | 10004.08
+;
+
+addLongAndDouble
+from employees | eval s = languages.long + height | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 4.029999999999999
+         10002 | 7.08
+;
+
+addDoubleAndLong
+from employees | eval s = height + languages.long | keep emp_no, s | sort emp_no asc | limit 2;
+
+emp_no:integer | s:double
+         10001 | 4.029999999999999
+         10002 | 7.08
+;
+
+negate
+row x=1 | eval a = -x, b = --x * -+-+-1 * -3, c = -(-(-(-x)));
+
+x:integer | a:integer | b:integer | c:integer
+1         | -1        | 3         | 1
+;
+
+negateIntLongDouble
+from employees | eval negInt = -languages, negLong = -languages.long, negDouble = -height | keep emp_no, negInt, negLong, negDouble | sort emp_no asc | limit 2;
+
+emp_no:integer | negInt:integer | negLong:long | negDouble:double
+         10001 | -2             | -2           | -2.03
+         10002 | -5             | -5           | -2.08
+;
+
+negateIntOverflow
+// Negating Integer.MIN_VALUE overflows.
+row x=-2147483648 | eval a = -x;
+warning:Line 1:30: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:30: java.lang.ArithmeticException: integer overflow
+
+x:integer   | a:integer
+-2147483648 | null
+;
+
+negateLongOverflow
+// Negating Long.MIN_VALUE overflows.
+row x=-9223372036854775808 | eval a = -x;
+warning:Line 1:39: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:39: java.lang.ArithmeticException: long overflow
+
+x:long               | a:long
+-9223372036854775808 | null
+;
+
+absUnsignedLong
+row ul = [0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615] | eval abs = abs(ul);
+
+                                  ul:ul                               |                                 abs:ul
+[0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615]|[0, 1, 9223372036854775807, 9223372036854775808, 18446744073709551615]
+;
+
+absLong
+from employees | eval l = abs(0-languages.long) | keep l | sort l asc | limit 3;
+
+l:long
+1
+1
+1
+;
+
+absInt
+from employees | eval s = abs(0-salary) | keep s | sort s asc | limit 3;
+
+s:integer
+25324
+25945
+25976
+;
+
+absDouble
+from employees | eval s = abs(0.0-salary) | keep s | sort s asc | limit 3;
+
+s:double
+25324.0
+25945.0
+25976.0
+;
+
+exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+// tag::exp[]
+ROW d = 5.0
+| EVAL s = EXP(d)
+// end::exp[]
+;
+
+// tag::exp-result[]
+d: double | s:double
+5.0   | 148.413159102576603
+// end::exp-result[]
+;
+
+powHeightSquared
+from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
+
+height:double | s:double
+1.55          | 0.40
+1.54          | 0.37
+1.53          | 0.34
+1.53          | 0.34
+;
+
+powSalarySquared
+from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
+
+salary:integer | s:double
+74999          | 10001
+74970          | 10900
+74572          | 193184
+73851          | 1330201
+;
+
+log#[skip:-8.12.99,reason:new scalar function added in 8.13]
+// tag::log[]
+ROW base = 2.0, value = 8.0
+| EVAL s = LOG(base, value)
+// end::log[]
+;
+
+// tag::log-result[]
+base: double | value: double | s:double
+2.0          | 8.0           |3.0
+// end::log-result[]
+;
+
+logofNegativeValue#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 2.0, value = -2
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: double | value: integer | s:double
+2.0          | -2             | null
+;
+
+logofNegativeBase#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = -2, value = 2.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: integer | value: double | s:double
+-2            | 2.0           | null
+;
+
+logofBaseOne#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 1, value = 2
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of base 1
+
+base: integer | value: integer | s:double
+1             | 2              | null
+;
+
+logofZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 2.0, value = 0.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | 0.0          |null
+;
+
+logofNegativeZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 2.0, value = -0.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | -0.0         |null
+;
+
+logofIntLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 10, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:long      | s:double
+10           | 1000000000000   | 12
+;
+
+logofLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_long(1000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:long             | value:integer | s:double
+1000000000000         | 10            | 0.08333333333333333
+;
+
+logofLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_long(1000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:long      | value:long     | s:double
+1000000000000  | 1000000000000  |1.0
+;
+
+logofLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_long(1000000000000), value = 10.0
+| EVAL s = LOG(base, value);
+
+base:long             | value:double | s:double
+1000000000000         | 10.0         | 0.08333333333333333
+;
+
+logofDoubleLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 10.0, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:long     | s:double
+10.0        | 1000000000000  | 12
+;
+
+logofLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_long(1000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:long     | value:UNSIGNED_LONG | s:double
+1000000000000 | 1000000000000000000 | 1.5
+;
+
+logofUnsignedLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_ul(1000000000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:long     | s:double
+1000000000000000000 | 1000000000000  | 0.6666666666666666
+;
+
+logofIntUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 10, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:UNSIGNED_LONG | s:double
+10           | 1000000000000000000 | 18.0
+;
+
+logofUnsignedLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_ul(1000000000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:integer | s:double
+1000000000000000000 | 10            | 0.05555555555555555
+;
+
+logofUnsignedLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
+1000000000000000000 | 1000000000000000000 | 1.0
+;
+
+logofUnsignedLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = to_ul(1000000000000000000), value = 1000000000.0
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:double | s:double
+1000000000000000000 | 1.0E9        | 0.5
+;
+
+logofDoubleUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW base = 10.0, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:UNSIGNED_LONG | s:double
+10.0        | 1000000000000000000 | 18.0
+;
+
+logofInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+// tag::logUnary[]
+ROW value = 100
+| EVAL s = LOG(value);
+// end::logUnary[]
+
+// tag::logUnary-result[]
+value: integer | s:double
+100            | 4.605170185988092
+// end::logUnary-result[]
+;
+
+logofLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW value = to_long(1000000000000)
+| EVAL s = LOG(value);
+
+value: long   | s:double
+1000000000000 | 27.631021115928547
+;
+
+logofUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW value = to_ul(1000000000000000000)
+| EVAL s = LOG(value);
+
+value: unsigned_long   | s:double
+1000000000000000000    | 41.44653167389282
+;
+
+logofDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+ROW value = 1000000000000.0
+| EVAL s = LOG(value);
+
+value: double   | s:double
+1000000000000.0 | 27.631021115928547
+;
+
+logofNegativeUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = -1
+| EVAL s = LOG(value);
+
+warning:Line 2:12: evaluation of [LOG(value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+value: integer | s:double
+-1             | null
+;
+
+logofZeroUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = 0
+| EVAL s = LOG(value);
+
+warning:Line 2:12: evaluation of [LOG(value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+value: integer | s:double
+0              | null
+;
+
+logofRefs#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL l1 = LOG(languages, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort emp_no
+| keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
+| limit 5;
+
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
+
+emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double          | l3:double
+10001          | 2                 | 57305          | 268728049               | 15.806373402659007 | 19.409210455930772 | 35.21558385858978
+10002          | 5                 | 56371          | 328922887               | 6.797224072039991  | 19.61133389523871  | 26.408557967278703
+10003          | 4                 | 61805          | 200296405               | 7.957717967928651  | 19.115308852397096 | 27.073026820325747
+10004          | 5                 | 36174          | 311267831               | 6.5215910639530374 | 19.55616429245569  | 26.07775535640873
+10005          | 1                 | 63528          | 244294991               | null               | 19.313887032538442 | null
+;
+
+logofRefExps#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL base = languages * 2
+| EVAL l1 = LOG(base, salary * 2)
+| EVAL l2 = LOG(avg_worked_seconds + 10000) / 2
+| EVAL l3 = l1 + l2
+| sort emp_no
+| keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
+| limit 5;
+
+emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double         | l3:double
+10001          | 2                 | 57305          | 268728049               | 8.403186701329505  | 9.704623833790084 | 18.10781053511959
+10002          | 5                 | 56371          | 328922887               | 5.052085734770665  | 9.805682148519608 | 14.857767883290272
+10003          | 4                 | 61805          | 200296405               | 5.638478645285767  | 9.55767938857962  | 15.196158033865387
+10004          | 5                 | 36174          | 311267831               | 4.8594265299129775 | 9.778098209306606 | 14.637524739219582
+10005          | 1                 | 63528          | 244294991               | 16.955104980216557 | 9.656963982909355 | 26.612068963125914
+;
+
+logofSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL l1 = LOG(languages, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort l1 ASC nulls last, l2 DESC nulls last
+| keep l1, l2, emp_no, languages, salary, avg_worked_seconds, l3
+| limit 5;
+
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
+
+l1:double         | l2:double          | emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l3:double
+6.300030441266983 | 19.782340222815456 | 10015          | 5                 | 25324          | 390266432               | 26.08237066408244
+6.315083118944484 | 19.132836869278762 | 10035          | 5                 | 25945          | 203838153               | 25.447919988223248
+6.428086413501791 | 19.294546217598917 | 10011          | 5                 | 31120          | 239615525               | 25.72263263110071
+6.443409317219002 | 19.704129344210816 | 10066          | 5                 | 31897          | 360906451               | 26.14753866142982
+6.450671492193451 | 19.538385836155943 | 10087          | 5                 | 32272          | 305782871               | 25.989057328349393
+;
+
+logofRenameSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| RENAME languages as base1
+| EVAL l1 = LOG(base1, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort l1 ASC nulls first, l2 DESC nulls first
+| keep l1, l2, emp_no, base1, salary, avg_worked_seconds, l3
+| limit 5;
+
+warningRegex:evaluation of \[LOG\(base1, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
+
+l1:double | l2:double          | emp_no:integer | base1:integer | salary:integer | avg_worked_seconds:long | l3:double
+null      | 19.774989878141827 | 10044          | 1             | 39728          | 387408356               | null
+null      | 19.739867371666865 | 10027          | null          | 73851          | 374037782               | null
+null      | 19.73791867352969  | 10020          | null          | 40031          | 373309605               | null
+null      | 19.732442265367403 | 10025          | null          | 47411          | 371270797               | null
+null      | 19.72282600331636  | 10024          | null          | 64675          | 367717671               | null
+;
+
+log10
+// tag::log10[]
+ROW d = 1000.0
+| EVAL s = LOG10(d)
+// end::log10[]
+;
+
+// tag::log10-result[]
+d: double | s:double
+1000.0    | 3.0
+// end::log10-result[]
+;
+
+log10ofNegative
+row d = -1.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
+
+d:double | s:double
+-1.0     | null
+;
+
+log10ofZero
+row d = 0.0 | eval s = log10(d);
+warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.ArithmeticException: Log of non-positive number
+
+d:double | s:double
+0.0      | null
+;
+
+log10ofNegativeZero
+row d = -0.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
+
+d:double | s:double
+-0.0     | null
+;
+
+log10ofLong
+row l = to_long(1000000000000) | eval s = log10(l);
+
+l:long         | s:double
+1000000000000  | 12
+;
+
+log10ofUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = log10(l);
+
+l:ul                  | s:double
+1000000000000000000   | 18
+;
+
+powDoubleDouble
+ROW base = 2.0, exponent = 2.0
+| EVAL s = POW(base, exponent)
+;
+
+base:double | exponent:double | s:double
+2.0         | 2.0             | 4.0
+;
+
+powIntDouble
+// tag::powID-sqrt[]
+ROW base = 4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powID-sqrt[]
+;
+
+// tag::powID-sqrt-result[]
+base:integer | exponent:double | s:double
+4            | 0.5             | 2.0
+// end::powID-sqrt-result[]
+;
+
+powSqrtNeg#[skip:-8.12.99,reason:warning message changed in 8.13]
+// tag::powNeg-sqrt[]
+ROW base = -4, exponent = 0.5
+| EVAL s = POW(base, exponent)
+// end::powNeg-sqrt[]
+;
+warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: not a finite double number: NaN
+
+// tag::powNeg-sqrt-result[]
+base:integer | exponent:double | s:double
+-4           | 0.5             | null
+// end::powNeg-sqrt-result[]
+;
+
+powDoubleInt
+// tag::powDI[]
+ROW base = 2.0, exponent = 2
+| EVAL result = POW(base, exponent)
+// end::powDI[]
+;
+
+// tag::powDI-result[]
+base:double | exponent:integer | result:double
+2.0         | 2                | 4.0
+// end::powDI-result[]
+;
+
+powIntInt
+ROW base = 2, exponent = 2
+| EVAL s = POW(base, exponent)
+;
+
+base:integer | exponent:integer | s:double
+2            | 2                | 4.0
+;
+
+powIntIntPlusInt
+row s = 1 + pow(2, 2);
+
+s:double
+5
+;
+
+powIntIntPlusDouble
+row s = 1.0 + pow(2, 2);
+
+s:double
+5
+;
+
+powIntUL
+row x = pow(1, 9223372036854775808);
+
+x:double
+1
+;
+
+powLongUL
+row x = to_long(1) | eval x = pow(x, 9223372036854775808);
+
+x:double
+1
+;
+
+powUnsignedLongUL
+row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
+
+x:double
+1
+;
+
+powDoubleUL
+row x = pow(1.0, 9223372036854775808);
+
+x:double
+1.0
+;
+
+powIntULOverrun#[skip:-8.12.99,reason:warning message changed in 8.13]
+row x = pow(2, 9223372036854775808);
+warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
+
+x:double
+null
+;
+
+powULInt
+row x = pow(to_unsigned_long(9223372036854775807), 1);
+
+x:double
+9223372036854775807
+;
+
+powULIntOverrun
+ROW x = POW(9223372036854775808, 2)
+;
+
+x:double
+8.507059173023462E37
+;
+
+powULInt_2d
+// tag::pow2d[]
+ROW x = POW(9223372036854775808, TO_DOUBLE(1))
+// end::pow2d[]
+;
+
+// tag::pow2d-result[]
+x:double
+9.223372036854776E18
+// end::pow2d-result[]
+;
+
+powULLong
+row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
+
+x:double
+10000000000
+;
+
+powULLongOverrun
+row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
+
+x:double
+1.0E100
+;
+
+powULDouble
+row x = pow(9223372036854775808, -.1);
+
+x:double
+0.012691443693066178
+;
+
+roundLongAsUL
+row x = to_ul(9223372036854775804) | eval x = round(x, -1);
+
+x:ul
+9223372036854775800
+;
+
+roundUL
+row x = round(9223372036854775808, -1);
+
+x:ul
+9223372036854775810
+;
+
+roundMaxMinusOneUL
+row ul = round(18446744073709551614, -1);
+
+ul:ul
+18446744073709551610
+;
+
+roundULNoFold
+row ul = 18446744073709551614 | eval ul = round(ul, -4);
+
+ul:ul
+18446744073709550000
+;
+
+roundMaxULNoDecimals
+row ul = round(18446744073709551615);
+
+ul:ul
+18446744073709551615
+;
+
+roundMaxULWithBigNegativeDecimals
+required_capability: fn_round_ul_fixes
+row
+  ul1 = round(18446744073709551615, -6144415263046370459::long),
+  ul2 = round(18446744073709551615, -20::long),
+  ul3 = round(12446744073709551615, -19::long);
+
+ul1:ul | ul2:ul | ul3:ul
+0      | 0      | 10000000000000000000
+;
+
+roundBigULWithRoundULOverflow
+required_capability: fn_round_ul_fixes
+row ul = round(18446744073709551615, -19::long);
+
+warning:Line 1:10: evaluation of [round(18446744073709551615, -19::long)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:10: java.lang.ArithmeticException: unsigned_long overflow
+
+ul:ul
+null
+;
+
+roundToInt
+required_capability: round_to
+ROW v = 1
+| EVAL r1 = ROUND_TO(v, 0, 1, 2)
+     , r2 = ROUND_TO(v, 2, 3)
+     , r3 = ROUND_TO(v, 0, 10, 20, 30, 40, 50, 60, 70, 90)
+     , rl = ROUND_TO(v, 0::LONG, 100)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+v:integer | r1:integer | r2:integer | r3:integer | rl:long | rd:double
+        1 |          1 |          2 |          0 |       0 | 0.0
+;
+
+roundToLong
+required_capability: round_to
+ROW v = 1000000000000::LONG
+| EVAL r1 = ROUND_TO(v, 0, 1000000000000, 2000000000000)
+     , r2 = ROUND_TO(v, 2000000000000, 3000000000000)
+     , r3 = ROUND_TO(v, 0, 1000000000000, 2000000000000, 3000000000000, 4000000000000, 5000000000000, 6000000000000)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+   v:long     |    r1:long    |    r2:long    |    r3:long    | rd:double
+1000000000000 | 1000000000000 | 2000000000000 | 1000000000000 | 2.2
+;
+
+roundToDouble
+required_capability: round_to
+ROW v = 1.1
+| EVAL r1 = ROUND_TO(v, 0, 1, 2)
+     , r2 = ROUND_TO(v, 2, 3)
+     , r3 = ROUND_TO(v, 0, 10, 20, 30, 40, 50, 60, 70, 90)
+     , rl = ROUND_TO(v, 0::LONG, 100)
+     , rd = ROUND_TO(v, 0, 1.1, 2.2);
+
+v:double | r1:double | r2:double | r3:double | rl:double | rd:double
+     1.1 |       1.0 |       2.0 |       0.0 |       0.0 | 1.1
+;
+
+roundToDate
+required_capability: round_to
+ROW v = "2025-02-02T01:00:00Z"::DATE
+| EVAL r1 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE, "2025-02-01T00:00:00Z"::DATE, "2025-03-01T00:00:00Z"::DATE)
+     , r2 = ROUND_TO(v, "2025-04-01T00:00:00Z"::DATE, "2025-05-01T00:00:00Z"::DATE, "2025-06-01T00:00:00Z"::DATE)
+     , r3 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE, "2025-02-01T00:00:00Z"::DATE, "2025-03-01T00:00:00Z"::DATE, "2025-04-01T00:00:00Z"::DATE, "2025-05-01T00:00:00Z"::DATE, "2025-06-01T00:00:00Z"::DATE);
+
+        v:date       |        r1:date       |        r2:date       |        r3:date
+2025-02-02T01:00:00Z | 2025-02-01T00:00:00Z | 2025-04-01T00:00:00Z | 2025-02-01T00:00:00Z
+;
+
+roundToDateNanos
+required_capability: round_to
+ROW v = "2025-02-02T01:00:00.543123456Z"::DATE_NANOS
+| EVAL r1 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE_NANOS, "2025-02-01T00:00:00Z"::DATE_NANOS, "2025-03-01T00:00:00Z"::DATE_NANOS)
+     , r2 = ROUND_TO(v, "2025-04-01T00:00:00Z"::DATE_NANOS, "2025-05-01T00:00:00Z"::DATE_NANOS, "2025-06-01T00:00:00Z"::DATE_NANOS)
+     , r3 = ROUND_TO(v, "2025-01-01T00:00:00Z"::DATE_NANOS, "2025-02-01T00:00:00Z"::DATE_NANOS, "2025-03-01T00:00:00Z"::DATE_NANOS, "2025-04-01T00:00:00Z"::DATE_NANOS, "2025-05-01T00:00:00Z"::DATE_NANOS, "2025-06-01T00:00:00Z"::DATE_NANOS);
+
+          v:date_nanos         |          r1:date_nanos         |          r2:date_nanos         |         r3:date_nanos
+2025-02-02T01:00:00.543123456Z | 2025-02-01T00:00:00.000000000Z | 2025-04-01T00:00:00.000000000Z | 2025-02-01T00:00:00.000000000Z
+;
+
+roundToBirthWindow
+required_capability: round_to
+// tag::round_to[]
+FROM employees
+| STATS COUNT(*) BY birth_window=ROUND_TO(
+    birth_date,
+    "1900-01-01T00:00:00Z"::DATETIME,
+    "1950-01-01T00:00:00Z"::DATETIME,
+    "1955-01-01T00:00:00Z"::DATETIME,
+    "1960-01-01T00:00:00Z"::DATETIME,
+    "1965-01-01T00:00:00Z"::DATETIME,
+    "1970-01-01T00:00:00Z"::DATETIME,
+    "1975-01-01T00:00:00Z"::DATETIME
+)
+| SORT birth_window ASC
+// end::round_to[]
+;
+
+// tag::round_to-result[]
+COUNT(*):long | birth_window:datetime
+           27 | 1950-01-01T00:00:00Z
+           29 | 1955-01-01T00:00:00Z
+           33 | 1960-01-01T00:00:00Z
+            1 | 1965-01-01T00:00:00Z
+           10 | null
+// end::round_to-result[]
+;
+
+roundToSalaryWindow
+required_capability: round_to
+FROM employees
+| STATS COUNT(*) BY salary=ROUND_TO(
+    salary,
+    0,
+    20000,
+    25000,
+    30000,
+    40000,
+    50000,
+    70000,
+    90000
+)
+| SORT salary ASC
+;
+
+COUNT(*):long | salary:integer
+            9 | 25000
+           27 | 30000
+           22 | 40000
+           34 | 50000
+            8 | 70000
+;
+
+roundToNanos
+required_capability: round_to
+FROM sample_data_ts_nanos
+| STATS COUNT(*) BY @timestamp=ROUND_TO(
+    @timestamp,
+    "2023-10-23T13:33:34.937123456Z"::DATE_NANOS,
+    "2023-10-23T13:52:55.015123456Z"::DATE_NANOS,
+    "2023-10-23T13:55:01.543123456Z"::DATE_NANOS
+)
+| SORT @timestamp ASC
+;
+
+COUNT(*):long | @timestamp:date_nanos
+            4 | 2023-10-23T13:33:34.937123456Z
+            2 | 2023-10-23T13:52:55.015123456Z
+            1 | 2023-10-23T13:55:01.543123456Z
+;
+
+roundToUnsorted
+required_capability: round_to
+ROW v = 1
+| EVAL r = ROUND_TO(v, 2, -1, 9, 0, 100);
+
+v:integer | r:integer
+        1 |         0
+;
+
+mvAvg
+from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:double
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            |  3.7800000000000002
+10011          | [-7, 3, 8, 10]            |  3.685
+10012          | 0                         |  0.04
+10013          | null                      | null
+10014          | [-1, 9]                   |  3.5900000000000003
+10015          | [12, 14]                  | 13.325
+;
+
+mvAvgSimple
+// tag::mv_avg[]
+ROW a=[3, 5, 1, 6]
+| EVAL avg_a = MV_AVG(a)
+// end::mv_avg[]
+;
+
+// tag::mv_avg-result[]
+   a:integer | avg_a:double
+[3, 5, 1, 6] | 3.75
+// end::mv_avg-result[]
+;
+
+mvAvgIntsOverflow
+ROW ints = [0, 1, 2147483647]
+| EVAL mvavg = mv_avg(ints)
+| KEEP mvavg;
+
+mvavg:double
+7.158278826666666E8
+;
+
+mvAvgLongsOverflow
+ROW longs = [0, 1, 9223372036854775807]
+| EVAL mvavg = mv_avg(longs)
+| KEEP mvavg;
+
+mvavg:double
+3.0744573456182584E18
+;
+
+mvAvgUnsignedLongsOverflow
+ROW ulongs = [0, 1, 18446744073709551615]
+| EVAL mvavg = mv_avg(ulongs)
+| KEEP mvavg;
+
+mvavg:double
+6.148914691236517E18
+;
+
+mvCount
+ROW a=[3, 5, 1, 6]
+| EVAL count_a = MV_COUNT(a)
+;
+
+   a:integer | count_a:integer
+[3, 5, 1, 6] | 4
+;
+
+
+mvMax
+from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            | 12
+10011          | [-7, 3, 8, 10]            | 10
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | [-1, 9]                   | 9
+10015          | [12, 14]                  | 14
+;
+
+mvMaxSimple
+// tag::mv_max[]
+ROW a=[3, 5, 1]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+a:integer | max_a:integer
+[3, 5, 1] | 5
+// end::mv_max-result[]
+;
+
+mvMedian
+from employees | where emp_no > 10008 | eval med = mv_median(salary_change) | sort emp_no | keep emp_no, salary_change, med | limit 7;
+
+emp_no:integer | salary_change:double         | med:double
+10009          | null                         | null
+10010          | [-6.77, 4.69, 5.05, 12.15]   | 4.87
+10011          | [-7.82, 3.48, 8.73, 10.35]   | 6.105
+10012          | 0.04                         | 0.04
+10013          | null                         | null
+10014          | [-1.89, 9.07]                | 3.5900000000000003
+10015          | [12.4, 14.25]                | 13.325
+;
+
+mvMedianSimple
+// tag::mv_median[]
+ROW a=[3, 5, 1]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median[]
+;
+
+// tag::mv_median-result[]
+a:integer | median_a:integer
+[3, 5, 1] | 3
+// end::mv_median-result[]
+;
+
+mvMedianRoundDown
+// tag::mv_median_round_down[]
+ROW a=[3, 7, 1, 6]
+| EVAL median_a = MV_MEDIAN(a)
+// end::mv_median_round_down[]
+;
+
+// tag::mv_median_round_down-result[]
+   a:integer | median_a:integer
+[3, 7, 1, 6] | 4
+// end::mv_median_round_down-result[]
+;
+
+mvMin
+from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          |null                       |null           
+10010          |[-6, 4, 5, 12]             |-6             
+10011          |[-7, 3, 8, 10]             |-7             
+10012          |0                          |0              
+10013          |null                       |null           
+10014          |[-1, 9]                    |-1             
+10015          |[12, 14]                   |12             
+;
+
+mvMinSimple
+// tag::mv_min[]
+ROW a=[2, 1]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+a:integer | min_a:integer
+   [2, 1] | 1
+// end::mv_min-result[]
+;
+
+mvSum
+from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | keep emp_no, salary_change.int, salary_change | limit 7;
+
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | [-6, 4, 5, 12]            | 15
+10011          | [-7, 3, 8, 10]            | 14
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | [-1, 9]                   | 8
+10015          | [12, 14]                  | 26
+;
+
+mvSumSimple
+// tag::mv_sum[]
+ROW a=[3, 5, 6]
+| EVAL sum_a = MV_SUM(a)
+// end::mv_sum[]
+;
+
+// tag::mv_sum-result[]
+a:integer | sum_a:integer
+[3, 5, 6] | 14
+// end::mv_sum-result[]
+;
+
+mvSumIntsOverflow
+ROW ints = [0, 1, 2147483647]
+| EVAL mvsum = mv_sum(ints)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:16: java.lang.ArithmeticException: integer overflow
+
+mvsum:integer
+null
+;
+
+mvSumLongsOverflow
+ROW longs = [0, 1, 9223372036854775807]
+| EVAL mvsum = mv_sum(longs)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:16: java.lang.ArithmeticException: long overflow
+
+mvsum:long
+null
+;
+
+mvSumUnsignedLongsOverflow
+ROW ulongs = [0, 1, 18446744073709551615]
+| EVAL mvsum = mv_sum(ulongs)
+| KEEP mvsum;
+
+warning:Line 2:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:16: java.lang.ArithmeticException: unsigned_long overflow
+
+mvsum:unsigned_long
+null
+;
+
+mvSumOverflowOnNode
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    ints = CASE(first_name == "Alejandro", [0, 1, 2147483647], 0),
+    longs = CASE(first_name == "Alejandro", [0, 1, 9223372036854775807], 0),
+    ulongs = CASE(first_name == "Alejandro", [0, 1, 18446744073709551615], 0),
+    intsResult = mv_sum(ints),
+    longsResult = mv_sum(longs),
+    ulongsResult = mv_sum(ulongs)
+| KEEP first_name, intsResult, longsResult, ulongsResult
+| LIMIT 1
+;
+
+warning:Line 7:14: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 7:14: java.lang.ArithmeticException: integer overflow
+warning:Line 8:15: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:15: java.lang.ArithmeticException: long overflow
+warning:Line 9:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 9:16: java.lang.ArithmeticException: unsigned_long overflow
+
+first_name:keyword | intsResult:integer | longsResult:long | ulongsResult:unsigned_long
+Alejandro          | null               | null             | null
+;
+
+e
+// tag::e[]
+ROW E()
+// end::e[]
+;
+
+// tag::e-result[]
+E():double
+2.718281828459045
+// end::e-result[]
+;
+
+eInside
+ROW a=2 | EVAL c = abs(a + e());
+
+a:integer | c:double
+        2 | 4.718281828459045
+;
+
+//
+// unsigned_long arithmetics, MV functions
+//
+
+ulAddition
+row x = to_ul(100), y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+101
+;
+
+ulAdditionOverLongLimit
+row x = to_ul(9223372036854775807), y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+9223372036854775808
+;
+
+ulAdditionToUnsignedLongLimit
+row x = 18446744073709551614, y = to_ul(1) | eval x = x + y | keep x;
+
+x:ul
+18446744073709551615
+;
+
+ulAdditionOverflow
+row x = 18446744073709551615, y = to_ul(1) | eval x = x + y | keep x;
+
+warning:Line 1:55: evaluation of [x + y] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:55: java.lang.ArithmeticException: unsigned_long overflow
+
+x:ul
+null
+;
+
+ulSubtraction
+row x = to_ul(100), y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+99
+;
+
+ulSubtractionToLongLimit
+row x = 9223372036854775808, y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+9223372036854775807
+;
+
+ulSubtractionFromUnsignedLongLimit
+row x = 18446744073709551615, y = to_ul(1) | eval x = x - y | keep x;
+
+x:ul
+18446744073709551614
+;
+
+ulSubtractionUnderflow
+row x = to_ul(0), y = to_ul(1) | eval x = x - y | keep x;
+
+warning:Line 1:43: evaluation of [x - y] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:43: java.lang.ArithmeticException: unsigned_long overflow
+
+x:ul
+null
+;
+
+ulMultiplication
+row x = to_ul(9223372036854775807), y = to_ul(2) | eval x = x * y | keep x;
+
+x:ul
+18446744073709551614
+;
+
+ulMultiplicationOverflow
+row x = 9223372036854775808, two = to_ul(2) | eval times2 = x * two | keep times2;
+
+warning:Line 1:61: evaluation of [x * two] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:61: java.lang.ArithmeticException: unsigned_long overflow
+
+times2:ul
+null
+;
+
+ulMultiplicationOverflow2
+row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x;
+
+warning:Line 1:65: evaluation of [x * y] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:65: java.lang.ArithmeticException: unsigned_long overflow
+
+x:ul
+null
+;
+
+ulDivision
+row max = 18446744073709551615, halfplus = 9223372036854775808, two = to_ul(2) | eval x = max / two, y = max / halfplus | keep x, y;
+
+x:ul                |y:ul
+9223372036854775807 |1
+;
+
+ulDivisionByZero
+row halfplus = 9223372036854775808, zero = to_ul(0) | eval div = halfplus / zero | keep div;
+
+warning:Line 1:66: evaluation of [halfplus / zero] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
+
+div:ul
+null
+;
+
+ulModulo
+row max = 18446744073709551615, halfplus = 9223372036854775808, two = to_ul(2) | eval x = max % halfplus, y = halfplus % two | keep x, y;
+
+x:ul                |y:ul
+9223372036854775807 |0
+;
+
+ulModuloByZero
+row halfplus = 9223372036854775808, zero = to_ul(0) | eval mod = halfplus % zero | keep mod;
+
+// ascii(%) == %25
+warning:Line 1:66: evaluation of [halfplus %25 zero] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
+
+mod:ul
+null
+;
+
+
+ulMvNonSumFunctions
+row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808] | eval mv_min(ul), mv_max(ul), mv_median(ul), mv_count(ul) | drop ul;
+
+  mv_min(ul):ul|     mv_max(ul):ul  |   mv_median(ul):ul| mv_count(ul):i
+0              |18446744073709551615|9223372036854775807|5
+;
+
+ulMvSum
+row ul = [1, 9223372036854775806, 9223372036854775808] | eval mv_sum(ul), mv_avg(ul) | drop ul;
+
+     mv_sum(ul):ul  | mv_avg(ul):double
+18446744073709551615|6.148914691236517E18
+;
+
+ulMedianEvenCount
+row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808, 2] | eval mv_median(ul) | drop ul;
+
+mv_median(ul):ul
+4611686018427387904
+;
+
+pi
+// tag::pi[]
+ROW PI()
+// end::pi[]
+;
+
+// tag::pi-result[]
+PI():double
+3.141592653589793
+// end::pi-result[]
+;
+
+tau
+// tag::tau[]
+ROW TAU()
+// end::tau[]
+;
+
+// tag::tau-result[]
+TAU():double
+6.283185307179586
+// end::tau-result[]
+;
+
+ceil
+// tag::ceil[]
+ROW a=1.8
+| EVAL a=CEIL(a)
+// end::ceil[]
+;
+
+// tag::ceil-result[]
+a:double
+2
+// end::ceil-result[]
+;
+
+floor
+// tag::floor[]
+ROW a=1.8
+| EVAL a=FLOOR(a)
+// end::floor[]
+;
+
+// tag::floor-result[]
+a:double
+1
+// end::floor-result[]
+;
+
+ceilFloorOfInteger
+row i = 1 | eval c = ceil(i), f = floor(i);
+
+i:integer | c:integer | f:integer
+1         | 1         | 1
+;
+
+ceilFloorOfLong
+row i = to_long(1000000000000) | eval c = ceil(i), f = floor(i);
+
+i:long        | c:long        | f:long
+1000000000000 | 1000000000000 | 1000000000000
+;
+
+ceilFloorOfUnsignedLong
+row i = to_ul(1000000000000000000) | eval c = ceil(i), f = floor(i);
+
+i:ul                | c:ul                | f:ul
+1000000000000000000 | 1000000000000000000 | 1000000000000000000
+;
+
+signum#[skip:-8.13.99,reason:new scalar function added in 8.14]
+// tag::signum[]
+ROW d = 100.0
+| EVAL s = SIGNUM(d)
+// end::signum[]
+;
+
+// tag::signum-result[]
+d: double | s:double
+100   | 1.0
+// end::signum-result[]
+;
+
+sqrt
+// tag::sqrt[]
+ROW d = 100.0
+| EVAL s = SQRT(d)
+// end::sqrt[]
+;
+
+// tag::sqrt-result[]
+d: double | s:double
+100.0    | 10.0
+// end::sqrt-result[]
+;
+
+sqrtOfInteger
+row i = 81 | eval s = sqrt(i);
+
+i:integer | s:double
+81        | 9
+;
+
+sqrtOfLong
+row l = to_long(1000000000000) | eval s = sqrt(l);
+
+l:long            | s:double
+1000000000000     | 1000000
+;
+
+sqrtOfUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = sqrt(l);
+
+l:ul                  | s:double
+1000000000000000000   | 1000000000
+;
+
+sqrtOfNegative
+row d = -1.0 | eval s = sqrt(d);
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Square root of negative
+
+d:double | s:double
+-1.0     | null
+;
+
+sqrtOfZero
+row d = 0.0 |eval s = sqrt(d);
+
+d:double | s:double
+0.0     | 0.0
+;
+
+sqrtOfNegativeZero
+row d = -0.0 |eval s = sqrt(d);
+
+d:double | s:double
+-0.0     | -0.0
+;
+
+cbrt
+required_capability: fn_cbrt
+// tag::cbrt[]
+ROW d = 1000.0
+| EVAL c = CBRT(d)
+// end::cbrt[]
+;
+
+// tag::cbrt-result[]
+d: double | c:double
+1000.0    | 10.0
+// end::cbrt-result[]
+;
+
+cbrtOfInteger
+required_capability: fn_cbrt
+row i = 27 | eval c = cbrt(i);
+
+i:integer | c:double
+27        | 3
+;
+
+cbrtOfLong
+required_capability: fn_cbrt
+row l = to_long(1000000000000) | eval c = cbrt(l);
+
+l:long            | c:double
+1000000000000     | 10000
+;
+
+cbrtOfUnsignedLong
+required_capability: fn_cbrt
+row l = to_ul(1000000000000000000) | eval c = cbrt(l);
+
+l:ul                  | c:double
+1000000000000000000   | 1000000
+;
+
+cbrtOfNegative
+required_capability: fn_cbrt
+row d = -1.0 | eval c = cbrt(d);
+
+d:double | c:double
+-1.0     | -1.0
+;
+
+cbrtOfZero
+required_capability: fn_cbrt
+row d = 0.0 | eval c = cbrt(d);
+
+d:double | c:double
+0.0      | 0.0
+;
+
+cbrtOfNegativeZero
+required_capability: fn_cbrt
+row d = -0.0 | eval c = cbrt(d);
+
+d:double | c:double
+-0.0     | -0.0
+;
+
+hypot
+required_capability: fn_hypot
+// tag::hypot[]
+ROW a = 3.0, b = 4.0
+| EVAL c = HYPOT(a, b)
+// end::hypot[]
+;
+
+// tag::hypot-result[]
+a:double | b:double | c:double
+3.0      | 4.0      | 5.0
+// end::hypot-result[]
+;
+
+hypotWithFrom
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id > 95
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| SORT id ASC
+| LIMIT 5
+| KEEP id, bytes_in, bytes_out, bytes_hypot
+;
+
+id:integer | bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+96         | 9932469097722733505    | 14925592145374204307    | 1.792839209932874E19
+97         | 11620953158540412267   | 3809712277266935082     | 1.2229491401875583E19
+98         | 3448205404634246112    | 5409549730889481641     | 6.415087591258227E18
+99         | 1957665857956635540    | 352442273299370793      | 1.9891382977102218E18
+100        | 16462768484251021236   | 15616395223975497926    | 2.2691287886707827E19
+;
+
+hypotBothNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE bytes_in IS NULL and bytes_out IS NULL
+| LIMIT 1
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| KEEP bytes_in, bytes_out, bytes_hypot
+;
+
+bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+null                   | null                    | null
+;
+
+hypotOneNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id == 41
+| EVAL confused_hypot = HYPOT(id, bytes_in)
+| KEEP id, bytes_in, confused_hypot
+;
+
+id:integer | bytes_in:unsigned_long | confused_hypot:double
+41         | null                   | null
+;
+
+least
+// tag::least[]
+ROW a = 10, b = 20
+| EVAL l = LEAST(a, b)
+// end::least[]
+;
+
+// tag::least-result[]
+a:integer | b:integer | l:integer
+       10 |        20 | 10
+// end::least-result[]
+;
+
+leastNull
+ROW l=LEAST(10, 5, null);
+
+l:integer
+null
+;
+
+leastMany
+ROW l=LEAST(10, 5, 1, -100, 0, 1234, -10000);
+
+l:integer
+-10000
+;
+
+
+greatest
+// tag::greatest[]
+ROW a = 10, b = 20
+| EVAL g = GREATEST(a, b)
+// end::greatest[]
+;
+
+// tag::greatest-result[]
+a:integer | b:integer | g:integer
+       10 |        20 | 20
+// end::greatest-result[]
+;
+
+greatestNull
+ROW g=GREATEST(10, 5, null);
+
+g:integer
+null
+;
+
+greatestMany
+ROW g=GREATEST(10, 5, 1, -100, 0, 1234, -10000);
+
+g:integer
+1234
+;
+
+greatestMv
+ROW g=GREATEST([10, 4], 1);
+
+g:integer
+10
+;
+
+leastGreatestMany
+FROM employees
+| EVAL min_plus_max = LEAST(languages, 2) + GREATEST(languages, 2),
+       are_equal = LEAST(languages, 2) + GREATEST(languages, 2) == languages * 2
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, min_plus_max, are_equal;
+
+emp_no:integer | min_plus_max:integer | are_equal:boolean
+         10001 |                    4 | true
+         10002 |                    7 | false
+         10003 |                    6 | false
+         10004 |                    7 | false
+         10005 |                    3 | false
+;
+
+docsAbs
+//tag::abs[]
+ROW number = -1.0
+| EVAL abs_number = ABS(number)
+//end::abs[]
+;
+
+//tag::abs-result[]
+number:double  | abs_number:double
+-1.0           | 1.0
+//end::abs-result[]
+;
+
+docsAbsEmployees
+//tag::abs-employees[]
+FROM employees
+| KEEP first_name, last_name, height
+| EVAL abs_height = ABS(0.0 - height)
+//end::abs-employees[]
+| SORT first_name
+| LIMIT 3
+;
+
+//tag::abs-employees-result[]
+first_name:keyword   |   last_name:keyword | height:double  |  abs_height:double
+Alejandro      |McAlpine       |1.48           |1.48           
+Amabile        |Gomatam        |2.09           |2.09           
+Anneke         |Preusig        |1.56           |1.56     
+//end::abs-employees-result[]
+;
+
+evalAbsString
+required_capability: string_literal_auto_casting
+
+ROW number = -1.0
+| EVAL abs_number = ABS("10.0")
+;
+
+number:double  | abs_number:double
+-1.0           | 10.0
+;
+
+functionUnderArithmeticOperationAggString
+required_capability: string_literal_auto_casting
+
+ROW a = 1
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| stats count() by y
+;
+
+count():long | y:date
+1            | 2024-11-06T00:00:00.000Z
+;
+
+functionUnderArithmeticOperationString
+required_capability: string_literal_auto_casting
+
+from employees
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| sort emp_no
+| keep emp_no, x, y
+| limit 2;
+
+emp_no: integer | x:date     | y:date
+10001           | 2024-11-03 | 2024-11-06
+10002           | 2024-11-03 | 2024-11-06
+;
+
+greatestWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), g2=GREATEST(10.0, 5, 1, -100.1, null);
+
+g1:double |g2:double
+1234      |null
+;
+
+leastWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), l2=LEAST(10.0, 5, 1, -100.1, null);
+
+l1:double |l2:double
+-10000    |null
+;
+
+greatestWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(height, salary, languages), g2 = GREATEST(height, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(height, salary, languages), l2 = LEAST(height, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 2.0       | null
+10002          | 2.08      | null
+10003          | 1.83      | null
+;
+
+greatestWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST([10.0, 4], 1), g2=GREATEST([10.0, 4], 1, null);
+
+g1:double |g2:double
+10        |null
+;
+
+leastWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST([10.0, 4], 1), l2=LEAST([10.0, 4], 1, null);
+
+l1:double |l2:double
+1         |null
+;
+
+greatestWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(salary_change, salary, languages), g2 = GREATEST(salary_change, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(salary_change, salary, languages), l2 = LEAST(salary_change, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 1.19      | null     
+10002          | -7.23     | null     
+10003          | 4.0       | null     
+;
+
+copySignWithMixedNumericValues
+required_capability: copy_sign
+
+ROW cs1=COPY_SIGN(10.0, -5.0), cs2=COPY_SIGN(10, 1), cs3=COPY_SIGN(1, -5.0);
+
+cs1:double | cs2:integer | cs3:integer
+-10.0       | 10         | -1
+;
+
+copySignWithMixedNumericValuesWithMV
+required_capability: copy_sign
+
+FROM employees
+| EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))
+| KEEP emp_no, salary, salary_change, cs1
+| SORT emp_no
+| LIMIT 3
+;
+
+    emp_no:integer | salary:integer | salary_change:double | cs1:integer
+    10001          | 57305          | 1.19                 | 57305
+    10002          | 56371          | [-7.23, 11.17]       | -56371  
+    10003          | 61805          | [12.82, 14.68]       | 61805  
+;

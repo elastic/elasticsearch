@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
@@ -21,9 +22,12 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
 
     private final boolean keyed;
 
+    private final int size;
+
     public TimeSeriesAggregationFactory(
         String name,
         boolean keyed,
+        int size,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -31,11 +35,12 @@ public class TimeSeriesAggregationFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.keyed = keyed;
+        this.size = size;
     }
 
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata);
+        return new TimeSeriesAggregator(name, factories, keyed, context, parent, cardinality, metadata, size);
     }
 }

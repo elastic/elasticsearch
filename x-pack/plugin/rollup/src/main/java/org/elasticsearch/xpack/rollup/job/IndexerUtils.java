@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -62,7 +62,7 @@ class IndexerUtils {
             // Put the composite keys into a treemap so that the key iteration order is consistent
             // TODO would be nice to avoid allocating this treemap in the future
             TreeMap<String, Object> keys = new TreeMap<>(b.getKey());
-            List<Aggregation> metrics = b.getAggregations().asList();
+            List<InternalAggregation> metrics = b.getAggregations().asList();
 
             RollupIDGenerator idGenerator = new RollupIDGenerator(jobId);
             Map<String, Object> doc = Maps.newMapWithExpectedSize(keys.size() + metrics.size());
@@ -124,7 +124,7 @@ class IndexerUtils {
         });
     }
 
-    private static void processMetrics(List<Aggregation> metrics, Map<String, Object> doc) {
+    private static void processMetrics(List<InternalAggregation> metrics, Map<String, Object> doc) {
         List<String> emptyCounts = new ArrayList<>();
         metrics.forEach(m -> {
             if (m instanceof InternalNumericMetricsAggregation.SingleValue) {

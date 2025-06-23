@@ -7,16 +7,20 @@
 package org.elasticsearch.xpack.ml.rest.cat;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
@@ -28,13 +32,13 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatTrainedModelsAction extends AbstractCatAction {
 
     @Override
@@ -82,48 +87,63 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         statsRequest.setAllowNoResources(true);
         modelsAction.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), statsRequest.isAllowNoResources()));
 
-        return channel -> {
-            final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(final Table table) throws Exception {
-                    return RestTable.buildResponse(table, channel);
-                }
-            });
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) {
+                SubscribableListener.newForked(this::getTrainedModels).andThen(this::getDerivedData).addListener(newRestListener(channel));
+            }
 
-            client.execute(GetTrainedModelsAction.INSTANCE, modelsAction, ActionListener.wrap(trainedModels -> {
+            private List<GetTrainedModelsStatsAction.Response.TrainedModelStats> trainedModelsStats;
+            private List<DataFrameAnalyticsConfig> dataFrameAnalytics;
+
+            private void getTrainedModels(ActionListener<GetTrainedModelsAction.Response> listener) {
+                client.execute(GetTrainedModelsAction.INSTANCE, modelsAction, listener);
+            }
+
+            private void getDerivedData(
+                ActionListener<GetTrainedModelsAction.Response> listener,
+                GetTrainedModelsAction.Response trainedModels
+            ) {
                 final List<TrainedModelConfig> trainedModelConfigs = trainedModels.getResources().results();
 
                 Set<String> potentialAnalyticsIds = new HashSet<>();
                 // Analytics Configs are created by the XPackUser
                 trainedModelConfigs.stream()
-                    .filter(c -> XPackUser.NAME.equals(c.getCreatedBy()))
+                    .filter(c -> InternalUsers.XPACK_USER.principal().equals(c.getCreatedBy()))
                     .forEach(c -> potentialAnalyticsIds.addAll(c.getTags()));
 
                 // Find the related DataFrameAnalyticsConfigs
                 String requestIdPattern = Strings.collectionToDelimitedString(potentialAnalyticsIds, "*,") + "*";
 
-                final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
-                    restRequest,
-                    2,
-                    trainedModels.getResources().results(),
-                    listener
-                );
+                try (var listeners = new RefCountingListener(listener.map(ignored -> trainedModels))) {
+                    client.execute(
+                        GetTrainedModelsStatsAction.INSTANCE,
+                        statsRequest,
+                        listeners.acquire(response -> trainedModelsStats = response.getResources().results())
+                    );
 
-                client.execute(
-                    GetTrainedModelsStatsAction.INSTANCE,
-                    statsRequest,
-                    ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                );
+                    final var dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
+                    dataFrameAnalyticsRequest.setAllowNoResources(true);
+                    dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
+                    client.execute(
+                        GetDataFrameAnalyticsAction.INSTANCE,
+                        dataFrameAnalyticsRequest,
+                        listeners.acquire(response -> dataFrameAnalytics = response.getResources().results())
+                    );
+                }
+            }
 
-                GetDataFrameAnalyticsAction.Request dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
-                dataFrameAnalyticsRequest.setAllowNoResources(true);
-                dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
-                client.execute(
-                    GetDataFrameAnalyticsAction.INSTANCE,
-                    dataFrameAnalyticsRequest,
-                    ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                );
-            }, listener::onFailure));
+            private ActionListener<GetTrainedModelsAction.Response> newRestListener(RestChannel channel) {
+                return new RestResponseListener<>(channel) {
+                    @Override
+                    public RestResponse buildResponse(final GetTrainedModelsAction.Response trainedModels) throws Exception {
+                        return RestTable.buildResponse(
+                            buildTable(restRequest, trainedModelsStats, trainedModels.getResources().results(), dataFrameAnalytics),
+                            channel
+                        );
+                    }
+                };
+            }
         };
     }
 
@@ -227,39 +247,52 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         return table;
     }
 
-    private GroupedActionListener<ActionResponse> createGroupedListener(
-        final RestRequest request,
-        final int size,
-        final List<TrainedModelConfig> configs,
-        final ActionListener<Table> listener
-    ) {
-        return new GroupedActionListener<>(size, listener.delegateFailure((l, responses) -> {
-            GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
-            GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-            l.onResponse(
-                buildTable(
-                    request,
-                    statsResponse.getResources().results(),
-                    configs,
-                    analytics == null ? Collections.emptyList() : analytics.getResources().results()
-                )
+    private record AccumulatedStats(int pipelineCount, IngestStats ingestStats) {
+        public static final AccumulatedStats EMPTY = of(null);
+
+        public static AccumulatedStats of(@Nullable GetTrainedModelsStatsAction.Response.TrainedModelStats stats) {
+            return new AccumulatedStats(stats == null ? 0 : stats.getPipelineCount(), getIngestStats(stats));
+        }
+
+        private static IngestStats getIngestStats(@Nullable GetTrainedModelsStatsAction.Response.TrainedModelStats stats) {
+            if (stats == null) {
+                return IngestStats.IDENTITY;
+            }
+
+            return stats.getIngestStats() == null ? IngestStats.IDENTITY : stats.getIngestStats();
+        }
+
+        public static AccumulatedStats merge(AccumulatedStats first, AccumulatedStats second) {
+            return new AccumulatedStats(
+                first.pipelineCount + second.pipelineCount,
+                IngestStats.merge(first.ingestStats, second.ingestStats)
             );
-        }));
+        }
     }
 
-    private Table buildTable(
+    // Default for testing
+    Table buildTable(
         RestRequest request,
         List<GetTrainedModelsStatsAction.Response.TrainedModelStats> stats,
         List<TrainedModelConfig> configs,
         List<DataFrameAnalyticsConfig> analyticsConfigs
     ) {
         Table table = getTableWithHeader(request);
-        assert configs.size() == stats.size();
 
         Map<String, DataFrameAnalyticsConfig> analyticsMap = analyticsConfigs.stream()
             .collect(Collectors.toMap(DataFrameAnalyticsConfig::getId, Function.identity()));
-        Map<String, GetTrainedModelsStatsAction.Response.TrainedModelStats> statsMap = stats.stream()
-            .collect(Collectors.toMap(GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId, Function.identity()));
+        Map<String, AccumulatedStats> accumulatedStatsMap = stats.stream()
+            .filter(Objects::nonNull)
+            .collect(
+                Collectors.toMap(
+                    GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId,
+                    AccumulatedStats::of,
+                    // If there are multiple deployments of the same model we'll need to total the stats
+                    AccumulatedStats::merge
+                )
+            );
+
+        assert configs.size() == accumulatedStatsMap.size();
 
         configs.forEach(config -> {
             table.startRow();
@@ -274,17 +307,16 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.addCell(config.getDescription());
             table.addCell(config.getModelType());
 
-            GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
-            table.addCell(modelStats.getPipelineCount());
-            boolean hasIngestStats = modelStats != null && modelStats.getIngestStats() != null;
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCount() : 0);
-            table.addCell(
-                hasIngestStats
-                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().getTotalStats().getIngestTimeInMillis())
-                    : TimeValue.timeValueMillis(0)
+            AccumulatedStats accumulatedStats = Objects.requireNonNullElse(
+                accumulatedStatsMap.get(config.getModelId()),
+                AccumulatedStats.EMPTY
             );
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestCurrent() : 0);
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().getTotalStats().getIngestFailedCount() : 0);
+
+            table.addCell(accumulatedStats.pipelineCount);
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestCount());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestTimeInMillis());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestCurrent());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestFailedCount());
 
             DataFrameAnalyticsConfig dataFrameAnalyticsConfig = config.getTags()
                 .stream()
@@ -305,10 +337,5 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.endRow();
         });
         return table;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
-        return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
 }

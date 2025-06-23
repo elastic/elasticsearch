@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,7 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
@@ -29,24 +30,13 @@ import java.util.function.Function;
 public abstract class InternalCentroid extends InternalAggregation implements CentroidAggregation {
     protected final SpatialPoint centroid;
     protected final long count;
-    private final FieldExtractor firstField;
-    private final FieldExtractor secondField;
 
-    public InternalCentroid(
-        String name,
-        SpatialPoint centroid,
-        long count,
-        Map<String, Object> metadata,
-        FieldExtractor firstField,
-        FieldExtractor secondField
-    ) {
+    public InternalCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
         super(name, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
-        this.firstField = firstField;
-        this.secondField = secondField;
     }
 
     protected abstract SpatialPoint centroidFromStream(StreamInput in) throws IOException;
@@ -56,7 +46,8 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /**
      * Read from a stream.
      */
-    protected InternalCentroid(StreamInput in, FieldExtractor firstField, FieldExtractor secondField) throws IOException {
+    @SuppressWarnings("this-escape")
+    protected InternalCentroid(StreamInput in) throws IOException {
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
@@ -64,8 +55,6 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         } else {
             centroid = null;
         }
-        this.firstField = firstField;
-        this.secondField = secondField;
     }
 
     @Override
@@ -94,26 +83,42 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /** Create a new centroid with by reducing from the sums and total count */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
-    @Override
-    public InternalCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double firstSum = Double.NaN;
-        double secondSum = Double.NaN;
-        long totalCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCentroid centroidAgg = (InternalCentroid) aggregation;
-            if (centroidAgg.count > 0) {
-                totalCount += centroidAgg.count;
-                if (Double.isNaN(firstSum)) {
-                    firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
-                } else {
-                    firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            double firstSum = Double.NaN;
+            double secondSum = Double.NaN;
+            long totalCount = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalCentroid centroidAgg = (InternalCentroid) aggregation;
+                if (centroidAgg.count > 0) {
+                    totalCount += centroidAgg.count;
+                    if (Double.isNaN(firstSum)) {
+                        firstSum = centroidAgg.count * extractFirst(centroidAgg.centroid);
+                        secondSum = centroidAgg.count * extractSecond(centroidAgg.centroid);
+                    } else {
+                        firstSum += centroidAgg.count * extractFirst(centroidAgg.centroid);
+                        secondSum += centroidAgg.count * extractSecond(centroidAgg.centroid);
+                    }
                 }
             }
-        }
-        return copyWith(firstSum, secondSum, totalCount);
+
+            @Override
+            public InternalAggregation get() {
+                return copyWith(firstSum, secondSum, totalCount);
+            }
+        };
     }
+
+    protected abstract String nameFirst();
+
+    protected abstract double extractFirst(SpatialPoint point);
+
+    protected abstract String nameSecond();
+
+    protected abstract double extractSecond(SpatialPoint point);
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
@@ -123,16 +128,6 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     @Override
     protected boolean mustReduceOnSingleInternalAgg() {
         return false;
-    }
-
-    protected static class FieldExtractor {
-        private final String name;
-        private final Function<SpatialPoint, Double> extractor;
-
-        public FieldExtractor(String name, Function<SpatialPoint, Double> extractor) {
-            this.name = name;
-            this.extractor = extractor;
-        }
     }
 
     protected abstract double extractDouble(String name);
@@ -163,8 +158,8 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         if (centroid != null) {
             builder.startObject(Fields.CENTROID.getPreferredName());
             {
-                builder.field(firstField.name, firstField.extractor.apply(centroid));
-                builder.field(secondField.name, secondField.extractor.apply(centroid));
+                builder.field(nameFirst(), extractFirst(centroid));
+                builder.field(nameSecond(), extractSecond(centroid));
             }
             builder.endObject();
         }

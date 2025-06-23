@@ -18,19 +18,23 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class TransformAggregationsTests extends ESTestCase {
@@ -136,6 +140,12 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("double", TransformAggregations.resolveTargetMapping("stats", null));
         assertEquals("double", TransformAggregations.resolveTargetMapping("stats", "int"));
 
+        // extended stats
+        assertEquals("double", TransformAggregations.resolveTargetMapping("extended_stats", "double"));
+
+        // boxplot
+        assertEquals("double", TransformAggregations.resolveTargetMapping("boxplot", "double"));
+
         // corner case: source type null
         assertEquals(null, TransformAggregations.resolveTargetMapping("min", null));
     }
@@ -214,6 +224,39 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("stats", outputTypes.get("stats.avg"));
         assertEquals("stats", outputTypes.get("stats.count"));
         assertEquals("stats", outputTypes.get("stats.sum"));
+    }
+
+    public void testGetAggregationOutputTypesExtendedStats() {
+        var extendedStatsAggregationBuilder = new ExtendedStatsAggregationBuilder("extended_stats");
+
+        var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(extendedStatsAggregationBuilder);
+        var outputTypes = inputAndOutputTypes.v2();
+        assertEquals(18, outputTypes.size());
+        assertThat(
+            outputTypes,
+            allOf(
+                hasEntry("extended_stats.count", "extended_stats"),
+                hasEntry("extended_stats.sum", "extended_stats"),
+                hasEntry("extended_stats.avg", "extended_stats"),
+                hasEntry("extended_stats.min", "extended_stats"),
+                hasEntry("extended_stats.max", "extended_stats"),
+
+                hasEntry("extended_stats.sum_of_squares", "extended_stats"),
+                hasEntry("extended_stats.variance", "extended_stats"),
+                hasEntry("extended_stats.variance_population", "extended_stats"),
+                hasEntry("extended_stats.variance_sampling", "extended_stats"),
+                hasEntry("extended_stats.std_deviation", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_sampling", "extended_stats"),
+
+                hasEntry("extended_stats.std_deviation_bounds.upper", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.upper_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower_population", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.upper_sampling", "extended_stats"),
+                hasEntry("extended_stats.std_deviation_bounds.lower_sampling", "extended_stats")
+            )
+        );
     }
 
     public void testGetAggregationOutputTypesRange() {
@@ -363,6 +406,23 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.44_4"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.88_8"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.99_5"));
+    }
+
+    public void testGetAggregationOutputTypesBoxplot() {
+        AggregationBuilder boxplotAggregationBuilder = new BoxplotAggregationBuilder("boxplot");
+
+        Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+            boxplotAggregationBuilder
+        );
+        Map<String, String> outputTypes = inputAndOutputTypes.v2();
+        assertEquals(7, outputTypes.size());
+        assertEquals("boxplot", outputTypes.get("boxplot.min"));
+        assertEquals("boxplot", outputTypes.get("boxplot.max"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q1"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q2"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q3"));
+        assertEquals("boxplot", outputTypes.get("boxplot.lower"));
+        assertEquals("boxplot", outputTypes.get("boxplot.upper"));
     }
 
     public void testGenerateKeyForRange() {

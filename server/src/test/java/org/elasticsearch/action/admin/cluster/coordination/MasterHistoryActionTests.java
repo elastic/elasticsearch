@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,10 +31,7 @@ import static org.mockito.Mockito.when;
 
 public class MasterHistoryActionTests extends ESTestCase {
     public void testSerialization() {
-        List<DiscoveryNode> masterHistory = List.of(
-            new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT),
-            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        List<DiscoveryNode> masterHistory = List.of(DiscoveryNodeUtils.create("_id1"), DiscoveryNodeUtils.create("_id2"));
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
@@ -52,7 +51,7 @@ public class MasterHistoryActionTests extends ESTestCase {
         switch (randomIntBetween(1, 4)) {
             case 1 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
-                newNodes.add(new DiscoveryNode("_id3", buildNewFakeTransportAddress(), Version.CURRENT));
+                newNodes.add(DiscoveryNodeUtils.create("_id3"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 2 -> {
@@ -63,7 +62,7 @@ public class MasterHistoryActionTests extends ESTestCase {
             case 3 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
                 newNodes.remove(0);
-                newNodes.add(0, new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT));
+                newNodes.add(0, DiscoveryNodeUtils.create("_id1"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 4 -> {
@@ -77,12 +76,12 @@ public class MasterHistoryActionTests extends ESTestCase {
     }
 
     public void testTransportDoExecute() {
-        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ActionFilters actionFilters = mock(ActionFilters.class);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);

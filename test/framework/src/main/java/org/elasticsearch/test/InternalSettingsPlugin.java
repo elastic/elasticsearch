@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -31,6 +33,12 @@ public final class InternalSettingsPlugin extends Plugin {
     );
     public static final Setting<Boolean> MERGE_ENABLED = Setting.boolSetting(
         "index.merge.enabled",
+        true,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> USE_COMPOUND_FILE = Setting.boolSetting(
+        EngineConfig.USE_COMPOUND_FILE,
         true,
         Property.IndexScope,
         Property.NodeScope
@@ -54,6 +62,7 @@ public final class InternalSettingsPlugin extends Plugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             MERGE_ENABLED,
+            USE_COMPOUND_FILE,
             INDEX_CREATION_DATE_SETTING,
             PROVIDED_NAME_SETTING,
             TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,

@@ -10,11 +10,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +43,7 @@ public class ProcessPipes {
 
     private final NamedPipeHelper namedPipeHelper;
     private final String jobId;
+    private final Path tempDir;
 
     /**
      * <code>null</code> indicates a pipe won't be used
@@ -91,6 +94,7 @@ public class ProcessPipes {
     ) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
+        this.tempDir = env.tmpDir();
         this.timeout = timeout;
 
         // The way the pipe names are formed MUST match what is done in the controller main()
@@ -150,6 +154,7 @@ public class ProcessPipes {
      * and this JVM.
      */
     public void connectLogStream() throws IOException {
+        FileUtils.recreateTempDirectoryIfNeeded(tempDir);
         logStreamHandler = new CppLogMessageHandler(jobId, namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout));
     }
 
@@ -162,6 +167,7 @@ public class ProcessPipes {
         if (logStreamHandler == null) {
             throw new NullPointerException("Must connect log stream before other streams");
         }
+        FileUtils.recreateTempDirectoryIfNeeded(tempDir);
         // The order here is important. It must match the order that the C++ process tries to connect to the pipes, otherwise
         // a timeout is guaranteed. Also change api::CIoManager in the C++ code if changing the order here.
         try {

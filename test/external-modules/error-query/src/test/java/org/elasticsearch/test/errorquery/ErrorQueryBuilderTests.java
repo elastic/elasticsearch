@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.errorquery;
 
@@ -37,9 +38,8 @@ public class ErrorQueryBuilderTests extends AbstractQueryTestCase<ErrorQueryBuil
             for (int j = 0; j < numShards; j++) {
                 shardIds[j] = j;
             }
-            indices.add(
-                new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), randomAlphaOfLengthBetween(5, 100))
-            );
+            String message = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 100);
+            indices.add(new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), message, 0));
         }
 
         return new ErrorQueryBuilder(indices);

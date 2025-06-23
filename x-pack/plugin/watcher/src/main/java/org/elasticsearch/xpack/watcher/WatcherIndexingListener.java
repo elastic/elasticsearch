@@ -141,7 +141,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
-                        logger.debug("removing watch [{}] to trigger service", watch.id());
+                        logger.debug("removing watch [{}] from trigger service", watch.id());
                         triggerService.remove(watch.id());
                     }
                 } else {
@@ -179,7 +179,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
+            logger.debug("removing watch [{}] from trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
         return delete;
@@ -328,7 +328,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * - then store the size of the allocation ids and the index position
      *   data.put(ShardId(".watch", 0), new Tuple(1, 4))
      */
-    Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(List<ShardRouting> localShards, IndexRoutingTable routingTable) {
+    static Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(
+        List<ShardRouting> localShards,
+        IndexRoutingTable routingTable
+    ) {
         Map<ShardId, ShardAllocationConfiguration> data = Maps.newMapWithExpectedSize(localShards.size());
 
         for (ShardRouting shardRouting : localShards) {

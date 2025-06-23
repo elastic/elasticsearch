@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -12,7 +13,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHttpResponseHeadersIT extends ESRestTestCase {
+public class RestHttpResponseHeadersIT extends AbstractHttpSmokeTestIT {
 
     /**
      * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP

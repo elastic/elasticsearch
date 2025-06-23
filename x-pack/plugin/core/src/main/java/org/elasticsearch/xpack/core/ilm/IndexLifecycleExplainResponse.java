@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,12 +48,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField STEP_TIME_MILLIS_FIELD = new ParseField("step_time_millis");
     private static final ParseField STEP_TIME_FIELD = new ParseField("step_time");
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
+    private static final ParseField PREVIOUS_STEP_INFO_FIELD = new ParseField("previous_step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
     private static final ParseField TIME_SINCE_INDEX_CREATION_FIELD = new ParseField("time_since_index_creation");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
+    private static final ParseField SKIP_NAME = new ParseField("skip");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -76,7 +78,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (String) a[17],
             (String) a[18],
             (BytesReference) a[11],
-            (PhaseExecutionInfo) a[12]
+            (BytesReference) a[21],
+            (PhaseExecutionInfo) a[12],
+            Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
         )
@@ -111,6 +115,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SINCE_INDEX_CREATION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.copyCurrentStructure(p);
+            return BytesReference.bytes(builder);
+        }, PREVIOUS_STEP_INFO_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
     }
 
     private final String index;
@@ -126,12 +136,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final Long stepTime;
     private final boolean managedByILM;
     private final BytesReference stepInfo;
+    private final BytesReference previousStepInfo;
     private final PhaseExecutionInfo phaseExecutionInfo;
     private final Boolean isAutoRetryableError;
     private final Integer failedStepRetryCount;
     private final String repositoryName;
     private final String snapshotName;
     private final String shrinkIndexName;
+    private final boolean skip;
 
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -153,7 +165,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String snapshotName,
         String shrinkIndexName,
         BytesReference stepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        BytesReference previousStepInfo,
+        PhaseExecutionInfo phaseExecutionInfo,
+        boolean skip
     ) {
         return new IndexLifecycleExplainResponse(
             index,
@@ -174,7 +188,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName,
             shrinkIndexName,
             stepInfo,
-            phaseExecutionInfo
+            previousStepInfo,
+            phaseExecutionInfo,
+            skip
         );
     }
 
@@ -198,7 +214,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             null,
             null,
             null,
-            null
+            null,
+            null,
+            false
         );
     }
 
@@ -221,30 +239,36 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String snapshotName,
         String shrinkIndexName,
         BytesReference stepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        BytesReference previousStepInfo,
+        PhaseExecutionInfo phaseExecutionInfo,
+        boolean skip
     ) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
-            // check to make sure that step details are either all null or all set.
-            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
-            if (numNull > 0 && numNull < 3) {
-                throw new IllegalArgumentException(
-                    "managed index response must have complete step details ["
-                        + PHASE_FIELD.getPreferredName()
-                        + "="
-                        + phase
-                        + ", "
-                        + ACTION_FIELD.getPreferredName()
-                        + "="
-                        + action
-                        + ", "
-                        + STEP_FIELD.getPreferredName()
-                        + "="
-                        + step
-                        + "]"
-                );
+
+            // If at least one detail is null, but not *all* are null
+            if (Stream.of(phase, action, step).anyMatch(Objects::isNull)
+                && Stream.of(phase, action, step).allMatch(Objects::isNull) == false) {
+                // …and it's not in the error step
+                if (ErrorStep.NAME.equals(step) == false) {
+                    throw new IllegalArgumentException(
+                        "managed index response must have complete step details ["
+                            + PHASE_FIELD.getPreferredName()
+                            + "="
+                            + phase
+                            + ", "
+                            + ACTION_FIELD.getPreferredName()
+                            + "="
+                            + action
+                            + ", "
+                            + STEP_FIELD.getPreferredName()
+                            + "="
+                            + step
+                            + "]"
+                    );
+                }
             }
         } else {
             if (policyName != null
@@ -258,6 +282,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 || actionTime != null
                 || stepTime != null
                 || stepInfo != null
+                || previousStepInfo != null
                 || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
                     "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]"
@@ -279,10 +304,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.isAutoRetryableError = isAutoRetryableError;
         this.failedStepRetryCount = failedStepRetryCount;
         this.stepInfo = stepInfo;
+        this.previousStepInfo = previousStepInfo;
         this.phaseExecutionInfo = phaseExecutionInfo;
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
         this.shrinkIndexName = shrinkIndexName;
+        this.skip = skip;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -305,10 +332,21 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = in.readOptionalString();
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 indexCreationDate = in.readOptionalLong();
             } else {
                 indexCreationDate = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                previousStepInfo = in.readOptionalBytesReference();
+            } else {
+                previousStepInfo = null;
+            }
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
+                || in.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+                skip = in.readBoolean();
+            } else {
+                skip = false;
             }
         } else {
             policyName = null;
@@ -323,11 +361,13 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             actionTime = null;
             stepTime = null;
             stepInfo = null;
+            previousStepInfo = null;
             phaseExecutionInfo = null;
             repositoryName = null;
             snapshotName = null;
             shrinkIndexName = null;
             indexCreationDate = null;
+            skip = false;
         }
     }
 
@@ -352,8 +392,15 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 out.writeOptionalLong(indexCreationDate);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeOptionalBytesReference(previousStepInfo);
+            }
+            if (out.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
+                || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+                out.writeBoolean(skip);
             }
         }
     }
@@ -418,6 +465,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return stepInfo;
     }
 
+    public BytesReference getPreviousStepInfo() {
+        return previousStepInfo;
+    }
+
     public PhaseExecutionInfo getPhaseExecutionInfo() {
         return phaseExecutionInfo;
     }
@@ -450,6 +501,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return shrinkIndexName;
     }
 
+    public boolean getSkip() {
+        return skip;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -458,7 +513,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (indexCreationDate != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
@@ -469,26 +524,42 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 );
             }
             if (lifecycleDate != null) {
-                builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(),
+                    LIFECYCLE_DATE_FIELD.getPreferredName(),
+                    lifecycleDate
+                );
                 builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);
             }
             if (phaseTime != null) {
-                builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    PHASE_TIME_MILLIS_FIELD.getPreferredName(),
+                    PHASE_TIME_FIELD.getPreferredName(),
+                    phaseTime
+                );
             }
             if (action != null) {
                 builder.field(ACTION_FIELD.getPreferredName(), action);
             }
             if (actionTime != null) {
-                builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    ACTION_TIME_MILLIS_FIELD.getPreferredName(),
+                    ACTION_TIME_FIELD.getPreferredName(),
+                    actionTime
+                );
             }
             if (step != null) {
                 builder.field(STEP_FIELD.getPreferredName(), step);
             }
             if (stepTime != null) {
-                builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
+                builder.timestampFieldsFromUnixEpochMillis(
+                    STEP_TIME_MILLIS_FIELD.getPreferredName(),
+                    STEP_TIME_FIELD.getPreferredName(),
+                    stepTime
+                );
             }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);
@@ -511,9 +582,13 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (stepInfo != null && stepInfo.length() > 0) {
                 builder.rawField(STEP_INFO_FIELD.getPreferredName(), stepInfo.streamInput(), XContentType.JSON);
             }
+            if (previousStepInfo != null && previousStepInfo.length() > 0) {
+                builder.rawField(PREVIOUS_STEP_INFO_FIELD.getPreferredName(), previousStepInfo.streamInput(), XContentType.JSON);
+            }
             if (phaseExecutionInfo != null) {
                 builder.field(PHASE_EXECUTION_INFO.getPreferredName(), phaseExecutionInfo);
             }
+            builder.field(SKIP_NAME.getPreferredName(), skip);
         }
         builder.endObject();
         return builder;
@@ -540,7 +615,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName,
             shrinkIndexName,
             stepInfo,
-            phaseExecutionInfo
+            previousStepInfo,
+            phaseExecutionInfo,
+            skip
         );
     }
 
@@ -571,7 +648,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             && Objects.equals(snapshotName, other.snapshotName)
             && Objects.equals(shrinkIndexName, other.shrinkIndexName)
             && Objects.equals(stepInfo, other.stepInfo)
-            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
+            && Objects.equals(previousStepInfo, other.previousStepInfo)
+            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo)
+            && Objects.equals(skip, other.skip);
     }
 
     @Override

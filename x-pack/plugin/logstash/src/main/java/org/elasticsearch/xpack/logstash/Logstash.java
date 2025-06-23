@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.logstash;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.License;
@@ -43,6 +43,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -58,31 +59,34 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
     public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
+    public static final int LOGSTASH_INDEX_MAPPINGS_VERSION = 1;
 
     static final LicensedFeature.Momentary LOGSTASH_FEATURE = LicensedFeature.momentary(null, "logstash", License.OperationMode.STANDARD);
 
     public Logstash() {}
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
-            new ActionHandler<>(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
-            new ActionHandler<>(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
-            new ActionHandler<>(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
+            new ActionHandler(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
+            new ActionHandler(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
+            new ActionHandler(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
+            new ActionHandler(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new RestPutPipelineAction(), new RestGetPipelineAction(), new RestDeletePipelineAction());
     }
@@ -96,13 +100,12 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
-                .setVersionMetaKey("logstash-version")
                 .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
                 .build()
         );
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -110,7 +113,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             {
@@ -121,6 +124,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                     {
                         builder.startObject("_meta");
                         builder.field("logstash-version", Version.CURRENT);
+                        builder.field(SystemIndexDescriptor.VERSION_META_KEY, LOGSTASH_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }
                     {

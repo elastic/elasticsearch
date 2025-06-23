@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -23,38 +26,34 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComposableIndexName;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
-    private static AtomicLong versionCounter = new AtomicLong(1);
+    private static final AtomicLong versionCounter = new AtomicLong(1);
 
-    private static String emptyJSON = """
+    private static final String emptyJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -66,7 +65,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testJSON = """
+    private static final String testJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -208,7 +207,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testJSONLess = """
+    private static final String testJSONLess = """
         {
              "metadata": {
                  "version": "%s",
@@ -308,7 +307,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testErrorJSON = """
+    private static final String testErrorJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -353,20 +352,8 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private void assertMasterNode(Client client, String node) throws ExecutionException, InterruptedException {
-        assertThat(client.admin().cluster().prepareState().execute().get().getState().nodes().getMasterNode().getName(), equalTo(node));
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
-        Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -399,28 +386,28 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final var response = client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("template*")
-        ).get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
+
+        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().getProject().templatesV2();
+
+        assertThat(allTemplates.keySet(), containsInAnyOrder("template_1", "template_2", "template_other"));
 
         assertThat(
-            response.indexTemplates().keySet().stream().collect(Collectors.toSet()),
-            containsInAnyOrder("template_1", "template_2", "template_other")
-        );
-
-        assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
-            ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
+                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
+            ).getMessage(),
+            containsString("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
 
-        assertTrue(
+        assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
-            ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
+            ).getMessage(),
+            containsString("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
 
@@ -458,17 +445,17 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         final var response = client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("template*")
+            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "template*")
         ).get();
 
-        assertThat(response.indexTemplates().keySet().stream().collect(Collectors.toSet()), containsInAnyOrder("template_1", "template_2"));
+        assertThat(response.indexTemplates().keySet(), containsInAnyOrder("template_1", "template_2"));
 
         final var componentResponse = client().execute(
             GetComponentTemplateAction.INSTANCE,
-            new GetComponentTemplateAction.Request("other*")
+            new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "other*")
         ).get();
 
-        assertTrue(componentResponse.getComponentTemplates().isEmpty());
+        assertThat(componentResponse.getComponentTemplates(), anEmptyMap());
 
         // this should just work, other is not locked
         client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("other_component_template")).get();
@@ -478,34 +465,36 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         // are written by file based settings, e.g. in operator mode. Allowing REST requests to use these components would mean that
         // we would be unable to delete these components with file based settings, since they would be used by various composable
         // index templates not managed by file based settings.
-        assertTrue(
+        assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_other"))
-                    .actionGet()
-            ).getMessage()
-                .contains(
-                    "with errors: [[component_template:runtime_component_template, "
-                        + "component_template:component_template1] is reserved by [file_settings]]"
-                )
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_other"))
+            ).getMessage(),
+            containsString(
+                "with errors: [[component_template:runtime_component_template, "
+                    + "component_template:component_template1] is reserved by [file_settings]]"
+            )
         );
 
         // this will work now, we are saving template without components
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("template_other")).get();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("template_other"))
+            .get();
 
         // the rest are still locked
-        assertTrue(
+        assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
-            ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
+                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
+            ).getMessage(),
+            containsString("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
 
-        assertTrue(
+        assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
-            ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
+                client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequest("template_1"))
+            ).getMessage(),
+            containsString("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
 
@@ -544,7 +533,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
@@ -596,13 +585,13 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         final var response = client().execute(
             GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("err*")
+            new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "err*")
         ).get();
 
-        assertTrue(response.indexTemplates().isEmpty());
+        assertThat(response.indexTemplates(), anEmptyMap());
 
         // This should succeed, nothing was reserved
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
     }
 
     public void testErrorSaved() throws Exception {
@@ -612,7 +601,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         writeJSONFile(masterNode, testErrorJSON);
@@ -641,7 +630,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         }
     }
 
-    private PutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequest(String name) throws Exception {
+    private TransportPutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequest(String name) throws Exception {
         var json = """
             {
                 "index_patterns": ["te*", "bar*"],
@@ -679,11 +668,11 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
+            return new TransportPutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
         }
     }
 
-    private PutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequestNoComponents(String name) throws Exception {
+    private TransportPutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequestNoComponents(String name) throws Exception {
         var json = """
             {
                 "index_patterns": ["aa*", "vv*"],
@@ -720,7 +709,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
+            return new TransportPutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
         }
     }
 

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,16 +46,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
 
-    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
-
-    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
-    private static final Version MODULE_NAME_SUPPORT = Version.V_8_3_0;
-    private static final Version BOOTSTRAP_SUPPORT_REMOVED = Version.V_8_4_0;
+    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
+    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
 
     private final String name;
     private final String description;
     private final String version;
-    private final Version elasticsearchVersion;
+    private final String elasticsearchVersion;
     private final String javaVersion;
     private final String classname;
     private final String moduleName;
@@ -76,12 +76,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param hasNativeController  whether or not the plugin has a native controller
      * @param isLicensed           whether is this a licensed plugin
      * @param isModular            whether this plugin should be loaded in a module layer
+     * @param isStable             whether this plugin is implemented using the stable plugin API
      */
     public PluginDescriptor(
         String name,
         String description,
         String version,
-        Version elasticsearchVersion,
+        String elasticsearchVersion,
         String javaVersion,
         String classname,
         String moduleName,
@@ -103,6 +104,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+
+        ensureCorrectArgumentsForPluginType();
     }
 
     /**
@@ -115,34 +118,40 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        elasticsearchVersion = Version.readVersion(in);
+        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
+            elasticsearchVersion = Version.readVersion(in).toString();
+        } else {
+            elasticsearchVersion = in.readString();
+        }
         javaVersion = in.readString();
-        this.classname = in.readString();
-        if (in.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            this.classname = in.readOptionalString();
+        } else {
+            this.classname = in.readString();
+        }
+        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
             this.moduleName = null;
         }
-        extendedPlugins = in.readStringList();
+        extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (in.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-                in.readString(); // plugin type
-                in.readOptionalString(); // java opts
-            }
-            isLicensed = in.readBoolean();
-        } else {
-            isLicensed = false;
+        if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            in.readString(); // plugin type
+            in.readOptionalString(); // java opts
         }
+        isLicensed = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             isModular = in.readBoolean();
             isStable = in.readBoolean();
         } else {
             isModular = moduleName != null;
             isStable = false;
         }
+
+        ensureCorrectArgumentsForPluginType();
     }
 
     @Override
@@ -150,25 +159,43 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        Version.writeVersion(elasticsearchVersion, out);
+        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
+            Version.writeVersion(Version.fromString(elasticsearchVersion), out);
+        } else {
+            out.writeString(elasticsearchVersion);
+        }
         out.writeString(javaVersion);
-        out.writeString(classname);
-        if (out.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalString(classname);
+        } else {
+            out.writeString(classname);
+        }
+        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            if (out.getVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
-                out.writeString("ISOLATED");
-                out.writeOptionalString(null);
-            }
-            out.writeBoolean(isLicensed);
+        if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            out.writeString("ISOLATED");
+            out.writeOptionalString(null);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        out.writeBoolean(isLicensed);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
+        }
+    }
+
+    private void ensureCorrectArgumentsForPluginType() {
+        if (classname == null && isStable == false) {
+            throw new IllegalArgumentException("Classname must be provided for classic plugins");
+        }
+        if (classname != null && isStable) {
+            throw new IllegalArgumentException("Classname is not needed for stable plugins");
+        }
+        if (moduleName != null && isStable) {
+            throw new IllegalArgumentException("ModuleName is not needed for stable plugins");
         }
     }
 
@@ -223,11 +250,36 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return descriptor;
     }
 
+    /**
+     * Reads the internal descriptor for a classic plugin.
+     *
+     * @param stream the InputStream from which to read the plugin data
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    public static PluginDescriptor readInternalDescriptorFromStream(InputStream stream) throws IOException {
+        final Map<String, String> propsMap;
+        {
+            final Properties props = new Properties();
+            props.load(stream);
+            propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
+        }
+
+        PluginDescriptor descriptor = readerInternalDescriptor(propsMap, INTERNAL_DESCRIPTOR_FILENAME);
+        String name = descriptor.getName();
+
+        if (propsMap.isEmpty() == false) {
+            throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
+        }
+
+        return descriptor;
+    }
+
     private static PluginDescriptor readerInternalDescriptor(Map<String, String> propsMap, String filename) {
         String name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");
         String ver = readString(propsMap, name, "version");
-        Version esVer = readElasticsearchVersion(propsMap, name);
+        String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
 
         String extendedString = propsMap.remove("extended.plugins");
@@ -253,7 +305,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");
         String ver = readString(propsMap, name, "version");
-        Version esVer = readElasticsearchVersion(propsMap, name);
+        String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
 
@@ -276,9 +328,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return value;
     }
 
-    private static Version readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
-        String esVersionString = readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
-        return Version.fromString(esVersionString);
+    private static String readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
+        return readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
     }
 
     private static String readJavaVersion(Map<String, String> propsMap, String pluginId) {
@@ -327,6 +378,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @return the entry point to the plugin
      */
     public String getClassname() {
+        if (isStable) {
+            throw new IllegalStateException("Stable plugins do not have an explicit entry point");
+        }
         return classname;
     }
 
@@ -362,7 +416,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      *
      * @return an Elasticsearch version
      */
-    public Version getElasticsearchVersion() {
+    public String getElasticsearchVersion() {
         return elasticsearchVersion;
     }
 

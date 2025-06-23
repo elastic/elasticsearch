@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -22,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -126,7 +127,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             }
             networks.addAll(stringList);
         } else {
-            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).collect(Collectors.toList());
+            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).toList();
         }
 
         String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
@@ -154,7 +155,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return DIRECTION_EXTERNAL;
     }
 
-    private boolean isInternal(List<String> networks, String ip) {
+    private static boolean isInternal(List<String> networks, String ip) {
         for (String network : networks) {
             if (inNetwork(ip, network)) {
                 return true;
@@ -163,7 +164,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return false;
     }
 
-    private boolean inNetwork(String ip, String network) {
+    private static boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
         return switch (network) {
             case LOOPBACK_NAMED_NETWORK -> isLoopback(address);
@@ -251,7 +252,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             final String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_ip", DEFAULT_SOURCE_IP);
             final String destIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_ip", DEFAULT_DEST_IP);

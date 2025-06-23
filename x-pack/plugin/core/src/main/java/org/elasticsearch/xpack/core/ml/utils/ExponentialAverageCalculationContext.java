@@ -178,7 +178,7 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
         builder.startObject();
         builder.field(INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), incrementalMetricValueMs);
         if (latestTimestamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_TIMESTAMP.getPreferredName(),
                 LATEST_TIMESTAMP.getPreferredName() + "_string",
                 latestTimestamp.toEpochMilli()

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -83,7 +84,7 @@ public class VersionHttpResource extends HttpResource {
     }
 
     /**
-     * Ensure that the {@code response} contains a {@link Version} that is {@linkplain Version#onOrAfter(Version) on or after} the
+     * Ensure that the {@code response} contains a {@link Version} that is {@linkplain VersionId#onOrAfter on or after} the
      * {@link #minimumVersion}.
      *
      * @param response The response to parse.

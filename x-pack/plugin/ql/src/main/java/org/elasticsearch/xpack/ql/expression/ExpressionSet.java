@@ -17,7 +17,7 @@ import static java.util.Collections.emptyList;
 /**
  * @param <E> expression type
  */
-public class ExpressionSet<E extends Expression> implements Set<E> {
+public final class ExpressionSet<E extends Expression> implements Set<E> {
 
     @SuppressWarnings("rawtypes")
     public static final ExpressionSet EMPTY = new ExpressionSet<>(emptyList());

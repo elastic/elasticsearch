@@ -1,0 +1,121 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test put watch api with timezone":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "timezone": "America/Los_Angeles",
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { watch.trigger.schedule.timezone: "America/Los_Angeles" }
+
+---
+"Test put watch api without timezone":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - is_false: watch.trigger.schedule.timezone
+
+---
+"Reject put watch with invalid timezone":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "timezone": "Pangea/Tethys",
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+      catch: bad_request
+  - match: { error.type: "parse_exception" }
+  - match: { error.reason: "could not parse schedule. invalid timezone [Pangea/Tethys]" }
+  - match: { error.caused_by.type: "zone_rules_exception" }
+  - match: { error.caused_by.reason: "Unknown time-zone ID: Pangea/Tethys" }

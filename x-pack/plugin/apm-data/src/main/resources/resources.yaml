@@ -1,0 +1,123 @@
+# "version" holds the version of the templates and ingest pipelines installed
+# by xpack-plugin apm-data. This must be increased whenever an existing template or
+# pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
+version: 16
+
+component-templates:
+  # Data lifecycle.
+  - apm-10d@lifecycle
+  - apm-90d@lifecycle
+  - apm-180d@lifecycle
+  - apm-390d@lifecycle
+  # Common mappings and settings.
+  # - *-apm* data streams compose apm@*
+  # - metrics-apm* data streams additionally compose metrics-apm@*
+  - apm@mappings
+  - apm@settings
+  - logs-apm@settings
+  - metrics-apm@mappings
+  - metrics-apm@settings
+  # Data stream-specific mappings.
+  - logs-apm.error@mappings
+  - metrics-apm.service_destination@mappings
+  - metrics-apm.service_summary@mappings
+  - metrics-apm.service_transaction@mappings
+  - metrics-apm.transaction@mappings
+  - traces-apm@mappings
+  - traces-apm.rum@mappings
+  # The below files allow to fallback to ILM if DSL configurations are not present
+  - logs-apm.app-fallback@ilm
+  - logs-apm.error-fallback@ilm
+  - metrics-apm.app-fallback@ilm
+  - metrics-apm.internal-fallback@ilm
+  - metrics-apm.service_destination.10m-fallback@ilm
+  - metrics-apm.service_destination.1m-fallback@ilm
+  - metrics-apm.service_destination.60m-fallback@ilm
+  - metrics-apm.service_summary.10m-fallback@ilm
+  - metrics-apm.service_summary.1m-fallback@ilm
+  - metrics-apm.service_summary.60m-fallback@ilm
+  - metrics-apm.service_transaction.10m-fallback@ilm
+  - metrics-apm.service_transaction.1m-fallback@ilm
+  - metrics-apm.service_transaction.60m-fallback@ilm
+  - metrics-apm.transaction.10m-fallback@ilm
+  - metrics-apm.transaction.1m-fallback@ilm
+  - metrics-apm.transaction.60m-fallback@ilm
+  - traces-apm-fallback@ilm
+  - traces-apm.rum-fallback@ilm
+  - traces-apm.sampled-fallback@ilm
+
+index-templates:
+  - logs-apm.app@template
+  - logs-apm.error@template
+  - metrics-apm.app@template
+  - metrics-apm.internal@template
+  - metrics-apm.service_destination.1m@template
+  - metrics-apm.service_destination.10m@template
+  - metrics-apm.service_destination.60m@template
+  - metrics-apm.service_summary.1m@template
+  - metrics-apm.service_summary.10m@template
+  - metrics-apm.service_summary.60m@template
+  - metrics-apm.service_transaction.1m@template
+  - metrics-apm.service_transaction.10m@template
+  - metrics-apm.service_transaction.60m@template
+  - metrics-apm.transaction.1m@template
+  - metrics-apm.transaction.10m@template
+  - metrics-apm.transaction.60m@template
+  - traces-apm@template
+  - traces-apm.rum@template
+  - traces-apm.sampled@template
+
+# Ingest pipeline configuration requires to manually specify pipeline dependencies
+ingest-pipelines:
+  # Default pipelines.
+  #
+  # Each data stream index template gets its own default pipeline,
+  # with the exception of the interval data streams which share one
+  # for all intervals of the same metric, and the sampled traces
+  # data stream which does not have (or need) one.
+  - logs-apm.app@default-pipeline: {}
+  - logs-apm.error@default-pipeline: {}
+  - metrics-apm.app@default-pipeline: {}
+  - metrics-apm.internal@default-pipeline:
+      dependencies:
+        - metrics-apm.service_destination@default-pipeline
+        - metrics-apm.transaction@default-pipeline
+  - metrics-apm.service_destination@default-pipeline: {}
+  - metrics-apm.service_summary@default-pipeline: {}
+  - metrics-apm.service_transaction@default-pipeline: {}
+  - metrics-apm.transaction@default-pipeline: {}
+  - traces-apm@default-pipeline: {}
+  - traces-apm.rum@default-pipeline: {}
+
+  # Final pipelines.
+  - apm@pipeline: {}
+  - traces-apm@pipeline:
+      dependencies:
+        - apm@pipeline
+  - metrics-apm@pipeline:
+      dependencies:
+        - apm@pipeline
+  - logs-apm@pipeline:
+      dependencies:
+        - apm@pipeline
+
+lifecycle-policies:
+  - logs-apm.app_logs-default_policy
+  - logs-apm.error_logs-default_policy
+  - metrics-apm.app_metrics-default_policy
+  - metrics-apm.internal_metrics-default_policy
+  - metrics-apm.service_destination_10m_metrics-default_policy
+  - metrics-apm.service_destination_1m_metrics-default_policy
+  - metrics-apm.service_destination_60m_metrics-default_policy
+  - metrics-apm.service_summary_10m_metrics-default_policy
+  - metrics-apm.service_summary_1m_metrics-default_policy
+  - metrics-apm.service_summary_60m_metrics-default_policy
+  - metrics-apm.service_transaction_10m_metrics-default_policy
+  - metrics-apm.service_transaction_1m_metrics-default_policy
+  - metrics-apm.service_transaction_60m_metrics-default_policy
+  - metrics-apm.transaction_10m_metrics-default_policy
+  - metrics-apm.transaction_1m_metrics-default_policy
+  - metrics-apm.transaction_60m_metrics-default_policy
+  - traces-apm.rum_traces-default_policy
+  - traces-apm.sampled_traces-default_policy
+  - traces-apm.traces-default_policy

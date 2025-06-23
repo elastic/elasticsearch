@@ -1,0 +1,5 @@
+pr: 122890
+summary: Introduce `allow_partial_results` setting in ES|QL
+area: ES|QL
+type: enhancement
+issues: []

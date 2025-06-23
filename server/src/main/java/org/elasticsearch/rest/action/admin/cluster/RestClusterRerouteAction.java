@@ -1,24 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,29 +40,43 @@ import java.util.Set;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterRerouteAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterRerouteAction.class);
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
 
-    private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
+    private static final ObjectParser<ClusterRerouteRequest, ProjectId> PARSER = new ObjectParser<>("cluster_reroute");
     static {
         PARSER.declareField(
-            (p, v, c) -> v.commands(AllocationCommands.fromXContent(p)),
+            (p, v, projectId) -> v.commands(AllocationCommands.fromXContent(p, projectId)),
             new ParseField("commands"),
             ValueType.OBJECT_ARRAY
         );
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
 
-    private static final String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, so can be removed
+    private static final String V8_DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
         EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray()
     );
 
     private final SettingsFilter settingsFilter;
+    private final ProjectIdResolver projectIdResolver;
 
-    public RestClusterRerouteAction(SettingsFilter settingsFilter) {
+    @FixForMultiProject(
+        description = "We need finalize on whether having REST handler to access ProjectIdResolver is an acceptable pattern."
+            + "NOTE that we intentionally do NOT want pass ProjectResolver because it would imply accessing ClusterState"
+            + "in REST handlers which is not a good idea, e.g. we don't want REST handlers make too many decisions based"
+            + "on ClusterState. That is the job of the transport handlers."
+    )
+    public RestClusterRerouteAction(SettingsFilter settingsFilter, ProjectIdResolver projectIdResolver) {
         this.settingsFilter = settingsFilter;
+        this.projectIdResolver = projectIdResolver;
     }
 
     @Override
@@ -70,19 +94,41 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         return true;
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    // actually UpdateForV11 because V10 still supports the V9 API including this deprecation message
+    private static final String METRIC_DEPRECATION_MESSAGE = """
+        the [?metric] query parameter to the [POST /_cluster/reroute] API has no effect; its use will be forbidden in a future version""";
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
+        ClusterRerouteRequest clusterRerouteRequest = createRequest(request, projectIdResolver.getProjectId());
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {
             request.params().put("explain", Boolean.TRUE.toString());
         }
-        // by default, return everything but metadata
-        final String metric = request.param("metric");
-        if (metric == null) {
-            request.params().put("metric", DEFAULT_METRICS);
+
+        if (request.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_9))) {
+            // always avoid returning the cluster state by forcing `?metric=none`; emit a warning if `?metric` is even present
+            if (request.hasParam("metric")) {
+                deprecationLogger.critical(DeprecationCategory.API, "cluster-reroute-metric-param", METRIC_DEPRECATION_MESSAGE);
+            }
+            request.params().put("metric", "none");
+        } else {
+            assert request.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_8));
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // forbid this parameter in the v10 API
+            // by default, return everything but metadata
+            final String metric = request.param("metric");
+            if (metric == null) {
+                request.params().put("metric", V8_DEFAULT_METRICS);
+            }
         }
-        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
+
+        return channel -> client.execute(
+            TransportClusterRerouteAction.TYPE,
+            clusterRerouteRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
+
     }
 
     @Override
@@ -90,14 +136,12 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
-    public static ClusterRerouteRequest createRequest(RestRequest request) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
+    public static ClusterRerouteRequest createRequest(RestRequest request, ProjectId projectId) throws IOException {
+        final var clusterRerouteRequest = new ClusterRerouteRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
-        clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
-        request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
+        request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, projectId));
         return clusterRerouteRequest;
     }
 }

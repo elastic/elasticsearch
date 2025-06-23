@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.completion;
 
@@ -13,29 +14,22 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -56,7 +50,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    private boolean skipDuplicates;
+    private final boolean skipDuplicates;
 
     /**
      * Creates a completion suggestion given its name, size and whether it should skip duplicates
@@ -112,12 +106,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), skipDuplicates);
-    }
-
-    public static CompletionSuggestion fromXContent(XContentParser parser, String name) throws IOException {
-        CompletionSuggestion suggestion = new CompletionSuggestion(name, -1, false);
-        parseEntries(parser, suggestion, CompletionSuggestion.Entry::fromXContent);
-        return suggestion;
     }
 
     private static final class OptionPriorityQueue extends PriorityQueue<ShardOptions> {
@@ -230,7 +218,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             super(text, offset, length);
         }
 
-        private Entry() {}
+        public Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
@@ -239,20 +227,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         @Override
         protected Option newOption(StreamInput in) throws IOException {
             return new Option(in);
-        }
-
-        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true, Entry::new);
-        static {
-            declareCommonFields(PARSER);
-            /*
-             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
-             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
-             */
-            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
-        }
-
-        public static Entry fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
@@ -272,7 +246,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = new SearchHit(in);
+                    this.hit = SearchHit.readFrom(in, false);
                 }
                 int contextSize = in.readInt();
                 this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
@@ -311,7 +285,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             public void setHit(SearchHit hit) {
-                this.hit = hit;
+                this.hit = hit == null ? null : hit.asUnpooled();
             }
 
             @Override
@@ -334,69 +308,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     builder.endObject();
                 }
                 return builder;
-            }
-
-            private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>(
-                "CompletionOptionParser",
-                unknownMetaFieldConsumer,
-                HashMap::new
-            );
-
-            static {
-                SearchHit.declareInnerHitsParseFields(PARSER);
-                PARSER.declareString(
-                    (map, value) -> map.put(Suggestion.Entry.Option.TEXT.getPreferredName(), value),
-                    Suggestion.Entry.Option.TEXT
-                );
-                PARSER.declareFloat(
-                    (map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
-                    Suggestion.Entry.Option.SCORE
-                );
-                PARSER.declareObject(
-                    (map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName(), value),
-                    (p, c) -> parseContexts(p),
-                    CompletionSuggestion.Entry.Option.CONTEXTS
-                );
-            }
-
-            private static Map<String, Set<String>> parseContexts(XContentParser parser) throws IOException {
-                Map<String, Set<String>> contexts = new HashMap<>();
-                while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                    String key = parser.currentName();
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-                    Set<String> values = new HashSet<>();
-                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                        values.add(parser.text());
-                    }
-                    contexts.put(key, values);
-                }
-                return contexts;
-            }
-
-            public static Option fromXContent(XContentParser parser) {
-                Map<String, Object> values = PARSER.apply(parser, null);
-
-                Text text = new Text((String) values.get(Suggestion.Entry.Option.TEXT.getPreferredName()));
-                Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
-                @SuppressWarnings("unchecked")
-                Map<String, Set<String>> contexts = (Map<String, Set<String>>) values.get(
-                    CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()
-                );
-                if (contexts == null) {
-                    contexts = Collections.emptyMap();
-                }
-
-                SearchHit hit = null;
-                // the option either prints SCORE or inlines the search hit
-                if (score == null) {
-                    hit = SearchHit.createFromMap(values);
-                    score = hit.getScore();
-                }
-                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
-                option.setHit(hit);
-                return option;
             }
 
             @Override

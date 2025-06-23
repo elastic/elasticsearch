@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
@@ -38,7 +40,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(randomBoolean() ? ActiveShardCount.from(1) : ActiveShardCount.ALL)
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );
@@ -55,8 +57,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             settingsBuilder.put("index.routing.allocation.exclude._name", exclude);
         }
         Settings settings = settingsBuilder.build();
-        CreateIndexResponse response = prepareCreate("test-idx").setSettings(settings).setWaitForActiveShards(ActiveShardCount.NONE).get();
-        assertTrue(response.isAcknowledged());
+        assertAcked(prepareCreate("test-idx").setSettings(settings).setWaitForActiveShards(ActiveShardCount.NONE));
     }
 
     public void testCreateIndexNotEnoughActiveShardsTimesOut() throws Exception {
@@ -71,7 +72,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(randomIntBetween(numDataNodes + 1, numReplicas + 1))
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );
@@ -86,9 +87,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), internalCluster().numDataNodes() + randomIntBetween(0, 3))
             .build();
         assertAcked(
-            prepareCreate(indexName).setSettings(settings)
-                .setWaitForActiveShards(randomIntBetween(0, internalCluster().numDataNodes()))
-                .get()
+            prepareCreate(indexName).setSettings(settings).setWaitForActiveShards(randomIntBetween(0, internalCluster().numDataNodes()))
         );
     }
 
@@ -104,13 +103,13 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
         assertFalse(
             prepareCreate(indexName).setSettings(settings)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
-                .setTimeout("100ms")
+                .setTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .isShardsAcknowledged()
         );
         waitForIndexCreationToComplete(indexName);
         if (indexExists(indexName)) {
-            client().admin().indices().prepareDelete(indexName).get();
+            indicesAdmin().prepareDelete(indexName).get();
         }
 
         // enough data nodes, all shards are active
@@ -136,10 +135,12 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             .execute();
 
         logger.info("--> wait until the cluster state contains the new index");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().metadata().hasIndex(indexName)));
+        assertBusy(
+            () -> assertTrue(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().hasIndex(indexName))
+        );
 
         logger.info("--> delete the index");
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("--> ensure the create index request completes");
         assertAcked(responseListener.get());
@@ -150,7 +151,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
     // only after the test cleanup does the index creation manifest in the cluster state. To take care of this problem
     // and its potential ramifications, we wait here for the index creation cluster state update task to finish
     private void waitForIndexCreationToComplete(final String indexName) {
-        client().admin().cluster().prepareHealth(indexName).setWaitForEvents(Priority.URGENT).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForEvents(Priority.URGENT).get();
     }
 
 }

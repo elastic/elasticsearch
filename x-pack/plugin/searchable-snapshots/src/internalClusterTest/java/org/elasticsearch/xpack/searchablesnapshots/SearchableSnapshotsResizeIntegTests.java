@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -37,16 +36,12 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
         assertAcked(
             prepareCreate(
                 "index",
-                Settings.builder()
-                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
-                    .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 4)
-                    .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                indexSettings(2, 0).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 4).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
             )
         );
         indexRandomDocs("index", scaledRandomIntBetween(0, 1_000));
         createSnapshot("repository", "snapshot", List.of("index"));
-        assertAcked(client().admin().indices().prepareDelete("index"));
+        assertAcked(indicesAdmin().prepareDelete("index"));
         mountSnapshot("repository", "snapshot", "index", "mounted-index", Settings.EMPTY, randomFrom(Storage.values()));
         ensureGreen("mounted-index");
     }
@@ -54,18 +49,16 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     @After
     @Override
     public void tearDown() throws Exception {
-        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot("repository", "snapshot").get());
-        assertAcked(client().admin().cluster().prepareDeleteRepository("repository"));
+        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snapshot").get());
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository"));
         super.tearDown();
     }
 
     public void testShrinkSearchableSnapshotIndex() {
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareResizeIndex("mounted-index", "shrunk-index")
+            () -> indicesAdmin().prepareResizeIndex("mounted-index", "shrunk-index")
                 .setResizeType(ResizeType.SHRINK)
                 .setSettings(indexSettingsNoReplicas(1).build())
                 .get()
@@ -76,9 +69,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     public void testSplitSearchableSnapshotIndex() {
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareResizeIndex("mounted-index", "split-index")
+            () -> indicesAdmin().prepareResizeIndex("mounted-index", "split-index")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettingsNoReplicas(4).build())
                 .get()
@@ -89,7 +80,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     public void testCloneSearchableSnapshotIndex() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareResizeIndex("mounted-index", "cloned-index").setResizeType(ResizeType.CLONE).get()
+            () -> indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index").setResizeType(ResizeType.CLONE).get()
         );
         assertThat(
             exception.getMessage(),
@@ -98,9 +89,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
 
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareResizeIndex("mounted-index", "cloned-index")
+            () -> indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index")
                 .setResizeType(ResizeType.CLONE)
                 .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
                 .get()
@@ -111,9 +100,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
         );
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex("mounted-index", "cloned-index")
+            indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index")
                 .setResizeType(ResizeType.CLONE)
                 .setSettings(
                     Settings.builder()
@@ -125,6 +112,6 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                 )
         );
         ensureGreen("cloned-index");
-        assertAcked(client().admin().indices().prepareDelete("cloned-index"));
+        assertAcked(indicesAdmin().prepareDelete("cloned-index"));
     }
 }

@@ -1,0 +1,5 @@
+pr: 127118
+summary: Panama vector accelerated optimized scalar quantization
+area: Vector Search
+type: enhancement
+issues: []

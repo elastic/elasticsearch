@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -26,7 +27,7 @@ public final class SettingsFilter {
     /**
      * Can be used to specify settings filter that will be used to filter out matching settings in toXContent method
      */
-    public static String SETTINGS_FILTER_PARAM = "settings_filter";
+    public static final String SETTINGS_FILTER_PARAM = "settings_filter";
 
     private final Set<String> patterns;
     private final String patternString;
@@ -89,7 +90,7 @@ public final class SettingsFilter {
             }
         }
         if (simpleMatchPatternList.isEmpty() == false) {
-            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
+            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(String[]::new);
             builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }
         return builder.build();

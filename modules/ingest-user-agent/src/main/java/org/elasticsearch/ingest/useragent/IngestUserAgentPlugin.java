@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,10 +22,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
@@ -38,7 +41,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Path userAgentConfigDirectory = parameters.env.configFile().resolve("ingest-user-agent");
+        Path userAgentConfigDirectory = parameters.env.configDir().resolve("ingest-user-agent");
 
         if (Files.exists(userAgentConfigDirectory) == false && Files.isDirectory(userAgentConfigDirectory)) {
             throw new IllegalStateException(
@@ -53,7 +56,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
+        return Map.of(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParsers));
     }
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {
@@ -90,11 +93,22 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
             }
         }
 
-        return Collections.unmodifiableMap(userAgentParsers);
+        return Map.copyOf(userAgentParsers);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(CACHE_SIZE_SETTING);
+        return List.of(CACHE_SIZE_SETTING);
+    }
+
+    @Override
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
+        return Map.of(
+            IngestMetadata.TYPE,
+            ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(
+                UserAgentProcessor.TYPE,
+                UserAgentProcessor::maybeUpgradeConfig
+            )
+        );
     }
 }

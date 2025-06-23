@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -80,24 +81,25 @@ public class MultiGetRequestTests extends ESTestCase {
     }
 
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
-        XContentParser parser = createParser(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startArray("docs")
-                .startObject()
-                .field("_source", randomFrom("false", "true"))
-                .endObject()
-                .startObject()
-                .field("_source", randomBoolean())
-                .endObject()
-                .endArray()
-                .endObject()
-        );
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
-
-        assertEquals(2, multiGetRequest.getItems().size());
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startArray("docs")
+                    .startObject()
+                    .field("_source", randomFrom("false", "true"))
+                    .endObject()
+                    .startObject()
+                    .field("_source", randomBoolean())
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+        ) {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+            assertEquals(2, multiGetRequest.getItems().size());
+        }
     }
 
     public void testXContentSerialization() throws IOException {
@@ -124,7 +126,7 @@ public class MultiGetRequestTests extends ESTestCase {
         MultiGetRequest request = createTestInstance();
         request.setForceSyntheticSource(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

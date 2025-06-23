@@ -1,0 +1,54 @@
+pr: 122062
+summary: Upgrade `discovery-ec2` to AWS SDK v2
+area: Discovery-Plugins
+type: breaking
+issues: []
+breaking:
+  title: Upgrade `discovery-ec2` to AWS SDK v2
+  area: Cluster and node setting
+  details: >-
+
+    In earlier versions of {es} the `discovery-ec2` plugin was based on the AWS
+    SDK v1. AWS will withdraw support for this SDK before the end of the life
+    of {es} {minor-version} so we must migrate to the newer AWS SDK v2.
+
+    Unfortunately there are several differences between the two AWS SDK
+    versions which may require you to adjust your system configuration when
+    upgrading to {es} {minor-version} or later. These differences include, but
+    may not be limited to, the following items.
+
+    * AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+
+    * AWS SDK v2 does not support the `aws.secretKey` or
+      `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+
+    * AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so
+      the `discovery.ec2.protocol` setting is no longer effective.
+
+    * AWS SDK v2 does not accept an access key without a secret key or vice
+      versa.
+
+  impact: >-
+
+    If you use the `discovery-ec2` plugin, test your upgrade thoroughly before
+    upgrading any production workloads.
+
+    Adapt your configuration to the new SDK functionality. This includes, but
+    may not be limited to, the following items.
+
+    * If you use IMDS to determine the availability zone of a node or to obtain
+      credentials for accessing the EC2 API, ensure that it supports the IMDSv2
+      protocol.
+
+    * If applicable, discontinue use of the `aws.secretKey` and
+      `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+
+    * If applicable, specify that you wish to use the insecure HTTP protocol to
+      access the EC2 API by setting `discovery.ec2.endpoint` to a URL which
+      starts with `http://`.
+
+    * Either supply both an access key and a secret key using the keystore
+      settings `discovery.ec2.access_key` and `discovery.ec2.secret_key`, or
+      configure neither of these settings.
+
+  notable: true

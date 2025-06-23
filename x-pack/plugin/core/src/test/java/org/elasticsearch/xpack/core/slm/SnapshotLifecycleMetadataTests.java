@@ -38,6 +38,11 @@ public class SnapshotLifecycleMetadataTests extends AbstractChunkedSerializingTe
     }
 
     @Override
+    protected SnapshotLifecycleMetadata mutateInstance(SnapshotLifecycleMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<SnapshotLifecycleMetadata> instanceReader() {
         return SnapshotLifecycleMetadata::new;
     }

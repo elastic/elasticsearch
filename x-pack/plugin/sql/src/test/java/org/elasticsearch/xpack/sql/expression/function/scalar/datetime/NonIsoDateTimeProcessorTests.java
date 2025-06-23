@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
-import java.io.IOException;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
@@ -33,7 +32,7 @@ public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTest
     }
 
     @Override
-    protected NonIsoDateTimeProcessor mutateInstance(NonIsoDateTimeProcessor instance) throws IOException {
+    protected NonIsoDateTimeProcessor mutateInstance(NonIsoDateTimeProcessor instance) {
         NonIsoDateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NonIsoDateTimeExtractor.values()));
         return new NonIsoDateTimeProcessor(replaced, UTC);
     }

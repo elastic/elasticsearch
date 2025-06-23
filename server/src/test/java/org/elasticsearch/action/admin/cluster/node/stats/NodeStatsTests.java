@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -15,21 +17,26 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -42,11 +49,13 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -61,6 +70,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
@@ -68,22 +78,27 @@ import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.AbstractChunkedSerializingTestCase.assertChunkCount;
+import static org.elasticsearch.threadpool.ThreadPoolStatsTests.randomStats;
 
 public class NodeStatsTests extends ESTestCase {
     public void testSerialization() throws IOException {
@@ -225,20 +240,10 @@ public class NodeStatsTests extends ESTestCase {
                 if (nodeStats.getThreadPool() == null) {
                     assertNull(deserializedNodeStats.getThreadPool());
                 } else {
-                    Iterator<ThreadPoolStats.Stats> threadPoolIterator = nodeStats.getThreadPool().iterator();
-                    Iterator<ThreadPoolStats.Stats> deserializedThreadPoolIterator = deserializedNodeStats.getThreadPool().iterator();
-                    while (threadPoolIterator.hasNext()) {
-                        ThreadPoolStats.Stats stats = threadPoolIterator.next();
-                        ThreadPoolStats.Stats deserializedStats = deserializedThreadPoolIterator.next();
-                        assertEquals(stats.getName(), deserializedStats.getName());
-                        assertEquals(stats.getThreads(), deserializedStats.getThreads());
-                        assertEquals(stats.getActive(), deserializedStats.getActive());
-                        assertEquals(stats.getLargest(), deserializedStats.getLargest());
-                        assertEquals(stats.getCompleted(), deserializedStats.getCompleted());
-                        assertEquals(stats.getQueue(), deserializedStats.getQueue());
-                        assertEquals(stats.getRejected(), deserializedStats.getRejected());
-                    }
+                    assertNotSame(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
+                    assertEquals(nodeStats.getThreadPool(), deserializedNodeStats.getThreadPool());
                 }
+
                 FsInfo fs = nodeStats.getFs();
                 FsInfo deserializedFs = deserializedNodeStats.getFs();
                 if (fs == null) {
@@ -288,12 +293,9 @@ public class NodeStatsTests extends ESTestCase {
                         deserializedNodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies()
                     );
                 }
-                if (nodeStats.getHttp() == null) {
-                    assertNull(deserializedNodeStats.getHttp());
-                } else {
-                    assertEquals(nodeStats.getHttp().getServerOpen(), deserializedNodeStats.getHttp().getServerOpen());
-                    assertEquals(nodeStats.getHttp().getTotalOpen(), deserializedNodeStats.getHttp().getTotalOpen());
-                }
+
+                assertEquals(nodeStats.getHttp(), deserializedNodeStats.getHttp());
+
                 if (nodeStats.getBreaker() == null) {
                     assertNull(deserializedNodeStats.getBreaker());
                 } else {
@@ -313,34 +315,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (scriptStats == null) {
                     assertNull(deserializedScriptStats);
                 } else {
-                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    List<ScriptContextStats> stats = scriptStats.getContextStats();
-                    for (ScriptContextStats generatedStats : stats) {
-                        List<ScriptContextStats> maybeDeserStats = deserialized.stream()
-                            .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .toList();
-
-                        assertEquals(1, maybeDeserStats.size());
-                        ScriptContextStats deserStats = maybeDeserStats.get(0);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    assertEquals(evictions, scriptStats.getCacheEvictions());
-                    assertEquals(limited, scriptStats.getCompilationLimitTriggered());
-                    assertEquals(compilations, scriptStats.getCompilations());
+                    assertEquals(scriptStats, deserializedScriptStats);
+                    assertNotSame(scriptStats, deserializedScriptStats);
                 }
                 DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
                 DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
@@ -464,43 +440,8 @@ public class NodeStatsTests extends ESTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.getTotalStats();
-                    assertEquals(totalStats.getIngestCount(), deserializedIngestStats.getTotalStats().getIngestCount());
-                    assertEquals(totalStats.getIngestCurrent(), deserializedIngestStats.getTotalStats().getIngestCurrent());
-                    assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
-                    assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
-                    assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
-                    for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
-                        String pipelineId = pipelineStat.getPipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(
-                            deserializedIngestStats.getPipelineStats(),
-                            pipelineId
-                        );
-                        assertEquals(pipelineStat.getStats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
-                        assertEquals(pipelineStat.getStats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
-                        assertEquals(pipelineStat.getStats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
-                        assertEquals(pipelineStat.getStats().getIngestCount(), deserializedPipelineStats.getIngestCount());
-                        List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
-                        // intentionally validating identical order
-                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
-                        for (IngestStats.ProcessorStat processorStat : processorStats) {
-                            IngestStats.ProcessorStat deserializedProcessorStat = it.next();
-                            assertEquals(
-                                processorStat.getStats().getIngestFailedCount(),
-                                deserializedProcessorStat.getStats().getIngestFailedCount()
-                            );
-                            assertEquals(
-                                processorStat.getStats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.getStats().getIngestTimeInMillis()
-                            );
-                            assertEquals(
-                                processorStat.getStats().getIngestCurrent(),
-                                deserializedProcessorStat.getStats().getIngestCurrent()
-                            );
-                            assertEquals(processorStat.getStats().getIngestCount(), deserializedProcessorStat.getStats().getIngestCount());
-                        }
-                        assertFalse(it.hasNext());
-                    }
+                    assertNotSame(ingestStats, deserializedIngestStats);
+                    assertEquals(ingestStats, deserializedIngestStats);
                 }
                 AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
                 AdaptiveSelectionStats deserializedAdaptiveStats = deserializedNodeStats.getAdaptiveSelectionStats();
@@ -518,41 +459,113 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
-                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
-                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                var scriptCacheStats = nodeStats.getScriptCacheStats();
+                var deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
                 } else if (deserializedScriptCacheStats.getContextStats() != null) {
-                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    long evictions = 0;
-                    long limited = 0;
-                    long compilations = 0;
-                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
-                    for (String context : stats.keySet()) {
-                        ScriptStats deserStats = deserialized.get(context);
-                        ScriptStats generatedStats = stats.get(context);
-
-                        evictions += generatedStats.getCacheEvictions();
-                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
-
-                        limited += generatedStats.getCompilationLimitTriggered();
-                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-
-                        compilations += generatedStats.getCompilations();
-                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
-                    }
-                    ScriptStats sum = deserializedScriptCacheStats.sum();
-                    assertEquals(evictions, sum.getCacheEvictions());
-                    assertEquals(limited, sum.getCompilationLimitTriggered());
-                    assertEquals(compilations, sum.getCompilations());
+                    assertEquals(scriptCacheStats, deserializedScriptCacheStats);
+                    assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
+
+                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
+                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
+                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
+
             }
         }
     }
 
+    public void testChunking() {
+        assertChunkCount(createNodeStats(), ToXContent.EMPTY_PARAMS, nodeStats -> expectedChunks(nodeStats, ToXContent.EMPTY_PARAMS));
+        for (NodeStatsLevel l : NodeStatsLevel.values()) {
+            ToXContent.Params p = new ToXContent.MapParams(Map.of("level", l.getLevel()));
+            assertChunkCount(createNodeStats(), p, nodeStats -> expectedChunks(nodeStats, p));
+        }
+    }
+
+    private static int expectedChunks(NodeStats nodeStats, ToXContent.Params params) {
+        return 3 // number of static chunks, see NodeStats#toXContentChunked
+            + assertExpectedChunks(nodeStats.getIndices(), i -> expectedChunks(i, NodeStatsLevel.of(params, NodeStatsLevel.NODE)), params)
+            + assertExpectedChunks(nodeStats.getThreadPool(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getFs()) // <br/>
+            + assertExpectedChunks(nodeStats.getTransport(), NodeStatsTests::expectedChunks, params) // <br/>
+            + assertExpectedChunks(nodeStats.getHttp(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getBreaker()) // <br/>
+            + assertExpectedChunks(nodeStats.getScriptStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getDiscoveryStats()) // <br/>
+            + assertExpectedChunks(nodeStats.getIngestStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) // <br/>
+            + chunkIfPresent(nodeStats.getScriptCacheStats());
+    }
+
+    private static int chunkIfPresent(ToXContent xcontent) {
+        return xcontent == null ? 0 : 1;
+    }
+
+    private static <T extends ChunkedToXContent> int assertExpectedChunks(T obj, ToIntFunction<T> getChunks, ToXContent.Params params) {
+        if (obj == null) return 0;
+        int chunks = getChunks.applyAsInt(obj);
+        assertChunkCount(obj, params, t -> chunks);
+        return chunks;
+    }
+
+    private static int expectedChunks(ScriptStats scriptStats) {
+        return 4 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
+            + (scriptStats.cacheEvictionsHistory() != null && scriptStats.cacheEvictionsHistory().areTimingsEmpty() == false ? 1 : 0)
+            + scriptStats.contextStats().size();
+    }
+
+    private static int expectedChunks(ThreadPoolStats threadPool) {
+        return 2 + threadPool.stats().stream().mapToInt(s -> {
+            var chunks = 0;
+            chunks += s.threads() == -1 ? 0 : 1;
+            chunks += s.queue() == -1 ? 0 : 1;
+            chunks += s.active() == -1 ? 0 : 1;
+            chunks += s.rejected() == -1 ? 0 : 1;
+            chunks += s.largest() == -1 ? 0 : 1;
+            chunks += s.completed() == -1 ? 0 : 1;
+            return 2 + chunks; // start + endObject + chunks
+        }).sum();
+    }
+
+    private static int expectedChunks(IngestStats ingestStats) {
+        return 2 + ingestStats.pipelineStats()
+            .stream()
+            .mapToInt(
+                pipelineStats -> 2 + ingestStats.processorStats()
+                    .getOrDefault(pipelineStats.projectId(), Map.of())
+                    .getOrDefault(pipelineStats.pipelineId(), List.of())
+                    .size()
+            )
+            .sum();
+    }
+
+    private static int expectedChunks(HttpStats httpStats) {
+        return 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
+    }
+
+    private static int expectedChunks(TransportStats transportStats) {
+        return 3; // only one transport action
+    }
+
+    private static int expectedChunks(NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
+        return nodeIndicesStats == null ? 0 : switch (level) {
+            case NODE -> 2;
+            case INDICES -> 5; // only one index
+            case SHARDS -> 9; // only one shard
+        };
+    }
+
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
-        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        stats.nodeMappings = new NodeMappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         return stats;
     }
 
@@ -561,7 +574,13 @@ public class NodeStatsTests extends ESTestCase {
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
+        fieldOrdinalStats.put(
+            randomAlphaOfLength(4),
+            new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        var ordinalStats = new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), fieldOrdinalStats);
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, ordinalStats));
         indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
@@ -573,7 +592,11 @@ public class NodeStatsTests extends ESTestCase {
             ++iota,
             ++iota,
             ++iota,
+            ++iota,
             false,
+            ++iota,
+            ++iota,
+            ++iota,
             ++iota,
             ++iota,
             ++iota
@@ -583,6 +606,9 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
+            ++iota,
+            ++iota,
             ++iota,
             ++iota,
             ++iota,
@@ -614,7 +640,7 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getMerge().add(mergeStats);
         indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
-        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
@@ -627,6 +653,9 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
+
+        indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));
+        indicesCommonStats.getSparseVectorStats().add(new SparseVectorStats(++iota));
 
         return indicesCommonStats;
     }
@@ -643,17 +672,14 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0);
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
+            .roles(emptySet())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");
@@ -669,7 +695,8 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard);
+            Map<Index, ProjectId> projectsByIndex = Map.of(indexTest, randomUniqueProjectId());
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;
         if (frequently()) {
@@ -686,11 +713,15 @@ public class NodeStatsTests extends ESTestCase {
                 new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                 new OsStats.Cgroup(
                     randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
+                    randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
                     randomAlphaOfLength(8),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                    new OsStats.Cgroup.CpuStat(
+                        randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                        randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                        randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO))
+                    ),
                     randomAlphaOfLength(8),
                     Long.toString(randomNonNegativeLong()),
                     Long.toString(randomNonNegativeLong())
@@ -766,22 +797,9 @@ public class NodeStatsTests extends ESTestCase {
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
-            int numThreadPoolStats = randomIntBetween(0, 10);
-            List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
-            for (int i = 0; i < numThreadPoolStats; i++) {
-                threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
-                    )
-                );
-            }
-            threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
+            threadPoolStats = new ThreadPoolStats(
+                IntStream.range(0, randomIntBetween(0, 10)).mapToObj(i -> randomStats(randomAlphaOfLengthBetween(3, 10))).toList()
+            );
         }
         FsInfo fsInfo = null;
         if (frequently()) {
@@ -836,7 +854,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
             )
             : null;
         HttpStats httpStats = null;
@@ -860,7 +879,12 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+            httpStats = new HttpStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                clientStats,
+                randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(10), HttpStatsTests.randomHttpRouteStats()))
+            );
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
@@ -887,7 +911,7 @@ public class NodeStatsTests extends ESTestCase {
                 contexts.add(context);
                 stats.add(new ScriptContextStats(context, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries()));
             }
-            scriptStats = new ScriptStats(stats);
+            scriptStats = ScriptStats.read(stats);
         }
         ClusterApplierRecordingService.Stats timeTrackerStats;
         if (randomBoolean()) {
@@ -954,18 +978,21 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
-            Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = Maps.newMapWithExpectedSize(numPipelines);
+            Map<ProjectId, Map<String, List<IngestStats.ProcessorStat>>> ingestProcessorStats = new HashMap<>();
             for (int i = 0; i < numPipelines; i++) {
+                ProjectId projectId = randomProjectIdOrDefault();
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
                 ingestPipelineStats.add(
                     new IngestStats.PipelineStat(
+                        projectId,
                         pipelineId,
                         new IngestStats.Stats(
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -981,7 +1008,7 @@ public class NodeStatsTests extends ESTestCase {
                         new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), processorStats)
                     );
                 }
-                ingestProcessorStats.put(pipelineId, processorPerPipeline);
+                ingestProcessorStats.computeIfAbsent(projectId, k -> new HashMap<>()).put(pipelineId, processorPerPipeline);
             }
             ingestStats = new IngestStats(totalStats, ingestPipelineStats, ingestProcessorStats);
         }
@@ -1032,9 +1059,26 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue)
             );
         }
+        RepositoriesStats repositoriesStats = new RepositoriesStats(
+            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
+        NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+
         return new NodeStats(
             node,
             randomNonNegativeLong(),
@@ -1052,7 +1096,9 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats
+            indexingPressureStats,
+            repositoriesStats,
+            nodeAllocationStats
         );
     }
 
@@ -1068,7 +1114,4 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
-    }
 }

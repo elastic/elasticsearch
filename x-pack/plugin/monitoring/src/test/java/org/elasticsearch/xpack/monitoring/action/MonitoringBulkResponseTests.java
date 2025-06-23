@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 
@@ -65,13 +65,13 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 
-            final Version version = VersionUtils.randomVersion(random());
+            TransportVersion version = TransportVersionUtils.randomVersion(random());
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(version);
+            output.setTransportVersion(version);
             response.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
-            streamInput.setVersion(version);
+            streamInput.setTransportVersion(version);
             MonitoringBulkResponse response2 = new MonitoringBulkResponse(streamInput);
             assertThat(response2.getTookInMillis(), equalTo(response.getTookInMillis()));
             if (response.getError() == null) {

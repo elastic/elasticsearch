@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.launcher;
@@ -57,7 +58,7 @@ class CliToolLauncher {
         String toolname = getToolName(pinfo.sysprops());
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
-        command = CliToolProvider.load(toolname, libs).create();
+        command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
         Terminal terminal = Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
@@ -91,10 +92,10 @@ class CliToolLauncher {
             try {
                 closeable.close();
             } catch (final IOException e) {
-                e.printStackTrace(terminal.getErrorWriter());
+                terminal.errorPrintln(e);
             }
             terminal.flush(); // make sure to flush whatever the close or error might have written
-        });
+        }, "elasticsearch-cli-shutdown");
 
     }
 
@@ -112,6 +113,8 @@ class CliToolLauncher {
         final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
+        // a temporary fix to allow a cli-launcher.jar replacement. That method should is called in configureWithoutConfig
+        LogConfigurator.configureESLogging();
     }
 
     /**

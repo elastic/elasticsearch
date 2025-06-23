@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -64,7 +65,7 @@ public class StoredNumericValuesTests extends MapperServiceTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
             Set<String> fieldNames = Sets.newHashSet(
                 "field1",
@@ -79,7 +80,7 @@ public class StoredNumericValuesTests extends MapperServiceTestCase {
                 "field10"
             );
             CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
-            searcher.doc(0, fieldsVisitor);
+            searcher.storedFields().document(0, fieldsVisitor);
 
             fieldsVisitor.postProcess(mapperService::fieldType);
             assertThat(fieldsVisitor.fields().size(), equalTo(10));

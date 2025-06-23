@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.Maps;
@@ -19,13 +21,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class XContentHelperTests extends ESTestCase {
 
@@ -59,7 +65,173 @@ public class XContentHelperTests extends ESTestCase {
 
         XContentHelper.mergeDefaults(content, defaults);
 
-        assertThat(content, Matchers.equalTo(expected));
+        assertThat(content, equalTo(expected));
+    }
+
+    public void testMergingDefaults() {
+        Map<String, Object> base = getMap("key1", "old", "key3", "old", "map", getMap("key1", "old", "key3", "old"));
+        Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "map", getMap("key2", "new", "key3", "new"));
+        XContentHelper.mergeDefaults(base, toMerge);
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "old",
+            "map",
+            Map.of("key1", "old", "key2", "new", "key3", "old")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMerge() {
+        Map<String, Object> base = getMap("key1", "old", "key3", "old", "key4", "old");
+        Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "key4", "new");
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? newValue : oldValue);
+        Map<String, Object> expected = getMap("key1", "old", "key2", "new", "key3", "new", "key4", "old");
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMapReplacement() {
+        Map<String, Object> base = getMap(
+            "key1",
+            "old",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            Map.of("key1", "old", "key3", "old", "key4", "old")
+        );
+        Map<String, Object> toMerge = getMap(
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "new",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        XContentHelper.merge(
+            base,
+            toMerge,
+            (parent, key, oldValue, newValue) -> "key3".equals(key) || "map".equals(key) ? newValue : oldValue
+        );
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "old",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMapMerge() {
+        Map<String, Object> base = getMap(
+            "key1",
+            "old",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old"))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "new",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? oldValue : null);
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            Map.of("key1", "old", "key2", "new", "key3", "old", "key4", "old")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingListValueWithCustomMapReplacement() {
+        Map<String, Object> base = getMap(
+            "key",
+            List.of("value1", "value3", "value4"),
+            "list",
+            List.of(new HashMap<>(Map.of("map", new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old")))))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key",
+            List.of("value1", "value2", "value4"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        XContentHelper.merge(
+            base,
+            toMerge,
+            (parent, key, oldValue, newValue) -> "key3".equals(key) || "map".equals(key) ? newValue : oldValue
+        );
+        Map<String, Object> expected = getMap(
+            "key",
+            List.of("value1", "value2", "value4", "value3"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingListValueWithCustomMapMerge() {
+        Map<String, Object> base = getMap(
+            "key",
+            List.of("value1", "value3", "value4"),
+            "list",
+            List.of(new HashMap<>(Map.of("map", new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old")))))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key",
+            List.of("value1", "value2", "value4"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? newValue : null);
+        Map<String, Object> expected = getMap(
+            "key",
+            List.of("value1", "value2", "value4", "value3"),
+            "list",
+            List.of(Map.of("map", Map.of("key1", "old", "key2", "new", "key3", "new", "key4", "old")))
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMergeWithException() {
+        final Map<String, Object> base = getMap("key1", "old", "key3", "old", "key4", "old");
+        final Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "key4", "new");
+        final XContentHelper.CustomMerge customMerge = (parent, key, oldValue, newValue) -> {
+            if ("key3".equals(key)) {
+                throw new IllegalArgumentException(key + " is not allowed");
+            }
+            return oldValue;
+        };
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentHelper.merge(base, toMerge, customMerge));
+        assertThat(e.getMessage(), containsString("key3 is not allowed"));
     }
 
     public void testToXContent() throws IOException {
@@ -224,5 +396,29 @@ public class XContentHelperTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testParseToType() throws IOException {
+        String json = """
+            { "a": "b", "c": "d"}
+            """;
+        Set<String> names = XContentHelper.parseToType(parser -> {
+            Set<String> fields = new HashSet<>();
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                fields.add(parser.nextFieldName());
+            }
+            for (token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fields.add(parser.currentName());
+                }
+            }
+            return fields;
+        }, new BytesArray(json), XContentType.JSON, null).v2();
+
+        assertThat(names, equalTo(Set.of("a", "c")));
     }
 }

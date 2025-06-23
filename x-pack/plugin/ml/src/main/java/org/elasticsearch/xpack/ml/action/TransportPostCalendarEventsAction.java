@@ -7,15 +7,16 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -53,7 +54,13 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
         JobResultsProvider jobResultsProvider,
         JobManager jobManager
     ) {
-        super(PostCalendarEventsAction.NAME, transportService, actionFilters, PostCalendarEventsAction.Request::new);
+        super(
+            PostCalendarEventsAction.NAME,
+            transportService,
+            actionFilters,
+            PostCalendarEventsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
@@ -90,7 +97,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 bulkRequestBuilder.request(),
                 new ActionListener<BulkResponse>() {
                     @Override

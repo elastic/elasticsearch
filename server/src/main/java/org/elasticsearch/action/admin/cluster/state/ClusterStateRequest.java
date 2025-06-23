@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -38,7 +39,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {}
+    public ClusterStateRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -188,12 +191,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-            @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
-            }
-        };
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override
@@ -227,7 +225,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
         }
-        stringBuilder.append("master timeout [").append(masterNodeTimeout).append("]]");
+        stringBuilder.append("master timeout [").append(masterNodeTimeout()).append("]]");
         return stringBuilder.toString();
     }
 

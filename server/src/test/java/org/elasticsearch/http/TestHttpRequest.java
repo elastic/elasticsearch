@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -20,21 +20,46 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-class TestHttpRequest implements HttpRequest {
+public class TestHttpRequest implements HttpRequest {
 
     private final Supplier<HttpVersion> version;
     private final RestRequest.Method method;
     private final String uri;
-    private final HashMap<String, List<String>> headers = new HashMap<>();
+    private final Map<String, List<String>> headers;
+    private final HttpBody body;
 
-    TestHttpRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+    public TestHttpRequest(
+        Supplier<HttpVersion> versionSupplier,
+        RestRequest.Method method,
+        String uri,
+        Map<String, List<String>> headers,
+        HttpBody body
+    ) {
         this.version = versionSupplier;
         this.method = method;
         this.uri = uri;
+        this.headers = headers;
+        this.body = body;
     }
 
-    TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri) {
+    public TestHttpRequest(RestRequest.Method method, String uri, Map<String, List<String>> headers, HttpBody body) {
+        this(() -> HttpVersion.HTTP_1_1, method, uri, headers, body);
+    }
+
+    public TestHttpRequest(RestRequest.Method method, String uri, Map<String, List<String>> headers, BytesReference body) {
+        this(() -> HttpVersion.HTTP_1_1, method, uri, headers, HttpBody.fromBytesReference(body));
+    }
+
+    public TestHttpRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+        this(versionSupplier, method, uri, new HashMap<>(), HttpBody.empty());
+    }
+
+    public TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri) {
         this(() -> version, method, uri);
+    }
+
+    public TestHttpRequest(HttpVersion version, RestRequest.Method method, String uri, Map<String, List<String>> headers) {
+        this(() -> version, method, uri, headers, HttpBody.empty());
     }
 
     @Override
@@ -48,8 +73,13 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
-    public BytesReference content() {
-        return BytesArray.EMPTY;
+    public HttpBody body() {
+        return body;
+    }
+
+    @Override
+    public void setBody(HttpBody body) {
+        throw new IllegalStateException("not allowed");
     }
 
     @Override
@@ -73,22 +103,22 @@ class TestHttpRequest implements HttpRequest {
     }
 
     @Override
+    public boolean hasContent() {
+        return body.isEmpty() == false;
+    }
+
+    @Override
     public HttpResponse createResponse(RestStatus status, BytesReference content) {
         return new TestHttpResponse(status, content);
     }
 
     @Override
-    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
         throw new UnsupportedOperationException("chunked responses not supported");
     }
 
     @Override
     public void release() {}
-
-    @Override
-    public HttpRequest releaseAndCopy() {
-        return this;
-    }
 
     @Override
     public Exception getInboundException() {

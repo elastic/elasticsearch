@@ -1,0 +1,260 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "ecs_timestamp": {
+            "mapping": {
+              "ignore_malformed": false,
+              "type": "date"
+            },
+            "match": "@timestamp"
+          }
+        },
+        {
+          "ecs_message_match_only_text": {
+            "mapping": {
+              "type": "match_only_text"
+            },
+            "path_match": [
+              "message",
+              "*.message"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*event.original",
+              "*gen_ai.agent.description"
+            ]
+          }
+        },
+        {
+          "ecs_non_indexed_long": {
+            "mapping": {
+              "type": "long",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*.x509.public_key_exponent"
+            ]
+          }
+        },
+        {
+          "ecs_ip": {
+            "mapping": {
+              "type": "ip"
+            },
+            "path_match": [
+              "ip",
+              "*.ip",
+              "*_ip"
+            ],
+            "match_mapping_type": "string"
+          }
+        },
+        {
+          "ecs_wildcard": {
+            "mapping": {
+              "type": "wildcard"
+            },
+            "path_match": [
+              "*.io.text",
+              "*.message_id",
+              "*registry.data.strings",
+              "*url.path"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_path_match_wildcard_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "wildcard"
+            },
+            "path_match": [
+              "*.body.content",
+              "*url.full",
+              "*url.original"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_match_wildcard_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "wildcard"
+            },
+            "match": [
+              "*command_line",
+              "*stack_trace"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_path_match_keyword_and_match_only_text": {
+            "mapping": {
+              "fields": {
+                "text": {
+                  "type": "match_only_text"
+                }
+              },
+              "type": "keyword"
+            },
+            "path_match": [
+              "*.title",
+              "*.executable",
+              "*.name",
+              "*.working_directory",
+              "*.full_name",
+              "*file.path",
+              "*file.target_path",
+              "*os.full",
+              "*email.subject",
+              "*vulnerability.description",
+              "*user_agent.original"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_date": {
+            "mapping": {
+              "type": "date"
+            },
+            "path_match": [
+              "*.timestamp",
+              "*_timestamp",
+              "*.not_after",
+              "*.not_before",
+              "*.accessed",
+              "created",
+              "*.created",
+              "*.installed",
+              "*.creation_date",
+              "*.ctime",
+              "*.mtime",
+              "ingested",
+              "*.ingested",
+              "*.start",
+              "*.end",
+              "*.indicator.first_seen",
+              "*.indicator.last_seen",
+              "*.indicator.modified_at",
+              "*threat.enrichments.matched.occurred"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_path_match_float": {
+            "mapping": {
+              "type": "float"
+            },
+            "path_match": [
+              "*.score.*",
+              "*_score*"
+            ],
+            "path_unmatch": "*.version",
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_usage_double_scaled_float": {
+            "mapping": {
+              "type": "scaled_float",
+              "scaling_factor": 1000
+            },
+            "path_match": "*.usage",
+            "match_mapping_type": ["double", "long", "string"]
+          }
+        },
+        {
+          "ecs_geo_point": {
+            "mapping": {
+              "type": "geo_point"
+            },
+            "path_match": [
+              "*.geo.location"
+            ]
+          }
+        },
+        {
+          "ecs_flattened": {
+            "mapping": {
+              "type": "flattened"
+            },
+            "path_match": [
+              "*structured_data",
+              "*exports",
+              "*imports"
+            ],
+            "match_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_gen_ai_integers": {
+            "mapping": {
+              "type": "integer"
+            },
+            "path_match": [
+              "*gen_ai.request.max_tokens",
+              "*gen_ai.usage.input_tokens",
+              "*gen_ai.usage.output_tokens",
+              "*gen_ai.request.choice.count",
+              "*gen_ai.request.seed"
+            ]
+          }
+        },
+        {
+          "ecs_gen_ai_doubles": {
+            "mapping": {
+              "type": "double"
+            },
+            "path_match": [
+              "*gen_ai.request.temperature",
+              "*gen_ai.request.top_k",
+              "*gen_ai.request.frequency_penalty",
+              "*gen_ai.request.presence_penalty",
+              "*gen_ai.request.top_p"
+            ]
+          }
+        },
+        {
+          "all_strings_to_keywords": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "description": "dynamic mappings based on ECS, installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

@@ -18,7 +18,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
 import java.util.Collection;
@@ -27,6 +29,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -125,8 +128,8 @@ public final class RemoteClusterLicenseChecker {
 
     }
 
-    private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
     private final LicensedFeature feature;
 
     /**
@@ -139,6 +142,7 @@ public final class RemoteClusterLicenseChecker {
      */
     public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
+        this.remoteClientResponseExecutor = client.threadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.feature = feature;
     }
 
@@ -210,14 +214,16 @@ public final class RemoteClusterLicenseChecker {
             threadContext.newRestorableContext(false),
             listener
         );
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadContext.newEmptySystemContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
-            threadContext.markAsSystemContext();
-
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
-                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    remoteClientResponseExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                ).execute(XPackInfoAction.REMOTE_TYPE, request, contextPreservingActionListener);
             } catch (final Exception e) {
                 contextPreservingActionListener.onFailure(e);
             }
@@ -231,7 +237,7 @@ public final class RemoteClusterLicenseChecker {
      * @return true if the collection of indices contains a remote index, otherwise false
      */
     public static boolean isRemoteIndex(final String index) {
-        return index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1;
+        return RemoteClusterAware.isRemoteIndexName(index);
     }
 
     /**
@@ -267,7 +273,7 @@ public final class RemoteClusterLicenseChecker {
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
             .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .map(index -> RemoteClusterAware.splitIndexName(index)[0])
             .distinct()
             .flatMap(clusterExpression -> ClusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
             .distinct()

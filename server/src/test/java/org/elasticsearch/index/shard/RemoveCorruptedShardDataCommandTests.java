@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -13,7 +14,6 @@ import joptsimple.OptionSet;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -53,6 +53,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -66,6 +67,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand.TRUNCATE_CLEAN_TRANSLOG_FLAG;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -97,13 +99,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     public void setup() throws IOException {
         shardId = new ShardId("index0", UUIDs.randomBase64UUID(), 0);
         final String nodeId = randomAlphaOfLength(10);
-        routing = TestShardRouting.newShardRouting(
-            shardId,
-            nodeId,
-            true,
-            ShardRoutingState.INITIALIZING,
+        routing = shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING).withRecoverySource(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+        ).build();
 
         dataPaths = new Path[] { createTempDir(), createTempDir(), createTempDir() };
         final String[] tmpPaths = Arrays.stream(dataPaths).map(s -> s.toAbsolutePath().toString()).toArray(String[]::new);
@@ -122,11 +120,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             Files.createDirectories(dataPath);
         }
 
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
@@ -159,7 +153,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, clusterState);
@@ -174,7 +169,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 null,
                 null,
                 new InternalEngineFactory(),
-                () -> {},
+                NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER
             ),

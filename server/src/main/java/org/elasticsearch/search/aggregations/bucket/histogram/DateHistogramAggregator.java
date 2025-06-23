@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -79,6 +83,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -96,6 +101,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             valuesSourceConfig,
@@ -115,6 +121,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             valuesSourceConfig,
@@ -133,6 +140,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -191,6 +199,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             minDocCount,
             extendedBounds,
             keyed,
+            downsampledResultsOffset,
             fixedRoundingPoints
         );
     }
@@ -227,6 +236,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final boolean keyed;
 
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
 
@@ -240,6 +250,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -255,6 +266,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
@@ -277,30 +289,24 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    int valuesCount = values.docValueCount();
-
                     long previousRounded = Long.MIN_VALUE;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        long value = values.nextValue();
-                        long rounded = preparedRounding.round(value);
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        final long rounded = preparedRounding.round(values.nextValue());
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        if (hardBounds == null || hardBounds.contain(rounded)) {
-                            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
-                            if (bucketOrd < 0) { // already seen
-                                bucketOrd = -1 - bucketOrd;
-                                collectExistingBucket(sub, doc, bucketOrd);
-                            } else {
-                                collectBucket(sub, doc, bucketOrd);
-                            }
-                        }
+                        addRoundedValue(rounded, doc, owningBucketOrd, sub);
                         previousRounded = rounded;
                     }
                 }
@@ -308,34 +314,53 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         };
     }
 
-    @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(
-            owningBucketOrds,
-            bucketOrds,
-            (bucketValue, docCount, subAggregationResults) -> {
-                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            },
-            (owningBucketOrd, buckets) -> {
-                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                    : null;
-                return new InternalDateHistogram(
-                    name,
-                    buckets,
-                    order,
-                    minDocCount,
-                    rounding.offset(),
-                    emptyBucketInfo,
-                    formatter,
-                    keyed,
-                    metadata()
-                );
+    private LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    addRoundedValue(preparedRounding.round(values.longValue()), doc, owningBucketOrd, sub);
+                }
             }
-        );
+        };
+    }
+
+    private void addRoundedValue(long rounded, int doc, long owningBucketOrd, LeafBucketCollector sub) throws IOException {
+        if (hardBounds == null || hardBounds.contain(rounded)) {
+            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+            if (bucketOrd < 0) { // already seen
+                bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(sub, doc, bucketOrd);
+            } else {
+                collectBucket(sub, doc, bucketOrd);
+            }
+        }
+    }
+
+    @Override
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults);
+        }, (owningBucketOrd, buckets) -> {
+            // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+            CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+
+            InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                : null;
+            return new InternalDateHistogram(
+                name,
+                buckets,
+                order,
+                minDocCount,
+                rounding.offset(),
+                emptyBucketInfo,
+                formatter,
+                keyed,
+                downsampledResultsOffset,
+                metadata()
+            );
+        });
     }
 
     @Override
@@ -352,6 +377,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             emptyBucketInfo,
             formatter,
             keyed,
+            downsampledResultsOffset,
             metadata()
         );
     }
@@ -397,6 +423,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         private final long minDocCount;
         private final LongBounds extendedBounds;
         private final boolean keyed;
+        private final boolean downsampledResultsOffset;
         private final long[] fixedRoundingPoints;
 
         FromDateRange(
@@ -410,6 +437,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             long minDocCount,
             LongBounds extendedBounds,
             boolean keyed,
+            boolean downsampledResultsOffset,
             long[] fixedRoundingPoints
         ) throws IOException {
             super(parent, subAggregators, delegate);
@@ -421,6 +449,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             this.minDocCount = minDocCount;
             this.extendedBounds = extendedBounds;
             this.keyed = keyed;
+            this.downsampledResultsOffset = downsampledResultsOffset;
             this.fixedRoundingPoints = fixedRoundingPoints;
         }
 
@@ -437,7 +466,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         new InternalDateHistogram.Bucket(
                             rangeBucket.getFrom().toInstant().toEpochMilli(),
                             rangeBucket.getDocCount(),
-                            keyed,
                             format,
                             rangeBucket.getAggregations()
                         )
@@ -459,6 +487,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 emptyBucketInfo,
                 format,
                 keyed,
+                downsampledResultsOffset,
                 range.getMetadata()
             );
         }

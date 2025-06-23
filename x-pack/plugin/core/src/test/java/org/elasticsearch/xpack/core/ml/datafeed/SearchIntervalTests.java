@@ -22,6 +22,11 @@ public class SearchIntervalTests extends AbstractWireSerializingTestCase<SearchI
         return createRandom();
     }
 
+    @Override
+    protected SearchInterval mutateInstance(SearchInterval instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static SearchInterval createRandom() {
         long start = randomNonNegativeLong();
         return new SearchInterval(start, randomLongBetween(start, Long.MAX_VALUE));

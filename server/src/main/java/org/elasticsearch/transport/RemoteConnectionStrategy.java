@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -20,10 +21,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -140,7 +143,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings, boolean credentialsProtected) {
+        final String transportProfile = credentialsProtected
+            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            : TransportSettings.DEFAULT_PROFILE;
+
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
@@ -158,7 +165,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 TransportRequestOptions.Type.RECOVERY,
                 TransportRequestOptions.Type.PING
             )
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG)
+            .setTransportProfile(transportProfile);
         return builder.build();
     }
 
@@ -332,7 +340,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract ConnectionStrategy strategyType();
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+    public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(
@@ -376,6 +384,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract void connectImpl(ActionListener<Void> listener);
 
     protected abstract RemoteConnectionInfo.ModeInfo getModeInfo();
+
+    protected static boolean isRetryableException(Exception e) {
+        // ISE if we fail the handshake with a version incompatible node
+        return e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException;
+    }
 
     private List<ActionListener<Void>> getAndClearListeners() {
         final List<ActionListener<Void>> result;

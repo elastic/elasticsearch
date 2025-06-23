@@ -1,41 +1,62 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Objects;
+
 /**
- * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
- * all the nodes have acknowledged a cluster state update request
+ * An extension interface to {@link ClusterStateUpdateTask} that allows the caller to be notified after the master has
+ * computed, published, accepted, committed, and applied the cluster state update AND only after the rest of the nodes
+ * (or a specified subset) have also accepted and applied the cluster state update.
  */
 public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
     private final ActionListener<AcknowledgedResponse> listener;
-    private final AckedRequest request;
+    private final TimeValue ackTimeout;
 
-    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<? extends AcknowledgedResponse> listener) {
-        this(Priority.NORMAL, request, listener);
+    protected AckedClusterStateUpdateTask(AcknowledgedRequest<?> request, ActionListener<? extends AcknowledgedResponse> listener) {
+        this(Priority.NORMAL, request.masterNodeTimeout(), request.ackTimeout(), listener);
+    }
+
+    protected AckedClusterStateUpdateTask(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        ActionListener<? extends AcknowledgedResponse> listener
+    ) {
+        this(Priority.NORMAL, masterNodeTimeout, ackTimeout, listener);
+    }
+
+    protected AckedClusterStateUpdateTask(
+        Priority priority,
+        AcknowledgedRequest<?> request,
+        ActionListener<? extends AcknowledgedResponse> listener
+    ) {
+        this(priority, request.masterNodeTimeout(), request.ackTimeout(), listener);
     }
 
     @SuppressWarnings("unchecked")
     protected AckedClusterStateUpdateTask(
         Priority priority,
-        AckedRequest request,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
         ActionListener<? extends AcknowledgedResponse> listener
     ) {
-        super(priority, request.masterNodeTimeout());
+        super(priority, masterNodeTimeout);
         this.listener = (ActionListener<AcknowledgedResponse>) listener;
-        this.request = request;
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
     /**
@@ -62,10 +83,6 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         return AcknowledgedResponse.of(acknowledged);
     }
 
-    /**
-     * Called once the acknowledgement timeout defined by
-     * {@link AckedClusterStateUpdateTask#ackTimeout()} has expired
-     */
     public void onAckTimeout() {
         listener.onResponse(newResponse(false));
     }
@@ -75,10 +92,7 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
         listener.onFailure(e);
     }
 
-    /**
-     * Acknowledgement timeout, maximum time interval to wait for acknowledgements
-     */
     public final TimeValue ackTimeout() {
-        return request.ackTimeout();
+        return ackTimeout;
     }
 }

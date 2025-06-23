@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -34,6 +34,11 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     @Override
+    protected Recall mutateInstance(Recall instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Recall> instanceReader() {
         return Recall::new;
     }
@@ -48,7 +53,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockFilter("recall_at_0.25_TP", 1L),
                 mockFilter("recall_at_0.25_FN", 4L),
@@ -68,7 +73,9 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     public void testEvaluate_GivenZeroTpAndFp() {
-        Aggregations aggs = new Aggregations(Arrays.asList(mockFilter("recall_at_1.0_TP", 0L), mockFilter("recall_at_1.0_FN", 0L)));
+        InternalAggregations aggs = InternalAggregations.from(
+            Arrays.asList(mockFilter("recall_at_1.0_TP", 0L), mockFilter("recall_at_1.0_FN", 0L))
+        );
 
         Recall recall = new Recall(Arrays.asList(1.0));
         EvaluationMetricResult result = recall.evaluate(aggs);

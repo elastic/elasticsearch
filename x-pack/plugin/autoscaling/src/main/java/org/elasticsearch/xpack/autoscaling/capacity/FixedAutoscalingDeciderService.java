@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -119,7 +119,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.nodes = in.readInt();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
@@ -149,7 +149,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
             out.writeInt(nodes);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(processors);
             }
         }

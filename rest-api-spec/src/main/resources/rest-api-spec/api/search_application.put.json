@@ -1,0 +1,44 @@
+{
+  "search_application.put": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-search-application.html",
+      "description": "Creates or updates a search application."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/search_application/{name}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the search application to be created or updated"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "create": {
+        "type": "boolean",
+        "description": "If true, requires that a search application with the specified resource_id does not already exist. (default: false)"
+      }
+    },
+    "body": {
+      "description": "The search application configuration, including `indices`",
+      "required": true
+    }
+  }
+}

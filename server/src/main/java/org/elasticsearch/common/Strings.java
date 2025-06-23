@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -12,6 +13,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
@@ -19,11 +21,13 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -34,24 +38,14 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Strings {
 
+    public static final Base64.Encoder BASE_64_NO_PADDING_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    public static void spaceify(int spaces, String from, StringBuilder to) throws IOException {
-        char[] spaceChars = new char[spaces];
-        Arrays.fill(spaceChars, ' ');
-
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                to.append(spaceChars).append(line).append('\n');
-            }
-        }
-    }
 
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
@@ -287,9 +281,17 @@ public class Strings {
         return newChar + str.substring(1);
     }
 
-    public static final String INVALID_FILENAME_CHARS = Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    // Visible for testing
+    static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+
+    public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
+        .sorted()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
+
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -544,76 +546,86 @@ public class Strings {
      * String. E.g. useful for <code>toString()</code> implementations.
      *
      * @param coll   the Collection to display
-     * @param delim  the delimiter to use (probably a ",")
-     * @param prefix the String to start each element with
-     * @param suffix the String to end each element with
+     * @param delimiter  the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delimiter) {
         StringBuilder sb = new StringBuilder();
-        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        collectionToDelimitedString(coll, delimiter, sb);
         return sb.toString();
     }
 
-    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static void collectionToDelimitedString(Iterable<?> coll, String delimiter, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
+            sb.append(it.next());
             if (it.hasNext()) {
-                sb.append(delim);
+                sb.append(delimiter);
             }
         }
     }
 
     /**
-     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, StringBuilder)}
      * except that it stops if the string gets too long and just indicates how many items were omitted.
      *
      * @param coll        the collection of items to display
-     * @param delim       the delimiter to write between the items (usually {@code ","})
-     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
-     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param delimiter   the delimiter to write between the items (e.g. {@code ","})
      * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
      *                    items are omitted
      */
-    public static void collectionToDelimitedStringWithLimit(
-        Iterable<?> coll,
-        String delim,
-        String prefix,
-        String suffix,
-        int appendLimit,
-        StringBuilder sb
-    ) {
-        final Iterator<?> it = coll.iterator();
-        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
-        int count = 0;
-        while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
-            count += 1;
-            if (it.hasNext()) {
-                sb.append(delim);
-                if (sb.length() > lengthLimit) {
-                    int omitted = 0;
-                    while (it.hasNext()) {
-                        it.next();
-                        omitted += 1;
-                    }
-                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
-                }
-            }
-        }
+    public static void collectionToDelimitedStringWithLimit(Iterable<?> coll, String delimiter, int appendLimit, StringBuilder sb) {
+        final var boundedDelimitedStringCollector = new BoundedDelimitedStringCollector(sb, delimiter, appendLimit);
+        coll.forEach(boundedDelimitedStringCollector::appendItem);
+        boundedDelimitedStringCollector.finish();
     }
 
     /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll  the Collection to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
+     * Collects a sequence of objects into a delimited string, dropping objects once the string reaches a certain maximum length. Similar to
+     * {@link #collectionToDelimitedStringWithLimit} except that this doesn't need the collection of items to be provided up front.
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
-        return collectionToDelimitedString(coll, delim, "", "");
+    public static final class BoundedDelimitedStringCollector {
+        private final StringBuilder stringBuilder;
+        private final String delimiter;
+        private final long lengthLimit;
+        private int count = 0;
+        private int omitted = 0;
+
+        public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
+            this.stringBuilder = stringBuilder;
+            this.delimiter = delimiter;
+            this.lengthLimit = stringBuilder.length() + appendLimit; // long to avoid overflow
+        }
+
+        /**
+         * Add the given item's string representation to the string, with a delimiter if necessary and surrounded by the given prefix and
+         * suffix, as long as the string is not already too long.
+         */
+        public void appendItem(Object item) {
+            count += 1;
+            if (omitted > 0) {
+                omitted += 1;
+                return;
+            }
+            if (count > 1) {
+                stringBuilder.append(delimiter);
+            }
+            if (stringBuilder.length() > lengthLimit) {
+                omitted += 1;
+                stringBuilder.append("..."); // indicate there are some omissions, just in case the caller forgets to call finish()
+                return;
+            }
+            stringBuilder.append(item);
+        }
+
+        /**
+         * Complete the collection, adding to the string a summary of omitted objects, if any.
+         */
+        public void finish() {
+            if (omitted > 0) {
+                stringBuilder.append(" (").append(count).append(" in total, ").append(omitted).append(" omitted)");
+            }
+        }
     }
 
     /**
@@ -774,7 +786,13 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return BytesReference.bytes(xContentBuilder).utf8ToString();
+        xContentBuilder.close();
+        OutputStream stream = xContentBuilder.getOutputStream();
+        if (stream instanceof ByteArrayOutputStream baos) {
+            return baos.toString(StandardCharsets.UTF_8);
+        } else {
+            return ((BytesStream) stream).bytes().utf8ToString();
+        }
     }
 
     /**
@@ -804,7 +822,7 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {
@@ -923,5 +941,9 @@ public class Strings {
      */
     public static String format(String format, Object... args) {
         return org.elasticsearch.core.Strings.format(format, args);
+    }
+
+    public static String stripDisallowedChars(String string) {
+        return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -13,10 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -35,12 +33,12 @@ public class CancellableTasksTrackerTests extends ESTestCase {
         // 0 == before put, 1 == during put, 2 == after put, before remove, 3 == during remove, 4 == after remove
         private final AtomicInteger state = new AtomicInteger();
         private final boolean concurrentRemove = randomBoolean();
+        private final long requestId = randomIntBetween(-1, 10);
 
-        TestTask(Task task, String item, CancellableTasksTracker<String> tracker, Runnable awaitStart) {
+        TestTask(Task task, String item, CancellableTasksTracker<String> tracker, CyclicBarrier startBarrier) {
             if (concurrentRemove) {
                 concurrentRemoveThread = new Thread(() -> {
-                    awaitStart.run();
-
+                    safeAwait(startBarrier);
                     for (int i = 0; i < 10; i++) {
                         if (3 <= state.get()) {
                             final String removed = tracker.remove(task);
@@ -51,14 +49,14 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     }
                 });
             } else {
-                concurrentRemoveThread = new Thread(awaitStart);
+                concurrentRemoveThread = new Thread(() -> safeAwait(startBarrier));
             }
 
             actionThread = new Thread(() -> {
-                awaitStart.run();
+                safeAwait(startBarrier);
 
                 state.incrementAndGet();
-                tracker.put(task, item);
+                tracker.put(task, requestId, item);
                 state.incrementAndGet();
 
                 Thread.yield();
@@ -74,12 +72,14 @@ public class CancellableTasksTrackerTests extends ESTestCase {
             }, "action-thread-" + item);
 
             watchThread = new Thread(() -> {
-                awaitStart.run();
+                safeAwait(startBarrier);
 
                 for (int i = 0; i < 10; i++) {
                     final int stateBefore = state.get();
                     final String getResult = tracker.get(task.getId());
                     final Set<String> getByParentResult = tracker.getByParent(task.getParentTaskId()).collect(Collectors.toSet());
+                    final Set<String> getByChildrenResult = tracker.getChildrenByRequestId(task.getParentTaskId(), requestId)
+                        .collect(Collectors.toSet());
                     final Set<String> values = new HashSet<>(tracker.values());
                     final int stateAfter = state.get();
 
@@ -87,11 +87,13 @@ public class CancellableTasksTrackerTests extends ESTestCase {
 
                     if (getResult != null && task.getParentTaskId().isSet() && tracker.get(task.getId()) != null) {
                         assertThat(getByParentResult, hasItem(item));
+                        assertThat(getByChildrenResult, hasItem(item));
                     }
 
                     if (stateAfter == 0) {
                         assertNull(getResult);
                         assertThat(getByParentResult, not(hasItem(item)));
+                        assertThat(getByChildrenResult, not(hasItem(item)));
                         assertThat(values, not(hasItem(item)));
                     }
 
@@ -99,8 +101,10 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                         assertSame(item, getResult);
                         if (task.getParentTaskId().isSet()) {
                             assertThat(getByParentResult, hasItem(item));
+                            assertThat(getByChildrenResult, hasItem(item));
                         } else {
                             assertThat(getByParentResult, empty());
+                            assertThat(getByChildrenResult, empty());
                         }
                         assertThat(values, hasItem(item));
                     }
@@ -109,6 +113,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                         assertNull(getResult);
                         if (concurrentRemove == false) {
                             assertThat(getByParentResult, not(hasItem(item)));
+                            assertThat(getByChildrenResult, not(hasItem(item)));
                         } // else our remove might have completed but the concurrent one hasn't updated the parent ID map yet
                         assertThat(values, not(hasItem(item)));
                     }
@@ -138,21 +143,9 @@ public class CancellableTasksTrackerTests extends ESTestCase {
             () -> new TaskId(randomAlphaOfLength(5), randomNonNegativeLong())
         );
 
-        final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>(new String[0]);
+        final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>();
         final TestTask[] tasks = new TestTask[between(1, 100)];
-
-        final Runnable awaitStart = new Runnable() {
-            private final CyclicBarrier startBarrier = new CyclicBarrier(tasks.length * 3);
-
-            @Override
-            public void run() {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }
-        };
+        final CyclicBarrier startBarrier = new CyclicBarrier(tasks.length * 3);
 
         for (int i = 0; i < tasks.length; i++) {
             tasks[i] = new TestTask(
@@ -166,7 +159,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                 ),
                 "item-" + i,
                 tracker,
-                awaitStart
+                startBarrier
             );
         }
 

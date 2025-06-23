@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.remote.test;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
 
@@ -28,44 +26,53 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
     @Before
     public void setupIndices() throws IOException {
-        RestClient cluster1Client = cluster1Client().getLowLevelClient();
-        assertTrue(createIndex(cluster1Client, "test1", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
-        cluster1Client().index(
-            new IndexRequest("test1").id("id1")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
-            RequestOptions.DEFAULT
-        );
+        assertTrue(createIndex(cluster1Client(), "test1", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
+        {
+            Request createDoc = new Request("POST", "/test1/_doc/id1?refresh=true");
+            createDoc.setJsonEntity("""
+                { "foo": "bar" }
+                """);
+            assertOK(cluster1Client().performRequest(createDoc));
+        }
+        {
+            Request searchRequest = new Request("POST", "/test1/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
+            assertEquals(1, (int) doc.evaluate("hits.total.value"));
+        }
 
-        RestClient cluster2Client = cluster2Client().getLowLevelClient();
-        assertTrue(createIndex(cluster2Client, "test2", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
-        cluster2Client().index(
-            new IndexRequest("test2").id("id1").source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
-            RequestOptions.DEFAULT
-        );
-        cluster2Client().index(
-            new IndexRequest("test2").id("id2")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
-            RequestOptions.DEFAULT
-        );
-        assertEquals(1L, cluster1Client().search(new SearchRequest("test1"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
-        assertEquals(2L, cluster2Client().search(new SearchRequest("test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
+        assertTrue(createIndex(cluster2Client(), "test2", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
+        {
+            Request createDoc = new Request("POST", "/test2/_doc/id1?refresh=true");
+            createDoc.setJsonEntity("""
+                { "foo": "bar" }
+                """);
+            assertOK(cluster2Client().performRequest(createDoc));
+        }
+        {
+            Request createDoc = new Request("POST", "/test2/_doc/id2?refresh=true");
+            createDoc.setJsonEntity("""
+                { "foo": "bar" }
+                """);
+            assertOK(cluster2Client().performRequest(createDoc));
+        }
+        {
+            Request searchRequest = new Request("POST", "/test2/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster2Client().performRequest(searchRequest));
+            assertEquals(2, (int) doc.evaluate("hits.total.value"));
+        }
     }
 
     @After
     public void clearIndices() throws IOException {
-        RestClient cluster1Client = cluster1Client().getLowLevelClient();
-        assertTrue(deleteIndex(cluster1Client, "*").isAcknowledged());
-        RestClient cluster2Client = cluster2Client().getLowLevelClient();
-        assertTrue(deleteIndex(cluster2Client, "*").isAcknowledged());
+        assertTrue(deleteIndex(cluster1Client(), "*").isAcknowledged());
+        assertTrue(deleteIndex(cluster2Client(), "*").isAcknowledged());
     }
 
     @After
     public void clearRemoteClusterSettings() throws IOException {
         Settings setting = Settings.builder().putNull("cluster.remote.*").build();
-        updateClusterSettings(cluster1Client().getLowLevelClient(), setting);
-        updateClusterSettings(cluster2Client().getLowLevelClient(), setting);
+        updateClusterSettings(cluster1Client(), setting);
+        updateClusterSettings(cluster2Client(), setting);
     }
 
     public void testProxyModeConnectionWorks() throws IOException {
@@ -76,14 +83,15 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .put("cluster.remote.cluster2.proxy_address", cluster2RemoteClusterSeed)
             .build();
 
-        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
+        updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
+        assertTrue(isConnected(cluster1Client()));
 
-        assertEquals(
-            2L,
-            cluster1Client().search(new SearchRequest("cluster2:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value
-        );
+        {
+            Request searchRequest = new Request("POST", "/cluster2:test2/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
+            assertEquals(2, (int) doc.evaluate("hits.total.value"));
+        }
     }
 
     public void testSniffModeConnectionFails() throws IOException {
@@ -93,9 +101,9 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .put("cluster.remote.cluster2alt.mode", "sniff")
             .put("cluster.remote.cluster2alt.seeds", cluster2RemoteClusterSeed)
             .build();
-        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
+        updateClusterSettings(cluster1Client(), settings);
 
-        assertFalse(isConnected(cluster1Client().getLowLevelClient()));
+        assertFalse(isConnected(cluster1Client()));
     }
 
     public void testHAProxyModeConnectionWorks() throws IOException {
@@ -105,14 +113,15 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .put("cluster.remote.haproxynosn.mode", "proxy")
             .put("cluster.remote.haproxynosn.proxy_address", proxyAddress)
             .build();
-        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
+        updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
+        assertTrue(isConnected(cluster1Client()));
 
-        assertEquals(
-            2L,
-            cluster1Client().search(new SearchRequest("haproxynosn:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value
-        );
+        {
+            Request searchRequest = new Request("POST", "/haproxynosn:test2/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
+            assertEquals(2, (int) doc.evaluate("hits.total.value"));
+        }
     }
 
     public void testHAProxyModeConnectionWithSNIToCluster1Works() throws IOException {
@@ -123,14 +132,15 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .put("cluster.remote.haproxysni1.proxy_address", "haproxy:9600")
             .put("cluster.remote.haproxysni1.server_name", "application1.example.com")
             .build();
-        updateClusterSettings(cluster2Client().getLowLevelClient(), settings);
+        updateClusterSettings(cluster2Client(), settings);
 
-        assertTrue(isConnected(cluster2Client().getLowLevelClient()));
+        assertTrue(isConnected(cluster2Client()));
 
-        assertEquals(
-            1L,
-            cluster2Client().search(new SearchRequest("haproxysni1:test1"), RequestOptions.DEFAULT).getHits().getTotalHits().value
-        );
+        {
+            Request searchRequest = new Request("POST", "/haproxysni1:test1/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster2Client().performRequest(searchRequest));
+            assertEquals(1, (int) doc.evaluate("hits.total.value"));
+        }
     }
 
     public void testHAProxyModeConnectionWithSNIToCluster2Works() throws IOException {
@@ -141,14 +151,15 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .put("cluster.remote.haproxysni2.proxy_address", "haproxy:9600")
             .put("cluster.remote.haproxysni2.server_name", "application2.example.com")
             .build();
-        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
+        updateClusterSettings(cluster1Client(), settings);
 
-        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
+        assertTrue(isConnected(cluster1Client()));
 
-        assertEquals(
-            2L,
-            cluster1Client().search(new SearchRequest("haproxysni2:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value
-        );
+        {
+            Request searchRequest = new Request("POST", "/haproxysni2:test2/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
+            assertEquals(2, (int) doc.evaluate("hits.total.value"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -156,7 +167,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         Optional<Object> remoteConnectionInfo = getAsMap(restClient, "/_remote/info").values().stream().findFirst();
         if (remoteConnectionInfo.isPresent()) {
             logger.info("Connection info: {}", remoteConnectionInfo);
-            if (((Map<String, Object>) remoteConnectionInfo.get()).get("connected")instanceof Boolean connected) {
+            if (((Map<String, Object>) remoteConnectionInfo.get()).get("connected") instanceof Boolean connected) {
                 return connected;
             }
         }

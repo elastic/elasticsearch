@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -19,13 +20,16 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -41,6 +45,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,8 +70,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -502,12 +510,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             ElasticsearchException e = new ElasticsearchException("test");
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {"type":"exception","reason":"test"}""");
         }
         {
             ElasticsearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "index_shard_recovering_exception",
                   "reason": "CurrentState[RECOVERING] Already recovering",
@@ -522,7 +530,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 "foo",
                 new IllegalStateException("bar")
             );
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "illegal_state_exception",
                   "reason": "bar"
@@ -530,7 +538,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
         {
             ElasticsearchException e = new ElasticsearchException(new IllegalArgumentException("foo"));
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "exception",
                   "reason": "java.lang.IllegalArgumentException: foo",
@@ -545,7 +553,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 "foo",
                 new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
             );
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {
                   "type": "exception",
                   "reason": "foo",
@@ -566,7 +574,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ElasticsearchException e = new ElasticsearchException("foo", new IllegalStateException("bar"));
 
-            assertExceptionAsJson(e, """
+            assertThrowableAsJson(e, """
                 {
                   "type": "exception",
                   "reason": "foo",
@@ -595,21 +603,91 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
     }
 
+    public void testGenerateFailureToXContentWithNoDetails() throws IOException {
+        {
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
+            }
+            assertFailureAsJson(ex, """
+                {"error":{"type":"file_not_found_exception","reason":"foo not found"}}""", false);
+        }
+        {
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            assertFailureAsJson(ex, """
+                {"error":{"type":"parsing_exception","reason":"foobar"}}""", false);
+        }
+
+        { // header and metadata shouldn't be rendered
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            ex.addMetadata("es.test1", "value1");
+            ex.addMetadata("es.test2", "value2");
+            ex.addHeader("test", "some value");
+            ex.addHeader("test_multi", "some value", "another value");
+
+            String expected = """
+                {"error":{"type": "parsing_exception","reason": "foobar"}}""";
+            assertFailureAsJson(ex, expected, false);
+        }
+    }
+
+    public void testGenerateFailureToXContentWithDetails() throws IOException {
+        {
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
+            }
+            assertFailureAsJson(ex, """
+                {"error":{"type":"file_not_found_exception","reason":"foo not found",
+                "root_cause":[{"type":"file_not_found_exception","reason":"foo not found"}]}}""", true);
+        }
+        {
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            assertFailureAsJson(ex, """
+                {"error":{"type":"parsing_exception","reason":"foobar","line":1,"col":2,
+                "root_cause":[{"type":"parsing_exception","reason":"foobar","line":1,"col":2}]}}""", true);
+        }
+
+        { // render header and metadata
+            ParsingException ex = new ParsingException(1, 2, "foobar", null);
+            ex.addMetadata("es.test1", "value1");
+            ex.addMetadata("es.test2", "value2");
+            ex.addHeader("test", "some value");
+            ex.addHeader("test_multi", "some value", "another value");
+
+            String expectedFragment = """
+                {
+                  "type": "parsing_exception",
+                  "reason": "foobar",
+                  "line": 1,
+                  "col": 2,
+                  "test1": "value1",
+                  "test2": "value2",
+                  "header": {
+                    "test_multi": [
+                      "some value",
+                      "another value"
+                    ],
+                    "test": "some value"
+                  }
+                """;
+            String expected = "{\"error\":" + expectedFragment + ",\"root_cause\":[" + expectedFragment + "}]}}";
+            assertFailureAsJson(ex, expected, true);
+        }
+    }
+
     public void testGenerateThrowableToXContent() throws IOException {
         {
-            Exception ex;
-            if (randomBoolean()) {
-                // just a wrapper which is omitted
-                ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            } else {
-                ex = new FileNotFoundException("foo not found");
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i = 0; i < randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
             }
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {"type":"file_not_found_exception","reason":"foo not found"}""");
         }
         {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
-            assertExceptionAsJson(ex, """
+            assertThrowableAsJson(ex, """
                 {"type":"parsing_exception","reason":"foobar","line":1,"col":2}""");
         }
 
@@ -649,7 +727,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "test": "some value"
                   }
                 }""";
-            assertExceptionAsJson(ex, expected);
+            assertThrowableAsJson(ex, expected);
         }
     }
 
@@ -690,7 +768,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
               }
             }""";
 
-        assertExceptionAsJson(e, expectedJson);
+        assertThrowableAsJson(e, expectedJson);
 
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), expectedJson)) {
@@ -720,6 +798,48 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             cause.getMessage(),
             "Elasticsearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContentWithObjectCycles() throws Exception {
+        ElasticsearchException root = new ElasticsearchException("root exception");
+
+        ElasticsearchException suppressed1 = new ElasticsearchException("suppressed#1", root);
+
+        ElasticsearchException suppressed2 = new ElasticsearchException("suppressed#2");
+        ElasticsearchException suppressed3 = new ElasticsearchException("suppressed#3");
+        suppressed3.addSuppressed(suppressed2);
+        suppressed2.addSuppressed(suppressed3);
+
+        root.addSuppressed(suppressed1);
+        root.addSuppressed(suppressed2);
+        root.addSuppressed(suppressed3);
+
+        // Because we support up to 100 nested exceptions, this JSON ends up very long.
+        // Rather than assert the full content, we check that
+        // (a) it generated successfully (no StackOverflowErrors)
+        BytesReference xContent = XContentHelper.toXContent(root, XContentType.JSON, randomBoolean());
+        // (b) it's valid JSON
+        final Map<String, Object> map = XContentHelper.convertToMap(xContent, false, XContentType.JSON).v2();
+        // (c) it contains the right content
+        assertThat(ObjectPath.eval("type", map), equalTo("exception"));
+        assertThat(ObjectPath.eval("reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.reason", map), equalTo("root exception"));
+        assertThat(ObjectPath.eval("suppressed.0.caused_by.suppressed.0.reason", map), equalTo("suppressed#1"));
+        assertThat(ObjectPath.eval("suppressed.1.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.1.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.reason", map), equalTo("suppressed#3"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.reason", map), equalTo("suppressed#2"));
+        assertThat(ObjectPath.eval("suppressed.2.suppressed.0.suppressed.0.reason", map), equalTo("suppressed#3"));
+
+        String tailExceptionPath = ".suppressed.0.caused_by".repeat(50).substring(1) + ".suppressed.0";
+        final Object tailException = ObjectPath.eval(tailExceptionPath, map);
+        assertThat(tailException, not(nullValue()));
+        assertThat(tailException, instanceOf(Map.class));
+        assertThat((Map<String, Object>) tailException, hasEntry("reason", "too many nested exceptions"));
+        assertThat((Map<String, Object>) tailException, hasEntry("type", "illegal_state_exception"));
     }
 
     public void testFromXContent() throws IOException {
@@ -810,7 +930,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertEquals("Elasticsearch exception [type=exception, reason=foo]", parsed.getMessage());
         assertThat(parsed.getHeaderKeys(), hasSize(1));
         assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
         assertThat(parsed.getMetadataKeys(), hasSize(1));
@@ -947,11 +1067,40 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testUnknownFailureToAndFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
-        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
-            // Prints a null failure using generateFailureXContent()
-            ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean());
-            return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        // Prints a null failure using generateFailureXContent()
+        BytesReference failureBytes = toShuffledXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean()),
+            xContent.type(),
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        // Failure was null, expecting a "unknown" reason
+        assertEquals("Elasticsearch exception [type=unknown, reason=unknown]", parsedFailure.getMessage());
+        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getMetadata().size());
+    }
+
+    public void testUnknownFailureToAndFromXContentV8() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        // Prints a null failure using generateFailureXContent()
+        BytesReference failureBytes = toShuffledXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean()),
+            xContent.type(),
+            RestApiVersion.V_8,
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
 
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -972,10 +1121,46 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
         final Exception failure = (Exception) randomExceptions().v1();
-        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
-            ElasticsearchException.generateFailureXContent(builder, params, failure, false);
-            return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference failureBytes = toShuffledXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, failure, false),
+            xContent.type(),
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
+
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
+        }
+
+        ElasticsearchException parsedFailure;
+        try (XContentParser parser = createParser(xContent, failureBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            parsedFailure = ElasticsearchException.failureFromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertNotNull(parsedFailure);
+
+        String type = ElasticsearchException.getExceptionName(failure);
+        String reason = failure.getMessage();
+        assertEquals(ElasticsearchException.buildMessage(type, reason, null), parsedFailure.getMessage());
+        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getMetadata().size());
+        assertNull(parsedFailure.getCause());
+    }
+
+    public void testFailureToAndFromXContentWithNoDetailsV8() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+
+        final Exception failure = (Exception) randomExceptions().v1();
+        BytesReference failureBytes = toShuffledXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, failure, false),
+            xContent.type(),
+            RestApiVersion.V_8,
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -1070,7 +1255,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected.addSuppressed(suppressed);
             }
             case 6 -> { // SearchPhaseExecutionException with cause and multiple failures
-                DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
+                DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
@@ -1116,10 +1301,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         Exception finalFailure = failure;
-        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
-            ElasticsearchException.generateFailureXContent(builder, params, finalFailure, true);
-            return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference failureBytes = toShuffledXContent(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, finalFailure, true),
+            xContent.type(),
+            ToXContent.EMPTY_PARAMS,
+            randomBoolean()
+        );
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -1148,11 +1335,18 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, XContentType.JSON);
     }
 
-    private static void assertExceptionAsJson(Exception e, String expectedJson) throws IOException {
+    private static void assertThrowableAsJson(Throwable e, String expectedJson) throws IOException {
         assertToXContentAsJson((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
             return builder;
         }, expectedJson);
+    }
+
+    private static void assertFailureAsJson(Exception e, String expectedJson, boolean detailed) throws IOException {
+        assertToXContentAsJson(
+            (builder, params) -> ElasticsearchException.generateFailureXContent(builder, params, e, detailed),
+            expectedJson
+        );
     }
 
     public static void assertDeepEquals(ElasticsearchException expected, ElasticsearchException actual) {
@@ -1307,5 +1501,86 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
         }
         return new Tuple<>(actual, expected);
+    }
+
+    public void testExceptionCauseSerialisationLoop() throws IOException {
+        IOException ex1 = new IOException("ex1");
+        IllegalArgumentException ex2 = new IllegalArgumentException("ex2", ex1);
+        ex1.addSuppressed(ex2);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testElasticsearchExceptionCauseSerialisationLoop() throws IOException {
+        ElasticsearchException ex1 = new ElasticsearchException("ex1");
+        ElasticsearchException ex2 = new ElasticsearchException("ex2", ex1);
+        ex1.addSuppressed(ex2);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testExceptionSuppressedSerialisationLoop() throws IOException {
+        IOException ex1 = new IOException("ex1");
+        IllegalArgumentException ex2 = new IllegalArgumentException("ex2");
+        ex1.addSuppressed(ex2);
+        ex2.addSuppressed(ex1);
+
+        testExceptionLoop(ex1);
+    }
+
+    public void testElasticsearchExceptionSuppressedSSerialisationLoop() throws IOException {
+        ElasticsearchException ex1 = new ElasticsearchException("ex1");
+        ElasticsearchException ex2 = new ElasticsearchException("ex2");
+        ex1.addSuppressed(ex2);
+        ex2.addSuppressed(ex1);
+
+        testExceptionLoop(ex1);
+    }
+
+    private void testExceptionLoop(Exception rootException) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> ElasticsearchException.writeException(rootException, out, () -> fail("nested limit reached"))
+        );
+        assertThat(error.getMessage(), equalTo("nested limit reached"));
+
+        BytesStreamOutput readOut = new BytesStreamOutput();
+        ElasticsearchException.writeException(rootException, readOut);
+        Exception ser = readOut.bytes().streamInput().readException();
+        assertThat(ser, instanceOf(rootException.getClass()));
+        assertThat(ser.getMessage(), equalTo(rootException.getMessage()));
+        assertArrayEquals(ser.getStackTrace(), rootException.getStackTrace());
+    }
+
+    static class ExceptionSubclass extends ElasticsearchException {
+        @Override
+        public boolean isTimeout() {
+            return true;
+        }
+
+        ExceptionSubclass(String message) {
+            super(message);
+        }
+    }
+
+    public void testTimeout() throws IOException {
+        var e = new ExceptionSubclass("some timeout");
+        assertThat(e.getHeaderKeys(), hasItem(ElasticsearchException.TIMED_OUT_HEADER));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        e.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "exception_subclass",
+              "reason": "some timeout",
+              "timed_out": true,
+              "header": {
+                "X-Timed-Out": "?1"
+              }
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
 }

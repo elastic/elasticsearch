@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -23,9 +24,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NettyAllocator {
@@ -43,8 +46,9 @@ public class NettyAllocator {
     private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_and_page_size";
 
     static {
+        ByteBufAllocator allocator;
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
-            ALLOCATOR = ByteBufAllocator.DEFAULT;
+            allocator = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
             DESCRIPTION = "[name=netty_default, suggested_max_allocation_size="
                 + ByteSizeValue.ofBytes(SUGGESTED_MAX_ALLOCATION_SIZE)
@@ -126,7 +130,12 @@ public class NettyAllocator {
                     + g1gcRegionSize
                     + "}]";
             }
-            ALLOCATOR = new NoDirectBuffers(delegate);
+            allocator = new NoDirectBuffers(delegate);
+        }
+        if (Assertions.ENABLED) {
+            ALLOCATOR = new TrashingByteBufAllocator(allocator);
+        } else {
+            ALLOCATOR = allocator;
         }
 
         RECYCLER = new Recycler<>() {
@@ -151,6 +160,11 @@ public class NettyAllocator {
                         byteBuf.release();
                     }
                 };
+            }
+
+            @Override
+            public int pageSize() {
+                return PageCacheRecycler.BYTE_PAGE_SIZE;
             }
         };
     }
@@ -197,7 +211,7 @@ public class NettyAllocator {
         if (userForcedUnpooled()) {
             return true;
         } else if (userForcedPooled()) {
-            return true;
+            return false;
         } else if (heapSizeInBytes <= 1 << 30) {
             // If the heap is 1GB or less we use unpooled
             return true;
@@ -346,5 +360,63 @@ public class NettyAllocator {
         public ByteBufAllocator getDelegate() {
             return delegate;
         }
+    }
+
+    static class TrashingCompositeByteBuf extends CompositeByteBuf {
+
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
+            super(alloc, direct, maxNumComponents);
+        }
+
+        @Override
+        protected void deallocate() {
+            TrashingByteBufAllocator.trashBuffer(this);
+            super.deallocate();
+        }
+    }
+
+    static class TrashingByteBufAllocator extends NoDirectBuffers {
+
+        static int DEFAULT_MAX_COMPONENTS = 16;
+
+        static void trashBuffer(ByteBuf buf) {
+            for (var nioBuf : buf.nioBuffers()) {
+                if (nioBuf.hasArray()) {
+                    var from = nioBuf.arrayOffset() + nioBuf.position();
+                    var to = from + nioBuf.remaining();
+                    Arrays.fill(nioBuf.array(), from, to, (byte) 0);
+                }
+            }
+        }
+
+        TrashingByteBufAllocator(ByteBufAllocator delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public ByteBuf heapBuffer() {
+            return new TrashingByteBuf(super.heapBuffer());
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity) {
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity));
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
+        }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer() {
+            return new TrashingCompositeByteBuf(this, false, DEFAULT_MAX_COMPONENTS);
+        }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
+            return new TrashingCompositeByteBuf(this, false, maxNumComponents);
+        }
+
     }
 }

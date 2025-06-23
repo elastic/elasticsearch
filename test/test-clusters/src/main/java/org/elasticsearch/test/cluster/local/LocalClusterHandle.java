@@ -1,238 +1,119 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterHandle;
-import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
-import org.elasticsearch.test.cluster.local.model.User;
-import org.elasticsearch.test.cluster.util.ExceptionUtils;
-import org.elasticsearch.test.cluster.util.Retry;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
+import org.elasticsearch.test.cluster.util.Version;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
+import java.io.InputStream;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class LocalClusterHandle implements ClusterHandle {
-    private static final Logger LOGGER = LogManager.getLogger(LocalClusterHandle.class);
-    private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofSeconds(30);
+public interface LocalClusterHandle extends ClusterHandle {
 
-    public final ForkJoinPool executor = new ForkJoinPool(
-        Math.max(Runtime.getRuntime().availableProcessors(), 4),
-        new ForkJoinPool.ForkJoinWorkerThreadFactory() {
-            private final AtomicLong counter = new AtomicLong(0);
+    /**
+     * Returns the number of nodes that are part of this cluster.
+     */
+    int getNumNodes();
 
-            @Override
-            public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-                ForkJoinWorkerThread thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-                thread.setName(name + "-node-executor-" + counter.getAndIncrement());
-                return thread;
-            }
-        },
-        null,
-        false
-    );
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final String name;
-    private final List<Node> nodes;
+    /**
+     * Stops the node at a given index.
+     * @param index of the node to stop
+     */
+    void stopNode(int index, boolean forcibly);
 
-    public LocalClusterHandle(String name, List<Node> nodes) {
-        this.name = name;
-        this.nodes = nodes;
-    }
+    /**
+     * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
+     *
+     * @param forcibly whether to ficibly terminate the cluster
+     */
+    void restart(boolean forcibly);
 
-    @Override
-    public void start() {
-        if (started.getAndSet(true) == false) {
-            LOGGER.info("Starting Elasticsearch test cluster '{}'", name);
-            execute(() -> nodes.parallelStream().forEach(Node::start));
-        }
-        waitUntilReady();
-    }
+    /**
+     * Get the name of the node for the given index.
+     */
+    String getName(int index);
 
-    @Override
-    public void stop(boolean forcibly) {
-        if (started.getAndSet(false)) {
-            LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
-            execute(() -> nodes.forEach(n -> n.stop(forcibly)));
-            deletePortFiles();
-        } else {
-            // Make sure the process is stopped, otherwise wait
-            execute(() -> nodes.forEach(n -> n.waitForExit()));
-        }
-    }
+    /**
+     * Get the pid of the node for the given index.
+     */
+    long getPid(int index);
 
-    @Override
-    public void restart(boolean forcibly) {
-        stop(forcibly);
-        start();
-    }
+    /**
+     * Returns a comma-separated list of TCP transport endpoints for cluster. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.\
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoints();
 
-    @Override
-    public boolean isStarted() {
-        return started.get();
-    }
+    /**
+     * @return a list of all available TCP transport endpoints, which may be empty if none of the nodes in this cluster are started.
+     */
+    List<String> getAvailableTransportEndpoints();
 
-    @Override
-    public void close() {
-        stop(false);
+    /**
+     * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node TCP transport endpoints
+     */
+    String getTransportEndpoint(int index);
 
-        executor.shutdownNow();
-        try {
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    /**
+     * Returns a comma-separated list of remote cluster server endpoints for cluster. If this method is called on an unstarted cluster,
+     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     * Note individual node can enable or disable remote cluster server independently. When a node has remote cluster server disabled,
+     * an empty string is returned for that node. Hence, it is possible for this method to return something like "[::1]:63300,,".
+     *
+     * @return cluster node remote cluster server endpoints
+     */
+    String getRemoteClusterServerEndpoints();
 
-    @Override
-    public String getHttpAddresses() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
-    }
+    /**
+     * Returns the remote cluster server endpoint forx the node at the given index. If this method is called on an unstarted cluster,
+     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     * Note individual node can enable or disable remote cluster server independently. When a node has remote cluster server disabled,
+     * an empty string is returned.
+     *
+     * @return cluster node remote cluster server endpoints
+     */
+    String getRemoteClusterServerEndpoint(int index);
 
-    @Override
-    public String getHttpAddress(int index) {
-        return getHttpAddresses().split(",")[index];
-    }
+    /**
+     * Upgrades a single node to the given version. Method blocks until the node is back up and ready to respond to requests.
+     *
+     * @param index index of node ot upgrade
+     * @param version version to upgrade to
+     */
+    void upgradeNodeToVersion(int index, Version version);
 
-    @Override
-    public String getTransportEndpoints() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
-    }
+    /**
+     * Performs a "full cluster restart" upgrade to the given version. Method blocks until the cluster is restarted and available.
+     *
+     * @param version version to upgrade to
+     */
+    void upgradeToVersion(Version version);
 
-    @Override
-    public String getTransportEndpoint(int index) {
-        return getTransportEndpoints().split(",")[index];
-    }
+    /**
+     * Returns an {@link InputStream} for the given node log.
+     */
+    InputStream getNodeLog(int index, LogType logType);
 
-    private void waitUntilReady() {
-        writeUnicastHostsFile();
-        try {
-            Retry.retryUntilTrue(CLUSTER_UP_TIMEOUT, Duration.ZERO, () -> {
-                WaitForHttpResource wait = configureWaitForReady();
-                return wait.wait(500);
-            });
-        } catch (TimeoutException e) {
-            throw new RuntimeException("Timed out after " + CLUSTER_UP_TIMEOUT + " waiting for cluster '" + name + "' status to be yellow");
-        } catch (ExecutionException e) {
-            throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
-        }
-    }
-
-    private WaitForHttpResource configureWaitForReady() throws MalformedURLException {
-        Node node = nodes.get(0);
-        boolean securityEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.enabled", "true"));
-        boolean sslEnabled = Boolean.parseBoolean(node.getSpec().getSetting("xpack.security.http.ssl.enabled", "false"));
-        boolean securityAutoConfigured = isSecurityAutoConfigured(node);
-        String scheme = securityEnabled && (sslEnabled || securityAutoConfigured) ? "https" : "http";
-        WaitForHttpResource wait = new WaitForHttpResource(scheme, node.getHttpAddress(), nodes.size());
-        User credentials = node.getSpec().getUsers().get(0);
-        wait.setUsername(credentials.getUsername());
-        wait.setPassword(credentials.getPassword());
-        if (sslEnabled) {
-            configureWaitSecurity(wait, node);
-        } else if (securityAutoConfigured) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config/certs/http_ca.crt").toFile());
-        }
-
-        return wait;
-    }
-
-    private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
-        String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
-        if (caFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
-        }
-        String sslCertFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate", null);
-        if (sslCertFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(sslCertFile).toFile());
-        }
-        String sslKeystoreFile = node.getSpec().getSetting("xpack.security.http.ssl.keystore.path", null);
-        if (sslKeystoreFile != null && caFile == null) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(node.getWorkingDir().resolve("config").resolve(sslKeystoreFile).toFile());
-        }
-        String keystorePassword = node.getSpec().getSetting("xpack.security.http.ssl.keystore.secure_password", null);
-        if (keystorePassword != null) {
-            wait.setTrustStorePassword(keystorePassword);
-        }
-    }
-
-    private boolean isSecurityAutoConfigured(Node node) {
-        Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
-        try (Stream<String> lines = Files.lines(configFile)) {
-            return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private void writeUnicastHostsFile() {
-        String transportUris = execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining("\n")));
-        nodes.forEach(node -> {
-            try {
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                if (Files.notExists(hostsFile)) {
-                    Files.writeString(hostsFile, transportUris);
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
-            }
-        });
-    }
-
-    private void deletePortFiles() {
-        nodes.forEach(node -> {
-            try {
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                Path httpPortsFile = node.getWorkingDir().resolve("logs").resolve("http.ports");
-                Path tranportPortsFile = node.getWorkingDir().resolve("logs").resolve("transport.ports");
-
-                Files.deleteIfExists(hostsFile);
-                Files.deleteIfExists(httpPortsFile);
-                Files.deleteIfExists(tranportPortsFile);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
-            }
-        });
-    }
-
-    private <T> T execute(Callable<T> task) {
-        try {
-            return executor.submit(task).get();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException("An error occurred orchestrating test cluster.", ExceptionUtils.findRootCause(e));
-        }
-    }
-
-    private void execute(Runnable task) {
-        execute(() -> {
-            task.run();
-            return true;
-        });
-    }
+    /**
+     * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure
+     * settings via a {@link MutableSettingsProvider} and need the update to be written to file, without a cluster restart.
+     *
+     * @throws UnsupportedOperationException if secure settings are stored in a secrets file, i.e., in serverless. Only keystore-based
+     * storage is currently supported
+     */
+    void updateStoredSecureSettings();
 }

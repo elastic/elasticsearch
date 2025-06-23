@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-plugin-cli'
+base {
+  archivesName = 'elasticsearch-plugin-cli'
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -16,14 +21,16 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  implementation project(":libs:elasticsearch-plugin-api")
-  implementation project(":libs:elasticsearch-plugin-scanner")
-  implementation 'org.ow2.asm:asm:9.3'
-  implementation 'org.ow2.asm:asm-tree:9.3'
+  compileOnly project(":libs:cli")
+  implementation project(":libs:plugin-api")
+  implementation project(":libs:plugin-scanner")
+  implementation project(":libs:entitlement")
+  // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-tree:9.7.1'
 
-  api "org.bouncycastle:bcpg-fips:1.0.4"
-  api "org.bouncycastle:bc-fips:1.0.2"
+  api "org.bouncycastle:bcpg-fips:1.0.7.1"
+  api "org.bouncycastle:bc-fips:1.0.2.5"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
@@ -36,6 +43,12 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("test").configure {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
+  // These tests are "heavy" on the secure number generator. On Linux, the NativePRNG defaults to /dev/random for the seeds, and
+  // its entropy is quite limited, to the point that it's known to hang: https://bugs.openjdk.org/browse/JDK-6521844
+  // We force the seed to be initialized from /dev/urandom, which is less secure, but in case of unit tests is not important.
+  if (OS.current() == OS.LINUX) {
+    systemProperty 'java.security.egd', 'file:/dev/urandom'
+  }
 }
 
 /*

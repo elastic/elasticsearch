@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +28,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -47,6 +54,7 @@ import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.JVM_SIZE_K
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.STATIC_JVM_UPPER_THRESHOLD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -101,7 +109,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long TEST_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
-    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper;
     private ClusterService clusterService;
     private Settings settings;
     private TimeMachine timeSupplier;
@@ -121,7 +129,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
             NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeRealAvailabilityZoneMapper = mock(NodeRealAvailabilityZoneMapper.class);
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
         timeSupplier = new TimeMachine();
@@ -130,8 +138,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             Set.of(
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.ALLOCATED_PROCESSORS_SCALE,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING
             )
         );
@@ -260,8 +269,118 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         assertThat(result.requiredCapacity(), is(nullValue()));
     }
 
+    public void testScale_GivenModelWithZeroAllocations() {
+        MlAutoscalingDeciderService service = buildService();
+        service.onMaster();
+
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("cluster")).metadata(
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    new TrainedModelAssignmentMetadata(
+                        Map.of(
+                            "model-with-zero-allocations",
+                            TrainedModelAssignment.Builder.empty(
+                                new StartTrainedModelDeploymentAction.TaskParams(
+                                    "model-with-zero-allocations",
+                                    "model-with-zero-allocations-deployment",
+                                    400,
+                                    0,
+                                    2,
+                                    100,
+                                    null,
+                                    Priority.NORMAL,
+                                    0L,
+                                    0L
+                                ),
+                                new AdaptiveAllocationsSettings(true, 0, 4)
+                            ).setAssignmentState(AssignmentState.STARTED).build()
+                        )
+                    )
+                )
+                .build()
+        ).nodes(DiscoveryNodes.builder().add(buildNode("ml-node", ByteSizeValue.ofGb(4), 8)).build()).build();
+
+        AutoscalingDeciderResult result = service.scale(
+            Settings.EMPTY,
+            new DeciderContext(
+                clusterState,
+                new AutoscalingCapacity(
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(4), null),
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(4), null)
+                )
+            )
+        );
+        // First call doesn't downscale as delay has not been satisfied
+        assertThat(result.reason().summary(), containsString("down scale delay has not been satisfied"));
+
+        // Let's move time forward 1 hour
+        timeSupplier.setOffset(TimeValue.timeValueHours(1));
+
+        result = service.scale(
+            Settings.EMPTY,
+            new DeciderContext(
+                clusterState,
+                new AutoscalingCapacity(
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(4), null),
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(4), null)
+                )
+            )
+        );
+        assertThat(result.reason().summary(), equalTo("Requesting scale down as tier and/or node size could be smaller"));
+        assertThat(result.requiredCapacity().total().memory().getBytes(), equalTo(0L));
+        assertThat(result.requiredCapacity().node().memory().getBytes(), equalTo(0L));
+    }
+
+    public void testScale_GivenTrainedModelAllocationAndNoMlNode() {
+        MlAutoscalingDeciderService service = buildService();
+        service.onMaster();
+
+        ClusterState clusterState = new ClusterState.Builder(new ClusterName("cluster")).metadata(
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    new TrainedModelAssignmentMetadata(
+                        Map.of(
+                            "model",
+                            TrainedModelAssignment.Builder.empty(
+                                new StartTrainedModelDeploymentAction.TaskParams(
+                                    "model",
+                                    "model-deployment",
+                                    400,
+                                    1,
+                                    2,
+                                    100,
+                                    null,
+                                    Priority.NORMAL,
+                                    0L,
+                                    0L
+                                ),
+                                new AdaptiveAllocationsSettings(true, 0, 4)
+                            ).setAssignmentState(AssignmentState.STARTING).build()
+                        )
+                    )
+                )
+                .build()
+        ).build();
+
+        AutoscalingDeciderResult result = service.scale(
+            Settings.EMPTY,
+            new DeciderContext(
+                clusterState,
+                new AutoscalingCapacity(AutoscalingCapacity.AutoscalingResources.ZERO, AutoscalingCapacity.AutoscalingResources.ZERO)
+            )
+        );
+
+        assertThat(result.reason().summary(), containsString("requesting scale up"));
+        assertThat(result.requiredCapacity().total().memory().getBytes(), greaterThan(TEST_JOB_SIZE));
+        assertThat(result.requiredCapacity().total().processors().count(), equalTo(2.0));
+        assertThat(result.requiredCapacity().node().memory().getBytes(), greaterThan(TEST_JOB_SIZE));
+        assertThat(result.requiredCapacity().node().processors().count(), equalTo(2.0));
+    }
+
     private DiscoveryNode buildNode(String id, ByteSizeValue machineMemory, int allocatedProcessors) {
-        return new DiscoveryNode(
+        return DiscoveryNodeUtils.create(
             id,
             buildNewFakeTransportAddress(),
             Map.of(
@@ -272,13 +391,12 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
                 String.valueOf(allocatedProcessors)
             ),
-            Set.of(DiscoveryNodeRole.ML_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.ML_ROLE)
         );
     }
 
     private MlAutoscalingDeciderService buildService() {
-        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeAvailabilityZoneMapper, clusterService, timeSupplier);
+        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeRealAvailabilityZoneMapper, clusterService, timeSupplier);
     }
 
     static class DeciderContext implements AutoscalingDeciderContext {

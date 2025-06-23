@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 
@@ -38,6 +40,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 
 /**
  * A utility to build XContent (ie json).
@@ -105,13 +108,15 @@ public final class XContentBuilder implements Closeable, Flushable {
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
+    private static final LongFunction<String> UNIX_EPOCH_MILLIS_FORMATTER;
+
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
         writers.put(boolean[].class, (b, v) -> b.values((boolean[]) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
-        writers.put(Date.class, XContentBuilder::timeValue);
+        writers.put(Date.class, XContentBuilder::timestampValue);
         writers.put(Double.class, (b, v) -> b.value((Double) v));
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
@@ -127,8 +132,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         writers.put(Locale.class, (b, v) -> b.value(v.toString()));
         writers.put(Class.class, (b, v) -> b.value(v.toString()));
         writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
-        writers.put(Calendar.class, XContentBuilder::timeValue);
-        writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
+        writers.put(Calendar.class, XContentBuilder::timestampValue);
+        writers.put(GregorianCalendar.class, XContentBuilder::timestampValue);
         writers.put(BigInteger.class, (b, v) -> b.value((BigInteger) v));
         writers.put(BigDecimal.class, (b, v) -> b.value((BigDecimal) v));
 
@@ -137,6 +142,8 @@ public final class XContentBuilder implements Closeable, Flushable {
 
         // treat strings as already converted
         dateTransformers.put(String.class, Function.identity());
+
+        LongFunction<String> unixEpochMillisFormatter = Long::toString;
 
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
@@ -155,11 +162,14 @@ public final class XContentBuilder implements Closeable, Flushable {
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
             dateTransformers.putAll(addlDateTransformers);
+
+            unixEpochMillisFormatter = service::formatUnixEpochMillis;
         }
 
         WRITERS = Map.copyOf(writers);
         HUMAN_READABLE_TRANSFORMERS = Map.copyOf(humanReadableTransformer);
         DATE_TRANSFORMERS = Map.copyOf(dateTransformers);
+        UNIX_EPOCH_MILLIS_FORMATTER = unixEpochMillisFormatter;
     }
 
     @FunctionalInterface
@@ -221,7 +231,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      */
     public XContentBuilder(
         XContent xContent,
@@ -244,7 +254,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
      */
     public XContentBuilder(
@@ -739,11 +749,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (values == null) {
             return nullValue();
         }
-        startArray();
-        for (String s : values) {
-            value(s);
-        }
-        endArray();
+        generator.writeStringArray(values);
         return this;
     }
 
@@ -799,52 +805,53 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Date
+    // Timestamps
     //////////////////////////////////
 
     /**
-     * Write a time-based field and value, if the passed timeValue is null a
-     * null value is written, otherwise a date transformers lookup is performed.
-
-     * @throws IllegalArgumentException if there is no transformers for the type of object
+     * Write a field with a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer
+     * for the type of {@code timestamp} and uses it to format the value.
+     *
+     * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timeField(String name, Object timeValue) throws IOException {
-        return field(name).timeValue(timeValue);
+    public XContentBuilder timestampField(String name, Object timestamp) throws IOException {
+        return field(name).timestampValue(timestamp);
     }
 
     /**
-     * If the {@code humanReadable} flag is set, writes both a formatted and
-     * unformatted version of the time value using the date transformer for the
-     * {@link Long} class.
+     * Writes a field containing the raw number of milliseconds since the unix epoch, and also if the {@code humanReadable} flag is set,
+     * writes a formatted representation of this value using the UNIX_EPOCH_MILLIS_FORMATTER.
      */
-    public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
-        assert name.equals(readableName) == false : "expected raw and readable field names to differ, but they were both: " + name;
+    public XContentBuilder timestampFieldsFromUnixEpochMillis(String rawFieldName, String humanReadableFieldName, long unixEpochMillis)
+        throws IOException {
+        assert rawFieldName.equals(humanReadableFieldName) == false
+            : "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
-            Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
-            if (longTransformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type Long");
-            }
-            field(readableName).value(longTransformer.apply(value));
+            field(humanReadableFieldName, UNIX_EPOCH_MILLIS_FORMATTER.apply(unixEpochMillis));
         }
-        field(name, value);
+        field(rawFieldName, unixEpochMillis);
         return this;
     }
 
     /**
-     * Write a time-based value, if the value is null a null value is written,
-     * otherwise a date transformers lookup is performed.
-
-     * @throws IllegalArgumentException if there is no transformers for the type of object
+     * Write a timestamp value: if the passed timestamp is null then writes null, otherwise looks up the date transformer for the type of
+     * {@code timestamp} and uses it to format the value.
+     *
+     * @throws IllegalArgumentException if there is no transformer for the given value type
      */
-    public XContentBuilder timeValue(Object timeValue) throws IOException {
-        if (timeValue == null) {
+    public XContentBuilder timestampValue(Object timestamp) throws IOException {
+        if (timestamp == null) {
             return nullValue();
         } else {
-            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
+            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timestamp.getClass());
             if (transformer == null) {
-                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type " + timeValue.getClass());
+                final var exception = new IllegalArgumentException(
+                    "cannot write timestamp value xcontent for value of unknown type " + timestamp.getClass()
+                );
+                assert false : exception;
+                throw exception;
             }
-            return value(transformer.apply(timeValue));
+            return value(transformer.apply(timestamp));
         }
     }
 
@@ -881,6 +888,14 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
+    }
+
+    public XContentBuilder field(String name, Collection<String> value) throws IOException {
+        return stringListField(name, value);
+    }
+
+    public XContentBuilder field(String name, String[] value) throws IOException {
+        return array(name, value);
     }
 
     public XContentBuilder field(String name, Number value) throws IOException {
@@ -963,11 +978,15 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value, params);
     }
 
-    private XContentBuilder value(ToXContent value) throws IOException {
+    public XContentBuilder value(ToXContent value) throws IOException {
         return value(value, ToXContent.EMPTY_PARAMS);
     }
 
-    private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
+    public XContentBuilder value(Map<String, ?> map) throws IOException {
+        return map(map);
+    }
+
+    public XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
         if (value == null) {
             return nullValue();
         }
@@ -1035,7 +1054,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
+    public XContentBuilder field(String name, Map<String, ?> values) throws IOException {
         return field(name).map(values);
     }
 
@@ -1054,8 +1073,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         startObject();
         for (Map.Entry<String, String> value : values.entrySet()) {
-            field(value.getKey());
-            value(value.getValue());
+            generator.writeStringField(value.getKey(), value.getValue());
         }
         return endObject();
     }
@@ -1204,6 +1222,26 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    /**
+     * Writes a value with the source coming directly from a pre-rendered string representation
+     */
+    public XContentBuilder rawValue(String value) throws IOException {
+        generator.writeRawValue(value);
+        return this;
+    }
+
+    /**
+     * Copies current event from parser into this builder.
+     * The difference with {@link XContentBuilder#copyCurrentStructure(XContentParser)}
+     * is that this method does not copy sub-objects as a single entity.
+     * @param parser
+     * @throws IOException
+     */
+    public XContentBuilder copyCurrentEvent(XContentParser parser) throws IOException {
+        generator.copyCurrentEvent(parser);
+        return this;
+    }
+
     public XContentBuilder copyCurrentStructure(XContentParser parser) throws IOException {
         generator.copyCurrentStructure(parser);
         return this;
@@ -1302,4 +1340,45 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
+    /**
+     * Checks whether the given value is writeable as x-content.
+     *
+     * If the value cannot be passed to {@link #value(Object)} without
+     * error, an error {@link IllegalArgumentException} is thrown.
+     */
+    public static void ensureToXContentable(@Nullable Object value) {
+        if (value == null) {
+            return;
+        }
+
+        if (value instanceof Object[] array) {
+            for (Object v : array) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() instanceof String == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot write non-String map key [" + entry.getKey().getClass().getName() + "] to x-content"
+                    );
+                }
+                ensureToXContentable(entry.getValue());
+            }
+        } else if (value instanceof Path) {
+            // Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            return;
+        } else if (value instanceof Iterable<?> iterable) {
+            // Iterable also implicitly handles Set and List
+            for (Object v : iterable) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof ToXContent || value instanceof Enum<?>) {
+            return;
+        } else {
+            Class<?> type = value.getClass();
+            if (WRITERS.containsKey(type) == false) {
+                throw new IllegalArgumentException("Cannot write type [" + type.getCanonicalName() + "] to x-content");
+            }
+        }
+    }
 }

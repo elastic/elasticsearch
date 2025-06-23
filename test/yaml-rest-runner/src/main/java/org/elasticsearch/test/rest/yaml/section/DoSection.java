@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -38,14 +39,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.elasticsearch.test.rest.yaml.section.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -185,10 +186,16 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
-                                // multiple bodies are supported e.g. in case of bulk provided as a whole string
-                                while (bodyParser.nextToken() != null) {
-                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                try (
+                                    XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
+                                        XContentParserConfiguration.EMPTY,
+                                        body
+                                    )
+                                ) {
+                                    // multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                    while (bodyParser.nextToken() != null) {
+                                        apiCallSection.addBody(bodyParser.mapOrdered());
+                                    }
                                 }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
@@ -255,7 +262,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    void setApiCallSection(ApiCallSection apiCallSection) {
+    public void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -264,7 +271,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<String> getExpectedWarningHeaders() {
+    public List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -273,7 +280,7 @@ public class DoSection implements ExecutableSection {
      * If the headers don't match this request is considered to have failed.
      * Defaults to emptyList.
      */
-    List<Pattern> getExpectedWarningHeadersRegex() {
+    public List<Pattern> getExpectedWarningHeadersRegex() {
         return expectedWarningHeadersRegex;
     }
 
@@ -281,7 +288,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
@@ -289,7 +296,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers patterns that we expect from this response. If the headers don't match this request is considered to have
      * failed. Defaults to emptyList.
      */
-    void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
+    public void setExpectedWarningHeadersRegex(List<Pattern> expectedWarningHeadersRegex) {
         this.expectedWarningHeadersRegex = expectedWarningHeadersRegex;
     }
 
@@ -297,7 +304,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<String> getAllowedWarningHeaders() {
+    public List<String> getAllowedWarningHeaders() {
         return allowedWarningHeaders;
     }
 
@@ -305,7 +312,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we allow from this response. These warning
      * headers don't cause the test to fail. Defaults to emptyList.
      */
-    List<Pattern> getAllowedWarningHeadersRegex() {
+    public List<Pattern> getAllowedWarningHeadersRegex() {
         return allowedWarningHeadersRegex;
     }
 
@@ -313,7 +320,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
+    public void setAllowedWarningHeaders(List<String> allowedWarningHeaders) {
         this.allowedWarningHeaders = allowedWarningHeaders;
     }
 
@@ -321,7 +328,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers pattern that we expect from this response. These
      * warning headers don't cause the test to fail. Defaults to emptyList.
      */
-    void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
+    public void setAllowedWarningHeadersRegex(List<Pattern> allowedWarningHeadersRegex) {
         this.allowedWarningHeadersRegex = allowedWarningHeadersRegex;
     }
 
@@ -332,7 +339,6 @@ public class DoSection implements ExecutableSection {
 
     @Override
     public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-
         if ("param".equals(catchParam)) {
             // client should throw validation error before sending request
             // lets just return without doing anything as we don't have any client to test here
@@ -348,47 +354,31 @@ public class DoSection implements ExecutableSection {
                 apiCallSection.getHeaders(),
                 apiCallSection.getNodeSelector()
             );
-            if (Strings.hasLength(catchParam)) {
-                String catchStatusCode;
-                if (CATCHES.containsKey(catchParam)) {
-                    catchStatusCode = CATCHES.get(catchParam).v1();
-                } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                    catchStatusCode = "4xx|5xx";
-                } else {
-                    throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-                }
-                fail(formatStatusCodeMessage(response, catchStatusCode));
-            }
+            failIfHasCatch(response);
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            if (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1)) {
-                // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
-                checkElasticProductHeader(response.getHeaders("X-elastic-product"));
-            }
+
+            checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
-            ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
-            if (Strings.hasLength(catchParam) == false) {
-                fail(formatStatusCodeMessage(restTestResponse, "2xx"));
-            } else if (CATCHES.containsKey(catchParam)) {
-                assertStatusCode(restTestResponse);
-            } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                // the text of the error message matches regular expression
-                assertThat(
-                    formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
-                    e.getResponseException().getResponse().getStatusLine().getStatusCode(),
-                    greaterThanOrEqualTo(400)
-                );
-                Object error = executionContext.response("error");
-                assertThat("error was expected in the response", error, notNullValue());
-                // remove delimiters from regex
-                String regex = catchParam.substring(1, catchParam.length() - 1);
-                assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
-            } else {
-                throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-            }
+            checkResponseException(e, executionContext);
         }
+    }
+
+    public void failIfHasCatch(ClientYamlTestResponse response) {
+        if (Strings.hasLength(catchParam) == false) {
+            return;
+        }
+        String catchStatusCode;
+        if (CATCHES.containsKey(catchParam)) {
+            catchStatusCode = CATCHES.get(catchParam).v1();
+        } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            catchStatusCode = "4xx|5xx";
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+        }
+        fail(formatStatusCodeMessage(response, catchStatusCode));
     }
 
     void checkElasticProductHeader(final List<String> productHeaders) {
@@ -423,7 +413,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
+    public void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -438,8 +428,7 @@ public class DoSection implements ExecutableSection {
             .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
-            final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
-            final boolean matches = matcher.matches();
+            final boolean matches = HeaderWarning.warningHeaderPatternMatches(header);
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {
@@ -512,7 +501,32 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
+    public void checkResponseException(ClientYamlTestResponseException e, ClientYamlTestExecutionContext executionContext)
+        throws IOException {
+
+        ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
+        if (Strings.hasLength(catchParam) == false) {
+            fail(formatStatusCodeMessage(restTestResponse, "2xx"));
+        } else if (CATCHES.containsKey(catchParam)) {
+            assertStatusCode(restTestResponse);
+        } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            // the text of the error message matches regular expression
+            assertThat(
+                formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
+                e.getResponseException().getResponse().getStatusLine().getStatusCode(),
+                greaterThanOrEqualTo(400)
+            );
+            Object error = executionContext.response("error");
+            assertThat("error was expected in the response", error, notNullValue());
+            // remove delimiters from regex
+            String regex = catchParam.substring(1, catchParam.length() - 1);
+            assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+        }
+    }
+
+    private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
         if (headers.isEmpty() == false) {
             sb.append(message).append(" [\n");
             for (final String header : headers) {
@@ -556,6 +570,7 @@ public class DoSection implements ExecutableSection {
         Map.entry("missing", tuple("404", equalTo(404))),
         Map.entry("request_timeout", tuple("408", equalTo(408))),
         Map.entry("conflict", tuple("409", equalTo(409))),
+        Map.entry("gone", tuple("410", equalTo(410))),
         Map.entry("unavailable", tuple("503", equalTo(503))),
         Map.entry(
             "request",
@@ -568,7 +583,8 @@ public class DoSection implements ExecutableSection {
                     not(equalTo(403)),
                     not(equalTo(404)),
                     not(equalTo(408)),
-                    not(equalTo(409))
+                    not(equalTo(409)),
+                    not(equalTo(410))
                 )
             )
         )
@@ -626,24 +642,52 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
+    private static boolean matchWithRange(
+        String nodeVersionString,
+        List<Predicate<Set<String>>> acceptedVersionRanges,
+        XContentLocation location
+    ) {
+        try {
+            return acceptedVersionRanges.stream().anyMatch(v -> v.test(Set.of(nodeVersionString)));
+        } catch (IllegalArgumentException e) {
+            throw new XContentParseException(
+                location,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
+                e
+            );
+        }
+    }
+
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = parser.text().equals("current")
-            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
-            : SkipSection.parseVersionRanges(parser.text());
+
+        final Predicate<String> nodeMatcher;
+        final String versionSelectorString;
+        if (parser.text().equals("current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else if (parser.text().equals("original")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
+            versionSelectorString = "version is not current (original)";
+        } else {
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
+            );
+        }
+
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
                 for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                     Node node = itr.next();
-                    if (node.getVersion() == null) {
+                    String versionString = node.getVersion();
+                    if (versionString == null) {
                         throw new IllegalStateException("expected [version] metadata to be set but got " + node);
                     }
-                    Version version = Version.fromString(node.getVersion());
-                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
-                    if (false == skip) {
+                    if (nodeMatcher.test(versionString) == false) {
                         itr.remove();
                     }
                 }
@@ -651,7 +695,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version ranges " + skipVersionRanges;
+                return versionSelectorString;
             }
         };
     }

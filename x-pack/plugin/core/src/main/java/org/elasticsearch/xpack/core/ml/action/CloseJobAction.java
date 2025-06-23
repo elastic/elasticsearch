@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -26,26 +25,21 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.core.RestApiVersion.equalTo;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
-
 public class CloseJobAction extends ActionType<CloseJobAction.Response> {
 
     public static final CloseJobAction INSTANCE = new CloseJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/close";
 
     private CloseJobAction() {
-        super(NAME, CloseJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match").forRestApiVersion(onOrAfter(RestApiVersion.V_8));
-        public static final ParseField ALLOW_NO_MATCH_V7 = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_JOBS_PARAM)
-            .forRestApiVersion(equalTo(RestApiVersion.V_7));
+
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
@@ -56,7 +50,6 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
-            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -179,11 +172,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(DEPRECATED_ALLOW_NO_JOBS_PARAM, allowNoMatch);
-            } else {
-                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            }
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }

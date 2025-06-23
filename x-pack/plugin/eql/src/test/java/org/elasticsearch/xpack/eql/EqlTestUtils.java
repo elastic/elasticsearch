@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -38,8 +37,6 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
 
-    public static final Version EQL_GA_VERSION = Version.V_7_10_0;
-
     private EqlTestUtils() {}
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(
@@ -54,6 +51,8 @@ public final class EqlTestUtils {
         null,
         123,
         1,
+        false,
+        true,
         "",
         new TaskId("test", 123),
         null
@@ -72,6 +71,8 @@ public final class EqlTestUtils {
             randomIndicesOptions(),
             randomIntBetween(1, 1000),
             randomIntBetween(1, 1000),
+            randomBoolean(),
+            randomBoolean(),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomTask()
@@ -144,5 +145,13 @@ public final class EqlTestUtils {
             ),
             settings
         );
+    }
+
+    public static boolean[] booleanArrayOf(int size, boolean value) {
+        boolean[] missing = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            missing[i] = value;
+        }
+        return missing;
     }
 }

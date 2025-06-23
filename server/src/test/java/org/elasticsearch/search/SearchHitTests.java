@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
@@ -25,7 +27,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -76,6 +79,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
+            } else if (rarely()) {
+                hit.setRank(randomInt());
             } else {
                 hit.score(randomFloat());
             }
@@ -99,15 +104,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             Map<String, HighlightField> highlightFields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 HighlightField testItem = HighlightFieldTests.createTestItem();
-                highlightFields.put(testItem.getName(), testItem);
+                highlightFields.put(testItem.name(), testItem);
             }
             hit.highlightFields(highlightFields);
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
+            Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
             hit.matchedQueries(matchedQueries);
         }
@@ -140,7 +145,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected Writeable.Reader<SearchHit> instanceReader() {
-        return SearchHit::new;
+        return in -> SearchHit.readFrom(in, randomBoolean());
     }
 
     @Override
@@ -148,19 +153,28 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         return createTestItem(randomFrom(XContentType.values()).canonical(), randomBoolean(), randomBoolean());
     }
 
+    @Override
+    protected SearchHit mutateInstance(SearchHit instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
         SearchHit searchHit = createTestItem(xContentType, true, false);
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        SearchHit parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parser.nextToken(); // jump to first START_OBJECT
-            parsed = SearchHit.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
+        try {
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            SearchHit parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchResponseUtils.parseSearchHit(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+        } finally {
+            searchHit.decRef();
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     /**
@@ -176,22 +190,26 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     public void testFromXContentLenientParsing() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
-        BytesReference originalBytes = toXContent(searchHit, xContentType, true);
-        Predicate<String> pathsToExclude = path -> path.endsWith("highlight")
-            || path.contains("fields")
-            || path.contains("_source")
-            || path.contains("inner_hits")
-            || path.isEmpty();
-        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
+        try {
+            BytesReference originalBytes = toXContent(searchHit, xContentType, true);
+            Predicate<String> pathsToExclude = path -> path.endsWith("highlight")
+                || path.contains("fields")
+                || path.contains("_source")
+                || path.contains("inner_hits")
+                || path.isEmpty();
+            BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
-        SearchHit parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            parser.nextToken(); // jump to first START_OBJECT
-            parsed = SearchHit.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
+            SearchHit parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchResponseUtils.parseSearchHit(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
+        } finally {
+            searchHit.decRef();
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
     }
 
     /**
@@ -202,7 +220,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit parsed;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, hit)) {
             parser.nextToken(); // jump to first START_OBJECT
-            parsed = SearchHit.fromXContent(parser);
+            parsed = SearchResponseUtils.parseSearchHit(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -213,11 +231,24 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     public void testToXContent() throws IOException {
         SearchHit searchHit = new SearchHit(1, "id1");
-        searchHit.score(1.5f);
+        try {
+            searchHit.score(1.5f);
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertEquals("""
+                {"_id":"id1","_score":1.5}""", Strings.toString(builder));
+        } finally {
+            searchHit.decRef();
+        }
+    }
+
+    public void testRankToXContent() throws IOException {
+        SearchHit searchHit = SearchHit.unpooled(1, "id1");
+        searchHit.setRank(1);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("""
-            {"_id":"id1","_score":1.5}""", Strings.toString(builder));
+            {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {
@@ -247,42 +278,52 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         hit2.shard(target);
 
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
-
-        Version version = VersionUtils.randomVersion(random());
-        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
-        SearchShardTarget deserializedTarget = results.getAt(0).getShard();
-        assertThat(deserializedTarget, equalTo(target));
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
-        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
-        for (SearchHit hit : results) {
-            assertEquals(clusterAlias, hit.getClusterAlias());
-            if (hit.getInnerHits() != null) {
-                for (SearchHits innerhits : hit.getInnerHits().values()) {
-                    for (SearchHit innerHit : innerhits) {
-                        assertEquals(clusterAlias, innerHit.getClusterAlias());
+        try {
+            TransportVersion version = TransportVersionUtils.randomVersion(random());
+            SearchHits results = copyWriteable(
+                hits,
+                getNamedWriteableRegistry(),
+                (StreamInput in) -> SearchHits.readFrom(in, randomBoolean()),
+                version
+            );
+            try {
+                SearchShardTarget deserializedTarget = results.getAt(0).getShard();
+                assertThat(deserializedTarget, equalTo(target));
+                assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+                assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+                assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
+                assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+                for (SearchHit hit : results) {
+                    assertEquals(clusterAlias, hit.getClusterAlias());
+                    if (hit.getInnerHits() != null) {
+                        for (SearchHits innerhits : hit.getInnerHits().values()) {
+                            for (SearchHit innerHit : innerhits) {
+                                assertEquals(clusterAlias, innerHit.getClusterAlias());
+                            }
+                        }
                     }
                 }
+                assertThat(results.getAt(1).getShard(), equalTo(target));
+            } finally {
+                results.decRef();
             }
+        } finally {
+            hits.decRef();
         }
-        assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 
     public void testNullSource() {
-        SearchHit searchHit = new SearchHit(0, "_id");
+        SearchHit searchHit = SearchHit.unpooled(0, "_id");
 
         assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
-        assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
-        assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
     }
 
     public void testHasSource() {
-        SearchHit searchHit = new SearchHit(randomInt());
+        SearchHit searchHit = SearchHit.unpooled(randomInt());
         assertFalse(searchHit.hasSource());
         searchHit.sourceRef(new BytesArray("{}"));
         assertTrue(searchHit.hasSource());
@@ -299,7 +340,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                     "result": [null]
                   }
                 }""");
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -318,7 +359,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                   }
                 }""");
 
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -342,7 +383,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                   }
                 }""");
 
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -359,7 +400,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.emptyList()));
-        SearchHit hit = new SearchHit(0, "_id");
+        SearchHit hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Map.of());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
@@ -368,24 +409,28 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
-            assertThat(parsed.getFields().size(), equalTo(0));
+            try {
+                assertThat(parsed.getFields().size(), equalTo(0));
+            } finally {
+                parsed.decRef();
+            }
         }
 
         fields = new HashMap<>();
         fields.put("foo", new DocumentField("foo", Collections.emptyList()));
         fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
-        hit = new SearchHit(0, "_id");
+        hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -395,14 +440,14 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         Map<String, DocumentField> metadata = new HashMap<>();
         metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
-        hit = new SearchHit(0, "_id");
+        hit = SearchHit.unpooled(0, "_id");
         hit.addDocumentFields(fields, Collections.emptyMap());
         {
             BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -410,7 +455,13 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             assertThat(parsed.getFields().get("bar").getValues(), equalTo(Collections.singletonList("value")));
             assertNull(parsed.getFields().get("_routing"));
         }
+    }
 
+    @Override
+    protected void dispose(SearchHit searchHit) {
+        if (searchHit != null) {
+            searchHit.decRef();
+        }
     }
 
     static Explanation createExplanation(int depth) {

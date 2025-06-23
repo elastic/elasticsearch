@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -11,7 +12,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -42,10 +45,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     public static final ParseField LTE_FIELD = new ParseField("lte");
     public static final ParseField GTE_FIELD = new ParseField("gte");
-    public static final ParseField FROM_FIELD = new ParseField("from");
-    public static final ParseField TO_FIELD = new ParseField("to");
-    private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower");
-    private static final ParseField INCLUDE_UPPER_FIELD = new ParseField("include_upper");
     public static final ParseField GT_FIELD = new ParseField("gt");
     public static final ParseField LT_FIELD = new ParseField("lt");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
@@ -364,15 +363,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (INCLUDE_LOWER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeLower = parser.booleanValue();
-                        } else if (INCLUDE_UPPER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeUpper = parser.booleanValue();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (GT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             from = maybeConvertToBytesRef(parser.objectBytes());
@@ -432,66 +423,80 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     // Overridable for testing only
-    protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
-        if (coordinatorRewriteContext != null) {
-            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
-            if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
-                if (coordinatorRewriteContext.hasTimestampData() == false) {
-                    return MappedFieldType.Relation.DISJOINT;
-                }
-                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
-                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
-                DateMathParser dateMathParser = getForceDateParser();
-                return dateFieldType.isFieldWithinQuery(
-                    minTimestamp,
-                    maxTimestamp,
-                    from,
-                    to,
-                    includeLower,
-                    includeUpper,
-                    timeZone,
-                    dateMathParser,
-                    queryRewriteContext
-                );
-            }
-        }
-
-        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
-        if (searchExecutionContext != null) {
-            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-            if (fieldType == null) {
+    protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+        if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            assert fieldName.equals(fieldType.name());
+            IndexLongFieldRange fieldRange = coordinatorRewriteContext.getFieldRange(fieldName);
+            if (fieldRange.isComplete() == false || fieldRange == IndexLongFieldRange.EMPTY) {
+                // if not all shards for this (frozen) index have reported ranges to cluster state, OR if they
+                // have reported in and the range is empty (no data for that field), then return DISJOINT in order
+                // to rewrite the query to MatchNone
                 return MappedFieldType.Relation.DISJOINT;
             }
-            if (searchExecutionContext.getIndexReader() == null) {
-                // No reader, this may happen e.g. for percolator queries.
+            if (fieldRange == IndexLongFieldRange.UNKNOWN) {
+                // do a full search if UNKNOWN for whatever reason (e.g., event.ingested is UNKNOWN in a
+                // mixed-cluster where nodes with a version before event.ingested was added to cluster state)
                 return MappedFieldType.Relation.INTERSECTS;
             }
-
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(
-                searchExecutionContext.getIndexReader(),
+            return dateFieldType.isFieldWithinQuery(
+                fieldRange.getMin(),
+                fieldRange.getMax(),
                 from,
                 to,
                 includeLower,
                 includeUpper,
                 timeZone,
                 dateMathParser,
-                queryRewriteContext
+                coordinatorRewriteContext
             );
         }
-
-        // Not on the shard, we have no way to know what the relation is.
+        // If the field type is null or not of type DataFieldType then we have no idea whether this range query will match during
+        // coordinating rewrite. So we should return that it intersects, either the data node query rewrite or by actually running
+        // the query we know whether this range query actually matches.
         return MappedFieldType.Relation.INTERSECTS;
     }
 
+    protected MappedFieldType.Relation getRelation(final SearchExecutionContext searchExecutionContext) throws IOException {
+        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+        if (fieldType == null) {
+            return MappedFieldType.Relation.DISJOINT;
+        }
+        if (searchExecutionContext.getIndexReader() == null) {
+            // No reader, this may happen e.g. for percolator queries.
+            return MappedFieldType.Relation.INTERSECTS;
+        }
+
+        DateMathParser dateMathParser = getForceDateParser();
+        return fieldType.isFieldWithinQuery(
+            searchExecutionContext.getIndexReader(),
+            from,
+            to,
+            includeLower,
+            includeUpper,
+            timeZone,
+            dateMathParser,
+            searchExecutionContext
+        );
+    }
+
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
+    protected QueryBuilder doCoordinatorRewrite(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        return toQueryBuilder(getRelation(coordinatorRewriteContext));
+    }
+
+    @Override
+    protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
+        return toQueryBuilder(getRelation(searchExecutionContext));
+    }
+
+    private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
         switch (relation) {
-            case DISJOINT:
-                return new MatchNoneQueryBuilder();
-            case WITHIN:
+            case DISJOINT -> {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            }
+            case WITHIN -> {
                 if (from != null || to != null || format != null || timeZone != null) {
                     RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                     newRangeQuery.from(null);
@@ -502,10 +507,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 } else {
                     return this;
                 }
-            case INTERSECTS:
+            }
+            case INTERSECTS -> {
                 return this;
-            default:
-                throw new AssertionError();
+            }
+            default -> throw new AssertionError();
         }
     }
 
@@ -551,7 +557,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

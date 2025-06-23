@@ -1,0 +1,707 @@
+// This file contains any ESQL snippets from the docs that don't have a home
+// anywhere else. The Isle of Misfit Toys. When you need to add new examples
+// for the docs you should try to convert an existing test first. Just add
+// the comments in whatever file the test already lives in. If you have to
+// write a new test to make an example in the docs then put it in whatever
+// file matches its "theme" best. Put it next to similar tests. Not here.
+
+// Also! When Nik originally extracted examples from the docs to make them
+// testable he didn't spend a lot of time putting the docs into appropriate
+// files. He just made this one. He didn't put his toys away. We'd be better
+// off not adding to this strange toy-pile and instead moving things into
+// the appropriate files.
+
+docsKeep
+// tag::keep[]
+FROM employees
+| KEEP emp_no, first_name, last_name, height
+// end::keep[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::keep-result[]
+emp_no:integer | first_name:keyword | last_name:keyword | height:double
+10001          |Georgi         |Facello        |2.03
+10002          |Bezalel        |Simmel         |2.08
+10003          |Parto          |Bamford        |1.83
+10004          |Chirstian      |Koblick        |1.78
+10005          |Kyoichi        |Maliniak       |2.05
+// end::keep-result[]
+;
+
+docsKeepWildcard
+// tag::keepWildcard[]
+FROM employees
+| KEEP h*
+// end::keepWildcard[]
+| LIMIT 0;
+
+// tag::keepWildcard-result[]
+height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
+// end::keepWildcard-result[]
+;
+
+docsKeepDoubleWildcard
+// tag::keepDoubleWildcard[]
+FROM employees
+| KEEP h*, *
+// end::keepDoubleWildcard[]
+| LIMIT 0;
+
+// tag::keepDoubleWildcard-result[]
+height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
+// end::keepDoubleWildcard-result[]
+;
+
+docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+// tag::keepCompleteName[]
+FROM employees
+| KEEP first_name, last_name, first_name*
+// end::keepCompleteName[]
+| LIMIT 0;
+
+// tag::keepCompleteName-result[]
+first_name:keyword | last_name:keyword
+// end::keepCompleteName-result[]
+;
+
+docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+// tag::keepWildcardPrecedence[]
+FROM employees
+| KEEP first_name*, last_name, first_na*
+// end::keepWildcardPrecedence[]
+| LIMIT 0;
+
+// tag::keepWildcardPrecedence-result[]
+last_name:keyword | first_name:keyword
+// end::keepWildcardPrecedence-result[]
+;
+
+docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+// tag::keepWildcardLowest[]
+FROM employees
+| KEEP *, first_name
+// end::keepWildcardLowest[]
+| LIMIT 0;
+
+// tag::keepWildcardLowest-result[]
+avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|first_name:keyword
+// end::keepWildcardLowest-result[]
+;
+
+docsRename
+// tag::rename[]
+FROM employees
+| KEEP first_name, last_name, still_hired
+| RENAME  still_hired AS employed
+// end::rename[]
+| LIMIT 0;
+
+first_name:keyword | last_name:keyword | employed:boolean
+;
+
+docsRenameMultipleColumns
+// tag::renameMultipleColumns[]
+FROM employees
+| KEEP first_name, last_name
+| RENAME first_name AS fn, last_name AS ln
+// end::renameMultipleColumns[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
+docsRenameMultipleColumnsDifferentCommands
+// tag::renameMultipleColumnsDifferentCommands[]
+FROM employees
+| KEEP first_name, last_name
+| RENAME first_name AS fn
+| RENAME last_name AS ln
+// end::renameMultipleColumnsDifferentCommands[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
+docsSort
+// tag::sort[]
+FROM employees
+| KEEP first_name, last_name, height
+| SORT height
+// end::sort[]
+| SORT height, first_name
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Mayuko         |Warwick        |1.41
+Breannda       |Billingsley    |1.42
+Vishv          |Zockler        |1.42
+;
+
+docsSortDesc
+// tag::sortDesc[]
+FROM employees
+| KEEP first_name, last_name, height
+| SORT height DESC
+// end::sortDesc[]
+| SORT height DESC, first_name ASC
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Arumugam       |Ossenbruggen   |2.1
+Kwee           |Schusler       |2.1
+Saniya         |Kalloufi       |2.1
+;
+
+docsSortTie
+// tag::sortTie[]
+FROM employees
+| KEEP first_name, last_name, height
+| SORT height DESC, first_name ASC
+// end::sortTie[]
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+Arumugam       |Ossenbruggen   |2.1
+Kwee           |Schusler       |2.1
+Saniya         |Kalloufi       |2.1
+;
+
+docsSortNullsFirst
+// tag::sortNullsFirst[]
+FROM employees
+| KEEP first_name, last_name, height
+| SORT first_name ASC NULLS FIRST
+// end::sortNullsFirst[]
+| SORT first_name ASC NULLS FIRST, height
+| LIMIT 3;
+
+first_name:keyword | last_name:keyword | height:double
+null           |Swan           |1.46
+null           |Lortz          |1.53
+null           |Brender        |1.55
+;
+
+docsWhere
+// tag::where[]
+FROM employees
+| KEEP first_name, last_name, still_hired
+| WHERE still_hired == true
+// end::where[]
+| STATS count = COUNT(last_name) BY still_hired
+;
+
+count:long | still_hired:boolean
+45             |true
+;
+
+docsWhereBoolean
+// tag::whereBoolean[]
+FROM employees
+| KEEP first_name, last_name, still_hired
+| WHERE still_hired
+// end::whereBoolean[]
+| STATS count = COUNT(last_name) BY still_hired
+;
+
+count:long | still_hired:boolean
+45             |true
+;
+
+docsWhereFunction
+// tag::whereFunction[]
+FROM employees
+| KEEP first_name, last_name, height
+| WHERE LENGTH(first_name) < 4
+// end::whereFunction[]
+| SORT first_name
+;
+
+first_name:keyword | last_name:keyword | height:double
+Gao            |Dolinsky       |1.94
+Tse            |Herber         |1.45
+Udi            |Jansch         |1.93
+Uri            |Lenart         |1.75
+;
+
+docsSubstring
+// tag::substring[]
+FROM employees
+| KEEP last_name
+| EVAL ln_sub = SUBSTRING(last_name, 1, 3)
+// end::substring[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::substring-result[]
+last_name:keyword | ln_sub:keyword
+Awdeh          |Awd
+Azuma          |Azu
+Baek           |Bae
+Bamford        |Bam
+Bernatsky      |Ber
+// end::substring-result[]
+;
+
+docsSubstringEnd
+// tag::substringEnd[]
+FROM employees
+| KEEP last_name
+| EVAL ln_sub = SUBSTRING(last_name, -3, 3)
+// end::substringEnd[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::substringEnd-result[]
+last_name:keyword | ln_sub:keyword
+Awdeh          |deh
+Azuma          |uma
+Baek           |aek
+Bamford        |ord
+Bernatsky      |sky
+// end::substringEnd-result[]
+;
+
+docsSubstringRemainder
+// tag::substringRemainder[]
+FROM employees
+| KEEP last_name
+| EVAL ln_sub = SUBSTRING(last_name, 2)
+// end::substringRemainder[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::substringRemainder-result[]
+last_name:keyword | ln_sub:keyword
+Awdeh          |wdeh
+Azuma          |zuma
+Baek           |aek
+Bamford        |amford
+Bernatsky      |ernatsky
+// end::substringRemainder-result[]
+;
+
+docsStartsWith
+// tag::startsWith[]
+FROM employees
+| KEEP last_name
+| EVAL ln_S = STARTS_WITH(last_name, "B")
+// end::startsWith[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::startsWith-result[]
+last_name:keyword | ln_S:boolean
+Awdeh          |false
+Azuma          |false
+Baek           |true
+Bamford        |true
+Bernatsky      |true
+// end::startsWith-result[]
+;
+
+docsRound
+// tag::round[]
+FROM employees
+| KEEP first_name, last_name, height
+| EVAL height_ft = ROUND(height * 3.281, 1)
+// end::round[]
+| SORT height DESC, first_name ASC
+| LIMIT 3;
+
+// tag::round-result[]
+first_name:keyword | last_name:keyword | height:double | height_ft:double
+Arumugam       |Ossenbruggen   |2.1          |6.9
+Kwee           |Schusler       |2.1          |6.9
+Saniya         |Kalloufi       |2.1          |6.9
+// end::round-result[]
+;
+
+dateParse
+// tag::dateParse[]
+ROW date_string = "2022-05-06"
+| EVAL date = DATE_PARSE("yyyy-MM-dd", date_string)
+// end::dateParse[]
+;
+
+//tag::dateParse-result[]
+date_string:keyword | date:date
+2022-05-06          | 2022-05-06T00:00:00.000Z
+// end::dateParse-result[]
+;
+
+docsReplace
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+| KEEP str
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;
+
+docsCase
+// tag::case[]
+FROM employees
+| EVAL type = CASE(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| KEEP emp_no, languages, type
+// end::case[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::case-result[]
+emp_no:integer | languages:integer| type:keyword
+10001          | 2                |bilingual
+10002          | 5                |polyglot
+10003          | 4                |polyglot
+10004          | 5                |polyglot
+10005          | 1                |monolingual
+// end::case-result[]
+;
+
+docsCountAll
+// tag::countAll[]
+FROM employees
+| STATS count = COUNT(*) BY languages
+| SORT languages DESC
+// end::countAll[]
+;
+
+// tag::countAll-result[]
+count:long | languages:integer
+10         |null
+21         |5
+18         |4
+17         |3
+19         |2
+15         |1
+// end::countAll-result[]
+;
+
+basicGrok
+// tag::basicGrok[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}"""
+| KEEP date, ip, email, num
+// end::basicGrok[]
+;
+
+// tag::basicGrok-result[]
+date:keyword          | ip:keyword    | email:keyword       | num:keyword
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::basicGrok-result[]
+;
+
+grokWithConversionSuffix
+// tag::grokWithConversionSuffix[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"""
+| KEEP date, ip, email, num
+// end::grokWithConversionSuffix[]
+;
+
+// tag::grokWithConversionSuffix-result[]
+date:keyword              | ip:keyword    | email:keyword       | num:integer
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::grokWithConversionSuffix-result[]
+;
+
+grokWithToDatetime
+// tag::grokWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"""
+| KEEP date, ip, email, num
+| EVAL date = TO_DATETIME(date)
+// end::grokWithToDatetime[]
+;
+
+// tag::grokWithToDatetime-result[]
+ip:keyword    | email:keyword       | num:integer | date:date
+127.0.0.1     | some.email@foo.com  | 42          | 2023-01-23T12:15:00.000Z
+// end::grokWithToDatetime-result[]
+;
+
+grokWithEscape
+// tag::grokWithEscape[]
+ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
+| GROK a "%{IP:ip} \\[%{TIMESTAMP_ISO8601:@timestamp}\\] %{GREEDYDATA:status}"
+// end::grokWithEscape[]
+| KEEP @timestamp
+;
+
+// tag::grokWithEscape-result[]
+@timestamp:keyword
+2023-01-23T12:15:00.000Z
+// end::grokWithEscape-result[]
+;
+
+
+grokWithEscapeTripleQuotes
+// tag::grokWithEscapeTripleQuotes[]
+ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
+| GROK a """%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}"""
+// end::grokWithEscapeTripleQuotes[]
+| KEEP @timestamp
+;
+
+// tag::grokWithEscapeTripleQuotes-result[]
+@timestamp:keyword
+2023-01-23T12:15:00.000Z
+// end::grokWithEscapeTripleQuotes-result[]
+;
+
+
+grokWithDuplicateFieldNames
+// tag::grokWithDuplicateFieldNames[]
+FROM addresses
+| KEEP city.name, zip_code
+| GROK zip_code """%{WORD:zip_parts} %{WORD:zip_parts}"""
+// end::grokWithDuplicateFieldNames[]
+| SORT city.name
+;
+
+// tag::grokWithDuplicateFieldNames-result[]
+city.name:keyword | zip_code:keyword | zip_parts:keyword
+Amsterdam         | 1016 ED          | ["1016", "ED"]
+San Francisco     | CA 94108         | ["CA", "94108"]
+Tokyo             | 100-7014         | null
+// end::grokWithDuplicateFieldNames-result[]
+;
+
+basicDissect
+// tag::basicDissect[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
+| DISSECT a """%{date} - %{msg} - %{ip}"""
+| KEEP date, msg, ip
+// end::basicDissect[]
+;
+
+// tag::basicDissect-result[]
+date:keyword             | msg:keyword  | ip:keyword
+2023-01-23T12:15:00.000Z | some text    | 127.0.0.1
+// end::basicDissect-result[]
+;
+
+dissectWithToDatetime
+// tag::dissectWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
+| DISSECT a """%{date} - %{msg} - %{ip}"""
+| KEEP date, msg, ip
+| EVAL date = TO_DATETIME(date)
+// end::dissectWithToDatetime[]
+;
+
+// tag::dissectWithToDatetime-result[]
+msg:keyword  | ip:keyword | date:date
+some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
+// end::dissectWithToDatetime-result[]
+;
+
+dissectRightPaddingModifier
+// tag::dissectRightPaddingModifier[]
+ROW message="1998-08-10T17:15:42          WARN"
+| DISSECT message """%{ts->} %{level}"""
+// end::dissectRightPaddingModifier[]
+;
+
+// tag::dissectRightPaddingModifier-result[]
+message:keyword  | ts:keyword | level:keyword
+1998-08-10T17:15:42          WARN|1998-08-10T17:15:42|WARN
+// end::dissectRightPaddingModifier-result[]
+;
+
+dissectEmptyRightPaddingModifier#[skip:-8.11.2, reason:Support for empty right padding modifiers introduced in 8.11.2]
+// tag::dissectEmptyRightPaddingModifier[]
+ROW message="[1998-08-10T17:15:42]          [WARN]"
+| DISSECT message """[%{ts}]%{->}[%{level}]"""
+// end::dissectEmptyRightPaddingModifier[]
+;
+
+// tag::dissectEmptyRightPaddingModifier-result[]
+             message:keyword             |     ts:keyword     |level:keyword
+["[1998-08-10T17:15:42]          [WARN]"]|1998-08-10T17:15:42 |WARN
+// end::dissectEmptyRightPaddingModifier-result[]
+;
+
+dissectAppendModifier
+// tag::dissectAppendModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message """%{+name} %{+name} %{+name} %{+name}""" APPEND_SEPARATOR=" "
+// end::dissectAppendModifier[]
+;
+
+// tag::dissectAppendModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|john jacob jingleheimer schmidt
+// end::dissectAppendModifier-result[]
+;
+
+dissectAppendWithOrderModifier
+// tag::dissectAppendWithOrderModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message """%{+name/2} %{+name/4} %{+name/3} %{+name/1}""" APPEND_SEPARATOR=","
+// end::dissectAppendWithOrderModifier[]
+;
+
+// tag::dissectAppendWithOrderModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|schmidt,john,jingleheimer,jacob
+// end::dissectAppendWithOrderModifier-result[]
+;
+
+dissectNamedSkipKey
+// tag::dissectNamedSkipKey[]
+ROW message="1.2.3.4 - - 30/Apr/1998:22:00:52 +0000"
+| DISSECT message """%{clientip} %{?ident} %{?auth} %{@timestamp}"""
+// end::dissectNamedSkipKey[]
+;
+
+// tag::dissectNamedSkipKey-result[]
+message:keyword  | clientip:keyword  | @timestamp:keyword
+1.2.3.4 - - 30/Apr/1998:22:00:52 +0000|1.2.3.4        |30/Apr/1998:22:00:52 +0000
+// end::dissectNamedSkipKey-result[]
+;
+
+docsLike
+// tag::like[]
+FROM employees
+| WHERE first_name LIKE """?b*"""
+| KEEP first_name, last_name
+// end::like[]
+| SORT first_name
+;
+
+// tag::like-result[]
+first_name:keyword  | last_name:keyword
+Ebbe           |Callaway
+Eberhardt      |Terkki
+// end::like-result[]
+;
+
+docsRlike
+// tag::rlike[]
+FROM employees
+| WHERE first_name RLIKE """.leja.*"""
+| KEEP first_name, last_name
+// end::rlike[]
+;
+
+// tag::rlike-result[]
+first_name:keyword  | last_name:keyword
+Alejandro      |McAlpine
+// end::rlike-result[]
+;
+
+docsGettingStartedFrom
+// tag::gs-from[]
+FROM sample_data
+// end::gs-from[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedFromLowercase
+// tag::gs-from-lowercase[]
+from sample_data
+// end::gs-from-lowercase[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedLimit
+// tag::gs-limit[]
+FROM sample_data
+| LIMIT 3
+// end::gs-limit[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedLimitOneLine
+// tag::gs-limit-one-line[]
+FROM sample_data | LIMIT 3
+// end::gs-limit-one-line[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedSort
+// tag::gs-sort[]
+FROM sample_data
+| SORT @timestamp DESC
+// end::gs-sort[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedChaining
+// tag::gs-chaining[]
+FROM sample_data
+| SORT @timestamp DESC
+| LIMIT 3
+// end::gs-chaining[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsBitLength
+required_capability: fn_bit_length
+// tag::bitLength[]
+FROM airports
+| WHERE country == "India"
+| KEEP city
+| EVAL fn_length = LENGTH(city), fn_bit_length = BIT_LENGTH(city)
+// end::bitLength[]
+| SORT city
+| LIMIT 3
+;
+
+// tag::bitLength-result[]
+city:keyword  | fn_length:integer | fn_bit_length:integer
+Agwār         | 5                 | 48
+Ahmedabad     | 9                 | 72
+Bangalore     | 9                 | 72
+// end::bitLength-result[]
+;
+
+docsCategorize
+required_capability: categorize_v6
+// tag::docsCategorize[]
+FROM sample_data
+| STATS count=COUNT() BY category=CATEGORIZE(message)
+// end::docsCategorize[]
+| SORT category
+;
+
+// tag::docsCategorize-result[]
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         3 | .*?Connection.+?error.*?
+         1 | .*?Disconnected.*?
+// end::docsCategorize-result[]
+;

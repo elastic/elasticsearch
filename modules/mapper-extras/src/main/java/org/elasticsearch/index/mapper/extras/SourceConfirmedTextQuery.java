@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -23,9 +24,9 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafSimScorer;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -33,12 +34,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 
@@ -46,12 +50,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A variant of {@link TermQuery}, {@link PhraseQuery}, {@link MultiPhraseQuery}
@@ -145,12 +148,12 @@ public final class SourceConfirmedTextQuery extends Query {
     };
 
     private final Query in;
-    private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
+    private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
     public SourceConfirmedTextQuery(
         Query in,
-        Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
         this.in = in;
@@ -189,8 +192,8 @@ public final class SourceConfirmedTextQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query inRewritten = in.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query inRewritten = in.rewrite(searcher);
         if (inRewritten != in) {
             return new SourceConfirmedTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
@@ -203,7 +206,7 @@ public final class SourceConfirmedTextQuery extends Query {
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override
@@ -212,8 +215,9 @@ public final class SourceConfirmedTextQuery extends Query {
             // No need to ever look at the _source for non-scoring term queries
             return in.createWeight(searcher, scoreMode, boost);
         }
-
-        final Set<Term> terms = new HashSet<>();
+        // We use a LinkedHashSet here to preserve the ordering of terms to ensure that
+        // later summing of float scores per term is consistent
+        final Set<Term> terms = new LinkedHashSet<>();
         in.visit(QueryVisitor.termCollector(terms));
         if (terms.isEmpty()) {
             throw new IllegalStateException("Query " + in + " doesn't have any term");
@@ -232,7 +236,7 @@ public final class SourceConfirmedTextQuery extends Query {
             for (Term term : terms) {
                 TermStates ts = termStates.computeIfAbsent(term, t -> {
                     try {
-                        return TermStates.build(searcher.getTopReaderContext(), t, scoreMode.needsScores());
+                        return TermStates.build(searcher, t, scoreMode.needsScores());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -245,8 +249,13 @@ public final class SourceConfirmedTextQuery extends Query {
                     termStats.add(new TermStatistics(term.bytes(), 1, 1L));
                 }
             }
-            simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
-            approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (termStats.size() > 0) {
+                simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
+                approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            } else {
+                simScorer = null;
+                approximationWeight = null;
+            }
         }
         return new Weight(this) {
 
@@ -258,7 +267,12 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                RuntimePhraseScorer scorer = scorer(context);
+                NumericDocValues norms = context.reader().getNormValues(field);
+                ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
+                    return Explanation.noMatch("No matching phrase");
+                }
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -268,8 +282,8 @@ public final class SourceConfirmedTextQuery extends Query {
                 }
                 float phraseFreq = scorer.freq();
                 Explanation freqExplanation = Explanation.match(phraseFreq, "phraseFreq=" + phraseFreq);
-                final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
-                Explanation scoreExplanation = leafSimScorer.explain(doc, freqExplanation);
+                assert simScorer != null;
+                Explanation scoreExplanation = simScorer.explain(freqExplanation, getNormValue(norms, doc));
                 return Explanation.match(
                     scoreExplanation.getValue(),
                     "weight(" + getQuery() + " in " + doc + ") [" + searcher.getSimilarity().getClass().getSimpleName() + "], result of:",
@@ -278,41 +292,91 @@ public final class SourceConfirmedTextQuery extends Query {
             }
 
             @Override
-            public RuntimePhraseScorer scorer(LeafReaderContext context) throws IOException {
-                final Scorer approximationScorer = approximationWeight != null ? approximationWeight.scorer(context) : null;
-                if (approximationScorer == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier approximationSupplier = approximationWeight != null ? approximationWeight.scorerSupplier(context) : null;
+                if (approximationSupplier == null) {
                     return null;
                 }
-                final DocIdSetIterator approximation = approximationScorer.iterator();
-                final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
-                final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
-                return new RuntimePhraseScorer(this, approximation, leafSimScorer, valueFetcher, field, in);
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        final Scorer approximationScorer = approximationSupplier.get(leadCost);
+                        final DocIdSetIterator approximation = approximationScorer.iterator();
+                        final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
+                        NumericDocValues norms = context.reader().getNormValues(field);
+                        return new RuntimePhraseScorer(approximation, simScorer, norms, valueFetcher, field, in);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return approximationSupplier.cost();
+                    }
+                };
             }
 
+            @Override
+            public Matches matches(LeafReaderContext context, int doc) throws IOException {
+                var terms = context.reader().terms(field);
+                if (terms == null) {
+                    return null;
+                }
+                // Some highlighters will already have re-indexed the source with positions and offsets,
+                // so rather than doing it again we check to see if this data is available on the
+                // current context and if so delegate directly to the inner query
+                if (terms.hasOffsets()) {
+                    Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                    return innerWeight.matches(context, doc);
+                }
+                ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
+                    return null;
+                }
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0L);
+                if (scorer == null) {
+                    return null;
+                }
+                final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+                if (twoPhase.approximation().advance(doc) != doc || scorer.twoPhaseIterator().matches() == false) {
+                    return null;
+                }
+                return scorer.matches();
+            }
         };
     }
 
-    private class RuntimePhraseScorer extends Scorer {
+    private static long getNormValue(NumericDocValues norms, int doc) throws IOException {
+        if (norms != null) {
+            boolean found = norms.advanceExact(doc);
+            assert found;
+            return norms.longValue();
+        } else {
+            return 1L; // default norm
+        }
+    }
 
-        private final LeafSimScorer scorer;
+    private class RuntimePhraseScorer extends Scorer {
+        private final SimScorer scorer;
         private final CheckedIntFunction<List<Object>, IOException> valueFetcher;
         private final String field;
         private final Query query;
         private final TwoPhaseIterator twoPhase;
+        private final NumericDocValues norms;
+
+        private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
 
         private int doc = -1;
         private float freq;
 
         private RuntimePhraseScorer(
-            Weight weight,
             DocIdSetIterator approximation,
-            LeafSimScorer scorer,
+            SimScorer scorer,
+            NumericDocValues norms,
             CheckedIntFunction<List<Object>, IOException> valueFetcher,
             String field,
             Query query
         ) {
-            super(weight);
             this.scorer = scorer;
+            this.norms = norms;
             this.valueFetcher = valueFetcher;
             this.field = field;
             this.query = query;
@@ -329,7 +393,6 @@ public final class SourceConfirmedTextQuery extends Query {
                     // Defaults to a high-ish value so that it likely runs last.
                     return 10_000f;
                 }
-
             };
         }
 
@@ -345,12 +408,12 @@ public final class SourceConfirmedTextQuery extends Query {
 
         @Override
         public float getMaxScore(int upTo) throws IOException {
-            return scorer.getSimScorer().score(Float.MAX_VALUE, 1L);
+            return scorer.score(Float.MAX_VALUE, 1L);
         }
 
         @Override
         public float score() throws IOException {
-            return scorer.score(docID(), freq());
+            return scorer.score(freq(), getNormValue(norms, doc));
         }
 
         @Override
@@ -366,21 +429,41 @@ public final class SourceConfirmedTextQuery extends Query {
             return freq;
         }
 
-        private float computeFreq() throws IOException {
-            MemoryIndex index = new MemoryIndex();
-            index.setSimilarity(FREQ_SIMILARITY);
-            List<Object> values = valueFetcher.apply(docID());
-            float frequency = 0;
-            for (Object value : values) {
-                if (value == null) {
-                    continue;
+        private MemoryIndex getOrCreateMemoryIndex() throws IOException {
+            if (cacheEntry.docID != docID()) {
+                cacheEntry.docID = docID();
+                cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                cacheEntry.memoryIndex.setSimilarity(FREQ_SIMILARITY);
+                List<Object> values = valueFetcher.apply(docID());
+                for (Object value : values) {
+                    if (value == null) {
+                        continue;
+                    }
+                    String valueStr;
+                    if (value instanceof BytesRef valueRef) {
+                        valueStr = valueRef.utf8ToString();
+                    } else {
+                        valueStr = value.toString();
+                    }
+                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
                 }
-                index.addField(field, value.toString(), indexAnalyzer);
-                frequency += index.search(query);
-                index.reset();
             }
-            return frequency;
+            return cacheEntry.memoryIndex;
+        }
+
+        private float computeFreq() throws IOException {
+            return getOrCreateMemoryIndex().search(query);
+        }
+
+        private Matches matches() throws IOException {
+            IndexSearcher searcher = getOrCreateMemoryIndex().createSearcher();
+            Weight w = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
+            return w.matches(searcher.getLeafContexts().get(0), 0);
         }
     }
 
+    private static class MemoryIndexEntry {
+        private int docID = -1;
+        private MemoryIndex memoryIndex;
+    }
 }

@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,11 +54,10 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
             assertThat(subject.getType(), is(Subject.Type.USER));
             assertThat(Set.of(subject.getUser().roles()), equalTo(userRoleNames));
 
-            ActionListener<Collection<Set<RoleDescriptor>>> listener = (ActionListener<Collection<Set<RoleDescriptor>>>) args[args.length
-                - 1];
-            listener.onResponse(List.of(roleDescriptors));
+            ActionListener<Set<RoleDescriptor>> listener = (ActionListener<Set<RoleDescriptor>>) args[args.length - 1];
+            listener.onResponse(roleDescriptors);
             return null;
-        }).when(rolesStore).getRoleDescriptorsList(any(Subject.class), any(ActionListener.class));
+        }).when(rolesStore).getRoleDescriptors(any(Subject.class), any(ActionListener.class));
 
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
         resolver.resolveUserRoleDescriptors(authentication, future);
@@ -77,6 +74,6 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
         resolver.resolveUserRoleDescriptors(authentication, future);
 
         assertThat(future.actionGet(), equalTo(Set.of()));
-        verify(rolesStore, never()).getRoleDescriptorsList(any(), any());
+        verify(rolesStore, never()).getRoleDescriptors(any(), any());
     }
 }

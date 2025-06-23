@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
@@ -15,14 +16,18 @@ import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
-
 class SequencePayload extends AbstractPayload {
 
     private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
 
-    SequencePayload(List<Sequence> sequences, List<List<SearchHit>> docs, boolean timedOut, TimeValue timeTook) {
-        super(timedOut, timeTook);
+    SequencePayload(
+        List<Sequence> sequences,
+        List<List<SearchHit>> docs,
+        boolean timedOut,
+        TimeValue timeTook,
+        ShardSearchFailure[] shardFailures
+    ) {
+        super(timedOut, timeTook, shardFailures);
         values = new ArrayList<>(sequences.size());
 
         for (int i = 0; i < sequences.size(); i++) {
@@ -30,7 +35,12 @@ class SequencePayload extends AbstractPayload {
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
-                events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields()));
+                if (hit == null) {
+                    events.add(Event.MISSING_EVENT);
+                } else {
+                    events.add(new Event(hit));
+                }
+
             }
             values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
         }

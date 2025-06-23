@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+base {
+  archivesName = 'x-pack-esql-compute-ann'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // doesn't depend on anything
+  replaceSignatureFiles 'jdk-signatures'
+}

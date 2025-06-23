@@ -18,7 +18,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
@@ -50,7 +49,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
@@ -65,7 +64,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),
@@ -127,7 +126,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     }
 
     @Override
-    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
+    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
         long version = instance.getVersion();

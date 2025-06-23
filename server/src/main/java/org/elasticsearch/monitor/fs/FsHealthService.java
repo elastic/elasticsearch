@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.fs;
@@ -42,7 +43,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the path as unhealthy.
  */
-public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
+public final class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
 
@@ -87,7 +88,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.slowPathLoggingThreshold = SLOW_PATH_LOGGING_THRESHOLD_SETTING.get(settings);
-        this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
+        this.currentTimeMillisSupplier = threadPool.relativeTimeInMillisSupplier();
         this.nodeEnv = nodeEnv;
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -95,7 +96,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, threadPool.generic());
     }
 
     @Override

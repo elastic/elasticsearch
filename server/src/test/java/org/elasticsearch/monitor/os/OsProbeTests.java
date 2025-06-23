@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
@@ -135,12 +136,12 @@ public class OsProbeTests extends ESTestCase {
         if (Constants.LINUX) {
             if (stats.getCgroup() != null) {
                 assertThat(stats.getCgroup().getCpuAcctControlGroup(), notNullValue());
-                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(0L));
+                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(BigInteger.ZERO));
                 assertThat(stats.getCgroup().getCpuCfsQuotaMicros(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
                 assertThat(stats.getCgroup().getCpuCfsPeriodMicros(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(BigInteger.ZERO));
                 // These could be null if transported from a node running an older version, but shouldn't be null on the current node
                 assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
                 String memoryLimitInBytes = stats.getCgroup().getMemoryLimitInBytes();
@@ -185,20 +186,34 @@ public class OsProbeTests extends ESTestCase {
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
-        if (availableCgroupsVersion > 0) {
-            assertNotNull(cgroup);
-            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
-            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
-            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
-            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
-        } else {
-            assertNull(cgroup);
+        switch (availableCgroupsVersion) {
+            case 0 -> assertNull(cgroup);
+            case 1 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063112")));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(BigInteger.valueOf(17992)));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(BigInteger.valueOf(1311)));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(new BigInteger("139298645489")));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
+            case 2 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063000")));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(BigInteger.valueOf(17992)));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(BigInteger.valueOf(1311)));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(new BigInteger("139298645000")));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
         }
     }
 
@@ -447,12 +462,12 @@ public class OsProbeTests extends ESTestCase {
             List<String> readCgroupV2CpuStats(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
                 return List.of(
-                    "usage_usec 364869866063112",
+                    "usage_usec 364869866063",
                     "user_usec 34636",
                     "system_usec 9896",
                     "nr_periods 17992",
                     "nr_throttled 1311",
-                    "throttled_usec 139298645489"
+                    "throttled_usec 139298645"
                 );
             }
 

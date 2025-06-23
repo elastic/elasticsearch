@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -16,13 +17,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,10 +44,11 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     PrevalidateShardPathRequest,
     PrevalidateShardPathResponse,
     NodePrevalidateShardPathRequest,
-    NodePrevalidateShardPathResponse> {
+    NodePrevalidateShardPathResponse,
+    Void> {
 
     public static final String ACTION_NAME = "internal:admin/indices/prevalidate_shard_path";
-    public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME, PrevalidateShardPathResponse::new);
+    public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME);
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateShardPathAction.class);
 
     private final TransportService transportService;
@@ -64,14 +66,11 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            PrevalidateShardPathRequest::new,
             NodePrevalidateShardPathRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodePrevalidateShardPathResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;
@@ -104,7 +103,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
         // For each shard we only check whether the shard path exists, regardless of whether the content is a valid index or not.
         for (ShardId shardId : request.getShardIds()) {
             try {
-                var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                var indexMetadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
                 String customDataPath = null;
                 if (indexMetadata != null) {
                     customDataPath = new IndexSettings(indexMetadata, settings).customDataPath();

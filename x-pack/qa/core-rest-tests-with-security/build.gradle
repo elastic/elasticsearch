@@ -1,12 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   testImplementation project(':x-pack:qa')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:rank-eval')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
 }
 
 restResources {
@@ -16,9 +29,15 @@ restResources {
 }
 
 tasks.named("yamlRestTest").configure {
-    systemProperty 'tests.rest.blacklist',
-      [
-        'index/10_with_id/Index with ID',
-        'indices.get_alias/10_basic/Get alias against closed indices'
-      ].join(',')
+  ArrayList<String> blacklist = [
+    'index/10_with_id/Index with ID',
+    'indices.get_alias/10_basic/Get alias against closed indices',
+  ];
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [
+      'synonyms_privileges/10_synonyms_with_privileges/*',
+      'synonyms_privileges/20_synonyms_no_privileges/*'
+    ];
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

@@ -35,7 +35,7 @@ import java.util.SortedSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CacheFile {
 
@@ -334,7 +334,7 @@ public class CacheFile {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+        void fillCacheRange(FileChannel channel, long from, long to, LongConsumer progressUpdater) throws IOException;
     }
 
     /**
@@ -352,7 +352,7 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -404,7 +404,7 @@ public class CacheFile {
      */
     @Nullable
     public Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -437,12 +437,12 @@ public class CacheFile {
         FileChannelReference reference,
         Releasable releasable
     ) {
-        return ActionListener.runAfter(ActionListener.wrap(success -> {
+        return ActionListener.runAfter(future.delegateFailureAndWrap((l, success) -> {
             final int read = reader.onRangeAvailable(reference.fileChannel);
             assert read == rangeToRead.length()
                 : "partial read [" + read + "] does not match the range to read [" + rangeToRead.end() + '-' + rangeToRead.start() + ']';
-            future.onResponse(read);
-        }, future::onFailure), releasable::close);
+            l.onResponse(read);
+        }), releasable::close);
     }
 
     /**

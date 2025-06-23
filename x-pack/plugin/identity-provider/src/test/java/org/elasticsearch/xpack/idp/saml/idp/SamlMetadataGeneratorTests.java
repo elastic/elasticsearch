@@ -117,7 +117,7 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         SamlFactory factory = new SamlFactory();
         SamlMetadataGenerator generator = new SamlMetadataGenerator(factory, idp);
         Element element = generator.possiblySignDescriptor(generator.buildEntityDescriptor(sp), signingCredential);
-        EntityDescriptor descriptor = factory.buildXmlObject(element, EntityDescriptor.class);
+        EntityDescriptor descriptor = SamlFactory.buildXmlObject(element, EntityDescriptor.class);
         Signature signature = descriptor.getSignature();
         assertNotNull(signature);
         SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();

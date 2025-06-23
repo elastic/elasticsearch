@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,10 +74,9 @@ public class SamlIdentityProviderBuilder {
         value -> parseUrl("xpack.idp.slo_endpoint.post", value),
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.listSetting(
+    public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.stringListSetting(
         "xpack.idp.allowed_nameid_formats",
         List.of(TRANSIENT),
-        Function.identity(),
         SamlIdentityProviderBuilder::validateNameIDs,
         Setting.Property.NodeScope
     );
@@ -166,6 +164,10 @@ public class SamlIdentityProviderBuilder {
 
         if (serviceProviderDefaults == null) {
             ex.addValidationError("Service provider defaults must be specified");
+        }
+
+        if (allowedNameIdFormats == null || allowedNameIdFormats.isEmpty()) {
+            ex.addValidationError("At least 1 allowed NameID format must be specified");
         }
 
         if (ex.validationErrors().isEmpty() == false) {
@@ -260,6 +262,9 @@ public class SamlIdentityProviderBuilder {
     }
 
     public SamlIdentityProviderBuilder allowedNameIdFormat(String nameIdFormat) {
+        if (this.allowedNameIdFormats == null) {
+            this.allowedNameIdFormats = new HashSet<>();
+        }
         this.allowedNameIdFormats.add(nameIdFormat);
         return this;
     }

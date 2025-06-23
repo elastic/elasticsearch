@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -35,11 +39,14 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  * Contains the settings and some associated logic for the settings related to the Remote Access port, used by Remote Cluster Security 2.0.
  */
 public class RemoteClusterPortSettings {
+
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersions.V_8_10_X;
+
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
 
-    public static final Setting<Boolean> REMOTE_CLUSTER_PORT_ENABLED = boolSetting(
-        REMOTE_CLUSTER_PREFIX + "enabled",
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_ENABLED = boolSetting(
+        "remote_cluster_server.enabled",
         false,
         Setting.Property.NodeScope
     );
@@ -126,9 +133,17 @@ public class RemoteClusterPortSettings {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> MAX_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
+        REMOTE_CLUSTER_PREFIX + "max_request_header_size",
+        ByteSizeValue.of(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
+        ByteSizeValue.of(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
+        ByteSizeValue.of(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
+        Setting.Property.NodeScope
+    );
+
     static void validateRemoteAccessSettings(Settings settings) {
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)
-            && settings.getGroups("transport.profiles.", true).keySet().contains(REMOTE_CLUSTER_PROFILE)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
+            && settings.getGroups("transport.profiles.", true).containsKey(REMOTE_CLUSTER_PROFILE)) {
             throw new IllegalArgumentException(
                 "Remote Access settings should not be configured using the ["
                     + REMOTE_CLUSTER_PROFILE

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 
@@ -21,6 +22,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
     @Override
@@ -40,9 +42,10 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSearchContextIsCleanedUpAfterPageTimeout(String query) throws Exception {
+        internalCluster().startNode();
         setupTestIndex();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
             .fetchSize(1)
             .pageTimeout(TimeValue.timeValueMillis(500))
             .get();
@@ -54,14 +57,14 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(response.cursor()).get()
+            () -> new SqlQueryRequestBuilder(client()).cursor(response.cursor()).get()
         );
 
         assertThat(Arrays.asList(exception.guessRootCauses()), contains(instanceOf(SearchContextMissingException.class)));
     }
 
     private void setupTestIndex() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("field", "bar"))
             .add(new IndexRequest("test").id("2").source("field", "baz"))
@@ -71,15 +74,6 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     private long getNumberOfSearchContexts() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setSearch(true)
-            .get()
-            .getIndex("test")
-            .getTotal()
-            .getSearch()
-            .getOpenContexts();
+        return indicesAdmin().prepareStats("test").clear().setSearch(true).get().getIndex("test").getTotal().getSearch().getOpenContexts();
     }
 }

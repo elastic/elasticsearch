@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataStreamsRestIT extends ESRestTestCase {
+public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
 
     @After
     public void cleanUp() throws IOException {
@@ -48,7 +49,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
@@ -71,14 +72,16 @@ public class DataStreamsRestIT extends ESRestTestCase {
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/hidden");
         putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\".hidden\"], \"data_stream\": {\"hidden\": true}}");
+        putComposableIndexTemplateRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         Request createDocRequest = new Request("POST", "/.hidden/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+        createDocRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));

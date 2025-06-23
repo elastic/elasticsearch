@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,11 +37,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -61,6 +62,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.transport.MockTransportService.createTaskManager;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -119,12 +121,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int failureCount() {
@@ -135,27 +137,23 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     /**
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
-    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
+    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest, NodeRequest extends TransportRequest> extends
+        TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse, Void> {
 
         AbstractTestNodesAction(
             String actionName,
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
-            Writeable.Reader<NodesRequest> request,
             Writeable.Reader<NodeRequest> nodeRequest
         ) {
             super(
                 actionName,
-                threadPool,
                 clusterService,
                 transportService,
                 new ActionFilters(new HashSet<>()),
-                request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -176,20 +174,15 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
-                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager;
-            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                taskManager = new MockTaskManager(settings, threadPool, emptySet());
-            } else {
-                taskManager = new TaskManager(settings, threadPool, emptySet());
-            }
+            TaskManager taskManager = createTaskManager(settings, threadPool, emptySet(), Tracer.NOOP);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(
                     settings,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,

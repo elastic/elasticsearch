@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery.plan;
@@ -19,21 +20,22 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardSnapshotInfo;
@@ -51,10 +53,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class ShardSnapshotsService {
-    private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
+    private static final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -75,53 +76,55 @@ public class ShardSnapshotsService {
     }
 
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
-        assert shardId != null : "SharId was null but a value was expected";
+        assert shardId != null : "ShardId was null but a value was expected";
 
-        final RepositoriesMetadata currentReposMetadata = clusterService.state()
-            .metadata()
-            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-
-        List<String> repositories = currentReposMetadata.repositories()
+        List<String> repositories = RepositoriesMetadata.get(clusterService.state())
+            .repositories()
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
             .toList();
 
-        if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
-            logger.debug(
-                "Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}],"
-                    + " masterSupportsFetchingLatestSnapshots=[{}]",
-                repositories,
-                masterSupportsFetchingLatestSnapshots()
-            );
+        if (repositories.isEmpty()) {
+            logger.debug("Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}]", repositories);
             listener.onResponse(Optional.empty());
             return;
         }
 
         logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
-        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
+        GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            shardId,
+            repositories
+        );
         client.execute(
-            GetShardSnapshotAction.INSTANCE,
+            TransportGetShardSnapshotAction.TYPE,
             request,
-            new ThreadedActionListener<>(threadPool.generic(), listener.map(this::fetchSnapshotFiles))
+            new ThreadedActionListener<>(
+                threadPool.generic(),
+                listener.map(shardSnapshotResponse -> fetchSnapshotFiles(shardId, shardSnapshotResponse))
+            )
         );
     }
 
-    private Optional<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
+    private Optional<ShardSnapshot> fetchSnapshotFiles(ShardId shardId, GetShardSnapshotResponse shardSnapshotResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         final Optional<ShardSnapshotInfo> latestShardSnapshotOpt = shardSnapshotResponse.getLatestShardSnapshot();
         if (latestShardSnapshotOpt.isEmpty()) {
+            logger.debug("{} no latest shard snapshot found", shardId);
             return Optional.empty();
         }
 
         final ShardSnapshotInfo latestShardSnapshot = latestShardSnapshotOpt.get();
         try {
             final Snapshot snapshot = latestShardSnapshot.getSnapshot();
+            logger.debug("{} considering recovery from [{}][{}]", shardId, snapshot.getRepository(), snapshot.getSnapshotId());
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             if (repository instanceof BlobStoreRepository == false) {
+                logger.debug("{} not recovering from snapshot in non-blobstore repository [{}]", shardId, snapshot.getRepository());
                 return Optional.empty();
             }
 
@@ -169,10 +172,6 @@ public class ShardSnapshotsService {
             logger.warn(() -> format("Unable to fetch shard snapshot files for %s", latestShardSnapshot), e);
             return Optional.empty();
         }
-    }
-
-    protected boolean masterSupportsFetchingLatestSnapshots() {
-        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
     }
 
     private static final class StoreFileMetadataDirectory extends Directory {

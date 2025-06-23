@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
@@ -42,7 +43,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
     public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
-        super(settings, clusterService, threadPool, client);
+        super(settings, clusterService, threadPool, client, EstimatedHeapUsageCollector.EMPTY);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {
@@ -88,7 +89,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getIngestStats(),
                 nodeStats.getAdaptiveSelectionStats(),
                 nodeStats.getScriptCacheStats(),
-                nodeStats.getIndexingPressureStats()
+                nodeStats.getIndexingPressureStats(),
+                nodeStats.getRepositoriesStats(),
+                nodeStats.getNodeAllocationStats()
             );
         }).collect(Collectors.toList());
     }
@@ -106,7 +109,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             var storeStats = new StoreStats(
                 shardSizeFunctionCopy.apply(shardRouting),
                 shardSizeFunctionCopy.apply(shardRouting),
-                shardStats.getStats().store.getReservedSize().getBytes()
+                shardStats.getStats().store == null ? 0L : shardStats.getStats().store.reservedSizeInBytes()
             );
             var commonStats = new CommonStats(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
             commonStats.store = storeStats;
@@ -119,7 +122,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 shardStats.getRetentionLeaseStats(),
                 shardStats.getDataPath(),
                 shardStats.getStatePath(),
-                shardStats.isCustomDataPath()
+                shardStats.isCustomDataPath(),
+                shardStats.isSearchIdle(),
+                shardStats.getSearchIdleTime()
             );
         }).toArray(ShardStats[]::new);
     }

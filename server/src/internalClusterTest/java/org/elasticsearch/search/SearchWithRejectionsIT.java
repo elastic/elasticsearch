@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -36,9 +37,9 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         ensureGreen("test");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         refresh();
 
@@ -48,15 +49,15 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);
         for (int i = 0; i < numSearches; i++) {
-            responses[i] = client().prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();
+            responses[i] = prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();
         }
         for (int i = 0; i < numSearches; i++) {
             try {
-                responses[i].get();
+                responses[i].get().decRef();
             } catch (Exception t) {}
         }
         assertBusy(
-            () -> assertThat(client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
+            () -> assertThat(indicesAdmin().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
             1,
             TimeUnit.SECONDS
         );

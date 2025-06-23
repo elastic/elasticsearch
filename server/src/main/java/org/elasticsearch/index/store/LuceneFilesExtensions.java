@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -56,6 +57,7 @@ public enum LuceneFilesExtensions {
     NVM("nvm", "Norms Metadata", true, false),
     PAY("pay", "Payloads", false, false),
     POS("pos", "Positions", false, false),
+    PSM("psm", "Postings Metadata", true, false),
     SI("si", "Segment Info", true, false),
     // Term dictionaries are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.
@@ -66,7 +68,9 @@ public enum LuceneFilesExtensions {
     // Lucene 8.6 terms metadata file
     TMD("tmd", "Term Dictionary Metadata", true, false),
     // Temporary Lucene file
-    TMP("tmp", "Temporary File", false, false),
+    // These files are short-lived, usually fit in the page cache, and sometimes accessed in a random access fashion (e.g. stored fields
+    // flushes when index sorting is enabled), which mmap handles more efficiently than niofs.
+    TMP("tmp", "Temporary File", false, true),
     TVD("tvd", "Term Vector Documents", false, false),
     TVF("tvf", "Term Vector Fields", false, false),
     TVM("tvm", "Term Vector Metadata", true, false),
@@ -74,7 +78,16 @@ public enum LuceneFilesExtensions {
     // kNN vectors format
     VEC("vec", "Vector Data", false, true),
     VEX("vex", "Vector Index", false, true),
-    VEM("vem", "Vector Metadata", true, false);
+    VEM("vem", "Vector Metadata", true, false),
+    VEMF("vemf", "Flat Vector Metadata", true, false),
+    VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
+    VEQ("veq", "Scalar Quantized Vector Data", false, true),
+    VEMB("vemb", "Binarized Vector Metadata", true, false),
+    VEB("veb", "Binarized Vector Data", false, true),
+    // ivf vectors format
+    MIVF("mivf", "IVF Metadata", true, false),
+    CENIVF("cenivf", "IVF Centroid Data", false, true),
+    CLIVF("clivf", "IVF Cluster Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

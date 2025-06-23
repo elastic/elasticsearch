@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -14,6 +15,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class MetadataTests extends ESTestCase {
     Metadata md;
@@ -58,7 +61,7 @@ public class MetadataTests extends ESTestCase {
         for (String key : keys) {
             validators.put(key, Metadata.FieldProperty.ALLOW_ALL);
         }
-        return validators;
+        return Map.copyOf(validators);
     }
 
     public void testValidateMetadata() {
@@ -263,5 +266,26 @@ public class MetadataTests extends ESTestCase {
             any.check(op, key, value);
             odd.check(op, key, value);
         }
+    }
+
+    public void testImmutablePropertiesMap() {
+        // a mutable metadata properties map is not permitted
+        AssertionError e1 = expectThrows(AssertionError.class, () -> new Metadata(Map.of(), new HashMap<>()));
+        assertEquals("properties map must be constructed via Map.of(...) or Map.copyOf(...)", e1.getMessage());
+
+        // furthermore, for optimization reasons, just calling Collections.unmodifiableMap() is not sufficient
+        AssertionError e2 = expectThrows(AssertionError.class, () -> new Metadata(Map.of(), Collections.unmodifiableMap(new HashMap<>())));
+        assertEquals("properties map must be constructed via Map.of(...) or Map.copyOf(...)", e1.getMessage());
+
+        // Map.of and Map.copyOf are permissible (the former for code that should be fast, and the latter for e.g. tests)
+        new Metadata(Map.of(), Map.of());
+        new Metadata(Map.of(), Map.copyOf(new HashMap<>()));
+    }
+
+    public void testGetOrDefault() {
+        md = new Metadata(new HashMap<>(Map.of("foo", "bar")), Map.of("foo", STRING_PROP, "baz", STRING_PROP));
+        assertThat(md.getOrDefault("foo", "wat"), equalTo("bar"));
+        assertThat(md.getOrDefault("bar", "wat"), equalTo("wat"));
+        assertThat(md.getOrDefault("yo", "wat"), equalTo("wat"));
     }
 }

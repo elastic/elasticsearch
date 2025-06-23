@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -11,7 +12,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -19,16 +19,20 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
@@ -50,32 +54,29 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
         final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
-            ? new GetIndexTemplatesRequest()
-            : new GetIndexTemplatesRequest(matchPattern);
-        getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+            ? new GetIndexTemplatesRequest(masterNodeTimeout)
+            : new GetIndexTemplatesRequest(masterNodeTimeout, matchPattern);
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
+            masterNodeTimeout,
             matchPattern
-        );
-        getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
-        getComposableTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout())
         );
 
         return channel -> {
 
-            final StepListener<GetIndexTemplatesResponse> getIndexTemplatesStep = new StepListener<>();
+            final ListenableFuture<GetIndexTemplatesResponse> getIndexTemplatesStep = new ListenableFuture<>();
             client.admin().indices().getTemplates(getIndexTemplatesRequest, getIndexTemplatesStep);
 
-            final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
+            final ListenableFuture<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new ListenableFuture<>();
             client.execute(
                 GetComposableIndexTemplateAction.INSTANCE,
                 getComposableTemplatesRequest,
                 getComposableTemplatesStep.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        l.onResponse(new GetComposableIndexTemplateAction.Response(Collections.emptyMap()));
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Map.of()));
                     } else {
                         l.onFailure(e);
                     }
@@ -89,15 +90,17 @@ public class RestTemplatesAction extends AbstractCatAction {
                 }
             };
 
-            getIndexTemplatesStep.whenComplete(
-                getIndexTemplatesResponse -> getComposableTemplatesStep.whenComplete(
-                    getComposableIndexTemplatesResponse -> ActionListener.completeWith(
-                        tableListener,
-                        () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
-                    ),
-                    tableListener::onFailure
-                ),
-                tableListener::onFailure
+            getIndexTemplatesStep.addListener(
+                tableListener.delegateFailureAndWrap(
+                    (l, getIndexTemplatesResponse) -> getComposableTemplatesStep.addListener(
+                        l.delegateFailureAndWrap(
+                            (ll, getComposableIndexTemplatesResponse) -> ActionListener.completeWith(
+                                ll,
+                                () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
+                            )
+                        )
+                    )
+                )
             );
         };
     }

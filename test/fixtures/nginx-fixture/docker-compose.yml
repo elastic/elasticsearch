@@ -1,9 +1,0 @@
-version: '3'
-services:
-  nginx-fixture:
-    build:
-      context: .
-    volumes:
-      - ./testfixtures_shared/fs-repository:/data
-    ports:
-      - "80"

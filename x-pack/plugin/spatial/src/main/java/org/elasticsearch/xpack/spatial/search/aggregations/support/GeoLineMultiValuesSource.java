@@ -11,7 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -25,9 +25,7 @@ public class GeoLineMultiValuesSource extends MultiValuesSource<ValuesSource> {
         for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
             final ValuesSource valuesSource = entry.getValue().getValuesSource();
             if (valuesSource instanceof ValuesSource.Numeric == false && valuesSource instanceof ValuesSource.GeoPoint == false) {
-                throw new AggregationExecutionException(
-                    "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
-                );
+                throw AggregationErrors.unsupportedMultivalueValuesSource(valuesSource.toString());
             }
             values.put(entry.getKey(), valuesSource);
         }

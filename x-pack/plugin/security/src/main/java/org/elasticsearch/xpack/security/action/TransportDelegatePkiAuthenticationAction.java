@@ -12,9 +12,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,7 +66,13 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
         TokenService tokenService,
         SecurityContext securityContext
     ) {
-        super(DelegatePkiAuthenticationAction.NAME, transportService, actionFilters, DelegatePkiAuthenticationRequest::new);
+        super(
+            DelegatePkiAuthenticationAction.NAME,
+            transportService,
+            actionFilters,
+            DelegatePkiAuthenticationRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;

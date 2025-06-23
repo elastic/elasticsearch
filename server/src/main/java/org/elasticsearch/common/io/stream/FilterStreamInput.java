@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
@@ -27,6 +28,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        return delegate.readString();
+    }
+
+    @Override
     public byte readByte() throws IOException {
         return delegate.readByte();
     }
@@ -39,6 +45,27 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public ReleasableBytesReference readReleasableBytesReference() throws IOException {
         return delegate.readReleasableBytesReference();
+    }
+
+    @Override
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return delegate.readReleasableBytesReference(length);
+    }
+
+    @Override
+    public boolean supportReadAllToReleasableBytesReference() {
+        return delegate.supportReadAllToReleasableBytesReference();
+    }
+
+    @Override
+    public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+        assert supportReadAllToReleasableBytesReference() : "This InputStream doesn't support readAllToReleasableBytesReference";
+        return delegate.readAllToReleasableBytesReference();
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        return delegate.readSlicedBytesReference();
     }
 
     @Override
@@ -77,6 +104,11 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        return delegate.read(b, off, len);
+    }
+
+    @Override
     public void close() throws IOException {
         delegate.close();
     }
@@ -87,22 +119,8 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public TransportVersion getTransportVersion() {
         return delegate.getTransportVersion();
-    }
-
-    @Override
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        delegate.setVersion(version);
-        // also set the version on this stream directly, so that any uses of this.version are still correct
-        super.setVersion(version);
     }
 
     @Override

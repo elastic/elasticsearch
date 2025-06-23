@@ -44,6 +44,11 @@ public class LangIdentNeuralNetworkTests extends AbstractXContentSerializingTest
         return createRandom();
     }
 
+    @Override
+    protected LangIdentNeuralNetwork mutateInstance(LangIdentNeuralNetwork instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static LangIdentNeuralNetwork createRandom() {
         return new LangIdentNeuralNetwork(randomAlphaOfLength(10), LangNetLayerTests.createRandom(), LangNetLayerTests.createRandom());
     }

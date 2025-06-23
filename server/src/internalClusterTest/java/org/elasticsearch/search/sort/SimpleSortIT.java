@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -41,6 +41,7 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -147,8 +148,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             builders.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) }))
@@ -170,48 +170,50 @@ public class SimpleSortIT extends ESIntegTestCase {
                 if (random.nextInt(5) != 0) {
                     refresh();
                 } else {
-                    client().admin().indices().prepareFlush().get();
+                    indicesAdmin().prepareFlush().get();
                 }
             }
         }
         refresh();
 
         // STRING script
-        int size = 1 + random.nextInt(10);
-
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_value'].value", Collections.emptyMap());
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setSize(size)
-            .addSort(new ScriptSortBuilder(script, ScriptSortType.STRING))
-            .get();
+        final int sizeFirstRequest = 1 + random.nextInt(10);
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .setSize(sizeFirstRequest)
+                .addSort(new ScriptSortBuilder(script, ScriptSortType.STRING)),
+            searchResponse -> {
+                assertHitCount(searchResponse, 10);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(sizeFirstRequest));
+                for (int i = 0; i < sizeFirstRequest; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat(searchHit.getId(), equalTo(Integer.toString(i)));
 
-        assertHitCount(searchResponse, 10);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
-        for (int i = 0; i < size; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat(searchHit.getId(), equalTo(Integer.toString(i)));
+                    String expected = new String(new char[] { (char) (97 + i), (char) (97 + i) });
+                    assertThat(searchHit.getSortValues()[0].toString(), equalTo(expected));
+                }
+            }
+        );
 
-            String expected = new String(new char[] { (char) (97 + i), (char) (97 + i) });
-            assertThat(searchHit.getSortValues()[0].toString(), equalTo(expected));
-        }
+        final int sizeSecondRequest = 1 + random.nextInt(10);
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(sizeSecondRequest).addSort("str_value", SortOrder.DESC),
+            searchResponse -> {
+                assertHitCount(searchResponse, 10);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(sizeSecondRequest));
+                for (int i = 0; i < sizeSecondRequest; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat(searchHit.getId(), equalTo(Integer.toString(9 - i)));
 
-        size = 1 + random.nextInt(10);
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("str_value", SortOrder.DESC).get();
+                    String expected = new String(new char[] { (char) (97 + (9 - i)), (char) (97 + (9 - i)) });
+                    assertThat(searchHit.getSortValues()[0].toString(), equalTo(expected));
+                }
 
-        assertHitCount(searchResponse, 10);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
-        for (int i = 0; i < size; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat(searchHit.getId(), equalTo(Integer.toString(9 - i)));
-
-            String expected = new String(new char[] { (char) (97 + (9 - i)), (char) (97 + (9 - i)) });
-            assertThat(searchHit.getSortValues()[0].toString(), equalTo(expected));
-        }
-
-        assertThat(searchResponse.toString(), not(containsString("error")));
-        assertNoFailures(searchResponse);
+                assertThat(searchResponse.toString(), not(containsString("error")));
+            }
+        );
     }
 
     public void testSortMinValueScript() throws IOException {
@@ -238,8 +240,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 .setSource(
                     jsonBuilder().startObject()
                         .field("ord", i)
@@ -256,73 +257,76 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
 
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            client().prepareIndex("test").setId("" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
+            prepareIndex("test").setId("" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // test the long values
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min long", Collections.emptyMap()))
-            .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
-            .setSize(10)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertHitCount(searchResponse, 20L);
-        for (int i = 0; i < 10; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo((long) i));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min long", Collections.emptyMap()))
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
+                .setSize(10),
+            searchResponse -> {
+                assertHitCount(searchResponse, 20L);
+                for (int i = 0; i < 10; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo((long) i));
+                }
+            }
+        );
 
         // test the double values
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min double", Collections.emptyMap()))
-            .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
-            .setSize(10)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertHitCount(searchResponse, 20L);
-        for (int i = 0; i < 10; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo((double) i));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min double", Collections.emptyMap()))
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
+                .setSize(10),
+            searchResponse -> {
+                assertHitCount(searchResponse, 20L);
+                for (int i = 0; i < 10; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo((double) i));
+                }
+            }
+        );
 
         // test the string values
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min string", Collections.emptyMap()))
-            .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
-            .setSize(10)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertHitCount(searchResponse, 20L);
-        for (int i = 0; i < 10; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo(i));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min string", Collections.emptyMap()))
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
+                .setSize(10),
+            searchResponse -> {
+                assertHitCount(searchResponse, 20L);
+                for (int i = 0; i < 10; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), equalTo(i));
+                }
+            }
+        );
 
         // test the geopoint values
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("min", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min geopoint lon", Collections.emptyMap()))
-            .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
-            .setSize(10)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertHitCount(searchResponse, 20L);
-        for (int i = 0; i < 10; i++) {
-            SearchHit searchHit = searchResponse.getHits().getAt(i);
-            assertThat("res: " + i + " id: " + searchHit.getId(), searchHit.field("min").getValue(), closeTo(i, GeoUtils.TOLERANCE));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addScriptField(
+                    "min",
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min geopoint lon", Collections.emptyMap())
+                )
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
+                .setSize(10),
+            searchResponse -> {
+                assertHitCount(searchResponse, 20L);
+                for (int i = 0; i < 10; i++) {
+                    SearchHit searchHit = searchResponse.getHits().getAt(i);
+                    assertThat(
+                        "res: " + i + " id: " + searchHit.getId(),
+                        searchHit.field("min").getValue(),
+                        closeTo(i, GeoUtils.TOLERANCE)
+                    );
+                }
+            }
+        );
     }
 
     public void testDocumentsWithNullValue() throws Exception {
@@ -344,79 +348,71 @@ public class SimpleSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject()).get();
 
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject()).get();
 
-        client().prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject()).get();
+        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject()).get();
 
         flush();
         refresh();
 
         Script scripField = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].value", Collections.emptyMap());
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("id", scripField)
-            .addSort("svalue", SortOrder.ASC)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
-            .addSort("svalue", SortOrder.ASC)
-            .get();
-
-        assertNoFailures(searchResponse);
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addScriptField("id", scripField)
-            .addSort("svalue", SortOrder.DESC)
-            .get();
-
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).addScriptField("id", scripField).addSort("svalue", SortOrder.ASC),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+                assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
+                assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
+                assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
             }
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
+                .addSort("svalue", SortOrder.ASC),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+                assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
+                assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
+                assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
+            }
+        );
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("3"));
-        assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("1"));
-        assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).addScriptField("id", scripField).addSort("svalue", SortOrder.DESC),
+            searchResponse -> {
+                if (searchResponse.getFailedShards() > 0) {
+                    logger.warn("Failed shards:");
+                    for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                        logger.warn("-> {}", shardSearchFailure);
+                    }
+                }
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
 
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+                assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("3"));
+                assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("1"));
+                assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
+            }
+        );
         // a query with docs just with null values
-        searchResponse = client().prepareSearch()
-            .setQuery(termQuery("id", "2"))
-            .addScriptField("id", scripField)
-            .addSort("svalue", SortOrder.DESC)
-            .get();
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(termQuery("id", "2")).addScriptField("id", scripField).addSort("svalue", SortOrder.DESC),
+            searchResponse -> {
+                if (searchResponse.getFailedShards() > 0) {
+                    logger.warn("Failed shards:");
+                    for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                        logger.warn("-> {}", shardSearchFailure);
+                    }
+                }
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+                assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("2"));
             }
-        }
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("2"));
+        );
     }
 
     public void test2920() throws IOException {
@@ -435,19 +431,11 @@ public class SimpleSortIT extends ESIntegTestCase {
         );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
-                .setSource(jsonBuilder().startObject().field("value", "" + i).endObject())
-                .get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("value", "" + i).endObject()).get();
         }
         refresh();
 
         Script sortScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "\u0027\u0027", Collections.emptyMap());
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(scriptSort(sortScript, ScriptSortType.STRING))
-            .setSize(10)
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(prepareSearch().setQuery(matchAllQuery()).addSort(scriptSort(sortScript, ScriptSortType.STRING)).setSize(10));
     }
 }

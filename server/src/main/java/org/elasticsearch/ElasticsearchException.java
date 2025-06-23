@@ -1,29 +1,51 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.persistent.NotPersistentTaskNodeException;
+import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
+import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -31,7 +53,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,7 +85,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -77,12 +109,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
+    private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
+
+    static final String TIMED_OUT_HEADER = "X-Timed-Out";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -92,8 +127,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -105,8 +142,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param msg  the detail message
      * @param args the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -120,15 +159,25 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param cause the nested exception
      * @param args  the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
+        maybePutTimeoutHeader();
     }
 
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
-        metadata.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
+        headers.putAll(in.readMapOfLists(StreamInput::readString));
+        metadata.putAll(in.readMapOfLists(StreamInput::readString));
+    }
+
+    private void maybePutTimeoutHeader() {
+        if (isTimeout()) {
+            // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
+            headers.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
     }
 
     /**
@@ -222,6 +271,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
+     * Returns whether this exception represents a timeout.
+     */
+    public boolean isTimeout() {
+        return false;
+    }
+
+    /**
      * Unwraps the actual cause from the exception for cases when the exception is a
      * {@link ElasticsearchWrapperException}.
      *
@@ -238,7 +294,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public String getDetailedMessage() {
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
-            sb.append(toString()).append("; ");
+            sb.append(this).append("; ");
             if (getCause() instanceof ElasticsearchException) {
                 sb.append(((ElasticsearchException) getCause()).getDetailedMessage());
             } else {
@@ -264,21 +320,28 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, createNestingFunction(0, () -> {}));
+    }
+
+    private static Writer<Throwable> createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
+        int nextLevel = thisLevel + 1;
+        return (o, t) -> {
+            writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
+            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
+        };
+    }
+
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeException(this.getCause());
-        writeStackTraces(this, out, StreamOutput::writeException);
-        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        nestedExceptionsWriter.write(out, this);
+        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getTransportVersion().before(TransportVersion.V_7_5_0)) {
-                // was SearchContextException
-                return new SearchException(input);
-            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return elasticsearchException.apply(input);
@@ -290,7 +353,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded.transportVersion);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded)
+                || Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
         }
         return false;
     }
@@ -307,12 +371,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, 0);
+    }
+
+    /**
+     * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause());
+            innerToXContent(builder, params, this, headers, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -321,14 +393,26 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         XContentBuilder builder,
         Params params,
         Throwable throwable,
-        String type,
-        String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
-        Throwable cause
+        Throwable cause,
+        int nestedLevel
     ) throws IOException {
-        builder.field(TYPE, type);
-        builder.field(REASON, message);
+
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            var terminalException = new IllegalStateException("too many nested exceptions");
+            builder.field(TYPE, getExceptionName(terminalException));
+            builder.field(REASON, terminalException.getMessage());
+            return;
+        }
+
+        builder.field(TYPE, throwable instanceof ElasticsearchException e ? e.getExceptionName() : getExceptionName(throwable));
+        builder.field(REASON, throwable.getMessage());
+
+        // TODO: we could walk the exception chain to see if _any_ causes are timeouts?
+        if (throwable instanceof ElasticsearchException exception && exception.isTimeout()) {
+            builder.field(TIMED_OUT, true);
+        }
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
@@ -338,13 +422,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
-            if (cause != null) {
-                builder.field(CAUSED_BY);
-                builder.startObject();
-                generateThrowableXContent(builder, params, cause);
-                builder.endObject();
-            }
+        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
+            builder.startObject(CAUSED_BY);
+            generateThrowableXContent(builder, params, cause, nestedLevel + 1);
+            builder.endObject();
         }
 
         if (headers.isEmpty() == false) {
@@ -364,7 +445,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.startArray(SUPPRESSED.getPreferredName());
             for (Throwable suppressed : allSuppressed) {
                 builder.startObject();
-                generateThrowableXContent(builder, params, suppressed);
+                generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
                 builder.endObject();
             }
             builder.endArray();
@@ -517,18 +598,27 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, Map, Map, Throwable, int)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        generateThrowableXContent(builder, params, t, 0);
+    }
+
+    /**
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel)
+        throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params);
+            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel);
         }
     }
 
@@ -541,27 +631,33 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
      * by the {@link #failureFromXContent(XContentParser)} method.
      */
-    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
+    public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            builder.field(ERROR, "unknown");
-            return;
+        if (builder.getRestApiVersion() == RestApiVersion.V_8) {
+            if (e == null) {
+                return builder.field(ERROR, "unknown");
+            }
+            if (detailed == false) {
+                return generateNonDetailedFailureXContentV8(builder, e);
+            }
+            // else fallthrough
         }
 
-        // Render the exception with a simple message
+        if (e == null) {
+            // No exception to render as an error
+            builder.startObject(ERROR);
+            builder.field(TYPE, "unknown");
+            builder.field(REASON, "unknown");
+            return builder.endObject();
+        }
+
         if (detailed == false) {
-            String message = "No ElasticsearchException found";
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof ElasticsearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-                    break;
-                }
-                t = t.getCause();
-            }
-            builder.field(ERROR, message);
-            return;
+            // just render the type & message
+            Throwable t = ExceptionsHelper.unwrapCause(e);
+            builder.startObject(ERROR);
+            builder.field(TYPE, getExceptionName(t));
+            builder.field(REASON, t.getMessage());
+            return builder.endObject();
         }
 
         // Render the exception with all details
@@ -577,7 +673,21 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.endArray();
         }
         generateThrowableXContent(builder, params, e);
-        builder.endObject();
+        return builder.endObject();
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)    // remove V8 API
+    private static XContentBuilder generateNonDetailedFailureXContentV8(XContentBuilder builder, @Nullable Exception e) throws IOException {
+        String message = "No ElasticsearchException found";
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof ElasticsearchException) {
+                message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                break;
+            }
+            t = t.getCause();
+        }
+        return builder.field(ERROR, message);
     }
 
     /**
@@ -604,8 +714,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public ElasticsearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).guessRootCauses();
+        if (cause instanceof ElasticsearchException ese) {
+            return ese.guessRootCauses();
         }
         return new ElasticsearchException[] { this };
     }
@@ -654,35 +764,28 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static String getExceptionName(Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();
-        if (simpleName.startsWith("Elasticsearch")) {
-            simpleName = simpleName.substring("Elasticsearch".length());
-        }
         // TODO: do we really need to make the exception name in underscore casing?
-        return toUnderscoreCase(simpleName);
+        return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }
 
     static String buildMessage(String type, String reason, String stack) {
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-        return message.toString();
+        return "Elasticsearch exception ["
+            + TYPE
+            + "="
+            + type
+            + ", "
+            + REASON
+            + "="
+            + reason
+            + (stack == null ? "" : (", " + STACK_TRACE + "=" + stack))
+            + "]";
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (metadata.containsKey(INDEX_METADATA_KEY)) {
-            builder.append(getIndex());
-            if (metadata.containsKey(SHARD_METADATA_KEY)) {
-                builder.append('[').append(getShardId()).append(']');
-            }
-            builder.append(' ');
-        }
-        return builder.append(super.toString().trim()).toString();
+        return (metadata.containsKey(INDEX_METADATA_KEY)
+            ? (getIndex() + (metadata.containsKey(SHARD_METADATA_KEY) ? "[" + getShardId() + "] " : " "))
+            : "") + super.toString().trim();
     }
 
     /**
@@ -708,8 +811,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
-        throws IOException {
+    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter) throws IOException {
         out.writeArray((o, v) -> {
             o.writeString(v.getClassName());
             o.writeOptionalString(v.getFileName());
@@ -717,7 +819,232 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             o.writeVInt(v.getLineNumber());
         }, throwable.getStackTrace());
         out.writeArray(exceptionWriter, throwable.getSuppressed());
-        return throwable;
+    }
+
+    /**
+     * Writes the specified {@code throwable} to {@link StreamOutput} {@code output}.
+     */
+    public static void writeException(Throwable throwable, StreamOutput output) throws IOException {
+        writeException(throwable, output, () -> {});
+    }
+
+    static void writeException(Throwable throwable, StreamOutput output, Runnable nestedExceptionLimitCallback) throws IOException {
+        writeException(throwable, output, 0, nestedExceptionLimitCallback);
+    }
+
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
+
+    private static void writeException(Throwable throwable, StreamOutput output, int nestedLevel, Runnable nestedExceptionLimitCallback)
+        throws IOException {
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            nestedExceptionLimitCallback.run();
+            writeException(new IllegalStateException("too many nested exceptions"), output);
+            return;
+        }
+
+        if (throwable == null) {
+            output.writeBoolean(false);
+            return;
+        }
+
+        output.writeBoolean(true);
+
+        boolean writeCause = true;
+        boolean writeMessage = true;
+        if (throwable instanceof CorruptIndexException cie) {
+            output.writeVInt(1);
+            output.writeOptionalString(cie.getOriginalMessage());
+            output.writeOptionalString(cie.getResourceDescription());
+            writeMessage = false;
+        } else if (throwable instanceof IndexFormatTooNewException iftne) {
+            output.writeVInt(2);
+            output.writeOptionalString(iftne.getResourceDescription());
+            output.writeInt(iftne.getVersion());
+            output.writeInt(iftne.getMinVersion());
+            output.writeInt(iftne.getMaxVersion());
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof IndexFormatTooOldException t) {
+            output.writeVInt(3);
+            output.writeOptionalString(t.getResourceDescription());
+            if (t.getVersion() == null) {
+                output.writeBoolean(false);
+                output.writeOptionalString(t.getReason());
+            } else {
+                output.writeBoolean(true);
+                output.writeInt(t.getVersion());
+                output.writeInt(t.getMinVersion());
+                output.writeInt(t.getMaxVersion());
+            }
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof NullPointerException) {
+            output.writeVInt(4);
+            writeCause = false;
+        } else if (throwable instanceof NumberFormatException) {
+            output.writeVInt(5);
+            writeCause = false;
+        } else if (throwable instanceof IllegalArgumentException) {
+            output.writeVInt(6);
+        } else if (throwable instanceof AlreadyClosedException) {
+            output.writeVInt(7);
+        } else if (throwable instanceof EOFException) {
+            output.writeVInt(8);
+            writeCause = false;
+        } else if (throwable instanceof SecurityException) {
+            output.writeVInt(9);
+        } else if (throwable instanceof StringIndexOutOfBoundsException) {
+            output.writeVInt(10);
+            writeCause = false;
+        } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
+            output.writeVInt(11);
+            writeCause = false;
+        } else if (throwable instanceof FileNotFoundException) {
+            output.writeVInt(12);
+            writeCause = false;
+        } else if (throwable instanceof FileSystemException fse) {
+            output.writeVInt(13);
+            if (throwable instanceof NoSuchFileException) {
+                output.writeVInt(0);
+            } else if (throwable instanceof NotDirectoryException) {
+                output.writeVInt(1);
+            } else if (throwable instanceof DirectoryNotEmptyException) {
+                output.writeVInt(2);
+            } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                output.writeVInt(3);
+            } else if (throwable instanceof FileAlreadyExistsException) {
+                output.writeVInt(4);
+            } else if (throwable instanceof AccessDeniedException) {
+                output.writeVInt(5);
+            } else if (throwable instanceof FileSystemLoopException) {
+                output.writeVInt(6);
+            } else {
+                output.writeVInt(7);
+            }
+            output.writeOptionalString(fse.getFile());
+            output.writeOptionalString(fse.getOtherFile());
+            output.writeOptionalString(fse.getReason());
+            writeCause = false;
+        } else if (throwable instanceof IllegalStateException) {
+            output.writeVInt(14);
+        } else if (throwable instanceof LockObtainFailedException) {
+            output.writeVInt(15);
+        } else if (throwable instanceof InterruptedException) {
+            output.writeVInt(16);
+            writeCause = false;
+        } else if (throwable instanceof IOException) {
+            output.writeVInt(17);
+        } else if (throwable instanceof EsRejectedExecutionException eree) {
+            output.writeVInt(18);
+            output.writeBoolean(eree.isExecutorShutdown());
+            writeCause = false;
+        } else {
+            ElasticsearchException ex;
+            if (throwable instanceof ElasticsearchException ee && isRegistered(throwable.getClass(), output.getTransportVersion())) {
+                ex = ee;
+            } else {
+                ex = new NotSerializableExceptionWrapper(throwable);
+            }
+            output.writeVInt(0);
+            output.writeVInt(getId(ex.getClass()));
+            ex.writeTo(output, createNestingFunction(nestedLevel, nestedExceptionLimitCallback));
+            return;
+        }
+
+        if (writeMessage) {
+            output.writeOptionalString(throwable.getMessage());
+        }
+        if (writeCause) {
+            writeException(throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
+        }
+        writeStackTraces(throwable, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
+    }
+
+    /**
+     * Reads a {@code Throwable} from {@link StreamInput} {@code input}.
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> T readException(StreamInput input) throws IOException {
+        if (input.readBoolean()) {
+            int key = input.readVInt();
+            switch (key) {
+                case 0:
+                    int ord = input.readVInt();
+                    return (T) readException(input, ord);
+                case 1:
+                    String msg1 = input.readOptionalString();
+                    String resource1 = input.readOptionalString();
+                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException(input)), input);
+                case 2:
+                    String resource2 = input.readOptionalString();
+                    int version2 = input.readInt();
+                    int minVersion2 = input.readInt();
+                    int maxVersion2 = input.readInt();
+                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), input);
+                case 3:
+                    String resource3 = input.readOptionalString();
+                    if (input.readBoolean()) {
+                        int version3 = input.readInt();
+                        int minVersion3 = input.readInt();
+                        int maxVersion3 = input.readInt();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), input);
+                    } else {
+                        String version3 = input.readOptionalString();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), input);
+                    }
+                case 4:
+                    return (T) readStackTrace(new NullPointerException(input.readOptionalString()), input);
+                case 5:
+                    return (T) readStackTrace(new NumberFormatException(input.readOptionalString()), input);
+                case 6:
+                    return (T) readStackTrace(new IllegalArgumentException(input.readOptionalString(), readException(input)), input);
+                case 7:
+                    return (T) readStackTrace(new AlreadyClosedException(input.readOptionalString(), readException(input)), input);
+                case 8:
+                    return (T) readStackTrace(new EOFException(input.readOptionalString()), input);
+                case 9:
+                    return (T) readStackTrace(new SecurityException(input.readOptionalString(), readException(input)), input);
+                case 10:
+                    return (T) readStackTrace(new StringIndexOutOfBoundsException(input.readOptionalString()), input);
+                case 11:
+                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(input.readOptionalString()), input);
+                case 12:
+                    return (T) readStackTrace(new FileNotFoundException(input.readOptionalString()), input);
+                case 13:
+                    int subclass = input.readVInt();
+                    String file = input.readOptionalString();
+                    String other = input.readOptionalString();
+                    String reason = input.readOptionalString();
+                    input.readOptionalString(); // skip the msg - it's composed from file, other and reason
+                    Exception exception = switch (subclass) {
+                        case 0 -> new NoSuchFileException(file, other, reason);
+                        case 1 -> new NotDirectoryException(file);
+                        case 2 -> new DirectoryNotEmptyException(file);
+                        case 3 -> new AtomicMoveNotSupportedException(file, other, reason);
+                        case 4 -> new FileAlreadyExistsException(file, other, reason);
+                        case 5 -> new AccessDeniedException(file, other, reason);
+                        case 6 -> new FileSystemLoopException(file);
+                        case 7 -> new FileSystemException(file, other, reason);
+                        default -> throw new IllegalStateException("unknown FileSystemException with index " + subclass);
+                    };
+                    return (T) readStackTrace(exception, input);
+                case 14:
+                    return (T) readStackTrace(new IllegalStateException(input.readOptionalString(), readException(input)), input);
+                case 15:
+                    return (T) readStackTrace(new LockObtainFailedException(input.readOptionalString(), readException(input)), input);
+                case 16:
+                    return (T) readStackTrace(new InterruptedException(input.readOptionalString()), input);
+                case 17:
+                    return (T) readStackTrace(new IOException(input.readOptionalString(), readException(input)), input);
+                case 18:
+                    boolean isExecutorShutdown = input.readBoolean();
+                    return (T) readStackTrace(new EsRejectedExecutionException(input.readOptionalString(), isExecutorShutdown), input);
+                default:
+                    throw new IOException("no such exception for id: " + key);
+            }
+        }
+        return null;
     }
 
     /**
@@ -875,12 +1202,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 26 was BatchOperationException
-        SNAPSHOT_CREATION_EXCEPTION(
-            org.elasticsearch.snapshots.SnapshotCreationException.class,
-            org.elasticsearch.snapshots.SnapshotCreationException::new,
-            27,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 27 was SnapshotCreationException
         // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         DOCUMENT_MISSING_EXCEPTION(
             org.elasticsearch.index.engine.DocumentMissingException.class,
@@ -1363,12 +1685,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 127 used to be org.elasticsearch.search.SearchContextException
-        SEARCH_SOURCE_BUILDER_EXCEPTION(
-            org.elasticsearch.search.builder.SearchSourceBuilderException.class,
-            org.elasticsearch.search.builder.SearchSourceBuilderException::new,
-            128,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 128 used to be org.elasticsearch.search.builder.SearchSourceBuilderException
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(
             org.elasticsearch.action.NoShardAvailableActionException.class,
@@ -1477,7 +1794,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            Version.V_7_0_0
+            UNKNOWN_VERSION_ADDED
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
@@ -1513,91 +1830,172 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            Version.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.elasticsearch.ingest.IngestProcessorException.class,
             org.elasticsearch.ingest.IngestProcessorException::new,
             157,
-            Version.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            Version.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            Version.V_8_0_0
+            TransportVersions.V_8_0_0
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            Version.V_7_10_0
-        ),
-        VERSION_MISMATCH_EXCEPTION(
-            org.elasticsearch.action.search.VersionMismatchException.class,
-            org.elasticsearch.action.search.VersionMismatchException::new,
-            161,
-            Version.V_7_12_0
+            UNKNOWN_VERSION_ADDED
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            Version.V_7_16_0
+            UNKNOWN_VERSION_ADDED
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
-            Version.V_8_0_0
+            TransportVersions.V_8_0_0
         ),
         DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
             org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
             org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
             164,
-            Version.V_8_1_0
+            TransportVersions.V_8_1_0
         ),
         SNAPSHOT_NAME_ALREADY_IN_USE_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException.class,
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
-            Version.V_8_2_0
+            TransportVersions.V_8_2_0
         ),
         HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
             HealthNodeNotDiscoveredException.class,
             HealthNodeNotDiscoveredException::new,
             166,
-            Version.V_8_5_0
+            TransportVersions.V_8_5_0
         ),
         UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
             UnsupportedAggregationOnDownsampledIndex.class,
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
-            Version.V_8_5_0
+            TransportVersions.V_8_5_0
+        ),
+        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersions.V_8_8_0),
+        HTTP_HEADERS_VALIDATION_EXCEPTION(
+            org.elasticsearch.http.HttpHeadersValidationException.class,
+            org.elasticsearch.http.HttpHeadersValidationException::new,
+            169,
+            TransportVersions.V_8_9_X
+        ),
+        ROLE_RESTRICTION_EXCEPTION(
+            ElasticsearchRoleRestrictionException.class,
+            ElasticsearchRoleRestrictionException::new,
+            170,
+            TransportVersions.V_8_9_X
+        ),
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_11_X),
+        RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
+            RecoveryCommitTooNewException.class,
+            RecoveryCommitTooNewException::new,
+            172,
+            TransportVersions.V_8_11_X
+        ),
+        TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
+            TooManyScrollContextsException.class,
+            TooManyScrollContextsException::new,
+            173,
+            TransportVersions.V_8_12_0
+        ),
+        INVALID_BUCKET_PATH_EXCEPTION(
+            AggregationExecutionException.InvalidPath.class,
+            AggregationExecutionException.InvalidPath::new,
+            174,
+            TransportVersions.V_8_12_0
+        ),
+        MISSED_INDICES_UPDATE_EXCEPTION(
+            AutoscalingMissedIndicesUpdateException.class,
+            AutoscalingMissedIndicesUpdateException::new,
+            175,
+            TransportVersions.V_8_12_0
+        ),
+        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersions.V_8_13_0),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, TransportVersions.V_8_13_0),
+        FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
+            FailureIndexNotSupportedException.class,
+            FailureIndexNotSupportedException::new,
+            178,
+            TransportVersions.V_8_14_0
+        ),
+        NOT_PERSISTENT_TASK_NODE_EXCEPTION(
+            NotPersistentTaskNodeException.class,
+            NotPersistentTaskNodeException::new,
+            179,
+            TransportVersions.V_8_14_0
+        ),
+        PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
+            PersistentTaskNodeNotAssignedException.class,
+            PersistentTaskNodeNotAssignedException::new,
+            180,
+            TransportVersions.V_8_14_0
+        ),
+        RESOURCE_ALREADY_UPLOADED_EXCEPTION(
+            ResourceAlreadyUploadedException.class,
+            ResourceAlreadyUploadedException::new,
+            181,
+            TransportVersions.V_8_15_0
+        ),
+        INGEST_PIPELINE_EXCEPTION(
+            org.elasticsearch.ingest.IngestPipelineException.class,
+            org.elasticsearch.ingest.IngestPipelineException::new,
+            182,
+            TransportVersions.V_8_16_0
+        ),
+        INDEX_RESPONSE_WRAPPER_EXCEPTION(
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
+            183,
+            TransportVersions.V_8_16_0
+        ),
+        REMOTE_EXCEPTION(
+            RemoteException.class,
+            RemoteException::new,
+            184,
+            TransportVersions.REMOTE_EXCEPTION,
+            TransportVersions.REMOTE_EXCEPTION_8_19
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final Version versionAdded;
+        private final TransportVersion versionAdded;
+        private final TransportVersion[] patchVersions;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            Version versionAdded
+            TransportVersion versionAdded,
+            TransportVersion... patchVersions
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.versionAdded = versionAdded;
+
             this.id = id;
+            this.versionAdded = versionAdded;
+            this.patchVersions = patchVersions;
         }
     }
 
@@ -1692,19 +2090,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     // lower cases and adds underscores to transitions in a name
-    private static String toUnderscoreCase(String value) {
+    private static String toUnderscoreCase(String value, final int offset) {
         StringBuilder sb = new StringBuilder();
         boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
+        for (int i = offset; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
                 if (changed == false) {
                     // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
+                    sb.append(value, offset, i);
                     changed = true;
-                    if (i == 0) {
+                    if (i == offset) {
                         sb.append(Character.toLowerCase(c));
                     } else {
                         sb.append('_');
@@ -1721,7 +2117,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
         if (changed == false) {
-            return value;
+            return offset == 0 ? value : value.substring(offset);
         }
         return sb.toString();
     }

@@ -1,0 +1,6 @@
+pr: 122586
+summary: "ESQL: Fix inconsistent results in using scaled_float field"
+area: ES|QL
+type: bug
+issues:
+  - 122547

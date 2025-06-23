@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,15 +32,10 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
         this.stats = stats;
     }
 
-    AnalyzeIndexDiskUsageResponse(StreamInput in) throws IOException {
-        super(in);
-        stats = in.readMap(StreamInput::readString, IndexDiskUsageStats::new);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(stats, StreamOutput::writeWriteable);
     }
 
     Map<String, IndexDiskUsageStats> getStats() {

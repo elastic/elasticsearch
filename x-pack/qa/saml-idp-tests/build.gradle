@@ -1,93 +1,13 @@
-import org.elasticsearch.gradle.LazyPropertyMap
-
-Project idpFixtureProject = project(':x-pack:test:idp-fixture')
-
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
-}
-
-testFixtures.useFixture ":x-pack:test:idp-fixture"
-
-String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-tasks.register("copyIdpFiles", Sync) {
-  dependsOn idpFixtureProject.postProcessFixture
-  // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
-  from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
-    'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
-  into outputDir
-  def expandProps = new LazyPropertyMap<>("lazy port config")
-  expandProps.put("port", () -> idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443")
-  inputs.properties(expandProps)
-  filesMatching("idp-metadata.xml") {
-    expand(expandProps)
-  }
+  javaRestTestImplementation project(":x-pack:test:idp-fixture")
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 tasks.named("javaRestTest").configure {
-  classpath += files(tasks.named("copyIdpFiles"))
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.realms.file.file.order', '0'
-  // SAML realm 1 (no authorization_realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
-  setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
-  // The port in the ACS URL is fake - the test will bind the mock webserver
-  // to a random port and then whenever it needs to connect to a URL on the
-  // mock webserver it will replace 54321 with the real port
-  setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
-  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
-  setting 'xpack.security.authc.realms.saml.shibboleth.signing.key', 'sp-signing.key'
-  setting 'xpack.security.authc.realms.saml.shibboleth.signing.certificate', 'sp-signing.crt'
-  // SAML realm 2 (uses authorization_realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.signing.key', 'sp-signing.key'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.signing.certificate', 'sp-signing.crt'
-  // SAML realm 3 (used for negative tests with multiple realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.order', '3'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.entity_id', 'somethingwronghere'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.acs', 'http://localhost:54321/saml/acs3'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.authorization_realms', 'native'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.signing.key', 'sp-signing.key'
-  setting 'xpack.security.authc.realms.saml.shibboleth_negative.signing.certificate', 'sp-signing.crt'
-  setting 'xpack.security.authc.realms.native.native.order', '4'
-
-  setting 'xpack.ml.enabled', 'false'
-  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
-
-  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
-  extraConfigFile 'sp-signing.key', file(outputDir + "/sp-signing.key")
-  extraConfigFile 'sp-signing.crt', file(outputDir + "/sp-signing.crt")
-
-  user username: "test_admin", password: 'x-pack-test-password'
-}
-
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/*.der'
-  exclude '**/*.p12'
-  exclude '**/*.key'
+  usesDefaultDistribution("to be triaged")
 }

@@ -1,0 +1,132 @@
+setup:
+  - do:
+      indices.create:
+        index: shapes
+        body:
+          mappings:
+            properties:
+              default:
+                type: geo_shape
+              no_doc_values:
+                type: geo_shape
+                doc_values: false
+              no_index:
+                type: geo_shape
+                index: false
+              no_doc_values_no_index:
+                 type: geo_shape
+                 doc_values: false
+                 index: false
+              stored:
+                type: geo_shape
+                store: true
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: shapes
+              _id: 1
+          - '{"default": "POINT(4.912350 52.374081)", "no_doc_values": "POINT(4.912350 52.374081)", "no_index": "POINT(4.912350 52.374081)", "no_doc_values_no_index": "POINT(4.912350 52.374081)", "stored": "POINT(4.912350 52.374081)"}'
+          - index:
+              _index: shapes
+              _id: 2
+          - '{"default": "POINT(2.327000 48.860000)", "no_doc_values": "POINT(2.327000 48.860000)", "no_index": "POINT(2.327000 48.860000)", "no_doc_values_no_index": "POINT(2.327000 48.860000)", "stored": "POINT(2.327000 48.860000)"}'
+  - do:
+      indices.refresh: {}
+
+---
+"Test field mapping":
+  - do:
+      indices.get_mapping:
+        index: shapes
+
+  - match: {shapes.mappings.properties.default.type: geo_shape }
+  - match: {shapes.mappings.properties.no_doc_values.type: geo_shape }
+  - match: {shapes.mappings.properties.no_doc_values.doc_values: false }
+  - match: {shapes.mappings.properties.no_index.type: geo_shape }
+  - match: {shapes.mappings.properties.no_index.index: false }
+  - match: {shapes.mappings.properties.no_doc_values_no_index.type: geo_shape }
+  - match: {shapes.mappings.properties.no_doc_values_no_index.index: false }
+  - match: {shapes.mappings.properties.no_doc_values_no_index.doc_values: false }
+  - match: {shapes.mappings.properties.stored.type: geo_shape }
+  - match: {shapes.mappings.properties.stored.store: true }
+
+---
+"Test query default field":
+  - do:
+      search:
+        index: shapes
+        body:
+          query:
+            geo_bounding_box:
+              default:
+                top_left:
+                  lat: 55
+                  lon: 4
+                bottom_right:
+                  lat: 50
+                  lon: 5
+
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test query no_doc_values field":
+  - do:
+      search:
+        index: shapes
+        body:
+          query:
+            geo_bounding_box:
+              no_doc_values:
+                top_left:
+                  lat: 55
+                  lon: 4
+                bottom_right:
+                  lat: 50
+                  lon: 5
+
+  - match: { hits.total.value: 1 }
+
+
+---
+"Test query no_index field":
+  - do:
+      search:
+        index: shapes
+        body:
+          query:
+            geo_bounding_box:
+              no_index:
+                top_left:
+                  lat: 55
+                  lon: 4
+                bottom_right:
+                  lat: 50
+                  lon: 5
+
+  - match: { hits.total.value: 1 }
+
+---
+"Test query no_doc_values_no_index field":
+  - do:
+      catch: bad_request
+      search:
+        index: shapes
+        body:
+          query:
+            geo_bounding_box:
+              no_doc_values_no_index:
+                top_left:
+                  lat: 55
+                  lon: 4
+                bottom_right:
+                  lat: 50
+                  lon: 5
+
+  - match: {error.type: search_phase_execution_exception}
+  - match: {error.reason: "all shards failed"}
+  - match: {error.phase: query}
+  - match: {error.failed_shards.0.reason.type:  query_shard_exception}
+  - match: {error.failed_shards.0.reason.reason: "failed to create query: Cannot search on field [no_doc_values_no_index] since it is not indexed nor has doc values."}

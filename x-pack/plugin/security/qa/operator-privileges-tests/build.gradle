@@ -1,45 +1,19 @@
-import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'operator-privileges-test'
-  description 'An test plugin for testing hard to get internals'
-  classname 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
+  name = 'operator-privileges-test'
+  description = 'An test plugin for testing hard to get internals'
+  classname = 'org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin'
 }
 
 dependencies {
   compileOnly project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':client:rest-high-level')
+  clusterPlugins project(':x-pack:plugin:security:qa:operator-privileges-tests')
   javaRestTestImplementation project(':x-pack:plugin:security')
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
-
-File repoDir = file("$buildDir/testclusters/repo")
 
 tasks.named("javaRestTest").configure {
-  /* To support taking snapshots, we have to set path.repo setting */
-  systemProperty 'tests.path.repo', repoDir
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-
-  extraConfigFile 'operator_users.yml', file('src/javaRestTest/resources/operator_users.yml')
-  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.operator_privileges.enabled', "true"
-  setting 'path.repo', repoDir.absolutePath
-
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")
-
-  user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
-  user username: "test_operator", password: 'x-pack-test-password', role: "limited_operator"
+  usesDefaultDistribution("to be triaged")
 }

@@ -5,87 +5,42 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
-
-configurations {
-  signedCerts
-  rootCert
-}
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
-  signedCerts project(path: ':x-pack:plugin:core', configuration: 'signedCerts')
-  rootCert project(path: ':x-pack:plugin:core', configuration: 'rootCert')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:reindex")) // need for deleting transform jobs
+  clusterModules(project(":x-pack:plugin:transform"))
+  // esql with enrich
+  clusterModules project(':x-pack:plugin:esql')
+  clusterModules project(':x-pack:plugin:enrich')
+  clusterModules project(':x-pack:plugin:autoscaling')
+  clusterModules project(':x-pack:plugin:ml')
+  clusterModules project(xpackModule('ilm'))
+  clusterModules(project(":modules:ingest-common"))
 }
 
-tasks.register("copyCerts", Sync) {
-  dependsOn configurations.signedCerts
-  from(configurations.signedCerts)
-  from(configurations.rootCert)
-  into "${buildDir}/certs"
+tasks.named("javaRestTest") {
+  enabled = true
+  // This is tested explicitly in bwc test tasks.
+  exclude '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+  exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
 }
 
-
-def fulfillingCluster = testClusters.register('fulfilling-cluster') {
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'remote_cluster.enabled', 'true'
-  setting 'remote_cluster.port', '0'
-
-  extraConfigFile 'transport.key', file("${buildDir}/certs/n1.c1.key")
-  extraConfigFile 'transport.cert', file("${buildDir}/certs/n1.c1.crt")
-  extraConfigFile 'transport.ca', file("${buildDir}/certs/ca.crt")
-
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', 'transport.key'
-  setting 'xpack.security.transport.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.transport.ssl.certificate_authorities', 'transport.ca'
-  setting 'xpack.security.transport.ssl.client_authentication', 'required'
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-
-  // It is intentionally to use none for both verification_mode and client_authentication.
-  // Because SSL is not wired up properly on the client (QC) side. These settings
-  // just test that they can be configured.
-  // Once SSL is all wired up, we will need (1) proper SSL verification and
-  // (2) different set of key and cert than the ones used for the transport interface.
-  setting 'xpack.security.remote_cluster.ssl.key', 'transport.key'
-  setting 'xpack.security.remote_cluster.ssl.certificate', 'transport.cert'
-  setting 'xpack.security.remote_cluster.ssl.verification_mode', 'none'
-  setting 'xpack.security.remote_cluster.ssl.client_authentication', 'none'
-}
-
-def queryingCluster = testClusters.register('querying-cluster') {
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.5.0")
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.connections_per_cluster', "1"
-
-  setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
-  setting 'cluster.remote.my_remote_cluster.proxy_address', {
-    "\"${fulfillingCluster.get().getAllRemoteAccessPortURI() .get(0)}\""
+buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    include '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+    include '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
   }
 }
-
-tasks.register('fulfilling-cluster', RestIntegTestTask) {
-  dependsOn 'copyCerts'
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'fulfilling_cluster'
-}
-
-tasks.register('querying-cluster', RestIntegTestTask) {
-  dependsOn 'copyCerts'
-  dependsOn 'fulfilling-cluster'
-  useCluster queryingCluster
-  useCluster fulfillingCluster
-  systemProperty 'tests.rest.suite', 'querying_cluster'
-}
-
-// runs the fulfilling-cluster cluster tests then the querying-cluster tests
-tasks.register("integTest") {
-  dependsOn 'copyCerts'
-  dependsOn 'querying-cluster'
-}
-
-tasks.named("check").configure { dependsOn("integTest") }

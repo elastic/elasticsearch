@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -17,8 +16,8 @@ import org.elasticsearch.core.Nullable;
  */
 public final class CreateTokenRequestBuilder extends ActionRequestBuilder<CreateTokenRequest, CreateTokenResponse> {
 
-    public CreateTokenRequestBuilder(ElasticsearchClient client, ActionType<CreateTokenResponse> action) {
-        super(client, action, new CreateTokenRequest());
+    public CreateTokenRequestBuilder(ElasticsearchClient client) {
+        super(client, CreateTokenAction.INSTANCE, new CreateTokenRequest());
     }
 
     /**

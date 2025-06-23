@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.test;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -75,7 +74,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             MockClusterAlertScriptEngine.TestPlugin.class,
             MockIngestPlugin.class,
             CommonAnalysisPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -97,11 +97,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void startMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::start);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::unpause);
     }
 
     protected void stopMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::pause);
     }
 
     protected void wipeMonitoringIndices() throws Exception {
@@ -124,10 +124,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
-    protected void ensureMonitoringIndicesYellow() {
-        ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
     protected List<Tuple<String, String>> monitoringWatches() {
         final ClusterService clusterService = clusterService();
 
@@ -138,7 +134,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
                 found = true;
             }
@@ -146,37 +146,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertTrue("failed to find a template matching [" + name + "]", found);
     }
 
-    protected void waitForMonitoringIndices() throws Exception {
-        awaitIndexExists(ALL_MONITORING_INDICES);
-        assertBusy(this::ensureMonitoringIndicesYellow);
-    }
-
-    protected void awaitIndexExists(final String index) throws Exception {
-        assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
-    }
-
-    private void assertIndicesExists(String... indices) {
-        logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        for (String index : indices) {
-            assertThat(indexExists(index), is(true));
-        }
-    }
-
     protected void enableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true))
-        );
+        updateClusterSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true));
     }
 
     protected void disableMonitoringCollection() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()));
     }
 }

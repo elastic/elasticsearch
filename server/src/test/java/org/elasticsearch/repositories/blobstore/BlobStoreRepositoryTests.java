@@ -1,71 +1,105 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -74,44 +108,17 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
-    static final String REPO_TYPE = "fsLike";
+    static final String REPO_TYPE = "fs";
+    private static final String TEST_REPO_NAME = "test-repo";
 
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(FsLikeRepoPlugin.class);
-    }
-
-    // the reason for this plug-in is to drop any assertSnapshotOrGenericThread as mostly all access in this test goes from test threads
-    public static class FsLikeRepoPlugin extends Plugin implements RepositoryPlugin {
-
-        @Override
-        public Map<String, Repository.Factory> getRepositories(
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
-            return Collections.singletonMap(
-                REPO_TYPE,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // eliminate thread name check as we access blobStore on test/main threads
-                    }
-                }
-            );
-        }
-    }
-
-    public void testRetrieveSnapshots() throws Exception {
+    public void testRetrieveSnapshots() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(repositoryName)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(Settings.builder().put(node().settings()).put("location", location))
             .get();
@@ -124,14 +131,14 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, "test-snap-1")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -140,7 +147,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("--> create second snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-2")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, TEST_REPO_NAME, "test-snap-2")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -148,7 +155,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(TEST_REPO_NAME);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
         List<SnapshotId> snapshotIds = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
@@ -211,6 +218,89 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
+
+        // adding more snapshots to check that writeIndexGen checks the actual repo metadata and fails on a readonly repository
+        final var newRepositoryData = addRandomSnapshotsToRepoData(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
+        final var barrier = new CyclicBarrier(2);
+        final var setReadonlyPromise = blockAndSetRepositoryReadOnly(repository.getMetadata().name(), barrier);
+        safeAwait(barrier); // wait for set-readonly task to start executing
+        safeAwait(l -> {
+            repository.writeIndexGen(
+                newRepositoryData,
+                newRepositoryData.getGenId(),
+                IndexVersion.current(),
+                Function.identity(),
+                ActionTestUtils.assertNoSuccessListener(e -> {
+                    assertThat(
+                        asInstanceOf(RepositoryException.class, e).getMessage(),
+                        containsString("[test-repo] Failed to execute cluster state update [set pending repository generation")
+                    );
+                    assertThat(
+                        asInstanceOf(RepositoryException.class, e.getCause()).getMessage(),
+                        containsString("[test-repo] repository is readonly, cannot update root blob")
+                    );
+                    l.onResponse(null);
+                })
+            );
+            safeAwait(barrier); // allow set-readonly task to proceed now that the set-pending-generation task is enqueued
+        });
+        safeAwait(setReadonlyPromise);
+    }
+
+    /**
+     * Submits a cluster state update which blocks on the {@code barrier} twice and then marks the given repository as readonly.
+     * @return a promise that is completed when the cluster state update finishes.
+     */
+    private SubscribableListener<Void> blockAndSetRepositoryReadOnly(String repositoryName, CyclicBarrier barrier) {
+        return SubscribableListener.newForked(
+            l -> getInstanceFromNode(ClusterService.class).submitUnbatchedStateUpdateTask(
+                "update readonly flag",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                        return new ClusterState.Builder(currentState).metadata(
+                            Metadata.builder(currentState.metadata())
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(
+                                        RepositoriesMetadata.get(currentState)
+                                            .repositories()
+                                            .stream()
+                                            .map(
+                                                r -> r.name().equals(repositoryName)
+                                                    ? new RepositoryMetadata(
+                                                        r.name(),
+                                                        r.uuid(),
+                                                        r.type(),
+                                                        Settings.builder()
+                                                            .put(r.settings())
+                                                            .put(BlobStoreRepository.READONLY_SETTING_KEY, "true")
+                                                            .build(),
+                                                        r.generation(),
+                                                        r.pendingGeneration()
+                                                    )
+                                                    : r
+                                            )
+                                            .toList()
+                                    )
+                                )
+                        ).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                }
+            )
+        );
     }
 
     public void testCorruptIndexLatestFile() throws Exception {
@@ -223,7 +313,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         System.arraycopy(generationBytes, 0, buffer, 0, 8);
 
         for (int i = 0; i < 16; i++) {
-            repository.blobContainer().writeBlob(BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+            repository.blobContainer()
+                .writeBlob(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {
@@ -238,7 +329,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
+    public void testRepositoryDataConcurrentModificationNotAllowed() {
         final BlobStoreRepository repository = setupRepo();
 
         // write to index generational file
@@ -249,19 +340,31 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
         final RepositoryData fresherRepositoryData = repositoryData.withGenId(startingGeneration + 1);
-        expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
+
+        assertThat(
+            safeAwaitFailure(
+                RepositoryData.class,
+                listener -> repository.writeIndexGen(
+                    fresherRepositoryData,
+                    repositoryData.getGenId(),
+                    IndexVersion.current(),
+                    Function.identity(),
+                    listener
+                )
+            ),
+            instanceOf(RepositoryException.class)
+        );
     }
 
-    public void testBadChunksize() throws Exception {
+    public void testBadChunksize() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         expectThrows(
             RepositoryException.class,
             () -> client.admin()
                 .cluster()
-                .preparePutRepository(repositoryName)
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
                 .setType(REPO_TYPE)
                 .setSettings(
                     Settings.builder()
@@ -276,15 +379,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testRepositoryDataDetails() throws Exception {
         final BlobStoreRepository repository = setupRepo();
         final String repositoryName = repository.getMetadata().name();
-        final Settings repositorySettings = repository.getMetadata().settings();
 
         createIndex("green-index");
         ensureGreen("green-index");
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("red-index")
+            indicesAdmin().prepareCreate("red-index")
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
@@ -294,12 +394,11 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
 
         final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
-            .setWaitForCompletion(true)
-            .setPartial(true)
-            .get();
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            "test-snap-1"
+        ).setWaitForCompletion(true).setPartial(true).get();
         final long afterEndTime = System.currentTimeMillis();
 
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
@@ -307,7 +406,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails -> {
             assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
-            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getVersion(), equalTo(IndexVersion.current()));
             assertThat(snapshotDetails.getStartTimeMillis(), allOf(greaterThanOrEqualTo(beforeStartTime), lessThanOrEqualTo(afterEndTime)));
             assertThat(
                 snapshotDetails.getEndTimeMillis(),
@@ -319,7 +418,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             );
         };
 
-        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
         snapshotDetailsAsserter.accept(snapshotDetails);
 
@@ -331,25 +430,30 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.withExtraDetails(
                 Collections.singletonMap(
                     snapshotId,
-                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, IndexVersion.current(), -1, -1, null)
                 )
             ),
             repositoryData.getGenId()
         );
 
-        snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
+        snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
-        PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, Version.CURRENT, Function.identity(), f)
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
+        safeAwait(
+            (ActionListener<RepositoryData> listener) -> repository.writeIndexGen(
+                repositoryData,
+                generation,
+                IndexVersion.current(),
+                Function.identity(),
+                listener
+            )
         );
     }
 
     private BlobStoreRepository setupRepo() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         Settings.Builder repoSettings = Settings.builder().put(node().settings()).put("location", location);
         boolean compress = randomBoolean();
@@ -358,18 +462,30 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(repositoryName)
+            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(repoSettings)
             .setVerify(false) // prevent eager reading of repo data
-            .get();
+            .get(TimeValue.timeValueSeconds(10));
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(TEST_REPO_NAME);
         assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
         assertEquals("Compress must be set to", compress, repository.isCompress());
         return repository;
+    }
+
+    @After
+    public void removeRepo() {
+        try {
+            client().admin()
+                .cluster()
+                .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME)
+                .get(TimeValue.timeValueSeconds(10));
+        } catch (RepositoryMissingException e) {
+            // ok, not all tests create the test repo
+        }
     }
 
     private RepositoryData addRandomSnapshotsToRepoData(RepositoryData repoData, boolean inclIndices) {
@@ -387,7 +503,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                Version.CURRENT,
+                IndexVersion.current(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -395,7 +511,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repoData = repoData.addSnapshot(
                 snapshotId,
                 details,
-                shardGenerations,
+                new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );
@@ -408,6 +524,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            randomProjectIdOrDefault(),
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
@@ -415,11 +532,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-
             @Override
             protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
                 // Randomly fail some file snapshot tasks
@@ -436,13 +548,75 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
-        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
-        ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.wrap(() -> listenerCalled.onResponse(null));
+        PlainActionFuture<Void> listenerCalled = new PlainActionFuture<>();
+        ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.running(() -> listenerCalled.onResponse(null));
         for (int i = 0; i < noOfFiles; i++) {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
-        listenerCalled.get();
+        listenerCalled.get(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetRepositoryDataThreadContext() {
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var headerName = "test-header";
+            final var threadPool = client().threadPool();
+            final var threadContext = threadPool.getThreadContext();
+            for (int i = 0; i < threads; i++) {
+                final var headerValue = randomAlphaOfLength(10);
+                try (var ignored = threadContext.stashContext()) {
+                    threadContext.putHeader(headerName, headerValue);
+                    threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                        safeAwait(barrier);
+                        repo.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l.map(repositoryData -> {
+                            assertEquals(headerValue, threadContext.getHeader(headerName));
+                            return null;
+                        }));
+                    }));
+                }
+            }
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetRepositoryDataForking() {
+        final var forkedListeners = Collections.synchronizedList(new ArrayList<Runnable>());
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var threadPool = client().threadPool();
+            final var testThread = Thread.currentThread();
+            final var resultsCountDown = new CountDownLatch(threads);
+            for (int i = 0; i < threads; i++) {
+                threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                    final var callingThread = Thread.currentThread();
+                    safeAwait(barrier);
+                    repo.getRepositoryData(runnable -> {
+                        forkedListeners.add(runnable);
+                        resultsCountDown.countDown();
+                    }, l.map(repositoryData -> {
+                        final var currentThread = Thread.currentThread();
+                        if (currentThread == testThread) {
+                            assertEquals(0, resultsCountDown.getCount());
+                        } else {
+                            assertSame(callingThread, currentThread);
+                            resultsCountDown.countDown();
+                        }
+                        return null;
+                    }));
+                }));
+            }
+            safeAwait(resultsCountDown);
+            forkedListeners.forEach(Runnable::run);
+            repo.getRepositoryData(runnable -> fail("should use cached value and not fork"), listeners.acquire(ignored -> {}));
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private Environment createEnvironment() {
@@ -452,6 +626,174 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), home.toAbsolutePath())
                 .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
                 .build()
+        );
+    }
+
+    public void testShardBlobsToDelete() {
+        final var repo = setupRepo();
+        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
+            final var expectedShardGenerations = ShardGenerations.builder();
+            final var expectedBlobsToDelete = new HashSet<String>();
+
+            final var countDownLatch = new CountDownLatch(1);
+            int blobCount = 0;
+            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
+                for (int index = between(0, 1000); index > 0; index--) {
+                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
+                    for (int shard = between(1, 30); shard > 0; shard--) {
+                        final var shardId = shard;
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shard, shardGeneration);
+                        final var blobsToDelete = randomList(
+                            100,
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
+                        );
+                        blobCount += blobsToDelete.size();
+                        final var indexPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shard))
+                            .buildAsString();
+                        for (final var blobToDelete : blobsToDelete) {
+                            expectedBlobsToDelete.add(indexPath + blobToDelete);
+                        }
+
+                        repo.threadPool()
+                            .generic()
+                            .execute(
+                                ActionRunnable.run(
+                                    refs.acquireListener(),
+                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
+                                )
+                            );
+                    }
+                }
+            }
+            safeAwait(countDownLatch);
+            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
+            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
+            assertThat(expectedBlobsToDelete, empty());
+            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
+        }
+    }
+
+    public void testUuidCreationLogging() {
+        final var repo = setupRepo();
+        final var repoMetadata = repo.getMetadata();
+        final var repoName = repoMetadata.name();
+        final var snapshot = randomIdentifier();
+
+        MockLog.assertThatLogger(
+            () -> safeGet(
+                client().execute(
+                    TransportCreateSnapshotAction.TYPE,
+                    new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshot).waitForCompletion(true)
+                )
+            ),
+            BlobStoreRepository.class,
+            new MockLog.SeenEventExpectation(
+                "new repo uuid message",
+                BlobStoreRepository.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("Generated new repository UUID [*] for repository [%s] in generation [*]", repoName)
+            )
+        );
+
+        MockLog.assertThatLogger(
+            // no more "Generated" messages ...
+            () -> {
+                safeGet(
+                    client().execute(
+                        TransportDeleteRepositoryAction.TYPE,
+                        new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    )
+                );
+
+                // we get a "Registering" message when re-registering the repository with ?verify=true (the default)
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportPutRepositoryAction.TYPE,
+                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type("fs")
+                                .verify(true)
+                                .settings(repoMetadata.settings())
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.SeenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                    )
+                );
+
+                safeGet(
+                    client().execute(
+                        TransportCreateSnapshotAction.TYPE,
+                        new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier()).waitForCompletion(true)
+                    )
+                );
+                assertTrue(
+                    safeGet(client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, repoName)))
+                        .getSnapshots()
+                        .stream()
+                        .anyMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshot))
+                );
+
+                safeGet(
+                    client().execute(
+                        TransportDeleteRepositoryAction.TYPE,
+                        new DeleteRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                    )
+                );
+
+                // No "Registering" message with ?verify=false because we don't read the repo data yet
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportPutRepositoryAction.TYPE,
+                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type("fs")
+                                .verify(false)
+                                .settings(repoMetadata.settings())
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.UnseenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Registering repository*"
+                    )
+                );
+
+                // But we do get the "Registering" message the first time we read the repo
+                MockLog.assertThatLogger(
+                    () -> safeGet(
+                        client().execute(
+                            TransportCreateSnapshotAction.TYPE,
+                            new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, randomIdentifier()).waitForCompletion(true)
+                        )
+                    ),
+                    RepositoriesService.class,
+                    new MockLog.SeenEventExpectation(
+                        "existing repo uuid message",
+                        RepositoriesService.class.getCanonicalName(),
+                        Level.INFO,
+                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                    )
+                );
+            },
+            BlobStoreRepository.class,
+            new MockLog.UnseenEventExpectation(
+                "no repo uuid generated messages",
+                BlobStoreRepository.class.getCanonicalName(),
+                Level.INFO,
+                "Generated new repository UUID*"
+            )
         );
     }
 }

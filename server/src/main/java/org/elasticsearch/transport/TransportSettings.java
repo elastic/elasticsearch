@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -13,17 +14,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public final class TransportSettings {
@@ -31,12 +31,7 @@ public final class TransportSettings {
     public static final String DEFAULT_PROFILE = "default";
     public static final String FEATURE_PREFIX = "transport.features";
 
-    public static final Setting<List<String>> HOST = listSetting(
-        "transport.host",
-        emptyList(),
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<List<String>> HOST = stringListSetting("transport.host", Setting.Property.NodeScope);
     public static final Setting<List<String>> PUBLISH_HOST = listSetting(
         "transport.publish_host",
         HOST,
@@ -59,12 +54,7 @@ public final class TransportSettings {
         "bind_host",
         key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope)
     );
-    public static final Setting<String> PORT = new Setting<>(
-        "transport.port",
-        "9300-9399",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> PORT = Setting.simpleString("transport.port", "9300-9399", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting(
         "transport.profiles.",
         "port",
@@ -224,17 +214,14 @@ public final class TransportSettings {
 
     // Tracer settings
 
-    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = listSetting(
+    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING = stringListSetting(
         "transport.tracer.include",
-        emptyList(),
-        Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = listSetting(
+    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING = stringListSetting(
         "transport.tracer.exclude",
-        Arrays.asList("internal:coordination/fault_detection/*"),
-        Function.identity(),
+        List.of("internal:coordination/fault_detection/*"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

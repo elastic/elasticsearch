@@ -53,6 +53,11 @@ public class TreeTests extends AbstractXContentSerializingTestCase<Tree> {
         return createRandom();
     }
 
+    @Override
+    protected Tree mutateInstance(Tree instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Tree createRandom() {
         return createRandom(randomFrom(TargetType.values()));
     }

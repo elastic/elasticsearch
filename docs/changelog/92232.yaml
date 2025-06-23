@@ -1,6 +1,0 @@
-pr: 92232
-summary: Better error when `aggregate_metric_double` used in scrolling datafeeds
-area: Machine Learning
-type: enhancement
-issues:
- - 90592

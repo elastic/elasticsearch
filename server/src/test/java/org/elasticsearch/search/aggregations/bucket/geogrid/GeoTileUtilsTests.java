@@ -1,17 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.hashToGeoPoint;
@@ -49,20 +55,20 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertEquals(0x77FFFF4580000000L, longEncode(179.999, 89.999, 29));
         assertEquals(0x740000BA7FFFFFFFL, longEncode(-179.999, -89.999, 29));
         assertEquals(0x0800000040000001L, longEncode(1, 1, 2));
-        assertEquals(0x0C00000060000000L, longEncode(-20, 100, 3));
+        assertEquals(0x0C00000060000000L, longEncode(-20, normalizeLat(100), 3));
         assertEquals(0x71127D27C8ACA67AL, longEncode(13, -15, 28));
         assertEquals(0x4C0077776003A9ACL, longEncode(-12, 15, 19));
-        assertEquals(0x140000024000000EL, longEncode(-328.231870, 16.064082, 5));
-        assertEquals(0x6436F96B60000000L, longEncode(-590.769588, 89.549167, 25));
-        assertEquals(0x6411BD6BA0A98359L, longEncode(999.787079, 51.830093, 25));
-        assertEquals(0x751BD6BBCA983596L, longEncode(999.787079, 51.830093, 29));
-        assertEquals(0x77CF880A20000000L, longEncode(-557.039740, -632.103969, 29));
+        assertEquals(0x140000024000000EL, longEncode(normalizeLon(-328.231870), 16.064082, 5));
+        assertEquals(0x6436F96B60000000L, longEncode(normalizeLon(-590.769588), 89.549167, 25));
+        assertEquals(0x6411BD6BA0A98359L, longEncode(normalizeLon(999.787079), 51.830093, 25));
+        assertEquals(0x751BD6BBCA983596L, longEncode(normalizeLon(999.787079), 51.830093, 29));
+        assertEquals(0x77CF880A20000000L, longEncode(normalizeLon(-557.039740), normalizeLat(-632.103969), 29));
         assertEquals(0x7624FA4FA0000000L, longEncode(13, 88, 29));
         assertEquals(0x7624FA4FBFFFFFFFL, longEncode(13, -88, 29));
         assertEquals(0x0400000020000000L, longEncode(13, 89, 1));
         assertEquals(0x0400000020000001L, longEncode(13, -89, 1));
-        assertEquals(0x0400000020000000L, longEncode(13, 95, 1));
-        assertEquals(0x0400000020000001L, longEncode(13, -95, 1));
+        assertEquals(0x0400000020000000L, longEncode(13, normalizeLat(95), 1));
+        assertEquals(0x0400000020000001L, longEncode(13, normalizeLat(-95), 1));
 
         expectThrows(IllegalArgumentException.class, () -> longEncode(0, 0, -1));
         expectThrows(IllegalArgumentException.class, () -> longEncode(-1, 0, MAX_ZOOM + 1));
@@ -74,20 +80,20 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertEquals(0x77FFFF4580000000L, longEncode(stringEncode(longEncode(179.999, 89.999, 29))));
         assertEquals(0x740000BA7FFFFFFFL, longEncode(stringEncode(longEncode(-179.999, -89.999, 29))));
         assertEquals(0x0800000040000001L, longEncode(stringEncode(longEncode(1, 1, 2))));
-        assertEquals(0x0C00000060000000L, longEncode(stringEncode(longEncode(-20, 100, 3))));
+        assertEquals(0x0C00000060000000L, longEncode(stringEncode(longEncode(-20, normalizeLat(100), 3))));
         assertEquals(0x71127D27C8ACA67AL, longEncode(stringEncode(longEncode(13, -15, 28))));
         assertEquals(0x4C0077776003A9ACL, longEncode(stringEncode(longEncode(-12, 15, 19))));
-        assertEquals(0x140000024000000EL, longEncode(stringEncode(longEncode(-328.231870, 16.064082, 5))));
-        assertEquals(0x6436F96B60000000L, longEncode(stringEncode(longEncode(-590.769588, 89.549167, 25))));
-        assertEquals(0x6411BD6BA0A98359L, longEncode(stringEncode(longEncode(999.787079, 51.830093, 25))));
-        assertEquals(0x751BD6BBCA983596L, longEncode(stringEncode(longEncode(999.787079, 51.830093, 29))));
-        assertEquals(0x77CF880A20000000L, longEncode(stringEncode(longEncode(-557.039740, -632.103969, 29))));
+        assertEquals(0x140000024000000EL, longEncode(stringEncode(longEncode(normalizeLon(-328.231870), 16.064082, 5))));
+        assertEquals(0x6436F96B60000000L, longEncode(stringEncode(longEncode(normalizeLon(-590.769588), 89.549167, 25))));
+        assertEquals(0x6411BD6BA0A98359L, longEncode(stringEncode(longEncode(normalizeLon(999.787079), 51.830093, 25))));
+        assertEquals(0x751BD6BBCA983596L, longEncode(stringEncode(longEncode(normalizeLon(999.787079), 51.830093, 29))));
+        assertEquals(0x77CF880A20000000L, longEncode(stringEncode(longEncode(normalizeLon(-557.039740), normalizeLat(-632.103969), 29))));
         assertEquals(0x7624FA4FA0000000L, longEncode(stringEncode(longEncode(13, 88, 29))));
         assertEquals(0x7624FA4FBFFFFFFFL, longEncode(stringEncode(longEncode(13, -88, 29))));
         assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13, 89, 1))));
         assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13, -89, 1))));
-        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13, 95, 1))));
-        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13, -95, 1))));
+        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13, normalizeLat(95), 1))));
+        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13, normalizeLat(-95), 1))));
 
         expectThrows(IllegalArgumentException.class, () -> longEncode("12/asdf/1"));
         expectThrows(IllegalArgumentException.class, () -> longEncode("foo"));
@@ -235,9 +241,54 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), anyOf(equalTo(yTile + 1), equalTo(yTile)));
         // check point inside
         double x = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), false);
-        double y = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), false);
+        double y = randomDoubleBetween(rectangle.getMinY() + GeoTileUtils.LUCENE_LAT_RES, rectangle.getMaxY(), false);
         assertThat(GeoTileUtils.getXTile(x, tiles), equalTo(xTile));
         assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
 
     }
+
+    public void testEncodingLuceneLonConsistency() {
+        final double qLon = GeoEncodingUtils.decodeLongitude(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        for (int zoom = 0; zoom <= MAX_ZOOM; zoom++) {
+            final int tiles = 1 << zoom;
+            final int x = GeoTileUtils.getXTile(qLon, tiles);
+            final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, randomIntBetween(0, tiles - 1), zoom);
+            // max longitude belongs to the next tile except the last one
+            assertThat(
+                GeoTileUtils.getXTile(GeoUtils.quantizeLon(rectangle.getMaxX()), tiles),
+                Matchers.anyOf(equalTo(x + 1), equalTo(tiles - 1))
+            );
+            // next encoded value down belongs to the tile
+            assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLonDown(rectangle.getMaxX()), tiles), equalTo(x));
+            // min longitude belongs to the tile
+            assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLon(rectangle.getMinX()), tiles), equalTo(x));
+            if (x != 0) {
+                // next encoded value down belongs to the previous tile
+                assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLonDown(rectangle.getMinX()), tiles), equalTo(x - 1));
+            }
+        }
+    }
+
+    public void testEncodingLuceneLatConsistency() {
+        final double qLat = GeoEncodingUtils.decodeLatitude(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+        for (int zoom = 0; zoom <= MAX_ZOOM; zoom++) {
+            final int tiles = 1 << zoom;
+            final int y = GeoTileUtils.getYTile(qLat, tiles);
+            final Rectangle rectangle = GeoTileUtils.toBoundingBox(randomIntBetween(0, tiles - 1), y, zoom);
+            // max latitude belongs to the tile
+            assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLat(rectangle.getMaxLat()), tiles), equalTo(y));
+            if (y != 0) {
+                // next encoded value up belongs to the previous tile
+                assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLatUp(rectangle.getMaxLat()), tiles), equalTo(y - 1));
+            }
+            // min latitude belongs to the next tile except the last one
+            assertThat(
+                GeoTileUtils.getYTile(GeoUtils.quantizeLat(rectangle.getMinLat()), tiles),
+                Matchers.anyOf(equalTo(y + 1), equalTo(tiles - 1))
+            );
+            // next encoded value up belongs to the tile
+            assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLatUp(rectangle.getMinLat()), tiles), equalTo(y));
+        }
+    }
+
 }

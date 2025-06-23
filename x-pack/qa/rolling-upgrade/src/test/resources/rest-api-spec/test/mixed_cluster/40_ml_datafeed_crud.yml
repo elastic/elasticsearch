@@ -17,11 +17,11 @@
 
 ---
 "Test old cluster datafeed with aggs":
+  - requires:
+      test_runner_features: "warnings"
   - skip:
-      features: warnings
       #TODO remove skip when master is bumped to 9.0.0
-      version: "all"
-      reason: "If we hit the old node we get a warning. If we hit the new node, we don't"
+      awaits_fix: "If we hit the old node we get a warning. If we hit the new node, we don't"
   - do:
       warnings:
         - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'

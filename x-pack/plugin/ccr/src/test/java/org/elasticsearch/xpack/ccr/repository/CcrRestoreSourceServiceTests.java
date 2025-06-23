@@ -10,22 +10,29 @@ package org.elasticsearch.xpack.ccr.repository;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
@@ -41,6 +48,14 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             CcrSettings.getSettings().stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet())
         );
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
+    }
+
+    @After
+    public void assertWarnings() {
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testOpenSession() throws IOException {
@@ -166,7 +181,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         String fileName = fileMetadata.name();
 
         byte[] expectedBytes = new byte[(int) fileMetadata.length()];
-        byte[] actualBytes = new byte[(int) fileMetadata.length()];
+        var actualBytes = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(fileMetadata.length(), false);
         try (
             Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
             IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)
@@ -175,13 +190,13 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             indexInput.readBytes(expectedBytes, 0, (int) fileMetadata.length());
         }
 
-        BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
-            long offset = sessionReader.readFileBytes(fileName, byteArray);
+            long offset = sessionReader.readFileBytes(fileName, actualBytes);
             assertEquals(offset, fileMetadata.length());
         }
 
-        assertArrayEquals(expectedBytes, actualBytes);
+        assertTrue(actualBytes.hasArray());
+        assertArrayEquals(expectedBytes, actualBytes.array());
         restoreSourceService.closeSession(sessionUUID1);
         closeShards(indexShard1);
     }
@@ -201,17 +216,17 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         indexShard.snapshotStoreMetadata().forEach(files::add);
 
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-            sessionReader.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
+            sessionReader.readFileBytes(files.get(0).name(), MockBigArrays.NON_RECYCLING_INSTANCE.newByteArray(10, false));
         }
 
         // Request a second file to ensure that original file is not leaked
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-            sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
+            sessionReader.readFileBytes(files.get(1).name(), MockBigArrays.NON_RECYCLING_INSTANCE.newByteArray(10, false));
         }
 
-        assertTrue(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertTrue(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
         restoreSourceService.closeSession(sessionUUID);
-        assertFalse(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertFalse(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
 
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.
@@ -249,6 +264,57 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID));
 
+        closeShards(indexShard);
+    }
+
+    public void testConsistencyBetweenRequestAndSession() throws IOException {
+        IndexShard indexShard = newStartedShard(true);
+
+        final String sessionUUID = UUIDs.randomBase64UUID();
+        final Store.MetadataSnapshot metadata = restoreSourceService.openSession(sessionUUID, indexShard);
+        final Set<String> knownFileNames = metadata.fileMetadataMap().keySet();
+
+        final String anotherSessionUUID = UUIDs.randomBase64UUID();
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureSessionShardIdConsistency(anotherSessionUUID, indexShard.shardId())
+        );
+        assertThat(e1.getMessage(), containsString("session [" + anotherSessionUUID + "] not found"));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureFileNameIsKnownToSession(anotherSessionUUID, randomFrom(knownFileNames))
+        );
+        assertThat(e2.getMessage(), containsString("session [" + anotherSessionUUID + "] not found"));
+
+        final ShardId anotherShardId = new ShardId(randomAlphaOfLengthBetween(3, 12), randomAlphaOfLength(20), randomIntBetween(0, 3));
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureSessionShardIdConsistency(sessionUUID, anotherShardId)
+        );
+        assertThat(e3.getMessage(), containsString("does not match requested shardId [" + anotherShardId + "]"));
+
+        final String anotherFileName = randomValueOtherThanMany(knownFileNames::contains, () -> randomAlphaOfLengthBetween(3, 12));
+        final IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureFileNameIsKnownToSession(sessionUUID, anotherFileName)
+        );
+        assertThat(e4.getMessage(), containsString("invalid file name [" + anotherFileName + "]"));
+
+        try {
+            restoreSourceService.ensureSessionShardIdConsistency(sessionUUID, indexShard.shardId());
+        } catch (Exception e) {
+            fail("should have succeeded, but got [" + e + "]");
+        }
+
+        try {
+            restoreSourceService.ensureFileNameIsKnownToSession(sessionUUID, randomFrom(knownFileNames));
+        } catch (Exception e) {
+            fail("should have succeeded, but got [" + e + "]");
+        }
+
+        restoreSourceService.closeSession(sessionUUID);
         closeShards(indexShard);
     }
 }

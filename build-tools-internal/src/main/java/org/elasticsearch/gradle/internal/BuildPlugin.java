@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin;
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -31,7 +34,7 @@ import javax.inject.Inject;
  */
 public class BuildPlugin implements Plugin<Project> {
 
-    public static final String SSPL_LICENSE_PATH = "licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+    public static final String LICENSE_PATH = "licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
 
     private final BuildLayout buildLayout;
     private final ObjectFactory objectFactory;
@@ -57,10 +60,11 @@ public class BuildPlugin implements Plugin<Project> {
         }
 
         project.getPluginManager().apply("elasticsearch.java");
-        project.getPluginManager().apply("elasticsearch.publish");
         project.getPluginManager().apply(ElasticsearchJavadocPlugin.class);
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
+        project.getPluginManager().apply(LicensingPlugin.class);
         project.getPluginManager().apply(SnykDependencyMonitoringGradlePlugin.class);
+        project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
         InternalPrecommitTasks.create(project, true);
         configureLicenseAndNotice(project);
     }
@@ -99,7 +103,7 @@ public class BuildPlugin implements Plugin<Project> {
     }
 
     private void configureLicenseDefaultConvention(RegularFileProperty licenseFileProperty) {
-        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
+        File licenseFileDefault = new File(buildLayout.getRootDirectory(), LICENSE_PATH);
         licenseFileProperty.convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
     }
 

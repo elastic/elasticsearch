@@ -1,5 +1,0 @@
-pr: 92640
-summary: Added new field `rollout_duration_seconds` to fleet-actions
-area: Infra/Core
-type: enhancement
-issues: []

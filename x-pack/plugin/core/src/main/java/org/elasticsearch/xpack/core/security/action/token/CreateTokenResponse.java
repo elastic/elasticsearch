@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,25 +24,20 @@ import java.util.Objects;
  */
 public final class CreateTokenResponse extends ActionResponse implements ToXContentObject {
 
-    private String tokenString;
-    private TimeValue expiresIn;
-    private String scope;
-    private String refreshToken;
-    private String kerberosAuthenticationResponseToken;
+    private final String tokenString;
+    private final TimeValue expiresIn;
+    private final String scope;
+    private final String refreshToken;
+    private final String kerberosAuthenticationResponseToken;
     private Authentication authentication;
 
-    CreateTokenResponse() {}
-
     public CreateTokenResponse(StreamInput in) throws IOException {
-        super(in);
         tokenString = in.readString();
         expiresIn = in.readTimeValue();
         scope = in.readOptionalString();
         refreshToken = in.readOptionalString();
         kerberosAuthenticationResponseToken = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            authentication = new Authentication(in);
-        }
+        authentication = new Authentication(in);
     }
 
     public CreateTokenResponse(
@@ -93,9 +87,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeOptionalString(scope);
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(kerberosAuthenticationResponseToken);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            authentication.writeTo(out);
-        }
+        authentication.writeTo(out);
     }
 
     @Override

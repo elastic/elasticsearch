@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -22,7 +24,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -37,7 +43,7 @@ import java.util.function.Function;
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection implements Closeable {
+public final class RemoteClusterConnection implements Closeable {
 
     private final TransportService transportService;
     private final RemoteConnectionManager remoteConnectionManager;
@@ -52,12 +58,28 @@ final class RemoteClusterConnection implements Closeable {
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
+     * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
+     *                           i.e. it has a credential configured via secure setting.
+     *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
+    RemoteClusterConnection(
+        Settings settings,
+        String clusterAlias,
+        TransportService transportService,
+        RemoteClusterCredentialsManager credentialsManager
+    ) {
         this.transportService = transportService;
         this.clusterAlias = clusterAlias;
-        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
-        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, createConnectionManager(profile, transportService));
+        ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
+            clusterAlias,
+            settings,
+            credentialsManager.hasCredentials(clusterAlias)
+        );
+        this.remoteConnectionManager = new RemoteConnectionManager(
+            clusterAlias,
+            credentialsManager,
+            createConnectionManager(profile, transportService)
+        );
         this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         this.remoteConnectionManager.addListener(transportService);
@@ -77,7 +99,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Returns whether this cluster is configured to be skipped when unavailable
      */
-    boolean isSkipUnavailable() {
+    public boolean isSkipUnavailable() {
         return skipUnavailable;
     }
 
@@ -107,34 +129,55 @@ final class RemoteClusterConnection implements Closeable {
             final ThreadContext threadContext = threadPool.getThreadContext();
             final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            try (var ignore = threadContext.newEmptySystemContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
-                threadContext.markAsSystemContext();
-
-                final ClusterStateRequest request = new ClusterStateRequest();
-                request.clear();
-                request.nodes(true);
-                request.local(true); // run this on the node that gets the request it's as good as any other
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
-                transportService.sendRequest(
-                    connection,
-                    ClusterStateAction.NAME,
-                    request,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        contextPreservingActionListener.map(response -> response.getState().nodes()::get),
-                        ClusterStateResponse::new
-                    )
-                );
+
+                // Use different action to collect nodes information depending on the connection model
+                if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
+                    transportService.sendRequest(
+                        connection,
+                        RemoteClusterNodesAction.TYPE.name(),
+                        RemoteClusterNodesAction.Request.ALL_NODES,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {
+                            final Map<String, DiscoveryNode> nodeLookup = response.getNodes()
+                                .stream()
+                                .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()));
+                            return nodeLookup::get;
+                        }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    );
+                } else {
+                    final ClusterStateRequest request = new ClusterStateRequest(
+                        /* Timeout doesn't really matter with .local(true) */
+                        TimeValue.THIRTY_SECONDS
+                    );
+                    request.clear();
+                    request.nodes(true);
+                    request.local(true); // run this on the node that gets the request it's as good as any other
+
+                    transportService.sendRequest(
+                        connection,
+                        ClusterStateAction.NAME,
+                        request,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            contextPreservingActionListener.map(response -> response.getState().nodes()::get),
+                            ClusterStateResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
+                }
             }
         };
+
         try {
             // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
             // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
             // caller end since they provide the listener.
-            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+            ensureConnected(listener.delegateFailureAndWrap((l, x) -> runnable.run()));
         } catch (Exception ex) {
             listener.onFailure(ex);
         }
@@ -174,7 +217,13 @@ final class RemoteClusterConnection implements Closeable {
      * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
     public RemoteConnectionInfo getConnectionInfo() {
-        return new RemoteConnectionInfo(clusterAlias, connectionStrategy.getModeInfo(), initialConnectionTimeout, skipUnavailable);
+        return new RemoteConnectionInfo(
+            clusterAlias,
+            connectionStrategy.getModeInfo(),
+            initialConnectionTimeout,
+            skipUnavailable,
+            REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())
+        );
     }
 
     int getNumNodesConnected() {

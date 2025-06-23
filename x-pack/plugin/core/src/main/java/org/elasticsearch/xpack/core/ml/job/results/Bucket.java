@@ -143,12 +143,12 @@ public class Bucket implements ToXContentObject, Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        records = in.readList(AnomalyRecord::new);
+        records = in.readCollectionAsList(AnomalyRecord::new);
         eventCount = in.readLong();
         isInterim = in.readBoolean();
-        bucketInfluencers = in.readList(BucketInfluencer::new);
+        bucketInfluencers = in.readCollectionAsList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        scheduledEvents = in.readStringList();
+        scheduledEvents = in.readStringCollectionAsList();
         if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }
@@ -161,10 +161,10 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        out.writeList(records);
+        out.writeCollection(records);
         out.writeLong(eventCount);
         out.writeBoolean(isInterim);
-        out.writeList(bucketInfluencers);
+        out.writeCollection(bucketInfluencers);
         out.writeLong(processingTimeMs);
         out.writeStringCollection(scheduledEvents);
     }
@@ -173,7 +173,11 @@ public class Bucket implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
-        builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            Result.TIMESTAMP.getPreferredName(),
+            Result.TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);

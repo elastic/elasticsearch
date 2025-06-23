@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -24,7 +25,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -43,17 +46,25 @@ public final class XContentTestUtils {
     }
 
     public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
-        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
+        return convertToMap(chunkedToXContent, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent, ToXContent.Params params) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), params);
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
+        return convertToMap(part, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ToXContent part, ToXContent.Params params) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         if (part.isFragment()) {
             builder.startObject();
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
             builder.endObject();
         } else {
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
         }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
@@ -204,7 +215,7 @@ public final class XContentTestUtils {
             )
         ) {
             parser.nextToken();
-            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             if (excludeFilter == null) {
                 insertPaths = possiblePaths;
             } else {
@@ -268,17 +279,17 @@ public final class XContentTestUtils {
      *  <li>"foo3.foo4</li>
      * </ul>
      */
-    static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
+    static List<String> getInsertPaths(XContentParser parser, Deque<String> currentPath) throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY
             : "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replace(".", "\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            validPaths.add(String.join(".", currentPath));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -290,15 +301,15 @@ public final class XContentTestUtils {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    currentPath.push(Integer.toString(itemCount));
+                    currentPath.addLast(Integer.toString(itemCount));
                     validPaths.addAll(getInsertPaths(parser, currentPath));
-                    currentPath.pop();
+                    currentPath.removeLast();
                 }
                 itemCount++;
             }
         }
         if (parser.currentName() != null) {
-            currentPath.pop();
+            currentPath.removeLast();
         }
         return validPaths;
     }
@@ -351,6 +362,11 @@ public final class XContentTestUtils {
                 }
             }
             return (T) context;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
         }
     }
 }

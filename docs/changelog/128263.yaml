@@ -1,0 +1,5 @@
+pr: 128263
+summary: Allow lookup join on mixed numeric fields
+area: ES|QL
+type: enhancement
+issues: []

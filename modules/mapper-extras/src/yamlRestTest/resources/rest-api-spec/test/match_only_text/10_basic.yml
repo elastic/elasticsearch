@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason: "match_only_text was added in 7.14"
 
   - do:
@@ -256,8 +256,8 @@ setup:
 ---
 "Wildcard highlighting":
 
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "Wildcard highlighting on match_only_text was fixed in 8.3"
 
   - do:
@@ -274,3 +274,124 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
   - match: { hits.hits.0.highlight.foo.0: "The Apache Software Foundation manages <em>many</em> projects including Lucene" }
+
+---
+synthetic_source:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source:
+        foo: "Apache Lucene powers Elasticsearch"
+
+---
+tsdb:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: bug fixed in 8.10.0
+
+  - do:
+      indices.create:
+        index: tsdb_test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ dimension ]
+              time_series:
+                start_time: 2000-01-01T00:00:00Z
+                end_time: 2099-12-31T23:59:59Z
+          mappings:
+            properties:
+              dimension:
+                type: keyword
+                time_series_dimension: true
+              foo:
+                type: match_only_text
+
+  - do:
+      index:
+        index: tsdb_test
+        refresh: true
+        body:
+          "@timestamp": "2000-01-01T00:00:00Z"
+          dimension: "a"
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: tsdb_test
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source:
+        "@timestamp" : "2000-01-01T00:00:00.000Z"
+        "dimension" : "a"
+        foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source with copy_to:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+  - match:
+      hits.hits.0.fields.copy.0: "Apache Lucene powers Elasticsearch"
+
+

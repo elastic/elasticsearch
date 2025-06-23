@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +19,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -30,15 +33,17 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     // package-private for tests
     final GoogleCloudStorageService storageService;
 
+    @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        this.storageService = createStorageService();
+        var isServerless = DiscoveryNode.isStateless(settings);
+        this.storageService = createStorageService(isServerless);
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService() {
-        return new GoogleCloudStorageService();
+    protected GoogleCloudStorageService createStorageService(boolean isServerless) {
+        return new GoogleCloudStorageService(isServerless);
     }
 
     @Override
@@ -47,17 +52,20 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
-            metadata -> new GoogleCloudStorageRepository(
+            (projectId, metadata) -> new GoogleCloudStorageRepository(
+                projectId,
                 metadata,
                 namedXContentRegistry,
                 this.storageService,
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
             )
         );
     }

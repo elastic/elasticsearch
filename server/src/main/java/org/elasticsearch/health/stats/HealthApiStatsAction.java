@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,27 +36,13 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
     public static final String NAME = "cluster:monitor/health_api/stats";
 
     private HealthApiStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
         }
 
         @Override
@@ -63,7 +50,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
             return "health_api_stats";
         }
 
-        public static class Node extends TransportRequest {
+        public static class Node extends AbstractTransportRequest {
 
             public Node(StreamInput in) throws IOException {
                 super(in);
@@ -80,27 +67,23 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
     public static class Response extends BaseNodesResponse<Response.Node> {
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public Response(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override
         protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(Node::new);
+            return TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-            out.writeList(nodes);
+            TransportAction.localOnly();
         }
 
         public Counters getStats() {

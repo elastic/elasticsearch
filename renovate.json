@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>elastic/renovate-config:only-chainguard",
+    ":disableDependencyDashboard"
+  ],
+  "schedule": [
+    "after 1pm on tuesday"
+  ],
+  "labels": [
+    ">non-issue",
+    ":Delivery/Packaging",
+    "Team:Delivery",
+    "auto-merge-without-approval"
+  ],
+  "baseBranches": [
+    "main",
+    "9.0",
+    "8.19",
+    "8.18",
+    "8.17"
+  ]
+}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -34,9 +35,35 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
     protected FetchSourceContext createTestInstance() {
         return FetchSourceContext.of(
             true,
+            randomBoolean() ? null : randomBoolean(),
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5))
         );
+    }
+
+    @Override
+    protected FetchSourceContext mutateInstance(FetchSourceContext instance) {
+        return switch (randomInt(2)) {
+            case 0 -> FetchSourceContext.of(
+                true,
+                instance.excludeVectors() != null ? instance.excludeVectors() == false : randomBoolean(),
+                instance.includes(),
+                instance.excludes()
+            );
+            case 1 -> FetchSourceContext.of(
+                true,
+                instance.excludeVectors(),
+                randomArray(instance.includes().length + 1, instance.includes().length + 5, String[]::new, () -> randomAlphaOfLength(5)),
+                instance.excludes()
+            );
+            case 2 -> FetchSourceContext.of(
+                true,
+                instance.excludeVectors(),
+                instance.includes(),
+                randomArray(instance.excludes().length + 1, instance.excludes().length + 5, String[]::new, () -> randomAlphaOfLength(5))
+            );
+            default -> throw new AssertionError("cannot reach");
+        };
     }
 
     public void testFromXContentException() throws IOException {

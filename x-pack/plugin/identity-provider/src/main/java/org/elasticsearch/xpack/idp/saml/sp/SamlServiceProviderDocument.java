@@ -42,6 +42,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST;
+import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19;
+
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
  */
@@ -87,6 +90,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Nullable
         public String roles;
 
+        /**
+         * Extensions are attributes that are provided at runtime (by the trusted client that initiates
+         * the SAML SSO. They are sourced from the rest request rather than the user object itself.
+         */
+        public Set<String> extensions = Set.of();
+
         public void setPrincipal(String principal) {
             this.principal = principal;
         }
@@ -103,6 +112,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             this.roles = roles;
         }
 
+        public void setExtensions(Collection<String> names) {
+            this.extensions = names == null ? Set.of() : Set.copyOf(names);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -111,7 +124,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return Objects.equals(principal, that.principal)
                 && Objects.equals(email, that.email)
                 && Objects.equals(name, that.name)
-                && Objects.equals(roles, that.roles);
+                && Objects.equals(roles, that.roles)
+                && Objects.equals(extensions, that.extensions);
         }
 
         @Override
@@ -163,7 +177,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             return decodeCertificates(this.identityProviderMetadataSigning);
         }
 
-        private List<String> encodeCertificates(Collection<X509Certificate> certificates) {
+        private static List<String> encodeCertificates(Collection<X509Certificate> certificates) {
             return certificates == null ? List.of() : certificates.stream().map(cert -> {
                 try {
                     return cert.getEncoded();
@@ -173,14 +187,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             }).map(Base64.getEncoder()::encodeToString).toList();
         }
 
-        private List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
+        private static List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
             if (encodedCertificates == null || encodedCertificates.isEmpty()) {
                 return List.of();
             }
-            return encodedCertificates.stream().map(this::decodeCertificate).toList();
+            return encodedCertificates.stream().map(Certificates::decodeCertificate).toList();
         }
 
-        private X509Certificate decodeCertificate(String base64Cert) {
+        private static X509Certificate decodeCertificate(String base64Cert) {
             final byte[] bytes = base64Cert.getBytes(StandardCharsets.UTF_8);
             try (InputStream stream = new ByteArrayInputStream(bytes)) {
                 final List<Certificate> certificates = CertParsingUtils.readCertificates(Base64.getDecoder().wrap(stream));
@@ -256,16 +270,21 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
-        privileges.rolePatterns = new TreeSet<>(in.readSet(StreamInput::readString));
+        privileges.rolePatterns = new TreeSet<>(in.readCollectionAsSet(StreamInput::readString));
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
-        certificates.serviceProviderSigning = in.readStringList();
-        certificates.identityProviderSigning = in.readStringList();
-        certificates.identityProviderMetadataSigning = in.readStringList();
+        if (in.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+            || in.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+            attributeNames.extensions = in.readCollectionAsImmutableSet(StreamInput::readString);
+        }
+
+        certificates.serviceProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderMetadataSigning = in.readStringCollectionAsList();
     }
 
     @Override
@@ -287,6 +306,11 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalString(attributeNames.email);
         out.writeOptionalString(attributeNames.name);
         out.writeOptionalString(attributeNames.roles);
+
+        if (out.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+            || out.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+            out.writeStringCollection(attributeNames.extensions);
+        }
 
         out.writeStringCollection(certificates.serviceProviderSigning);
         out.writeStringCollection(certificates.identityProviderSigning);
@@ -426,6 +450,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setEmail, Fields.Attributes.EMAIL);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setName, Fields.Attributes.NAME);
         ATTRIBUTES_PARSER.declareStringOrNull(AttributeNames::setRoles, Fields.Attributes.ROLES);
+        ATTRIBUTES_PARSER.declareStringArray(AttributeNames::setExtensions, Fields.Attributes.EXTENSIONS);
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (p, doc) -> CERTIFICATES_PARSER.parse(p, doc.certificates, null), Fields.CERTIFICATES);
         CERTIFICATES_PARSER.declareStringArray(Certificates::setServiceProviderSigning, Fields.Certificates.SP_SIGNING);
@@ -516,6 +541,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.Attributes.EMAIL.getPreferredName(), attributeNames.email);
         builder.field(Fields.Attributes.NAME.getPreferredName(), attributeNames.name);
         builder.field(Fields.Attributes.ROLES.getPreferredName(), attributeNames.roles);
+        if (attributeNames.extensions != null && attributeNames.extensions.isEmpty() == false) {
+            builder.field(Fields.Attributes.EXTENSIONS.getPreferredName(), attributeNames.extensions);
+        }
         builder.endObject();
 
         builder.startObject(Fields.CERTIFICATES.getPreferredName());
@@ -553,6 +581,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             ParseField EMAIL = new ParseField("email");
             ParseField NAME = new ParseField("name");
             ParseField ROLES = new ParseField("roles");
+            ParseField EXTENSIONS = new ParseField("extensions");
         }
 
         interface Certificates {

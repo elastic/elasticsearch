@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -54,6 +54,11 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return createRandom();
     }
 
+    @Override
+    protected DataFrameAnalyticsSource mutateInstance(DataFrameAnalyticsSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataFrameAnalyticsSource createRandom() {
         String[] index = generateRandomStringArray(10, 10, false, false);
         QueryProvider queryProvider = null;
@@ -85,7 +90,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return new DataFrameAnalyticsSource(index, queryProvider, sourceFiltering, runtimeMappings);
     }
 
-    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, Version version) {
+    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return instance;
     }
 
@@ -174,7 +179,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, Version version) {
+    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

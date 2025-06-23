@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -11,11 +12,13 @@ package org.elasticsearch.discovery;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -26,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -40,9 +44,8 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -95,22 +98,22 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
+     * Test that we do not lose documents, indexed via requests that return success, under randomly selected disruption schemes.
      * We also collect &amp; report the type of indexing failures that occur.
      * <p>
-     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
+     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates.
      */
-    @TestIssueLogging(
+    @TestLogging(
         value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
             + "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE,"
             + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
             + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068"
+        reason = "Past failures have required a lot of additional logging to debug"
     )
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
-        final String timeout = seconds + "s";
+        final TimeValue timeout = TimeValue.timeValueSeconds(seconds);
 
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
 
@@ -170,7 +173,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                     indexRequestBuilder.setCreate(true);
                                 }
 
-                                IndexResponse response = indexRequestBuilder.get(timeout);
+                                DocWriteResponse response = indexRequestBuilder.get(timeout);
                                 assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
@@ -232,7 +235,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
                 if (disruptionScheme instanceof NetworkDisruption networkDisruption
                     && networkDisruption.getDisruptedLinks() instanceof Bridge) {
-                    assertBusy(() -> assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true)));
+                    assertBusy(() -> ClusterRerouteUtils.rerouteRetryFailed(client()));
                 }
                 ensureGreen("test");
 
@@ -279,11 +282,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
         List<String> nodes = startCluster(3);
 
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            ).get()
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1, 2)).get());
         ensureGreen("test");
 
         nodes = new ArrayList<>(nodes);
@@ -295,9 +294,16 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         NetworkDisruption scheme = addRandomDisruptionType(partitions);
         scheme.startDisrupting();
         ensureStableCluster(2, notIsolatedNode);
-        assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
+        assertFalse(
+            client(notIsolatedNode).admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "test")
+                .setWaitForYellowStatus()
+                .get()
+                .isTimedOut()
+        );
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
+        DocWriteResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
@@ -329,13 +335,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         String masterNode = internalCluster().getMasterName();
         List<String> nonMasterNodes = nodes.stream().filter(node -> node.equals(masterNode) == false).toList();
         String nonMasterNode = randomFrom(nonMasterNodes);
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(3, 2)));
         ensureGreen();
-        String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        String nonMasterNodeId = getNodeId(nonMasterNode);
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(
@@ -430,14 +432,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         assertBusy(() -> {
-            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get().isTimedOut());
             assertTrue(
                 internalCluster().client(masterNode)
                     .admin()
                     .cluster()
-                    .prepareHealth()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForNodes("2")
-                    .setTimeout("2s")
+                    .setTimeout(TimeValue.timeValueSeconds(2))
                     .get()
                     .isTimedOut()
             );
@@ -465,12 +467,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
         // the delete has been applied to the master node and the master eligible node.
-        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
+        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout(TimeValue.ZERO).get();
         // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
                 final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metadata().hasIndex(idxName) == false);
+                assertTrue("index not deleted on " + masterNode, masterState.metadata().getProject().hasIndex(idxName) == false);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
@@ -481,16 +483,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testRestartNodeWhileIndexing() throws Exception {
         startCluster(3);
         String index = "restart_while_indexing";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 2))
-                )
-        );
+        createIndex(index, 1, between(1, 2));
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 4)];
         AtomicInteger docID = new AtomicInteger();
@@ -500,8 +493,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index)
-                            .setId(id)
+                        DocWriteResponse response = prepareIndex(index).setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
@@ -561,7 +553,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         final ClusterService dataClusterService = internalCluster().getInstance(ClusterService.class, dataNode);
-        final PlainActionFuture<Void> failedLeader = new PlainActionFuture<>() {
+        final PlainActionFuture<Void> failedLeader = new UnsafePlainActionFuture<>(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) {
             @Override
             protected boolean blockingAllowed() {
                 // we're deliberately blocking the cluster applier on the master until the data node starts to rejoin
@@ -584,23 +576,20 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             }
         });
 
-        final MockTransportService dataTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            dataNode
-        );
-        dataTransportService.addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
-            if (removedNode.isDone() == false) {
-                channel.sendResponse(new ElasticsearchException("simulated check failure"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(dataNode)
+            .addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
+                if (removedNode.isDone() == false) {
+                    channel.sendResponse(new ElasticsearchException("simulated check failure"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
 
         removedNode.actionGet(10, TimeUnit.SECONDS);
         ensureStableCluster(2);

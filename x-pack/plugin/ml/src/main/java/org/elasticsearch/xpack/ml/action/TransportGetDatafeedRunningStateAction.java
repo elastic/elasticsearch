@@ -15,8 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,8 +56,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -78,7 +78,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener
@@ -89,7 +89,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks == null) {
             listener.onResponse(new Response(Collections.emptyMap()));
             return;

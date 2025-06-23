@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -39,6 +40,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
     protected Metadata metadata;
+    protected ProjectMetadata projectMetadata;
     protected MockLicenseState licenseState;
     protected Client client;
     protected Settings settings;
@@ -51,6 +53,8 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
         metadata = mock(Metadata.class);
+        projectMetadata = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(projectMetadata);
         licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -101,6 +105,6 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode localNode(final String uuid) {
-        return new DiscoveryNode(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300), Version.CURRENT);
+        return DiscoveryNodeUtils.create(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300));
     }
 }

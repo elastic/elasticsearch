@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.stats;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageShardResponse;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,11 +27,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class FieldUsageStatsIT extends ESIntegTestCase {
 
@@ -51,23 +50,17 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
                 .get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         ensureGreen("test");
 
@@ -80,17 +73,18 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertFalse(stats.hasField("field2"));
         assertFalse(stats.hasField("date_field"));
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
-            .setQuery(QueryBuilders.termQuery("field", "value"))
-            .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
-            .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
-            .setSize(between(5, 100))
-            .setPreference("fixed")
-            .get();
-
-        assertHitCount(searchResponse, 30);
-        assertAllSuccessful(searchResponse);
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.DEFAULT)
+                .setQuery(QueryBuilders.termQuery("field", "value"))
+                .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
+                .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
+                .setSize(between(5, 100))
+                .setPreference("fixed"),
+            response -> {
+                assertHitCount(response, 30);
+                assertAllSuccessful(response);
+            }
+        );
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after first query: {}", stats);
@@ -111,7 +105,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertTrue(stats.hasField("field2"));
         // positions because of span query
         assertEquals(
-            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS),
+            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS, UsageContext.NORMS),
             stats.get("field2").keySet()
         );
         assertEquals(1L * numShards, stats.get("field2").getTerms());
@@ -121,13 +115,13 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertEquals(Set.of(UsageContext.DOC_VALUES), stats.get("field.keyword").keySet());
         assertEquals(1L * numShards, stats.get("field.keyword").getDocValues());
 
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .setSize(0)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after second query: {}", stats);
@@ -141,9 +135,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // show that we also track stats in can_match
         assertEquals(
             2L * numShards,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()
@@ -153,27 +145,29 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
                 .getTotal()
                 .getQueryCount()
         );
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setPreFilterShardSize(1)
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)
             .setPreference("fixed")
-            .get();
+            .get()
+            .decRef();
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after third query: {}", stats);
 
         assertTrue(stats.hasField("date_field"));
         assertEquals(Set.of(UsageContext.POINTS), stats.get("date_field").keySet());
-        // can_match does not enter search stats
-        // there is a special case though where we have no hit but we need to get at least one search response in order
-        // to produce a valid search result with all the aggs etc., so we hit one of the two shards
+
+        long expectedShards = 2L * numShards;
+        if (numShards == 1) {
+            // with 1 shard and setPreFilterShardSize(1) we don't perform can_match phase but instead directly query the shard
+            expectedShards += 1;
+        }
+
         assertEquals(
-            (2 * numShards) + 1,
-            client().admin()
-                .indices()
-                .prepareStats("test")
+            expectedShards,
+            indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)
                 .get()

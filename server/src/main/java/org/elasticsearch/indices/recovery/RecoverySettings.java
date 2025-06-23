@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -12,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,6 +26,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -36,16 +38,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.Setting.parseInt;
 import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
-    public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
-    public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_16_0;
-    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION = TransportVersion.V_7_16_0;
+    public static final IndexVersion SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION = IndexVersions.V_7_15_0;
+    public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersions.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -87,9 +90,13 @@ public class RecoverySettings {
     /**
      * Default factor as defined by the operator.
      */
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING = operatorFactorSetting(
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING = new Setting<>(
         "node.bandwidth.recovery.operator.factor",
-        DEFAULT_FACTOR_VALUE
+        Double.toString(DEFAULT_FACTOR_VALUE),
+        ratioParser("node.bandwidth.recovery.operator.factor"),
+        ratioValidator("node.bandwidth.recovery.operator.factor"),
+        Property.NodeScope,
+        Property.OperatorDynamic
     );
 
     public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = operatorFactorSetting(
@@ -160,37 +167,37 @@ public class RecoverySettings {
         }, Property.NodeScope);
     }
 
-    /**
-     * Operator-defined factors have a value in (0.0, 1.0]
-     */
-    private static Setting<Double> operatorFactorSetting(String key, double defaultValue) {
-        return new Setting<>(key, Double.toString(defaultValue), s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
-            if (v == 0d) {
-                throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
-            }
-        }, Property.NodeScope, Property.OperatorDynamic);
-    }
-
     private static Setting<Double> operatorFactorSetting(String key) {
-        return new Setting<>(key, NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING, s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
-            if (v == 0d) {
-                throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
-            }
-        }, Property.NodeScope, Property.OperatorDynamic);
+        return new Setting<>(
+            key,
+            NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
+            ratioParser(key),
+            ratioValidator(key),
+            Property.NodeScope,
+            Property.OperatorDynamic
+        );
     }
 
     /**
      * User-defined factors have a value in (0.0, 1.0] and fall back to a corresponding operator factor setting.
      */
     private static Setting<Double> factorSetting(String key, Setting<Double> operatorFallback) {
-        return new Setting<>(key, operatorFallback, s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
+        return new Setting<>(key, operatorFallback, ratioParser(key), ratioValidator(key), Property.NodeScope, Property.Dynamic);
+    }
+
+    private static Setting.Validator<Double> ratioValidator(String key) {
+        return v -> {
             if (v == 0d) {
                 throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
             }
-        }, Property.NodeScope, Property.Dynamic);
+        };
     }
 
-    static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = new ByteSizeValue(40L, ByteSizeUnit.MB);
+    private static Function<String, Double> ratioParser(String key) {
+        return s -> Setting.parseDouble(s, 0d, 1d, key, false);
+    }
+
+    static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = ByteSizeValue.of(40L, ByteSizeUnit.MB);
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
@@ -216,16 +223,16 @@ public class RecoverySettings {
              */
             final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
-            if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(8, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(60, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(16, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(90, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(32, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(125, ByteSizeUnit.MB);
+            if (totalPhysicalMemory.compareTo(ByteSizeValue.of(4, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(40, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(8, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(60, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(16, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(90, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(32, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(125, ByteSizeUnit.MB);
             } else {
-                maxBytesPerSec = new ByteSizeValue(250, ByteSizeUnit.MB);
+                maxBytesPerSec = ByteSizeValue.of(250, ByteSizeUnit.MB);
             }
             return maxBytesPerSec.getStringRep();
         },
@@ -376,7 +383,29 @@ public class RecoverySettings {
         Setting.Property.NodeScope
     );
 
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    /**
+     * Indicates whether the `recovery_source` should be enabled (see {@link SourceFieldMapper}).
+     * This setting is not registered and should be used exclusively in a serverless environment.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.recovery.recovery_source.enabled",
+        true,
+        Property.NodeScope
+    );
+
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = ByteSizeValue.of(512, ByteSizeUnit.KB);
+
+    /**
+     * The maximum allowable size, in bytes, for buffering source documents during recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        DEFAULT_CHUNK_SIZE,
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.NodeScope,
+        Property.Dynamic
+    );
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
@@ -392,15 +421,17 @@ public class RecoverySettings {
     private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
+    private volatile int maxConcurrentIncomingRecoveries;
 
     private final AdjustableSemaphore maxSnapshotFileDownloadsPerNodeSemaphore;
 
-    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile ByteSizeValue chunkSize;
 
     private final ByteSizeValue availableNetworkBandwidth;
     private final ByteSizeValue availableDiskReadBandwidth;
     private final ByteSizeValue availableDiskWriteBandwidth;
 
+    @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
@@ -416,10 +447,12 @@ public class RecoverySettings {
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
         this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
         this.maxConcurrentSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
+        this.maxConcurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
         this.maxSnapshotFileDownloadsPerNodeSemaphore = new AdjustableSemaphore(this.maxConcurrentSnapshotFileDownloadsPerNode, true);
         this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
+        this.chunkSize = INDICES_RECOVERY_CHUNK_SIZE.get(settings);
         validateNodeBandwidthRecoverySettings(settings);
         this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
@@ -465,6 +498,11 @@ public class RecoverySettings {
             INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE,
             this::setMaxConcurrentSnapshotFileDownloadsPerNode
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            this::setMaxConcurrentIncomingRecoveries
+        );
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE, this::setChunkSize);
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
@@ -569,7 +607,7 @@ public class RecoverySettings {
         return chunkSize;
     }
 
-    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+    public void setChunkSize(ByteSizeValue chunkSize) {
         if (chunkSize.bytesAsInt() <= 0) {
             throw new IllegalArgumentException("chunkSize must be > 0");
         }
@@ -651,6 +689,10 @@ public class RecoverySettings {
         this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
     }
 
+    private void setMaxConcurrentIncomingRecoveries(int maxConcurrentIncomingRecoveries) {
+        this.maxConcurrentIncomingRecoveries = maxConcurrentIncomingRecoveries;
+    }
+
     private void setMaxConcurrentSnapshotFileDownloadsPerNode(int maxConcurrentSnapshotFileDownloadsPerNode) {
         this.maxConcurrentSnapshotFileDownloadsPerNode = maxConcurrentSnapshotFileDownloadsPerNode;
         this.maxSnapshotFileDownloadsPerNodeSemaphore.setMaxPermits(maxConcurrentSnapshotFileDownloadsPerNode);
@@ -665,16 +707,39 @@ public class RecoverySettings {
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
         if (permitAcquired == false) {
-            logger.warn(
-                String.format(
-                    Locale.ROOT,
-                    "Unable to acquire permit to use snapshot files during recovery, "
-                        + "this recovery will recover index files from the source node. "
-                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                    this.maxConcurrentSnapshotFileDownloadsPerNode
-                )
-            );
+            if (this.maxConcurrentIncomingRecoveries <= this.maxConcurrentSnapshotFileDownloadsPerNode) {
+                logger.warn(
+                    String.format(
+                        Locale.ROOT,
+                        """
+                            Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                            the source node. Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]. \
+                            Current values of [%s] = [%d], [%s] = [%d]
+                            """,
+                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                        this.maxConcurrentSnapshotFileDownloadsPerNode / Math.max(1, this.maxConcurrentIncomingRecoveries),
+                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(),
+                        this.maxConcurrentSnapshotFileDownloadsPerNode,
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        this.maxConcurrentIncomingRecoveries
+                    )
+                );
+            } else {
+                logger.warn(
+                    String.format(
+                        Locale.ROOT,
+                        """
+                            Unable to acquire permit to use snapshot files during recovery, so this recovery will recover index files from \
+                            the source node. Ensure snapshot files can be used during recovery by reducing [%s] from its current value of \
+                            [%d] to be no greater than [%d], or disable snapshot-based recovery by setting [%s] to [false]
+                            """,
+                        CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        this.maxConcurrentIncomingRecoveries,
+                        this.maxConcurrentSnapshotFileDownloadsPerNode,
+                        INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey()
+                    )
+                );
+            }
             return null;
         }
 
@@ -700,7 +765,7 @@ public class RecoverySettings {
     /**
      * Whether the node bandwidth recovery settings are set.
      */
-    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+    private static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();

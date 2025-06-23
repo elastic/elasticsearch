@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,18 +29,18 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.After;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -53,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
@@ -82,12 +83,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() throws Exception {
+        internalCluster().startNode();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-                .get()
         );
         createIndex("idx_unmapped");
 
@@ -98,21 +97,21 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .field("i", i)
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .field("i", i)
+                        .endObject()
+                )
             );
         }
         indexRandom(true, builders);
     }
 
     public void testBasicAsyncExecution() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -154,17 +153,18 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response, notNullValue());
             assertThat(response.hits().events().size(), equalTo(1));
         } else {
-            Exception ex = expectThrows(Exception.class, future::actionGet);
+            Exception ex = expectThrows(Exception.class, future);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
         AcknowledgedResponse deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         ).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
     }
 
     public void testGoingAsync() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -177,7 +177,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         } else {
             keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
@@ -223,6 +223,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     public void testAsyncCancellation() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -235,7 +236,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         final TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         }
 
@@ -255,17 +256,18 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Block is established");
 
         ActionFuture<AcknowledgedResponse> deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         );
         disableBlocks(plugins);
         assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
 
-        deleteResponse = client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        deleteResponse = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(response.id()));
         assertFutureThrows(deleteResponse, ResourceNotFoundException.class);
     }
 
     public void testFinishingBeforeTimeout() throws Exception {
+        internalCluster().startNode();
         prepareIndex();
 
         boolean success = randomBoolean();
@@ -298,7 +300,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(storedResponse, equalTo(response));
 
                 AcknowledgedResponse deleteResponse = client().execute(
-                    DeleteAsyncResultAction.INSTANCE,
+                    TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(response.id())
                 ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -315,10 +317,14 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    final Version version = Version.readVersion(buf);
-                    final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
-                        in.setVersion(version);
+                    TransportVersion version = TransportVersion.readVersion(buf);
+                    try (
+                        StreamInput in = new NamedWriteableAwareStreamInput(
+                            CompressorFactory.COMPRESSOR.threadLocalStreamInput(buf),
+                            registry
+                        )
+                    ) {
+                        in.setTransportVersion(version);
                         return new StoredAsyncResponse<>(EqlSearchResponse::new, in);
                     }
                 }

@@ -1,45 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.db.Network;
-import com.maxmind.geoip2.model.AsnResponse;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.record.City;
-import com.maxmind.geoip2.record.Continent;
-import com.maxmind.geoip2.record.Country;
-import com.maxmind.geoip2.record.Location;
-import com.maxmind.geoip2.record.Subdivision;
-
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.ingest.geoip.Database.Property;
+import org.elasticsearch.ingest.geoip.IpDataLookupFactories.IpDataLookupFactory;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,59 +33,59 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
-import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
-        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
+    static final String UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE = "the geoip processor will no longer support database type [{}] "
+        + "in a future version of Elasticsearch"; // TODO add a message about migration?
 
-    public static final String TYPE = "geoip";
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
+    public static final String GEOIP_TYPE = "geoip";
+    public static final String IP_LOCATION_TYPE = "ip_location";
 
+    private final String type;
     private final String field;
     private final Supplier<Boolean> isValid;
     private final String targetField;
-    private final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier;
-    private final Set<Property> properties;
+    private final CheckedSupplier<IpDatabase, IOException> supplier;
+    private final IpDataLookup ipDataLookup;
     private final boolean ignoreMissing;
     private final boolean firstOnly;
     private final String databaseFile;
 
     /**
      * Construct a geo-IP processor.
-     *  @param tag           the processor tag
+     * @param tag           the processor tag
      * @param description   the processor description
      * @param field         the source field to geo-IP map
      * @param supplier      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
-     * @param isValid
+     * @param isValid       a supplier that determines if the available database files are up-to-date and license compliant
      * @param targetField   the target field
-     * @param properties    the properties; ideally this is lazily-loaded once on first use
+     * @param ipDataLookup a lookup capable of retrieving a result from an available geo-IP database reader
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
      * @param firstOnly     true if only first result should be returned in case of array
-     * @param databaseFile
+     * @param databaseFile  the name of the database file being queried; used only for tagging documents if the database is unavailable
      */
     GeoIpProcessor(
+        final String type,
         final String tag,
         final String description,
         final String field,
-        final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier,
+        final CheckedSupplier<IpDatabase, IOException> supplier,
         final Supplier<Boolean> isValid,
         final String targetField,
-        final Set<Property> properties,
+        final IpDataLookup ipDataLookup,
         final boolean ignoreMissing,
         final boolean firstOnly,
         final String databaseFile
     ) {
         super(tag, description);
+        this.type = type;
         this.field = field;
         this.isValid = isValid;
         this.targetField = targetField;
         this.supplier = supplier;
-        this.properties = properties;
+        this.ipDataLookup = ipDataLookup;
         this.ignoreMissing = ignoreMissing;
         this.firstOnly = firstOnly;
         this.databaseFile = databaseFile;
@@ -113,87 +96,64 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
-        Object ip = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+    public IngestDocument execute(IngestDocument document) throws IOException {
+        Object ip = document.getFieldValue(field, Object.class, ignoreMissing);
 
         if (isValid.get() == false) {
-            ingestDocument.appendFieldValue("tags", "_geoip_expired_database", false);
-            return ingestDocument;
+            document.appendFieldValue("tags", "_" + type + "_expired_database", false);
+            return document;
         } else if (ip == null && ignoreMissing) {
-            return ingestDocument;
+            return document;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
-        DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
-        if (lazyLoader == null) {
-            if (ignoreMissing == false) {
-                tag(ingestDocument, databaseFile);
-            }
-            return ingestDocument;
-        }
-
-        if (ip instanceof String ipString) {
-            Map<String, Object> geoData = getGeoData(lazyLoader, ipString);
-            if (geoData.isEmpty() == false) {
-                ingestDocument.setFieldValue(targetField, geoData);
-            }
-        } else if (ip instanceof List<?> ipList) {
-            boolean match = false;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
-            for (Object ipAddr : ipList) {
-                if (ipAddr instanceof String == false) {
-                    throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
+        try (IpDatabase ipDatabase = this.supplier.get()) {
+            if (ipDatabase == null) {
+                if (ignoreMissing == false) {
+                    tag(document, type, databaseFile);
                 }
-                Map<String, Object> geoData = getGeoData(lazyLoader, (String) ipAddr);
-                if (geoData.isEmpty()) {
-                    geoDataList.add(null);
-                    continue;
-                }
-                if (firstOnly) {
-                    ingestDocument.setFieldValue(targetField, geoData);
-                    return ingestDocument;
-                }
-                match = true;
-                geoDataList.add(geoData);
+                return document;
             }
-            if (match) {
-                ingestDocument.setFieldValue(targetField, geoDataList);
-            }
-        } else {
-            throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
-        }
-        return ingestDocument;
-    }
 
-    private Map<String, Object> getGeoData(DatabaseReaderLazyLoader lazyLoader, String ip) throws IOException {
-        try {
-            final String databaseType = lazyLoader.getDatabaseType();
-            final InetAddress ipAddress = InetAddresses.forString(ip);
-            Map<String, Object> geoData;
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
-
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
-
+            if (ip instanceof String ipString) {
+                Map<String, Object> data = ipDataLookup.getData(ipDatabase, ipString);
+                if (data.isEmpty() == false) {
+                    document.setFieldValue(targetField, data);
+                }
+            } else if (ip instanceof List<?> ipList) {
+                boolean match = false;
+                List<Map<String, Object>> dataList = new ArrayList<>(ipList.size());
+                for (Object ipAddr : ipList) {
+                    if (ipAddr instanceof String == false) {
+                        throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
+                    }
+                    Map<String, Object> data = ipDataLookup.getData(ipDatabase, (String) ipAddr);
+                    if (data.isEmpty()) {
+                        dataList.add(null);
+                        continue;
+                    }
+                    if (firstOnly) {
+                        document.setFieldValue(targetField, data);
+                        return document;
+                    }
+                    match = true;
+                    dataList.add(data);
+                }
+                if (match) {
+                    document.setFieldValue(targetField, dataList);
+                }
             } else {
-                throw new ElasticsearchParseException(
-                    "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
-                    new IllegalStateException()
-                );
+                throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
             }
-            return geoData;
-        } finally {
-            lazyLoader.postLookup();
         }
+
+        return document;
     }
 
     @Override
     public String getType() {
-        return TYPE;
+        return type;
     }
 
     String getField() {
@@ -209,184 +169,58 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     Set<Property> getProperties() {
-        return properties;
+        return ipDataLookup.getProperties();
     }
 
-    private Map<String, Object> retrieveCityGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
-        CityResponse response = lazyLoader.getCity(ipAddress);
-        if (response == null) {
-            return Map.of();
-        }
-        Country country = response.getCountry();
-        City city = response.getCity();
-        Location location = response.getLocation();
-        Continent continent = response.getContinent();
-        Subdivision subdivision = response.getMostSpecificSubdivision();
+    /**
+     * Retrieves and verifies a {@link IpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
+     * custom databases, and ensures that database instances are of the proper type before use.
+     */
+    public static final class DatabaseVerifyingSupplier implements CheckedSupplier<IpDatabase, IOException> {
+        private final IpDatabaseProvider ipDatabaseProvider;
+        private final String databaseFile;
+        private final String databaseType;
 
-        Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
-            switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
-                case COUNTRY_ISO_CODE -> {
-                    String countryIsoCode = country.getIsoCode();
-                    if (countryIsoCode != null) {
-                        geoData.put("country_iso_code", countryIsoCode);
-                    }
-                }
-                case COUNTRY_NAME -> {
-                    String countryName = country.getName();
-                    if (countryName != null) {
-                        geoData.put("country_name", countryName);
-                    }
-                }
-                case CONTINENT_NAME -> {
-                    String continentName = continent.getName();
-                    if (continentName != null) {
-                        geoData.put("continent_name", continentName);
-                    }
-                }
-                case REGION_ISO_CODE -> {
-                    // ISO 3166-2 code for country subdivisions.
-                    // See iso.org/iso-3166-country-codes.html
-                    String countryIso = country.getIsoCode();
-                    String subdivisionIso = subdivision.getIsoCode();
-                    if (countryIso != null && subdivisionIso != null) {
-                        String regionIsoCode = countryIso + "-" + subdivisionIso;
-                        geoData.put("region_iso_code", regionIsoCode);
-                    }
-                }
-                case REGION_NAME -> {
-                    String subdivisionName = subdivision.getName();
-                    if (subdivisionName != null) {
-                        geoData.put("region_name", subdivisionName);
-                    }
-                }
-                case CITY_NAME -> {
-                    String cityName = city.getName();
-                    if (cityName != null) {
-                        geoData.put("city_name", cityName);
-                    }
-                }
-                case TIMEZONE -> {
-                    String locationTimeZone = location.getTimeZone();
-                    if (locationTimeZone != null) {
-                        geoData.put("timezone", locationTimeZone);
-                    }
-                }
-                case LOCATION -> {
-                    Double latitude = location.getLatitude();
-                    Double longitude = location.getLongitude();
-                    if (latitude != null && longitude != null) {
-                        Map<String, Object> locationObject = new HashMap<>();
-                        locationObject.put("lat", latitude);
-                        locationObject.put("lon", longitude);
-                        geoData.put("location", locationObject);
-                    }
-                }
+        public DatabaseVerifyingSupplier(IpDatabaseProvider ipDatabaseProvider, String databaseFile, String databaseType) {
+            this.ipDatabaseProvider = ipDatabaseProvider;
+            this.databaseFile = databaseFile;
+            this.databaseType = databaseType;
+        }
+
+        @Override
+        public IpDatabase get() throws IOException {
+            IpDatabase loader = ipDatabaseProvider.getDatabase(databaseFile);
+            if (loader == null) {
+                return null;
             }
-        }
-        return geoData;
-    }
 
-    private Map<String, Object> retrieveCountryGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
-        CountryResponse response = lazyLoader.getCountry(ipAddress);
-        if (response == null) {
-            return Map.of();
-        }
-        Country country = response.getCountry();
-        Continent continent = response.getContinent();
+            if (Assertions.ENABLED) {
+                // Note that the expected suffix might be null for providers that aren't amenable to using dashes as separator for
+                // determining the database type.
+                int last = databaseType.lastIndexOf('-');
+                final String expectedSuffix = last == -1 ? null : databaseType.substring(last);
 
-        Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
-            switch (property) {
-                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
-                case COUNTRY_ISO_CODE -> {
-                    String countryIsoCode = country.getIsoCode();
-                    if (countryIsoCode != null) {
-                        geoData.put("country_iso_code", countryIsoCode);
-                    }
-                }
-                case COUNTRY_NAME -> {
-                    String countryName = country.getName();
-                    if (countryName != null) {
-                        geoData.put("country_name", countryName);
-                    }
-                }
-                case CONTINENT_NAME -> {
-                    String continentName = continent.getName();
-                    if (continentName != null) {
-                        geoData.put("continent_name", continentName);
-                    }
-                }
+                // If the entire database type matches, then that's a match. Otherwise, if there's a suffix to compare on, then
+                // check whether the suffix has changed (not the entire database type).
+                // This is to sanity check, for example, that a city db isn't overwritten with a country or asn db.
+                // But there are permissible overwrites that make sense, for example overwriting a geolite city db with a geoip city db
+                // is a valid change, but the db type is slightly different -- by checking just the suffix this assertion won't fail.
+                final String loaderType = loader.getDatabaseType();
+                assert loaderType.equals(databaseType) || expectedSuffix == null || loaderType.endsWith(expectedSuffix)
+                    : "database type [" + loaderType + "] doesn't match with expected suffix [" + expectedSuffix + "]";
             }
+            return loader;
         }
-        return geoData;
-    }
-
-    private Map<String, Object> retrieveAsnGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
-        AsnResponse response = lazyLoader.getAsn(ipAddress);
-        if (response == null) {
-            return Map.of();
-        }
-        Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
-        Network network = response.getNetwork();
-
-        Map<String, Object> geoData = new HashMap<>();
-        for (Property property : this.properties) {
-            switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case ASN:
-                    if (asn != null) {
-                        geoData.put("asn", asn);
-                    }
-                    break;
-                case ORGANIZATION_NAME:
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
-                    }
-                    break;
-                case NETWORK:
-                    if (network != null) {
-                        geoData.put("network", network.toString());
-                    }
-                    break;
-            }
-        }
-        return geoData;
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(
-            EnumSet.of(
-                Property.CONTINENT_NAME,
-                Property.COUNTRY_NAME,
-                Property.COUNTRY_ISO_CODE,
-                Property.REGION_ISO_CODE,
-                Property.REGION_NAME,
-                Property.CITY_NAME,
-                Property.LOCATION
-            )
-        );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(
-            EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
-        );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(
-            EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
-        );
 
-        private final DatabaseNodeService databaseNodeService;
-        private final ClusterService clusterService;
+        private final String type; // currently always just "geoip"
+        private final IpDatabaseProvider ipDatabaseProvider;
 
-        List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return databaseNodeService.getAllDatabases();
-        }
-
-        public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
-            this.databaseNodeService = databaseNodeService;
-            this.clusterService = clusterService;
+        public Factory(String type, IpDatabaseProvider ipDatabaseProvider) {
+            this.type = type;
+            this.ipDatabaseProvider = ipDatabaseProvider;
         }
 
         @Override
@@ -394,208 +228,122 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final Map<String, Processor.Factory> registry,
             final String processorTag,
             final String description,
-            final Map<String, Object> config
+            final Map<String, Object> config,
+            final ProjectId projectId
         ) throws IOException {
-            String ipField = readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
-            List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
-            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
+            String ipField = readStringProperty(type, processorTag, config, "field");
+            String targetField = readStringProperty(type, processorTag, config, "target_field", type);
+            String databaseFile = readStringProperty(type, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            List<String> propertyNames = readOptionalList(type, processorTag, config, "properties");
+            boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
+            boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
-            // noop, should be removed in 9.0
-            Object value = config.remove("fallback_to_default_databases");
-            if (value != null) {
-                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
-            }
+            // validate (and consume) the download_database_on_pipeline_creation property even though the result is not used by the factory
+            readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
-            DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(lazyLoader, databaseFile)) {
-                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
-            } else if (lazyLoader == null) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
-            }
             final String databaseType;
-            try {
-                databaseType = lazyLoader.getDatabaseType();
-            } finally {
-                lazyLoader.postLookup();
+            try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
+                if (ipDatabase == null) {
+                    // It's possible that the database could be downloaded via the GeoipDownloader process and could become available
+                    // at a later moment, so a processor impl is returned that tags documents instead. If a database cannot be sourced
+                    // then the processor will continue to tag documents with a warning until it is remediated by providing a database
+                    // or changing the pipeline.
+                    return new DatabaseUnavailableProcessor(type, processorTag, description, databaseFile);
+                }
+                databaseType = ipDatabase.getDatabaseType();
             }
 
-            final Set<Property> properties;
-            if (propertyNames != null) {
-                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
-                for (String fieldName : propertyNames) {
-                    try {
-                        modifiableProperties.add(Property.parseProperty(databaseType, fieldName));
-                    } catch (IllegalArgumentException e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
-                    }
-                }
-                properties = Collections.unmodifiableSet(modifiableProperties);
-            } else {
-                if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                    properties = DEFAULT_CITY_PROPERTIES;
-                } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                    properties = DEFAULT_COUNTRY_PROPERTIES;
-                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                    properties = DEFAULT_ASN_PROPERTIES;
-                } else {
+            final IpDataLookupFactory factory;
+            try {
+                factory = IpDataLookupFactories.get(databaseType, databaseFile);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(type, processorTag, "database_file", e.getMessage());
+            }
+
+            // the "geoip" processor type does additional validation of the database_type
+            if (GEOIP_TYPE.equals(type)) {
+                // type sniffing is done with the lowercased type
+                final String lowerCaseDatabaseType = databaseType.toLowerCase(Locale.ROOT);
+
+                // start with a strict positive rejection check -- as we support addition database providers,
+                // we should expand these checks when possible
+                if (lowerCaseDatabaseType.startsWith(IpinfoIpDataLookups.IPINFO_PREFIX)) {
                     throw newConfigurationException(
-                        TYPE,
+                        type,
                         processorTag,
                         "database_file",
-                        "Unsupported database type [" + databaseType + "]"
+                        Strings.format("Unsupported database type [%s] for file [%s]", databaseType, databaseFile)
+                    );
+                }
+
+                // end with a lax negative rejection check -- if we aren't *certain* it's a maxmind database, then we'll warn --
+                // it's possible for example that somebody cooked up a custom database of their own that happened to work with
+                // our preexisting code, they should migrate to the new processor, but we're not going to break them right now
+                if (lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOIP2_PREFIX) == false
+                    && lowerCaseDatabaseType.startsWith(MaxmindIpDataLookups.GEOLITE2_PREFIX) == false) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.OTHER,
+                        "unsupported_database_type",
+                        UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE,
+                        databaseType
                     );
                 }
             }
-            CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = databaseNodeService.getDatabase(databaseFile);
-                if (useDatabaseUnavailableProcessor(loader, databaseFile)) {
-                    return null;
-                } else if (loader == null) {
-                    throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
-                }
-                // Only check whether the suffix has changed and not the entire database type.
-                // To sanity check whether a city db isn't overwriting with a country or asn db.
-                // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
-                // by checking just the suffix this assertion doesn't fail.
-                String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-                assert loader.getDatabaseType().endsWith(expectedSuffix)
-                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
-                return loader;
-            };
-            Supplier<Boolean> isValid = () -> {
-                ClusterState currentState = clusterService.state();
-                assert currentState != null;
 
-                PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
-                if (task == null || task.getState() == null) {
-                    return true;
-                }
-                GeoIpTaskState state = (GeoIpTaskState) task.getState();
-                GeoIpTaskState.Metadata metadata = state.getDatabases().get(databaseFile);
-                // we never remove metadata from cluster state, if metadata is null we deal with built-in database, which is always valid
-                if (metadata == null) {
-                    return true;
-                }
+            final IpDataLookup ipDataLookup;
+            try {
+                ipDataLookup = factory.create(propertyNames);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(type, processorTag, "properties", e.getMessage());
+            }
 
-                boolean valid = metadata.isValid(currentState.metadata().settings());
-                if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning(
-                        "database [{}] was not updated for over 25 days, geoip processor"
-                            + " will stop working if there is no update for 30 days",
-                        databaseFile
-                    );
-                }
-
-                return valid;
-            };
             return new GeoIpProcessor(
+                type,
                 processorTag,
                 description,
                 ipField,
-                supplier,
-                isValid,
+                new DatabaseVerifyingSupplier(ipDatabaseProvider, databaseFile, databaseType),
+                () -> ipDatabaseProvider.isValid(databaseFile),
                 targetField,
-                properties,
+                ipDataLookup,
                 ignoreMissing,
                 firstOnly,
                 databaseFile
             );
         }
 
-        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, String databaseName) {
-            // If there is no loader for a database we should fail with a config error, but
-            // if there is no loader for a builtin database that we manage via GeoipDownloader then don't fail.
-            // In the latter case the database should become available at a later moment, so a processor impl
-            // is returned that tags documents instead.
-            return loader == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
-        }
-
-    }
-
-    enum Property {
-
-        IP,
-        COUNTRY_ISO_CODE,
-        COUNTRY_NAME,
-        CONTINENT_NAME,
-        REGION_ISO_CODE,
-        REGION_NAME,
-        CITY_NAME,
-        TIMEZONE,
-        LOCATION,
-        ASN,
-        ORGANIZATION_NAME,
-        NETWORK;
-
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.COUNTRY_ISO_CODE,
-            Property.COUNTRY_NAME,
-            Property.CONTINENT_NAME,
-            Property.REGION_ISO_CODE,
-            Property.REGION_NAME,
-            Property.CITY_NAME,
-            Property.TIMEZONE,
-            Property.LOCATION
-        );
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE
-        );
-        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.ASN,
-            Property.ORGANIZATION_NAME,
-            Property.NETWORK
-        );
-
-        public static Property parseProperty(String databaseType, String value) {
-            Set<Property> validProperties = EnumSet.noneOf(Property.class);
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                validProperties = ALL_CITY_PROPERTIES;
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                validProperties = ALL_COUNTRY_PROPERTIES;
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                validProperties = ALL_ASN_PROPERTIES;
-            }
-
-            try {
-                Property property = valueOf(value.toUpperCase(Locale.ROOT));
-                if (validProperties.contains(property) == false) {
-                    throw new IllegalArgumentException("invalid");
-                }
-                return property;
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray())
-                );
-            }
+        /**
+         * Get the value of the "download_database_on_pipeline_creation" property from a processor's config map.
+         * <p>
+         * As with the actual property definition, the default value of the property is 'true'. Unlike the actual
+         * property definition, this method doesn't consume (that is, <code>config.remove</code>) the property from
+         * the config map.
+         */
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return (boolean) config.getOrDefault("download_database_on_pipeline_creation", true);
         }
     }
 
     static class DatabaseUnavailableProcessor extends AbstractProcessor {
 
+        private final String type;
         private final String databaseName;
 
-        DatabaseUnavailableProcessor(String tag, String description, String databaseName) {
+        DatabaseUnavailableProcessor(String type, String tag, String description, String databaseName) {
             super(tag, description);
+            this.type = type;
             this.databaseName = databaseName;
         }
 
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            tag(ingestDocument, databaseName);
+            tag(ingestDocument, this.type, databaseName);
             return ingestDocument;
         }
 
         @Override
         public String getType() {
-            return TYPE;
+            return type;
         }
 
         public String getDatabaseName() {
@@ -603,7 +351,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
-    private static void tag(IngestDocument ingestDocument, String databaseName) {
-        ingestDocument.appendFieldValue("tags", "_geoip_database_unavailable_" + databaseName, true);
+    private static void tag(IngestDocument ingestDocument, String type, String databaseName) {
+        ingestDocument.appendFieldValue("tags", "_" + type + "_database_unavailable_" + databaseName, true);
     }
 }

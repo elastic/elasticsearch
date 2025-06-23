@@ -41,6 +41,11 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
         return createRandomResults();
     }
 
+    @Override
+    protected PyTorchPassThroughResults mutateInstance(PyTorchPassThroughResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
@@ -53,10 +58,7 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
     }
 
     @Override
-    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String resultsField) {
-        assertArrayEquals(
-            createdInstance.getInference(),
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[][].class)
-        );
+    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertArrayEquals(createdInstance.getInference(), document.getFieldValue(parentField + resultsField, double[][].class));
     }
 }

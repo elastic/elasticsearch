@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction.Request;
 
@@ -21,7 +20,7 @@ public class DeleteExpiredDataActionRequestTests extends AbstractBWCWireSerializ
             request.setRequestsPerSecond(randomFloat());
         }
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "test"));
+            request.setTimeout(randomTimeValue());
         }
         if (randomBoolean()) {
             request.setJobId(randomAlphaOfLength(5));
@@ -30,12 +29,17 @@ public class DeleteExpiredDataActionRequestTests extends AbstractBWCWireSerializ
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
 
     @Override
-    protected Request mutateInstanceForVersion(Request instance, Version version) {
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         return instance;
     }
 }

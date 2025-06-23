@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
@@ -13,19 +14,25 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -39,8 +46,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
+import static java.util.Objects.requireNonNullElse;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
  * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
@@ -53,11 +60,17 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportLi
  * </ul>
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
+
+    public static final String TASKS_ORIGIN = "tasks";
+    public static final ActionType<GetTaskResponse> TYPE = new ActionType<>("cluster:monitor/task/get");
+    private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetTaskAction(
@@ -66,14 +79,16 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(TYPE.name(), transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -112,10 +127,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
         transportService.sendRequest(
             node,
-            GetTaskAction.NAME,
+            TYPE.name(),
             nodeRequest,
             TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -129,20 +144,59 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             // Task isn't running, go look in the task index
             getFinishedTaskFromIndex(thisTask, request, listener);
         } else {
+            if (projectResolver.supportsMultipleProjects()) {
+                var requestProjectId = projectResolver.getProjectId();
+                assert requestProjectId != null : "project ID cannot be null";
+                if (requestProjectId == null) {
+                    listener.onFailure(new IllegalStateException("No Project ID specified"));
+                    return;
+                }
+                if (requestProjectId.id().equals(runningTask.getProjectId()) == false) {
+                    listener.onFailure(
+                        new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", request.getTaskId())
+                    );
+                    return;
+                }
+            }
             if (request.getWaitForCompletion()) {
-                // Shift to the generic thread pool and let it wait for the task to complete so we don't block any important threads.
-                threadPool.generic().execute(new AbstractRunnable() {
+                final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+                RemovedTaskListener removedTaskListener = new RemovedTaskListener() {
                     @Override
-                    protected void doRun() {
-                        taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
+                    public void onRemoved(Task task) {
+                        if (task.equals(runningTask)) {
+                            future.onResponse(null);
+                        }
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                    public String toString() {
+                        return "Waiting for task completion " + runningTask;
                     }
-                });
+                };
+                taskManager.registerRemovedTaskListener(removedTaskListener);
+                // Check if the task had finished before we registered the listener, so we wouldn't wait
+                // for an event that would never come
+                if (taskManager.getTask(request.getTaskId().getId()) == null) {
+                    future.onResponse(null);
+                }
+                final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
+                    ),
+                    () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
+                );
+
+                future.addListener(
+                    new ContextPreservingActionListener<>(
+                        threadPool.getThreadContext().newRestorableContext(false),
+                        waitedForCompletionListener
+                    )
+                );
+                future.addTimeout(
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
@@ -184,7 +238,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
             if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                // We haven't yet created the index for the task results so it can't be found.
+                // We haven't yet created the index for the task results, so it can't be found.
                 listener.onFailure(
                     new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e, request.getTaskId())
                 );

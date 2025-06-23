@@ -174,17 +174,18 @@ setup:
 
 ---
 histogram with synthetic source:
-  - skip:
-      version: " - 8.4.99"
-      reason: introduced in 8.5.0
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: histo_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               latency:
                 type: histogram
@@ -217,3 +218,145 @@ histogram with synthetic source:
         latency:
           values: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
           counts: [3, 2, 5, 10, 1, 8]
+
+---
+histogram with synthetic source and zero counts:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 7, 0, 6, 0]}}'
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          values: [0.2, 0.4]
+          counts: [7, 6]
+
+
+---
+histogram with large count values:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: Support for `long` values was introduced in 8.11.0
+
+  - do:
+      indices.create:
+        index: histo_large_count
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_large_count
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 1000000000000, 10, 1000, 1000000]}}'
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: latency
+                interval: 0.3
+
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1000000000000 }
+  - match: { aggregations.histo.buckets.1.key: 0.3 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1001010 }
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            percent:
+              percentiles:
+                field: latency
+
+  - length: { aggregations.percent.values: 7 }
+  - match: { aggregations.percent.values.1\.0: 0.2 }
+  - match: { aggregations.percent.values.5\.0: 0.2 }
+  - match: { aggregations.percent.values.25\.0: 0.2 }
+
+---
+histogram with synthetic source and ignore_malformed:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: histo_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: histogram
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "1"
+        body:
+          latency: "quick brown fox"
+
+  - do:
+      index:
+        index: histo_synthetic
+        id: "2"
+        body:
+          latency: [{"values": [1.0], "counts": [1], "hello": "world"}, [123, 456], {"values": [2.0], "counts": [2]}, "fox"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 1
+  - match:
+      _source:
+        latency: "quick brown fox"
+
+  - do:
+      get:
+        index: histo_synthetic
+        id: 2
+  - match:
+      _source:
+        latency: [{"values": [2.0], "counts": [2]}, {"values": [1.0], "counts": [1], "hello": "world"}, 123, 456, "fox"]

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
@@ -19,7 +20,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,8 +31,9 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
 
     @Before
     public void init() {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet())
         );
     }
@@ -45,12 +46,10 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
-        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(3));
+        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(4));
         assertThat(
-            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos())
-                .map(ServiceAccountInfo::getPrincipal)
-                .collect(Collectors.toList()),
-            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/kibana")
+            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
+            containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
         );
 
         final GetServiceAccountRequest request2 = new GetServiceAccountRequest("elastic", "fleet-server");

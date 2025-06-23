@@ -1,24 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public final class IOUtils {
+    private static final Logger LOGGER = LogManager.getLogger(IOUtils.class);
     private static final int RETRY_DELETE_MILLIS = OS.current() == OS.WINDOWS ? 500 : 0;
     private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
 
@@ -47,6 +55,30 @@ public final class IOUtils {
             throw new UncheckedIOException(e);
         } catch (InterruptedException x) {
             throw new UncheckedIOException("Interrupted while deleting.", new IOException());
+        }
+    }
+
+    /**
+     * Attempts to do a copy via linking, falling back to a normal copy if an exception is encountered.
+     *
+     * @see #syncWithLinks(Path, Path)
+     * @see #syncWithCopy(Path, Path)
+     * @param sourceRoot      where to copy from
+     * @param destinationRoot destination to link to
+     */
+    public static void syncMaybeWithLinks(Path sourceRoot, Path destinationRoot) {
+        try {
+            syncWithLinks(sourceRoot, destinationRoot);
+        } catch (LinkCreationException e) {
+            // Note does not work for network drives, e.g. Vagrant
+            LOGGER.info("Failed to sync using hard links. Falling back to copy.", e);
+            // ensure we get a clean copy
+            try {
+                deleteWithRetry(destinationRoot);
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+            syncWithCopy(sourceRoot, destinationRoot);
         }
     }
 
@@ -89,40 +121,37 @@ public final class IOUtils {
 
     private static void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
+        try {
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(dir);
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination);
+                    return FileVisitResult.CONTINUE;
                 }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
-                Path destination = destinationRoot.resolve(relativeDestination);
-                if (Files.isDirectory(source)) {
-                    try {
-                        Files.createDirectories(destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
-                } else {
-                    try {
-                        Files.createDirectories(destination.getParent());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                    }
+                @Override
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) throws IOException {
+                    Path relativeDestination = sourceRoot.relativize(source);
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination.getParent());
                     syncMethod.accept(destination, source);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    if (exc instanceof NoSuchFileException noFileException) {
+                        // Ignore these files that are sometimes left behind by the JVM
+                        if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
+                            LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
+                            return FileVisitResult.CONTINUE;
+                        }
+                    }
+                    throw exc;
                 }
             });
-        } catch (UncheckedIOException e) {
-            if (e.getCause()instanceof NoSuchFileException cause) {
-                // Ignore these files that are sometimes left behind by the JVM
-                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
-                    throw new UncheckedIOException(cause);
-                }
-            } else {
-                throw e;
-            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -28,7 +29,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     public static final String NAME = TextEmbeddingConfig.NAME;
 
-    public static TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
+    public static final TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
 
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
@@ -99,30 +100,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
-    }
-
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
-            return originalConfig;
-        }
-
-        if (originalConfig instanceof TextEmbeddingConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig) originalConfig;
-        return new TextEmbeddingConfig(
-            embeddingConfig.getVocabularyConfig(),
-            tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() : resultsField
-        );
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     @Override

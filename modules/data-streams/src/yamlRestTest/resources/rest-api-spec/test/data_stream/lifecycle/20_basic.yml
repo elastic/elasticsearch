@@ -1,0 +1,235 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-lifecycle
+        body:
+          index_patterns: [data-stream-with-lifecycle]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "10d"
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            lifecycle: {}
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date_nanos
+          data_stream: {}
+  - do:
+      indices.create_data_stream:
+        name: data-stream-with-lifecycle
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+---
+teardown:
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.max: null
+            data_streams.lifecycle.retention.default: null
+
+---
+"Get data stream lifecycle":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      indices.get_data_lifecycle:
+        name: "data-stream-with-lifecycle"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '10d' }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { global_retention: {} }
+
+---
+"Get data stream with default lifecycle configuration":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - is_false: data_streams.0.lifecycle.effective_retention
+  - match: { global_retention: {} }
+
+---
+"Get data stream with global retention":
+  - requires:
+      reason: "Global retention was exposed in 8.16+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_data_stream/{index}/_lifecycle
+          capabilities: [ 'data_stream_global_retention' ]
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.lifecycle.retention.default: "7d"
+            data_streams.lifecycle.retention.max: "9d"
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { data_streams.0.lifecycle.effective_retention: '7d'}
+  - match: { global_retention.default_retention: '7d' }
+  - match: { global_retention.max_retention: '9d' }
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "data-stream-with-lifecycle"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '9d' }
+  - match: { data_streams.0.lifecycle.enabled: true }
+  - match: { global_retention.default_retention: '7d' }
+  - match: { global_retention.max_retention: '9d' }
+
+---
+"Put data stream lifecycle":
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body: >
+          {
+            "downsampling": [
+              {
+                "after": "10d",
+                "fixed_interval": "1h"
+              },
+              {
+                "after": "100d",
+                "fixed_interval": "10h"
+              }
+            ],
+            "data_retention": "30d",
+            "enabled": false
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - match: { data_streams.0.lifecycle.enabled: false}
+  - match: { data_streams.0.lifecycle.downsampling.0.after: '10d'}
+  - match: { data_streams.0.lifecycle.downsampling.0.fixed_interval: '1h'}
+  - match: { data_streams.0.lifecycle.downsampling.1.after: '100d'}
+  - match: { data_streams.0.lifecycle.downsampling.1.fixed_interval: '10h'}
+  - match: { data_streams.1.name: simple-data-stream1 }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
+  - match: { data_streams.1.lifecycle.enabled: false}
+  - match: { data_streams.1.lifecycle.downsampling.0.after: '10d'}
+  - match: { data_streams.1.lifecycle.downsampling.0.fixed_interval: '1h'}
+  - match: { data_streams.1.lifecycle.downsampling.1.after: '100d'}
+  - match: { data_streams.1.lifecycle.downsampling.1.fixed_interval: '10h'}
+
+---
+"Enable lifecycle":
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body:
+          data_retention: '30d'
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.enabled: true}
+  - match: { data_streams.1.name: simple-data-stream1 }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
+  - match: { data_streams.1.lifecycle.enabled: true}
+
+
+---
+"Get data stream lifecycle with defaults":
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "data-stream-with-lifecycle"
+        include_defaults: true
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
+  - is_true: data_streams.0.lifecycle.rollover
+
+---
+"Delete data stream lifecycle from the data streams":
+  - do:
+      indices.put_data_lifecycle:
+        name: "simple-data-stream1"
+        body:
+          data_retention: '30d'
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - match: { data_streams.0.lifecycle.enabled: true }
+
+  - do:
+      indices.delete_data_lifecycle:
+        name: "simple-data-stream1"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "simple-data-stream1"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - is_false: data_streams.0.lifecycle

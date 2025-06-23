@@ -7,7 +7,6 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,31 +47,19 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
 
         public FeatureUsageInfo(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-                this.family = in.readOptionalString();
-            } else {
-                this.family = null;
-            }
+            this.family = in.readOptionalString();
             this.name = in.readString();
             this.lastUsedTime = ZonedDateTime.ofInstant(Instant.ofEpochSecond(in.readLong()), ZoneOffset.UTC);
-            if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-                this.context = in.readOptionalString();
-            } else {
-                this.context = null;
-            }
+            this.context = in.readOptionalString();
             this.licenseLevel = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-                out.writeOptionalString(this.family);
-            }
+            out.writeOptionalString(this.family);
             out.writeString(name);
             out.writeLong(lastUsedTime.toEpochSecond());
-            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-                out.writeOptionalString(this.context);
-            }
+            out.writeOptionalString(this.context);
             out.writeString(licenseLevel);
         }
 
@@ -97,14 +84,14 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
     }
 
-    private List<FeatureUsageInfo> features;
+    private final List<FeatureUsageInfo> features;
 
     public GetFeatureUsageResponse(List<FeatureUsageInfo> features) {
         this.features = Collections.unmodifiableList(features);
     }
 
     public GetFeatureUsageResponse(StreamInput in) throws IOException {
-        this.features = in.readList(FeatureUsageInfo::new);
+        this.features = in.readCollectionAsList(FeatureUsageInfo::new);
     }
 
     public List<FeatureUsageInfo> getFeatures() {
@@ -113,7 +100,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(features);
+        out.writeCollection(features);
     }
 
     @Override

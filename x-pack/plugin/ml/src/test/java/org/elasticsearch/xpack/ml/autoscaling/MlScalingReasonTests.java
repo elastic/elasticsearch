@@ -48,6 +48,11 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
         );
     }
 
+    @Override
+    protected MlScalingReason mutateInstance(MlScalingReason instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
         return new AutoscalingCapacity.AutoscalingResources(
             ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes())),

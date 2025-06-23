@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 
 import java.nio.file.Path;
 import java.util.AbstractList;
@@ -21,7 +21,6 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
@@ -52,20 +51,24 @@ public class CollectionUtils {
             return;
         }
 
-        ListIterator<T> uniqueItr = list.listIterator();
-        ListIterator<T> existingItr = list.listIterator();
-        T uniqueValue = uniqueItr.next(); // get first element to compare with
-        existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
+        ListIterator<T> resultItr = list.listIterator();
+        ListIterator<T> currentItr = list.listIterator(1); // start at second element to compare
+        T lastValue = resultItr.next(); // result always includes first element, so advance it and grab first
         do {
-            T existingValue = existingItr.next();
-            if (cmp.compare(existingValue, uniqueValue) != 0 && (uniqueValue = uniqueItr.next()) != existingValue) {
-                uniqueItr.set(existingValue);
+            T currentValue = currentItr.next(); // each iter we check if the next element is different from the last we put in the result
+            if (cmp.compare(lastValue, currentValue) != 0) {
+                lastValue = currentValue;
+                resultItr.next(); // advance result so the current position is where we want to set
+                if (resultItr.previousIndex() != currentItr.previousIndex()) {
+                    // optimization: only need to set if different
+                    resultItr.set(currentValue);
+                }
             }
-        } while (existingItr.hasNext());
+        } while (currentItr.hasNext());
 
         // Lop off the rest of the list. Note with LinkedList this requires advancing back to this index,
         // but Java provides no way to efficiently remove from the end of a non random-access list.
-        list.subList(uniqueItr.nextIndex(), list.size()).clear();
+        list.subList(resultItr.nextIndex(), list.size()).clear();
     }
 
     /**
@@ -100,44 +103,56 @@ public class CollectionUtils {
      * @param messageHint A string to be included in the exception message if the call fails, to provide
      *                    more context to the handler of the exception
      */
-    public static void ensureNoSelfReferences(Object value, String messageHint) {
-        Iterable<?> it = convert(value);
-        if (it != null) {
-            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    public static void ensureNoSelfReferences(final Object value, final String messageHint) {
+        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    }
+
+    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors, final String messageHint) {
+        // these instanceof checks are a bit on the ugly side, but it's important for performance that we have
+        // a separate dispatch point for Maps versus for Iterables. a polymorphic version of this code would
+        // be prettier, but it would also likely be quite a bit slower. this is a hot path for ingest pipelines,
+        // and performance here is important.
+        if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            // noop
+        } else if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
+            ensureNoSelfReferences(m, ancestors, messageHint);
+        } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
+            ensureNoSelfReferences(i, i, ancestors, messageHint);
+        } else if (value instanceof Object[]) {
+            // note: the iterable and reference arguments are different
+            ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static Iterable<?> convert(Object value) {
-        if (value == null) {
-            return null;
+    private static void ensureNoSelfReferences(final Map<?, ?> reference, final Set<Object> ancestors, final String messageHint) {
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Map.Entry<?, ?> e : reference.entrySet()) {
+            ensureNoSelfReferences(e.getKey(), ancestors, messageHint);
+            ensureNoSelfReferences(e.getValue(), ancestors, messageHint);
         }
-        if (value instanceof Map<?, ?> map) {
-            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
-        } else {
-            return null;
-        }
+        ancestors.remove(reference);
     }
 
     private static void ensureNoSelfReferences(
-        final Iterable<?> value,
-        Object originalReference,
+        final Iterable<?> iterable,
+        final Object reference,
         final Set<Object> ancestors,
-        String messageHint
+        final String messageHint
     ) {
-        if (value != null) {
-            if (ancestors.add(originalReference) == false) {
-                String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
-                throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Object o : iterable) {
+            ensureNoSelfReferences(o, ancestors, messageHint);
+        }
+        ancestors.remove(reference);
+    }
+
+    private static void addToAncestorsOrThrow(Object reference, Set<Object> ancestors, String messageHint) {
+        if (ancestors.add(reference) == false) {
+            StringBuilder sb = new StringBuilder("Iterable object is self-referencing itself");
+            if (Strings.hasLength(messageHint)) {
+                sb.append(" (").append(messageHint).append(")");
             }
-            for (Object o : value) {
-                ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
-            }
-            ancestors.remove(originalReference);
+            throw new IllegalArgumentException(sb.toString());
         }
     }
 
@@ -242,7 +257,7 @@ public class CollectionUtils {
         final int addedSize = elements.length;
         final int size = existingSize + addedSize;
         final E[] array = collection.toArray((E[]) new Object[size]);
-        System.arraycopy(elements, 0, array, size - 1, addedSize);
+        System.arraycopy(elements, 0, array, size - addedSize, addedSize);
         return List.of(array);
     }
 

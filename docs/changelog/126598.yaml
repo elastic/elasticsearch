@@ -1,0 +1,6 @@
+pr: 126598
+summary: "ESQL: Retain aggregate when grouping"
+area: ES|QL
+type: bug
+issues:
+  - 126026

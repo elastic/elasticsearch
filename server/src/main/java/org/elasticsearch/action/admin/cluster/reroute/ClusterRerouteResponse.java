@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -42,12 +44,12 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
     /**
      * To be removed when REST compatibility with {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)  // to remove entirely
     private final ClusterState state;
     private final RoutingExplanations explanations;
     private final boolean acknowledged;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in);
         acknowledged = in.readBoolean();
         state = ClusterState.readFrom(in, null);
         explanations = RoutingExplanations.readFrom(in);
@@ -82,7 +84,7 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         RoutingExplanations.writeTo(explanations, out);
     }
 
-    private boolean emitState(ToXContent.Params params) {
+    private static boolean emitState(ToXContent.Params params) {
         return Objects.equals(params.param("metric"), "none") == false;
     }
 
@@ -91,23 +93,16 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         if (emitState(outerParams)) {
             deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
         }
-        return toXContentChunkedV7(outerParams);
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunkedV7(ToXContent.Params outerParams) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject().field(ACKNOWLEDGED_KEY, isAcknowledged())),
             emitState(outerParams)
-                ? ChunkedToXContentHelper.wrapWithObject("state", state.toXContentChunked(outerParams))
+                ? ChunkedToXContentHelper.object("state", state.toXContentChunked(outerParams))
                 : Collections.emptyIterator(),
             Iterators.single((builder, params) -> {
                 if (params.paramAsBoolean("explain", false)) {
                     explanations.toXContent(builder, params);
                 }
-
-                builder.endObject();
-                return builder;
+                return builder.endObject();
             })
         );
     }

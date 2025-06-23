@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -60,27 +61,38 @@ public class ArrayUtils {
     /**
      * Concatenates 2 arrays
      */
-    public static String[] concat(String[] one, String[] other) {
-        return concat(one, other, String.class);
-    }
-
-    /**
-     * Concatenates 2 arrays
-     */
-    public static <T> T[] concat(T[] one, T[] other, Class<T> clazz) {
+    public static <T> T[] concat(T[] one, T[] other) {
         @SuppressWarnings("unchecked")
-        T[] target = (T[]) Array.newInstance(clazz, one.length + other.length);
+        T[] target = (T[]) Array.newInstance(other.getClass().componentType(), one.length + other.length);
         System.arraycopy(one, 0, target, 0, one.length);
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
     }
 
     /**
-     * Concat a string to a string array.
+     * Copy the given element and array into a new array of size {@code array.length + 1}.
+     * @param added first element in the newly created array
+     * @param array array to copy to the end of new returned array copy
+     * @return copy that contains added element and array
+     * @param <T> type of the array elements
      */
-    public static String[] append(String[] array, String added) {
-        final String[] updated = new String[array.length + 1];
-        System.arraycopy(array, 0, updated, 0, array.length);
+    public static <T> T[] prepend(T added, T[] array) {
+        @SuppressWarnings("unchecked")
+        T[] updated = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length + 1);
+        updated[0] = added;
+        System.arraycopy(array, 0, updated, 1, array.length);
+        return updated;
+    }
+
+    /**
+     * Copy the given array and the added element into a new array of size {@code array.length + 1}.
+     * @param array array to copy to the beginning of new returned array copy
+     * @param added last element in the newly created array
+     * @return copy that contains array and added element
+     * @param <T> type of the array elements
+     */
+    public static <T> T[] append(T[] array, T added) {
+        T[] updated = Arrays.copyOf(array, array.length + 1);
         updated[array.length] = added;
         return updated;
     }
@@ -99,4 +111,35 @@ public class ArrayUtils {
             end--;
         }
     }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseSubArray(long[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (end > start) {
+            final long scratch = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = scratch;
+            start++;
+            end--;
+        }
+    }
+
+    /**
+     * Reverse the {@code length} values on the array starting from {@code offset}.
+     */
+    public static void reverseArray(byte[] array, int offset, int length) {
+        int start = offset;
+        int end = offset + length;
+        while (start < end) {
+            final byte temp = array[start];
+            array[start] = array[end - 1];
+            array[end - 1] = temp;
+            start++;
+            end--;
+        }
+    }
+
 }

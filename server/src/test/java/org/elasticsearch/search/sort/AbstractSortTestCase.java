@@ -1,28 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -150,7 +152,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext).build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
+            sortFieldAssertions(sortBuilder, sortField.field(), sortField.format());
         }
     }
 
@@ -186,16 +188,16 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", Version.CURRENT).build(MapperBuilderContext.root(false)))
-        );
+        NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).build(MapperBuilderContext.root(false, false))));
         return new SearchExecutionContext(
             0,
             0,
@@ -215,7 +217,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         ) {
 
             @Override

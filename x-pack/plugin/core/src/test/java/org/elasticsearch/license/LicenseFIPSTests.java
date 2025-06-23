@@ -17,11 +17,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
+public class LicenseFIPSTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testFIPSCheckWithAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("trial", "platinum"), TimeValue.timeValueHours(24L));
-        PutLicenseRequest request = new PutLicenseRequest();
+        PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder()
@@ -45,7 +45,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
 
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("gold", "standard"), TimeValue.timeValueHours(24L));
-        PutLicenseRequest request = new PutLicenseRequest();
+        PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder()

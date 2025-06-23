@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -33,7 +34,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +53,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -89,7 +89,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -134,11 +134,11 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .setBulkSize(ByteSizeValue.of(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
-        processor.awaitClose(1, TimeUnit.MINUTES);
+        processor.close();
         assertThat(listener.beforeCounts.get(), greaterThanOrEqualTo(1));
         assertThat(listener.afterCounts.get(), greaterThanOrEqualTo(1));
         assertThat(listener.bulkFailures.size(), equalTo(0));
@@ -148,12 +148,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
 
     public void testBulkProcessor2ConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test-ro")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), "test-ro");
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);
@@ -174,7 +169,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 

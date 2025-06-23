@@ -1,6 +1,0 @@
-pr: 91769
-summary: Fix synthetic `_source` for sparse `_doc_count` field
-area: TSDB
-type: bug
-issues:
- - 91731

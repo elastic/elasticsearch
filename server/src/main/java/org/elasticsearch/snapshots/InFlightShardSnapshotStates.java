@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -11,6 +12,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -45,10 +47,11 @@ public final class InFlightShardSnapshotStates {
         }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
-        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+        assert snapshots.stream().map(entry -> new ProjectRepo(entry.projectId(), entry.repository())).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shardsByRepoShardId()
+            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardSnapshotStatusByRepoShardId()
                 .entrySet()) {
                 final RepositoryShardId sid = shard.getKey();
                 addStateInformation(generations, busyIds, shard.getValue(), sid.shardId(), sid.indexName());
@@ -97,7 +100,8 @@ public final class InFlightShardSnapshotStates {
         @Nullable ShardGeneration activeGeneration
     ) {
         final ShardGeneration bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)
+            : "[" + indexName + "][" + shardId + "]: " + bestGeneration + " vs " + activeGeneration;
         return true;
     }
 

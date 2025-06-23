@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -21,7 +22,7 @@ public class JoinStatusTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         JoinStatus joinStatus = new JoinStatus(
-            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
             randomLongBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 100),
             randomNonNegativeTimeValue()
@@ -60,7 +61,7 @@ public class JoinStatusTests extends ESTestCase {
                 );
             }
             case 4 -> {
-                DiscoveryNode newNode = new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT);
+                DiscoveryNode newNode = DiscoveryNodeUtils.create(UUID.randomUUID().toString());
                 return new JoinStatus(newNode, originalJoinStatus.term(), originalJoinStatus.message(), originalJoinStatus.age());
             }
             default -> throw new IllegalStateException();

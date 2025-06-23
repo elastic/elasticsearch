@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -89,7 +90,7 @@ public class HttpClientStatsTracker {
                 threadPool.absoluteTimeInMillis()
             )
         );
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+        httpChannel.addCloseListener(ActionListener.running(() -> {
             try {
                 final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);
                 if (disconnectedClientStats != null) {
@@ -145,7 +146,7 @@ public class HttpClientStatsTracker {
             final LongPredicate keepTimePredicate = closeTimeMillis -> currentTimeMillis - closeTimeMillis <= maxClosedChannelAgeMillis;
             pruneStaleClosedChannelStats(keepTimePredicate);
             return Stream.concat(
-                closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis)),
+                closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis())),
                 httpChannelStats.values().stream().map(c -> c.build(NOT_CLOSED))
             ).toList();
         } else {
@@ -164,7 +165,7 @@ public class HttpClientStatsTracker {
                     return;
                 }
 
-                if (keepTimePredicate.test(nextStats.closedTimeMillis)) {
+                if (keepTimePredicate.test(nextStats.closedTimeMillis())) {
                     // the list elements are pretty much in the order in which the channels were closed so keep all the remaining items
                     return;
                 }
@@ -226,7 +227,11 @@ public class HttpClientStatsTracker {
             lastRequestTimeMillis = currentTimeMillis;
             lastUri = httpRequest.uri();
             requestCount += 1;
-            requestSizeBytes += httpRequest.content().length();
+            if (httpRequest.body().isFull()) {
+                requestSizeBytes += httpRequest.body().asFull().bytes().length();
+            } else {
+                httpRequest.body().asStream().addTracingHandler((chunk, last) -> requestSizeBytes += chunk.length());
+            }
         }
 
         private static String getFirstValueForHeader(final HttpRequest request, final String header) {

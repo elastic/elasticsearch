@@ -52,7 +52,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             randomAlphaOfLength(5),
             new SecureString(new char[] { 'a', 'b', 'c' })
         );
-        expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(usernamePasswordToken, PlainActionFuture.newFuture()));
+        expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(usernamePasswordToken, new PlainActionFuture<>()));
     }
 
     public void testAuthenticateDifferentFailureScenarios() throws LoginException, GSSException {
@@ -63,7 +63,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         final boolean throwExceptionForInvalidTicket = validTicket ? false : randomBoolean();
         final boolean throwLoginException = randomBoolean();
         final byte[] decodedTicket = randomByteArrayOfLength(5);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         if (validTicket) {
             mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
@@ -83,10 +83,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             ? null
             : new KerberosAuthenticationToken(decodedTicket);
         if (nullKerberosAuthnToken) {
-            expectThrows(
-                AssertionError.class,
-                () -> kerberosRealm.authenticate(kerberosAuthenticationToken, PlainActionFuture.newFuture())
-            );
+            expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(kerberosAuthenticationToken, new PlainActionFuture<>()));
         } else {
             final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             kerberosRealm.authenticate(kerberosAuthenticationToken, future);
@@ -147,7 +144,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         settings = Settings.builder().put(settings).putList("authorization_realms", "other_realm").build();
         final KerberosRealm kerberosRealm = createKerberosRealm(Collections.singletonList(otherRealm), username);
         final byte[] decodedTicket = "base64encodedticket".getBytes(StandardCharsets.UTF_8);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, "out-token"), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
@@ -163,7 +160,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 }

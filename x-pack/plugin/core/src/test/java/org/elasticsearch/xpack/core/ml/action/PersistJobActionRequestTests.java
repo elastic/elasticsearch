@@ -20,4 +20,9 @@ public class PersistJobActionRequestTests extends AbstractWireSerializingTestCas
     protected PersistJobAction.Request createTestInstance() {
         return new PersistJobAction.Request(randomAlphaOfLength(10));
     }
+
+    @Override
+    protected PersistJobAction.Request mutateInstance(PersistJobAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

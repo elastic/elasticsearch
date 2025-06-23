@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -22,9 +21,11 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -33,7 +34,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -50,6 +52,7 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -58,11 +61,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
@@ -92,7 +96,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockIngestPlugin.class, CommonAnalysisPlugin.class, MapperExtrasPlugin.class);
+        return List.of(
+            LocalStateMonitoring.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     private String createBulkEntity() {
@@ -121,7 +131,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse = new MonitoringBulkRequestBuilder(client()).add(
                 system,
-                new BytesArray(createBulkEntity().getBytes("UTF-8")),
+                new BytesArray(createBulkEntity().getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON,
                 System.currentTimeMillis(),
                 interval.millis()
@@ -138,40 +148,42 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 ensureGreen(monitoringIndex);
                 assertThat(client().admin().indices().prepareRefresh(monitoringIndex).get().getStatus(), is(RestStatus.OK));
 
-                final SearchResponse response = client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*")
-                    .get();
+                assertResponse(client().prepareSearch(".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-*"), response -> {
+                    // exactly 3 results are expected
+                    assertThat("No monitoring documents yet", response.getHits().getTotalHits().value(), equalTo(3L));
 
-                // exactly 3 results are expected
-                assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
+                    final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
+                        .map(SearchHit::getSourceAsMap)
+                        .collect(Collectors.toList());
 
-                final List<Map<String, Object>> sources = Arrays.stream(response.getHits().getHits())
-                    .map(SearchHit::getSourceAsMap)
-                    .collect(Collectors.toList());
-
-                // find distinct _source.timestamp fields
-                assertThat(sources.stream().map(source -> source.get("timestamp")).distinct().count(), is(1L));
-                // find distinct _source.source_node fields (which is a map)
-                assertThat(sources.stream().map(source -> source.get("source_node")).distinct().count(), is(1L));
+                    // find distinct _source.timestamp fields
+                    assertThat(sources.stream().map(source -> source.get("timestamp")).distinct().count(), is(1L));
+                    // find distinct _source.source_node fields (which is a map)
+                    assertThat(sources.stream().map(source -> source.get("source_node")).distinct().count(), is(1L));
+                });
             });
 
-            final SearchResponse response = client().prepareSearch(monitoringIndex).get();
-            final SearchHits hits = response.getHits();
+            assertCheckedResponse(client().prepareSearch(monitoringIndex), response -> {
+                final SearchHits hits = response.getHits();
 
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-            assertThat(
-                "Monitoring documents must have the same timestamp",
-                Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),
-                equalTo(1L)
-            );
-            assertThat(
-                "Monitoring documents must have the same source_node timestamp",
-                Arrays.stream(hits.getHits()).map(hit -> extractValue("source_node.timestamp", hit.getSourceAsMap())).distinct().count(),
-                equalTo(1L)
-            );
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
+                Map<String, Object> sourceHit = hits.getHits()[0].getSourceAsMap();
+                Object ts = extractValue("timestamp", sourceHit);
+                Object sn_ts = extractValue("source_node.timestamp", sourceHit);
+                for (int i = 1; i < hits.getHits().length; i++) {
+                    sourceHit = hits.getHits()[i].getSourceAsMap();
+                    assertThat("Monitoring documents must have the same timestamp", extractValue("timestamp", sourceHit), equalTo(ts));
+                    assertThat(
+                        "Monitoring documents must have the same source_node timestamp",
+                        extractValue("source_node.timestamp", sourceHit),
+                        equalTo(sn_ts)
+                    );
+                }
 
-            for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, interval);
-            }
+                for (final SearchHit hit : hits.getHits()) {
+                    assertMonitoringDoc(toMap(hit), system, interval);
+                }
+            });
         });
     }
 
@@ -186,8 +198,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final String indexName = createAPMIndex ? "apm-2017.11.06" : "books";
 
         assertThat(
-            client().prepareIndex(indexName)
-                .setId("0")
+            prepareIndex(indexName).setId("0")
                 .setRefreshPolicy("true")
                 .setSource("{\"field\":\"value\"}", XContentType.JSON)
                 .get()
@@ -196,33 +207,30 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         );
 
         final Settings settings = Settings.builder().put("cluster.metadata.display_name", "my cluster").build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
-            final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-
             assertBusy(() -> {
-                final SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setCollapse(new CollapseBuilder("type"))
-                    .addSort("timestamp", SortOrder.DESC)
-                    .get();
+                assertCheckedResponse(
+                    client().prepareSearch(".monitoring-es-*")
+                        .setCollapse(new CollapseBuilder("type"))
+                        .addSort("timestamp", SortOrder.DESC),
+                    response -> {
+                        assertThat(response.status(), is(RestStatus.OK));
+                        assertThat(
+                            "Expecting a minimum number of 6 docs, one per collector",
+                            response.getHits().getHits().length,
+                            greaterThanOrEqualTo(6)
+                        );
 
-                assertThat(response.status(), is(RestStatus.OK));
-                assertThat(
-                    "Expecting a minimum number of 6 docs, one per collector",
-                    response.getHits().getHits().length,
-                    greaterThanOrEqualTo(6)
+                        for (final SearchHit hit : response.getHits()) {
+                            final Map<String, Object> searchHit = toMap(hit);
+                            assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
+                        }
+                    }
                 );
-
-                searchResponse.set(response);
             });
-
-            for (final SearchHit hit : searchResponse.get().getHits()) {
-                final Map<String, Object> searchHit = toMap(hit);
-                assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
-            }
         });
-
     }
 
     /**
@@ -264,7 +272,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     private void assertMonitoringDocSourceNode(final Map<String, Object> sourceNode) {
         assertEquals(6, sourceNode.size());
 
-        final NodesInfoResponse nodesResponse = client().admin().cluster().prepareNodesInfo().clear().get();
+        final NodesInfoResponse nodesResponse = clusterAdmin().prepareNodesInfo().clear().get();
 
         assertEquals(1, nodesResponse.getNodes().size());
 
@@ -365,7 +373,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .put("xpack.monitoring.exporters._local.enabled", true)
             .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(true)));
 
@@ -376,7 +384,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             assertThat(
                 "No monitoring documents yet",
-                client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0).get().getHits().getTotalHits().value,
+                SearchResponseUtils.getTotalHitsValue(client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*").setSize(0)),
                 greaterThan(0L)
             );
         }, 30L, TimeUnit.SECONDS);
@@ -393,21 +401,21 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             .putNull("cluster.metadata.display_name")
             .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings));
 
         assertBusy(() -> assertThat("Exporters are not yet stopped", getMonitoringUsageExportersDefined(), is(false)));
         assertBusy(() -> {
             try {
                 // now wait until Monitoring has actually stopped
-                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
+                final NodesStatsResponse response = clusterAdmin().prepareNodesStats().clear().setThreadPool(true).get();
 
                 for (final NodeStats nodeStats : response.getNodes()) {
                     boolean foundBulkThreads = false;
 
                     for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                        if (WRITE.equals(threadPoolStats.getName())) {
+                        if (WRITE.equals(threadPoolStats.name())) {
                             foundBulkThreads = true;
-                            assertThat("Still some active _bulk threads!", threadPoolStats.getActive(), equalTo(0));
+                            assertThat("Still some active _bulk threads!", threadPoolStats.active(), equalTo(0));
                             break;
                         }
                     }
@@ -420,8 +428,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    private boolean getMonitoringUsageExportersDefined() throws Exception {
-        final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
+    private boolean getMonitoringUsageExportersDefined() {
+        final XPackUsageResponse usageResponse = safeGet(
+            client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT))
+        );
         final Optional<MonitoringFeatureSetUsage> monitoringUsage = usageResponse.getUsages()
             .stream()
             .filter(usage -> usage instanceof MonitoringFeatureSetUsage)

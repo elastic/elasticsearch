@@ -20,16 +20,18 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -42,12 +44,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<PutAutoFollowPatternAction.Request> {
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final Executor remoteClientResponseExecutor;
 
     @Inject
     public TransportPutAutoFollowPatternAction(
@@ -56,7 +60,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final Client client,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final CcrLicenseChecker ccrLicenseChecker
     ) {
         super(
@@ -66,10 +69,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
 
@@ -95,7 +98,11 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final var remoteClient = client.getRemoteClusterClient(
+            request.getRemoteCluster(),
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             threadPool.getThreadContext(),
             clusterService.state()
@@ -103,7 +110,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, indices, e -> {
                 if (e == null) {
                     submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),
@@ -123,7 +130,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            new ClusterStateRequest().clear().metadata(true),
+            new ClusterStateRequest(request.masterNodeTimeout()).clear().metadata(true),
             listener::onFailure,
             consumer
         );
@@ -144,7 +151,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
-        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().custom(AutoFollowMetadata.TYPE);
+        final var localProject = localState.metadata().getProject();
+        AutoFollowMetadata currentAutoFollowMetadata = localProject.custom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
         Map<String, AutoFollowPattern> patterns;
         Map<String, Map<String, String>> headers;
@@ -208,8 +216,9 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         );
         patterns.put(request.getName(), autoFollowPattern);
 
-        return localState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
+        return localState.copyAndUpdateProject(
+            localProject.id(),
+            builder -> builder.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
     }
 
@@ -234,8 +243,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         List<String> followedIndexUUIDS
     ) {
 
-        for (final IndexMetadata indexMetadata : leaderMetadata) {
-            IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
+        for (final IndexMetadata indexMetadata : leaderMetadata.getProject()) {
+            IndexAbstraction indexAbstraction = leaderMetadata.getProject().getIndicesLookup().get(indexMetadata.getIndex().getName());
             if (AutoFollowPattern.match(patterns, exclusionPatterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }

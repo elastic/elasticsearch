@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.Arrays;
 
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
@@ -33,15 +33,14 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationEngine.AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-        if (requestInfo.getRequest()instanceof SearchRequest searchRequest
+        if (requestInfo.getRequest() instanceof SearchRequest searchRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && hasRemoteIndices(searchRequest)
             && (isDlsLicensed || isFlsLicensed)) {
@@ -50,11 +49,11 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
                 searchRequest.requestCache(false);
             }
         }
-        listener.onResponse(null);
+        return SubscribableListener.nullSuccess();
     }
 
     // package private for test
     static boolean hasRemoteIndices(SearchRequest request) {
-        return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
+        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexName);
     }
 }

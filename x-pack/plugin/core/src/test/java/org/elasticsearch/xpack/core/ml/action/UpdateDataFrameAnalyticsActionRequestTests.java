@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,6 +28,11 @@ public class UpdateDataFrameAnalyticsActionRequestTests extends AbstractXContent
     @Override
     protected Request createTestInstance() {
         return new Request(DataFrameAnalyticsConfigUpdateTests.randomUpdate(randomValidId()));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -59,6 +65,7 @@ public class UpdateDataFrameAnalyticsActionRequestTests extends AbstractXContent
     }
 
     public void testDefaultTimeout() {
-        assertThat(createTestInstance().timeout(), is(notNullValue()));
+        AcknowledgedRequest<Request> requestAcknowledgedRequest = createTestInstance();
+        assertThat(requestAcknowledgedRequest.ackTimeout(), is(notNullValue()));
     }
 }

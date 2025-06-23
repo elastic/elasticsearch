@@ -1,41 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -47,23 +52,19 @@ public class MetadataDeleteIndexService {
 
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
 
-    private final Settings settings;
-    private final ClusterService clusterService;
-
     // package private for tests
-    final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
+    final ClusterStateTaskExecutor<DeleteIndicesClusterStateUpdateTask> executor;
+    private final MasterServiceTaskQueue<DeleteIndicesClusterStateUpdateTask> taskQueue;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
-        this.settings = settings;
-        this.clusterService = clusterService;
         executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
-                DeleteIndexClusterStateUpdateRequest task,
+                DeleteIndicesClusterStateUpdateTask task,
                 ClusterState clusterState
             ) {
-                return Tuple.tuple(deleteIndices(clusterState, Sets.newHashSet(task.indices())), task);
+                return Tuple.tuple(MetadataDeleteIndexService.deleteIndices(clusterState, task.indices, settings), task);
             }
 
             @Override
@@ -78,45 +79,114 @@ public class MetadataDeleteIndexService {
                 return clusterState;
             }
         };
+        taskQueue = clusterService.createTaskQueue("delete-index", Priority.URGENT, executor);
     }
 
-    private static final ClusterStateTaskConfig URGENT_CONFIG = ClusterStateTaskConfig.build(Priority.URGENT);
-
-    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {
-        if (request.indices() == null || request.indices().length == 0) {
-            throw new IllegalArgumentException("Index name is required");
+    public void deleteIndices(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Set<Index> indices,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        if (indices == null || indices.isEmpty()) {
+            throw new IllegalArgumentException("Indices are required");
         }
-        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()), request, URGENT_CONFIG, executor);
+        taskQueue.submitTask(
+            "delete-index " + indices,
+            new DeleteIndicesClusterStateUpdateTask(indices, ackTimeout, listener),
+            masterNodeTimeout
+        );
+    }
+
+    // package private for tests
+    static class DeleteIndicesClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
+
+        private final Set<Index> indices;
+        private final TimeValue ackTimeout;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        DeleteIndicesClusterStateUpdateTask(Set<Index> indices, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+            this.indices = Objects.requireNonNull(indices);
+            this.ackTimeout = Objects.requireNonNull(ackTimeout);
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return ackTimeout;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public static ClusterState deleteIndices(ClusterState clusterState, Set<Index> indices, Settings settings) {
+        final Map<ProjectId, Set<Index>> byProject = new HashMap<>();
+        for (Index index : indices) {
+            final ProjectMetadata project = clusterState.metadata().projectFor(index);
+            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(index);
+        }
+
+        for (final Map.Entry<ProjectId, Set<Index>> entry : byProject.entrySet()) {
+            // TODO Avoid creating the state multiple times if there are batched updates for multiple projects
+            clusterState = deleteIndices(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
+        }
+        return clusterState;
     }
 
     /**
      * Delete some indices from the cluster state.
      */
-    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
-        final Metadata meta = currentState.metadata();
+    public static ClusterState deleteIndices(ProjectState projectState, Set<Index> indices, Settings settings) {
+        var project = projectState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
-        final Map<Index, DataStream> backingIndices = new HashMap<>();
+        final Map<Index, DataStream> dataStreamIndices = new HashMap<>();
         for (Index index : indices) {
-            IndexMetadata im = meta.getIndexSafe(index);
-            IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            IndexMetadata im = project.getIndexSafe(index);
+            DataStream parent = project.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                if (parent.getWriteIndex().equals(im.getIndex())) {
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getWriteFailureIndex());
+                if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["
                             + index.getName()
-                            + "] is the write index for data stream ["
+                            + "] is the "
+                            + (isFailureStoreWriteIndex ? "failure store " : "")
+                            + "write index for data stream ["
                             + parent.getName()
                             + "] and cannot be deleted"
                     );
                 } else {
-                    backingIndices.put(index, parent.getDataStream());
+                    dataStreamIndices.put(index, parent);
                 }
             }
             indicesToDelete.add(im.getIndex());
         }
 
         // Check if index deletion conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(projectState, indicesToDelete);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot delete indices that are being snapshotted: "
@@ -125,26 +195,30 @@ public class MetadataDeleteIndexService {
             );
         }
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-        Metadata.Builder metadataBuilder = Metadata.builder(meta);
-        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(projectState.routingTable());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(projectState.cluster().blocks());
 
-        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metadataBuilder.indexGraveyard());
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(projectBuilder.indexGraveyard());
         final int previousGraveyardSize = graveyardBuilder.tombstones().size();
         for (final Index index : indices) {
             String indexName = index.getName();
             logger.info("{} deleting index", index);
             routingTableBuilder.remove(indexName);
-            clusterBlocksBuilder.removeIndexBlocks(indexName);
-            metadataBuilder.remove(indexName);
-            if (backingIndices.containsKey(index)) {
-                DataStream parent = metadataBuilder.dataStream(backingIndices.get(index).getName());
-                metadataBuilder.put(parent.removeBackingIndex(index));
+            clusterBlocksBuilder.removeIndexBlocks(projectState.projectId(), indexName);
+            projectBuilder.remove(indexName);
+            if (dataStreamIndices.containsKey(index)) {
+                DataStream parent = projectBuilder.dataStream(dataStreamIndices.get(index).getName());
+                if (parent.isFailureStoreIndex(index.getName())) {
+                    projectBuilder.put(parent.removeFailureStoreIndex(index));
+                } else {
+                    projectBuilder.put(parent.removeBackingIndex(index));
+                }
             }
         }
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
-        metadataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        projectBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
         logger.trace(
             "{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
             graveyardBuilder.getNumPurged(),
@@ -152,12 +226,9 @@ public class MetadataDeleteIndexService {
             currentGraveyard.getTombstones().size()
         );
 
-        Metadata newMetadata = metadataBuilder.build();
-        ClusterBlocks blocks = clusterBlocksBuilder.build();
-
         // update snapshot restore entries
-        Map<String, ClusterState.Custom> customs = currentState.getCustoms();
-        final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+        Map<String, ClusterState.Custom> customs = projectState.cluster().getCustoms();
+        final RestoreInProgress restoreInProgress = RestoreInProgress.get(projectState.cluster());
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
             ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
@@ -165,10 +236,10 @@ public class MetadataDeleteIndexService {
             customs = builder.build();
         }
 
-        return ClusterState.builder(currentState)
-            .routingTable(routingTableBuilder.build())
-            .metadata(newMetadata)
-            .blocks(blocks)
+        return ClusterState.builder(projectState.cluster())
+            .putRoutingTable(project.id(), routingTableBuilder.build())
+            .putProjectMetadata(projectBuilder.build())
+            .blocks(clusterBlocksBuilder.build())
             .customs(customs)
             .build();
     }

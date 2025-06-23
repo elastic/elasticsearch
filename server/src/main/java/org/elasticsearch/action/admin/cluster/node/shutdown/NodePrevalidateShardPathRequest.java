@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -11,7 +12,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -20,8 +21,8 @@ import java.util.Set;
 
 /**
  * A node-specific request derived from the corresponding {@link PrevalidateShardPathRequest}.
-*/
-public class NodePrevalidateShardPathRequest extends TransportRequest {
+ */
+public class NodePrevalidateShardPathRequest extends AbstractTransportRequest {
 
     private final Set<ShardId> shardIds;
 
@@ -31,13 +32,13 @@ public class NodePrevalidateShardPathRequest extends TransportRequest {
 
     public NodePrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = Set.copyOf(Objects.requireNonNull(in.readSet(ShardId::new)));
+        this.shardIds = in.readCollectionAsImmutableSet(ShardId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
+        out.writeCollection(shardIds);
     }
 
     public Set<ShardId> getShardIds() {

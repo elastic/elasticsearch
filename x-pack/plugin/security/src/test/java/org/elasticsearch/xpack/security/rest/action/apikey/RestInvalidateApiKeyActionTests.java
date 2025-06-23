@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -23,8 +24,10 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -53,7 +56,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
     @Override
@@ -88,7 +91,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             null
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -112,24 +115,19 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            final InvalidateApiKeyResponse actual = InvalidateApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            assertThat(actual.getInvalidatedApiKeys(), equalTo(invalidateApiKeyResponseExpected.getInvalidatedApiKeys()));
-            assertThat(
-                actual.getPreviouslyInvalidatedApiKeys(),
-                equalTo(invalidateApiKeyResponseExpected.getPreviouslyInvalidatedApiKeys())
-            );
-            assertThat(actual.getErrors(), equalTo(invalidateApiKeyResponseExpected.getErrors()));
-        }
-
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        final InvalidateApiKeyResponse actual = InvalidateApiKeyResponse.fromXContent(
+            createParser(XContentType.JSON.xContent(), restResponse.content())
+        );
+        assertThat(actual.getInvalidatedApiKeys(), equalTo(invalidateApiKeyResponseExpected.getInvalidatedApiKeys()));
+        assertThat(actual.getPreviouslyInvalidatedApiKeys(), equalTo(invalidateApiKeyResponseExpected.getPreviouslyInvalidatedApiKeys()));
+        assertThat(actual.getErrors(), equalTo(invalidateApiKeyResponseExpected.getErrors()));
     }
 
     public void testInvalidateApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
@@ -165,7 +163,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             null
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -186,25 +184,23 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                     listener.onResponse((Response) invalidateApiKeyResponseExpectedWhenOwnerFlagIsFalse);
                 }
             }
-        }) {
-            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(restResponse.status(), is(RestStatus.OK));
-            final InvalidateApiKeyResponse actual = InvalidateApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (isInvalidateRequestForOwnedKeysOnly) {
-                assertThat(actual.getInvalidatedApiKeys().size(), is(1));
-                assertThat(actual.getInvalidatedApiKeys(), containsInAnyOrder("api-key-id-1"));
-            } else {
-                assertThat(actual.getInvalidatedApiKeys().size(), is(2));
-                assertThat(actual.getInvalidatedApiKeys(), containsInAnyOrder("api-key-id-1", "api-key-id-2"));
-            }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        final InvalidateApiKeyResponse actual = InvalidateApiKeyResponse.fromXContent(
+            createParser(XContentType.JSON.xContent(), restResponse.content())
+        );
+        if (isInvalidateRequestForOwnedKeysOnly) {
+            assertThat(actual.getInvalidatedApiKeys().size(), is(1));
+            assertThat(actual.getInvalidatedApiKeys(), containsInAnyOrder("api-key-id-1"));
+        } else {
+            assertThat(actual.getInvalidatedApiKeys().size(), is(2));
+            assertThat(actual.getInvalidatedApiKeys(), containsInAnyOrder("api-key-id-1", "api-key-id-2"));
         }
-
     }
 }

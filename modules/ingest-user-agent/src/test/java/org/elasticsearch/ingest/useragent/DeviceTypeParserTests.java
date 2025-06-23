@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.useragent;
@@ -31,36 +32,39 @@ public class DeviceTypeParserTests extends ESTestCase {
     private static DeviceTypeParser deviceTypeParser;
 
     private ArrayList<HashMap<String, String>> readTestDevices(InputStream regexStream, String keyName) throws IOException {
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(XContentParserConfiguration.EMPTY, regexStream);
+        try (
+            XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
+                .createParser(XContentParserConfiguration.EMPTY, regexStream)
+        ) {
 
-        XContentParser.Token token = yamlParser.nextToken();
+            XContentParser.Token token = yamlParser.nextToken();
 
-        ArrayList<HashMap<String, String>> testDevices = new ArrayList<>();
+            ArrayList<HashMap<String, String>> testDevices = new ArrayList<>();
 
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = yamlParser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = yamlParser.nextToken();
 
-            for (; token != null; token = yamlParser.nextToken()) {
-                String currentName = yamlParser.currentName();
-                if (token == XContentParser.Token.FIELD_NAME && currentName.equals(keyName)) {
-                    List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
+                for (; token != null; token = yamlParser.nextToken()) {
+                    String currentName = yamlParser.currentName();
+                    if (token == XContentParser.Token.FIELD_NAME && currentName.equals(keyName)) {
+                        List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
 
-                    for (Map<String, String> map : parserConfigurations) {
-                        HashMap<String, String> testDevice = new HashMap<>();
+                        for (Map<String, String> map : parserConfigurations) {
+                            HashMap<String, String> testDevice = new HashMap<>();
 
-                        testDevice.put("type", map.get("type"));
-                        testDevice.put("os", map.get("os"));
-                        testDevice.put("browser", map.get("browser"));
-                        testDevice.put("device", map.get("device"));
-                        testDevices.add(testDevice);
+                            testDevice.put("type", map.get("type"));
+                            testDevice.put("os", map.get("os"));
+                            testDevice.put("browser", map.get("browser"));
+                            testDevice.put("device", map.get("device"));
+                            testDevices.add(testDevice);
 
+                        }
                     }
                 }
             }
-        }
 
-        return testDevices;
+            return testDevices;
+        }
     }
 
     private static VersionedName getVersionName(String name) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -20,9 +21,9 @@ import java.util.Collections;
 import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.mutateDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
-public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ClusterCustom> {
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected Metadata.ClusterCustom makeTestChanges(Metadata.ClusterCustom testInstance) {
         if (randomBoolean()) {
             return testInstance;
         }
@@ -30,17 +31,17 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.ClusterCustom>> diffReader() {
         return DesiredNodesMetadata::readDiffFrom;
     }
 
     @Override
-    protected Metadata.Custom doParseInstance(XContentParser parser) throws IOException {
+    protected Metadata.ClusterCustom doParseInstance(XContentParser parser) throws IOException {
         return DesiredNodesMetadata.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ClusterCustom> instanceReader() {
         return DesiredNodesMetadata::new;
     }
 
@@ -48,14 +49,19 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
+                new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
             )
         );
     }
 
     @Override
-    protected Metadata.Custom createTestInstance() {
+    protected Metadata.ClusterCustom createTestInstance() {
         return randomDesiredNodesMetadata();
+    }
+
+    @Override
+    protected Metadata.ClusterCustom mutateInstance(Metadata.ClusterCustom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private static DesiredNodesMetadata randomDesiredNodesMetadata() {

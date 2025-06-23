@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
@@ -33,11 +33,10 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("field")
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ft));
+                InternalMatrixStats stats = searchAndReduce(reader, new AggTestConfig(aggBuilder, ft).noReductionCancellation());
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -52,11 +51,10 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("bogus")
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ft));
+                InternalMatrixStats stats = searchAndReduce(reader, new AggTestConfig(aggBuilder, ft).noReductionCancellation());
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -87,11 +85,10 @@ public class MatrixStatsAggregatorTests extends AggregationTestCase {
             MultiPassStats multiPassStats = new MultiPassStats(fieldA, fieldB);
             multiPassStats.computeStats(Arrays.asList(fieldAValues), Arrays.asList(fieldBValues));
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Arrays.asList(fieldA, fieldB)
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new AggTestConfig(aggBuilder, ftA, ftB));
+                InternalMatrixStats stats = searchAndReduce(reader, new AggTestConfig(aggBuilder, ftA, ftB).noReductionCancellation());
                 multiPassStats.assertNearlyEqual(stats);
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }

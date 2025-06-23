@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -17,13 +18,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -34,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -43,6 +47,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final UpdateByQueryMetrics updateByQueryMetrics;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -51,18 +56,21 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        @Nullable UpdateByQueryMetrics updateByQueryMetrics
     ) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.updateByQueryMetrics = updateByQueryMetrics;
     }
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        long startTime = System.nanoTime();
         BulkByScrollParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -77,8 +85,21 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     clusterService.localNode(),
                     bulkByScrollTask
                 );
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state, listener)
-                    .start();
+                new AsyncIndexBySearchAction(
+                    bulkByScrollTask,
+                    logger,
+                    assigningClient,
+                    threadPool,
+                    scriptService,
+                    request,
+                    state,
+                    ActionListener.runAfter(listener, () -> {
+                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                        if (updateByQueryMetrics != null) {
+                            updateByQueryMetrics.recordTookTime(elapsedTime);
+                        }
+                    })
+                ).start();
             }
         );
     }

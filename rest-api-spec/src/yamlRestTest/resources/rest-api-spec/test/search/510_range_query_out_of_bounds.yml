@@ -1,0 +1,290 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: fixed in 8.14.0
+  - do:
+      indices.create:
+        index: range_query_test_index
+        body:
+          mappings:
+            properties:
+              half_float_field:
+                type: half_float
+              float_field:
+                type: float
+              keyword_field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "range_query_test_index", "_id" : "min_boundary_doc" } }'
+          - '{"half_float_field" : -65504, "float_field" : -3.4028235E38 }'
+          - '{ "index" : { "_index" : "range_query_test_index", "_id" : "max_boundary_doc" } }'
+          - '{"half_float_field" : 65504, "float_field" : 3.4028235E38 }'
+          - '{ "index" : { "_index" : "range_query_test_index", "_id" : "1" } }'
+          - '{"half_float_field" : -1, "float_field" : -1 }'
+          - '{ "index" : { "_index" : "range_query_test_index", "_id" : "2" } }'
+          - '{"half_float_field" : 1, "float_field" : 1 }'
+          - '{ "index" : { "_index" : "range_query_test_index", "_id" : "3" } }'
+          - '{"keyword": "I am missing the half_float/float fields and should not be part of the results" }'
+
+---
+"Test range query for half_float field with out of bounds upper limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                lte: 1e+300
+                gt: 0
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "max_boundary_doc" }
+
+---
+"Test range query for float field with out of bounds upper limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                lte: 1e+300
+                gt: 0
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "max_boundary_doc" }
+
+---
+"Test range query for half_float field with out of bounds lower limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                gte: -1e+300
+                lt: 0
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "min_boundary_doc" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Test range query for float field with out of bounds lower limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                gte: -1e+300
+                lt: 0
+          sort: float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "min_boundary_doc" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Test range query for float field with greater or equal than half float min value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                gte: -65504
+                lt: 0
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "min_boundary_doc" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Test range query for float field with greater or equal than float min value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                gte: -3.4028235E38
+                lt: 0
+          sort: float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "min_boundary_doc" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Test range query for float field with greater than half float min value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                gt: -65504
+                lt: 0
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test range query for float field with greater than float min value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                gt: -3.4028235E38
+                lt: 0
+          sort: float_field
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test range query for half_float field with lower or equal than half float max value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                lte: 65504
+                gt: 0
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "max_boundary_doc" }
+
+---
+"Test range query for float field with lower or equal than float max value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                lte: 3.4028235E38
+                gt: 0
+          sort: float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "max_boundary_doc" }
+
+---
+"Test range query for half_float field with lower than half float max value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                lt: 65504
+                gt: 0
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Test range query for float field with lower than float max value limit":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                lt: 3.4028235E38
+                gt: 0
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Test range query for half float field with lt and gt limits":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                lt: 1
+                gt: -1
+
+  - length: { hits.hits: 0 }
+
+---
+"Test range query for float field with lt and gt limits":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                lt: 1
+                gt: -1
+
+  - length: { hits.hits: 0 }
+
+---
+"Test range query for half_float field with gte and lte limits":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              half_float_field:
+                lte: 1
+                gte: -1
+          sort: half_float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+---
+"Test range query for float field with gte and lte limits":
+  - do:
+      search:
+        index: range_query_test_index
+        body:
+          query:
+            range:
+              float_field:
+                lte: 1
+                gte: -1
+          sort: float_field
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }

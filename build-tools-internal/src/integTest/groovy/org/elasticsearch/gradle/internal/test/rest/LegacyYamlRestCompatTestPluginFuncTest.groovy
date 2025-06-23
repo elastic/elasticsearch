@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest
@@ -19,10 +20,9 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    def compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1
-    def specIntermediateDir = "restResources/v${compatibleVersion}/yamlSpecs"
-    def testIntermediateDir = "restResources/v${compatibleVersion}/yamlTests"
-    def transformTask  = ":yamlRestTestV${compatibleVersion}CompatTransform"
+    def specIntermediateDir = "restResources/compat/yamlSpecs"
+    def testIntermediateDir = "restResources/compat/yamlTests"
+    def transformTask  = ":yamlRestCompatTestTransform"
     def YAML_FACTORY = new YAMLFactory()
     def MAPPER = new ObjectMapper(YAML_FACTORY)
     def READER = MAPPER.readerFor(ObjectNode.class)
@@ -33,10 +33,14 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         // 1. TestClustersPlugin not cc compatible due to listener registration
         // 2. RestIntegTestTask not cc compatible due to
         configurationCacheCompatible = false
+        buildApiRestrictionsDisabled = true
     }
-    def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
+
+    def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
-        subProject(":distribution:bwc:maintenance") << """
+        internalBuild()
+
+        subProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -44,26 +48,24 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         """
 
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-compat-test'
-        }
+            apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
         """
 
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest", '--stacktrace').build()
+        def result = gradleRunner("yamlRestCompatTest", '--stacktrace').build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:maintenance"() {
+    def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:minor"() {
         given:
         internalBuild()
 
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -88,7 +90,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         String wrongTest = "wrong_version.yml"
         String additionalTest = "additional_test.yml"
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
-        String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
+        String sourceSetName = "yamlRestCompatTest"
         addRestTestsToProject([additionalTest], sourceSetName)
         //intentionally adding to yamlRestTest source set since the .classes are copied from there
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
@@ -96,14 +98,14 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         String api = "foo.json"
         String test = "10_basic.yml"
         //add the compatible test and api files, these are the prior version's normal yaml rest tests
-        file("distribution/bwc/maintenance/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
-        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
+        file("distribution/bwc/minor/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
+        def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
@@ -130,19 +132,20 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
-        result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
+        result = gradleRunner("yamlRestCompatTest").build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
     }
 
-    def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
+    def "yamlRestCompatTest is wired into check and checkRestCompat"() {
         given:
+        internalBuild()
         withVersionCatalogue()
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -150,10 +153,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         """
 
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-compat-test'
-        }
-
+        apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
         """
 
         when:
@@ -162,7 +162,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
@@ -176,7 +176,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(":yamlRestCompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
         result.task(transformTask).outcome == TaskOutcome.SKIPPED
@@ -186,7 +186,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         given:
         internalBuild()
 
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -202,7 +202,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
             }
-            tasks.named("yamlRestTestV${compatibleVersion}CompatTransform").configure({ task ->
+            tasks.named("yamlRestCompatTestTransform").configure({ task ->
               task.skipTest("test/test/two", "This is a test to skip test two")
               task.replaceValueInMatch("_type", "_doc")
               task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
@@ -230,7 +230,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
         setupRestResources([], [])
 
-        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
         "one":
           - do:
               do_.some.key_to_replace:
@@ -277,7 +277,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
           - match: {}
         """.stripIndent()
         when:
-        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
+        def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
 
@@ -300,22 +300,22 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         ---
         one:
         - do:
-            do_.some.key_that_was_replaced:
-              index: "test"
-              id: 1
-              keyvalue : replacedkeyvalue
             do_.some.key_to_replace_in_two:
               no_change_here: "because it's not in test 'two'"
             warnings:
             - "warning1"
             - "warning2"
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=8"
             allowed_warnings:
             - "added allowed warning"
             allowed_warnings_regex:
             - "added allowed warning regex .* [0-9]"
+            do_.some.key_that_was_replaced:
+              index: "test"
+              id: 1
+              keyvalue : "replacedkeyvalue"
         - match:
             _source.values:
             - "z"
@@ -332,33 +332,33 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
-        - length: { key.in_length_that_was_replaced: 1 }
-        - length: { value_to_replace: 99 }
+        - length:
+            key.in_length_that_was_replaced: 1
+        - length:
+            value_to_replace: 99
         - match:
             _source.added:
               name: "jake"
               likes: "cheese"
-
         ---
         two:
         - skip:
-            version: "all"
-            reason: "This is a test to skip test two"
+            awaits_fix: "This is a test to skip test two"
         - do:
             get:
               index: "test2"
               id: 1
-            do_.some.key_that_was_replaced_in_two:
-                changed_here: "because it is in test 'two'"
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=8"
             warnings_regex:
             - "regex warning here .* [a-z]"
             allowed_warnings:
             - "added allowed warning"
             allowed_warnings_regex:
             - "added allowed warning regex .* [0-9]"
+            do_.some.key_that_was_replaced_in_two:
+              changed_here: "because it is in test 'two'"
         - match:
             _source.values:
             - "foo"
@@ -370,12 +370,12 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
-        - length: { value_not_to_replace: 1 }
+        - length:
+            value_not_to_replace: 1
         ---
         "use cat with no header":
           - do:
-              cat.indices:
-                {}
+              cat.indices: {}
               allowed_warnings:
                 - "added allowed warning"
               allowed_warnings_regex:
@@ -383,7 +383,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
           - match: {}
         """.stripIndent()).readAll()
 
-        expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+        expectedAll.eachWithIndex { ObjectNode expected, int i ->
             if(expected != actual.get(i)) {
                 println("\nTransformed Test:")
                 SequenceWriter sequenceWriter = WRITER.writeValues(System.out)

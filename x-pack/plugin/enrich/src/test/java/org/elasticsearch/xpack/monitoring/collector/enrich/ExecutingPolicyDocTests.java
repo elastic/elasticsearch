@@ -23,8 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests.randomTaskInfo;
 import static org.elasticsearch.xpack.monitoring.collector.enrich.EnrichCoordinatorDocTests.DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.monitoring.collector.enrich.EnrichStatsCollectorTests.randomTaskInfo;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -72,23 +72,21 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
 
         final ExecutingPolicyDoc document = new ExecutingPolicyDoc("_cluster", timestamp, intervalMillis, node, executingPolicy);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        Optional<Map.Entry<String, String>> header = executingPolicy.getTaskInfo().headers().entrySet().stream().findAny();
+        Optional<Map.Entry<String, String>> header = executingPolicy.taskInfo().headers().entrySet().stream().findAny();
         Object[] args = new Object[] {
             DATE_TIME_FORMATTER.formatMillis(timestamp),
             intervalMillis,
             DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
-            executingPolicy.getName(),
-            executingPolicy.getTaskInfo().taskId().getNodeId(),
-            executingPolicy.getTaskInfo().taskId().getId(),
-            executingPolicy.getTaskInfo().type(),
-            executingPolicy.getTaskInfo().action(),
-            executingPolicy.getTaskInfo().description(),
-            executingPolicy.getTaskInfo().startTime(),
-            executingPolicy.getTaskInfo().runningTimeNanos(),
-            executingPolicy.getTaskInfo().cancellable(),
-            executingPolicy.getTaskInfo().cancellable()
-                ? Strings.format("\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
-                : "",
+            executingPolicy.name(),
+            executingPolicy.taskInfo().taskId().getNodeId(),
+            executingPolicy.taskInfo().taskId().getId(),
+            executingPolicy.taskInfo().type(),
+            executingPolicy.taskInfo().action(),
+            executingPolicy.taskInfo().description(),
+            executingPolicy.taskInfo().startTime(),
+            executingPolicy.taskInfo().runningTimeNanos(),
+            executingPolicy.taskInfo().cancellable(),
+            executingPolicy.taskInfo().cancellable() ? Strings.format("\"cancelled\": %s,", executingPolicy.taskInfo().cancelled()) : "",
             header.map(entry -> { return Strings.format("""
                 {"%s":"%s"}""", entry.getKey(), entry.getValue()); }).orElse("{}") };
         assertThat(xContent.utf8ToString(), equalTo(XContentHelper.stripWhitespace(Strings.format("""

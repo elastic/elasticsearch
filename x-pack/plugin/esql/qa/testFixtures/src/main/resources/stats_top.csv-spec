@@ -1,0 +1,302 @@
+top
+required_capability: agg_top
+// tag::top[]
+FROM employees
+| STATS top_salaries = TOP(salary, 3, "desc"), top_salary = MAX(salary)
+// end::top[]
+;
+
+// tag::top-result[]
+top_salaries:integer | top_salary:integer
+[74999, 74970, 74572] | 74999
+// end::top-result[]
+;
+
+topAllTypesAsc
+required_capability: agg_top
+FROM employees
+| STATS
+    date = TOP(hire_date, 2, "asc"),
+    double = TOP(salary_change, 2, "asc"),
+    integer = TOP(salary, 2, "asc"),
+    long = TOP(salary_change.long, 2, "asc")
+;
+
+date:date | double:double | integer:integer | long:long
+[1985-02-18T00:00:00.000Z,1985-02-24T00:00:00.000Z] | [-9.81,-9.28] | [25324,25945] | [-9,-9]
+;
+
+topAllTypesDesc
+required_capability: agg_top
+FROM employees
+| STATS
+    date = TOP(hire_date, 2, "desc"),
+    double = TOP(salary_change, 2, "desc"),
+    integer = TOP(salary, 2, "desc"),
+    long = TOP(salary_change.long, 2, "desc")
+;
+
+date:date | double:double | integer:integer | long:long
+[1999-04-30T00:00:00.000Z,1997-05-19T00:00:00.000Z] | [14.74,14.68] | [74999,74970] | [14,14]
+;
+
+topAllTypesRow
+required_capability: agg_top
+ROW
+    constant_date=TO_DATETIME("1985-02-18T00:00:00.000Z"),
+    constant_double=-9.81,
+    constant_integer=25324,
+    constant_long=TO_LONG(-9)
+| STATS
+    date = TOP(constant_date, 2, "asc"),
+    double = TOP(constant_double, 2, "asc"),
+    integer = TOP(constant_integer, 2, "asc"),
+    long = TOP(constant_long, 2, "asc")
+| keep date, double, integer, long
+;
+
+date:date                | double:double | integer:integer | long:long
+1985-02-18T00:00:00.000Z | -9.81         | 25324           | -9
+;
+
+topSomeBuckets
+required_capability: agg_top
+FROM employees
+| STATS top_salary = TOP(salary, 2, "desc") by still_hired
+| sort still_hired asc
+;
+
+top_salary:integer | still_hired:boolean
+[74999,74970]      | false
+[74572,73578]      | true
+;
+
+topManyBuckets
+required_capability: agg_top
+FROM employees
+| STATS top_salary = TOP(salary, 2, "desc") by x=emp_no, y=emp_no+1
+| sort x asc
+| limit 3
+;
+
+top_salary:integer | x:integer | y:integer
+57305              | 10001     | 10002
+56371              | 10002     | 10003
+61805              | 10003     | 10004
+;
+
+topMultipleStats
+required_capability: agg_top
+FROM employees
+| STATS top_salary = TOP(salary, 1, "desc") by emp_no
+| STATS top_salary = TOP(top_salary, 3, "asc")
+;
+
+top_salary:integer
+[25324,25945,25976]
+;
+
+topAllTypesMin
+required_capability: agg_top
+FROM employees
+| STATS
+    date = TOP(hire_date, 1, "asc"),
+    double = TOP(salary_change, 1, "asc"),
+    integer = TOP(salary, 1, "asc"),
+    long = TOP(salary_change.long, 1, "asc")
+;
+
+date:date                | double:double | integer:integer | long:long
+1985-02-18T00:00:00.000Z | -9.81         | 25324           | -9
+;
+
+topAllTypesMax
+required_capability: agg_top
+FROM employees
+| STATS
+    date = TOP(hire_date, 1, "desc"),
+    double = TOP(salary_change, 1, "desc"),
+    integer = TOP(salary, 1, "desc"),
+    long = TOP(salary_change.long, 1, "desc")
+;
+
+date:date                | double:double | integer:integer | long:long
+1999-04-30T00:00:00.000Z | 14.74         | 74999           | 14
+;
+
+topAscDesc
+required_capability: agg_top
+FROM employees
+| STATS top_asc = TOP(salary, 3, "asc"), top_desc = TOP(salary, 3, "desc")
+;
+
+top_asc:integer | top_desc:integer
+[25324, 25945, 25976] | [74999, 74970, 74572]
+;
+
+topEmpty
+required_capability: agg_top
+FROM employees
+| WHERE salary < 0
+| STATS top = TOP(salary, 3, "asc")
+;
+
+top:integer
+null
+;
+
+topDuplicates
+required_capability: agg_top
+FROM employees
+| STATS integer = TOP(languages, 2, "desc")
+;
+
+integer:integer
+[5, 5]
+;
+
+topBooleans
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+FROM employees
+| eval x = salary is not null
+| where emp_no > 10050
+| STATS
+    top_asc = TOP(still_hired, 2, "asc"),
+    min = TOP(still_hired, 1, "asc"),
+    top_desc = TOP(still_hired, 2, "desc"),
+    max = TOP(still_hired, 1, "desc"),
+    a = TOP(salary is not null, 2, "asc"),
+    b = TOP(x, 2, "asc"),
+    c = TOP(case(salary is null, true, false), 2, "asc"),
+    d = TOP(is_rehired, 2, "asc")
+;
+
+top_asc:boolean    | min:boolean | top_desc:boolean | max:boolean | a:boolean    | b:boolean    | c:boolean      | d:boolean
+[false, false]     | false       | [true, true]     | true        | [true, true] | [true, true] | [false, false] | [false, false]
+;
+
+topBooleansRow
+required_capability: agg_top
+required_capability: agg_top_boolean_support
+ROW constant = true, mv = [true, false]
+| STATS
+    constant_asc = TOP(constant, 2, "asc"),
+    constant_desc = TOP(constant, 2, "desc"),
+    mv_asc = TOP(mv, 2, "asc"),
+    mv_desc = TOP(mv, 2, "desc")
+;
+
+constant_asc:boolean | constant_desc:boolean | mv_asc:boolean | mv_desc:boolean
+true                 | true                  | [false, true]  | [true, false]
+;
+
+topIps
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc");
+
+a:ip | b:ip | c:ip
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+topIpsGrouping
+required_capability: agg_top
+required_capability: agg_top_ip_support
+from hosts
+| eval x = ip0
+| where host > "alpha"
+| stats
+    a = TOP(ip0, 2, "desc"),
+    b = TOP(x, 2, "desc"),
+    c = TOP(case(host == "beta", ip0, ip1), 2, "desc")
+    by host
+| sort host asc;
+
+a:ip | b:ip | c:ip | host:keyword
+[127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | [127.0.0.1, 127.0.0.1] | beta
+[fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
+[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
+;
+
+topKeywords
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc");
+
+     first_name:keyword      |   last_name:keyword   | evil:keyword
+[Alejandro, Amabile, Anneke] | [acello, addadi, aek] | [Zschoche, Zielinski, Zhongwei]
+;
+
+topKeywordsGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc")
+  BY job_positions
+| SORT job_positions
+| LIMIT 3;
+
+     first_name:keyword      |     last_name:keyword     |          evil:keyword          | job_positions:keyword
+ [Arumugam, Bojan, Domenick] |   [acello, aine, akrucki] | [Zhongwei, Yinghua, Valdiodio] | Accountant
+[Alejandro, Charlene, Danel] | [andell, cAlpine, eistad] |      [Stamatiou, Sluis, Sidou] | Architect
+ [Basil, Breannda, Hidefumi] |  [aine, alabarba, ierman] |  [Tramer, Syrzycki, Stamatiou] | Business Analyst
+;
+
+topText
+required_capability: agg_top
+required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator_colon
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc");
+
+title:keyword | calc:keyword | evil:keyword
+[Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World, Planet of Exile, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
+;
+
+topTextGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator_colon
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc")
+  BY author
+| SORT author
+| LIMIT 3;
+
+                                                                                                             title:keyword | calc:keyword | evil:keyword | author:text
+                                   A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings |  Tolk | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | Agnes Perkins
+                                                    The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | he Lo |                                                                [J. R. R. Tolkien, Alan Lee] | Alan Lee
+A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) |  Gent |                                        [W. J. Leatherbarrow, Fyodor Dostoevsky, Alan Myers] | Alan Myers
+;

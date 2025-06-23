@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -69,12 +70,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
         String typeName = in.readOptionalString();
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         hitName = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_6_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_6_0)) {
             this.multiValueSupport = in.readBoolean() ? MultiValueSupport.LENIENT : MultiValueSupport.NONE;
         } else {
             this.multiValueSupport = in.readEnum(MultiValueSupport.class);
@@ -93,7 +95,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeOptionalString(hitName);
-        if (out.getVersion().before(Version.V_8_6_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_6_0)) {
             out.writeBoolean(multiValueSupport != MultiValueSupport.NONE);
         } else {
             out.writeEnum(multiValueSupport);
@@ -131,7 +133,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         List<String> remainingPath = new ArrayList<>();
         // first, search for the "root" DocumentField under which the remaining path of nested document values is
         while ((field = hit.field(tempHitname)) == null) {
-            int indexOfDot = tempHitname.lastIndexOf(".");
+            int indexOfDot = tempHitname.lastIndexOf('.');
             if (indexOfDot < 0) {// there is no such field in the hit
                 return null;
             }
@@ -192,7 +194,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                         }
                         values = unwrappedValues;
                     } else {
-                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                        // missing `field_multi_value_leniency` setting
+                        throw new InvalidArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
                     }
                 }
             }
@@ -206,7 +209,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return values;
     }
 
-    private boolean isListOfNulls(Object unwrapped) {
+    private static boolean isListOfNulls(Object unwrapped) {
         if (unwrapped instanceof List<?> list) {
             if (list.size() == 0) {
                 return false;

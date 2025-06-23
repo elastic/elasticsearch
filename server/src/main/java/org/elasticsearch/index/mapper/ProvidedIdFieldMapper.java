@@ -1,20 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -43,8 +39,6 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -59,47 +53,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final FieldType NESTED_FIELD_TYPE;
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-
-            NESTED_FIELD_TYPE = new FieldType();
-            NESTED_FIELD_TYPE.setTokenized(false);
-            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            NESTED_FIELD_TYPE.setStored(false);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
-            NESTED_FIELD_TYPE.freeze();
-        }
-    }
-
     public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);
 
-    static final class IdFieldType extends TermBasedFieldType {
+    static final class IdFieldType extends AbstractIdFieldType {
 
         private final BooleanSupplier fieldDataEnabled;
 
         IdFieldType(BooleanSupplier fieldDataEnabled) {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _id field is always searchable.
-            return true;
         }
 
         @Override
@@ -108,36 +69,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
-        }
-
-        @Override
         public boolean isAggregatable() {
             return fieldDataEnabled.getAsBoolean();
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
-                Object idObject = v;
-                if (idObject instanceof BytesRef) {
-                    idObject = ((BytesRef) idObject).utf8ToString();
-                }
-                return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
         }
 
         @Override

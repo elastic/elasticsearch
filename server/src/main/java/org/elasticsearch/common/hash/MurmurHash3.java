@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.math.BigInteger;
@@ -28,6 +28,17 @@ public enum MurmurHash3 {
         public long h1;
         /** higher 64 bits part **/
         public long h2;
+
+        public byte[] getBytes() {
+            byte[] hash = new byte[16];
+            getBytes(hash, 0);
+            return hash;
+        }
+
+        public void getBytes(byte[] bytes, int offset) {
+            ByteUtils.writeLongBE(h1, bytes, offset);
+            ByteUtils.writeLongBE(h2, bytes, offset + 8);
+        }
 
         @Override
         public boolean equals(Object other) {
@@ -49,8 +60,7 @@ public enum MurmurHash3 {
         @Override
         public String toString() {
             byte[] longBytes = new byte[17];
-            System.arraycopy(Numbers.longToBytes(h1), 0, longBytes, 1, 8);
-            System.arraycopy(Numbers.longToBytes(h2), 0, longBytes, 9, 8);
+            getBytes(longBytes, 1);
             BigInteger bi = new BigInteger(longBytes);
             return "0x" + bi.toString(16);
         }
@@ -71,7 +81,7 @@ public enum MurmurHash3 {
     private static long C1 = 0x87c37b91114253d5L;
     private static long C2 = 0x4cf5ad432745937fL;
 
-    protected static long fmix(long k) {
+    public static long fmix(long k) {
         k ^= k >>> 33;
         k *= 0xff51afd7ed558ccdL;
         k ^= k >>> 33;

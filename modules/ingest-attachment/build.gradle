@@ -1,28 +1,70 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Ingest processor that uses Apache Tika to extract contents'
-  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+  description = 'Ingest processor that uses Apache Tika to extract contents'
+  classname = 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
 }
 
-versions << [
-  'tika'  : '2.6.0',
-  'pdfbox': '2.0.27',
-  'poi'   : '5.2.2',
-  'mime4j': '0.8.5'
+// this overwrites the 'versions' map from Elasticsearch itself, but indeed we want that -- we're interested in managing our dependencies
+// as we (and tika) demand, and are not interested in, say, having the same version of commons-codec as elasticsearch itself
+// when updating tika, please review it's parent pom : https://repo1.maven.org/maven2/org/apache/tika/tika-parent
+// and manually update the transitive dependencies here
+def versions = [
+  'tika'  : '2.9.3',
+  'pdfbox': '2.0.33',
+  'poi'   : '5.4.0',
+  'sparsebitset' : '1.3', //poi dependency: https://repo1.maven.org/maven2/org/apache/poi/poi/
+  'mime4j': '0.8.12',
+  'commonsCodec': '1.18.0',
+  'slf4' : '2.0.16',
+  'xz' : '1.10',
+  'commonsIo' : '2.18.0',
+  //intentionally using the elder "juniversalchardet:juniversalchardet" rather than the newer "com.github.albfernandez:juniversalchardet"
+  //since the "com.github.albfernandez" fork has some problems with Chinese.
+  'juniversalchardet' : '1.0.3',
+  'tagsoup' : '1.2.1',
+  'jempbox' : '1.8.17',
+  'xmlbeans' : '5.3.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
+  'commonsCollections4' : '4.4',
+  'commonsCompress' : '1.27.1',
+  'commonsLang3' :'3.17.0',
+  'commonsMath3' : '3.6.1'
 ]
 
+// exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
+configurations.testRuntimeClasspath {
+  exclude module: 'commons-logging'
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
+
+configurations.testCompileClasspath {
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
+
 dependencies {
+  // take over logging for all dependencies
+  api "org.slf4j:slf4j-api:${versions.slf4}"
+  api "org.slf4j:jcl-over-slf4j:${versions.slf4}"
+
+  // route slf4j over log4j
+  // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
+  // api "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0"
+
+  // nop all slf4j logging
+  // workaround for https://github.com/elastic/elasticsearch/issues/93714
+  api "org.slf4j:slf4j-nop:${versions.slf4}"
+
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
   api "org.apache.tika:tika-langdetect:${versions.tika}"
@@ -36,41 +78,39 @@ dependencies {
   api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
-  api 'org.tukaani:xz:1.8'
-  api 'commons-io:commons-io:2.11.0'
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.tukaani:xz:${versions.xz}"
+  api "commons-io:commons-io:${versions.commonsIo}"
 
   // character set detection
-  api 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
+  api "com.googlecode.juniversalchardet:juniversalchardet:${versions.juniversalchardet}"
 
   // external parser libraries
   // HTML
-  api 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  api "org.ccil.cowan.tagsoup:tagsoup:${versions.tagsoup}"
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
-  api "org.apache.pdfbox:jempbox:1.8.17"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.pdfbox:jempbox:${versions.jempbox}"
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.0.3'
-  api 'org.apache.commons:commons-collections4:4.1'
+  api "commons-codec:commons-codec:${versions.commonsCodec}"
+  api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
+  api "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.21'
+  api "org.apache.commons:commons-compress:${versions.commonsCompress}"
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
-  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
   // Microsoft Word files with visio diagrams
-  api 'org.apache.commons:commons-math3:3.6.1'
+  api "org.apache.commons:commons-math3:${versions.commonsMath3}"
   // POIs dependency
-  api 'com.zaxxer:SparseBitSet:1.2'
+  api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
 }
 
 restResources {
@@ -84,6 +124,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
 }
 
+esplugin.bundleSpec.from('config/ingest-attachment') {
+  into 'config'
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.doc'
   exclude '**/*.docx'
@@ -93,20 +137,12 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/text-cjk-*.txt'
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  // 2 new tika metadata fields are returned in v8
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .doc file")
-  task.replaceValueInLength("_source.attachment", 8, "Test ingest attachment processor with .docx file")
-  // Tika 2.4.0 adds an extra newline for each embedded attachment, making the content_length larger
-  task.replaceValueInMatch("_source.attachment.content_length", 20, "Test ingest attachment processor with .docx file")
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
-  tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
+  tasks.named("yamlRestCompatTest").configure { enabled = false };
 }

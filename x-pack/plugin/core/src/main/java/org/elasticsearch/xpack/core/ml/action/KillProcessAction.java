@@ -21,7 +21,7 @@ public class KillProcessAction extends ActionType<KillProcessAction.Response> {
     public static final String NAME = "cluster:internal/xpack/ml/job/kill/process";
 
     private KillProcessAction() {
-        super(NAME, KillProcessAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> {

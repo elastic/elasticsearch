@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve a native user.
  */
-public class GetUsersRequest extends ActionRequest implements UserRequest {
+public class GetUsersRequest extends LegacyActionRequest implements UserRequest {
 
     private String[] usernames;
     private boolean withProfileUid;
@@ -28,7 +28,7 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     public GetUsersRequest(StreamInput in) throws IOException {
         super(in);
         usernames = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             withProfileUid = in.readBoolean();
         } else {
             withProfileUid = false;
@@ -77,7 +77,7 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(usernames);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeBoolean(withProfileUid);
         }
     }

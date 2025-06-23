@@ -8,24 +8,18 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
 
@@ -39,16 +33,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
 import static org.mockito.Mockito.mock;
 
@@ -283,18 +273,6 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(TopMetricsAggregationBuilder.NAME),
-                (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c)
-            )
-        );
-    }
-
-    @Override
     protected InternalTopMetrics createTestInstance(String name, Map<String, Object> metadata) {
         return createTestInstance(
             name,
@@ -323,7 +301,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
+    protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) {
         String name = instance.getName();
         SortOrder instanceSortOrder = instance.getSortOrder();
         List<String> metricNames = instance.getMetricNames();
@@ -356,48 +334,6 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             default -> throw new IllegalArgumentException("bad mutation");
         }
         return new InternalTopMetrics(name, instanceSortOrder, metricNames, size, topMetrics, instance.getMetadata());
-    }
-
-    /**
-     * An extra test for parsing dates from xcontent because we can't random
-     * into {@link DocValueFormat.DateTime} because it doesn't
-     * implement {@link Object#equals(Object)}.
-     */
-    public void testFromXContentDates() throws IOException {
-        InternalTopMetrics aggregation = createTestInstance(
-            randomAlphaOfLength(3),
-            emptyMap(),
-            InternalTopMetricsTests::strictDateTime,
-            InternalTopMetricsTests::randomSortValue
-        );
-        ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), randomBoolean());
-        assertFromXContent(aggregation, parsedAggregation);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalTopMetrics aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        ParsedTopMetrics parsed = (ParsedTopMetrics) parsedAggregation;
-        assertThat(parsed.getName(), equalTo(aggregation.getName()));
-        assertThat(parsed.getTopMetrics(), hasSize(aggregation.getTopMetrics().size()));
-        for (int i = 0; i < parsed.getTopMetrics().size(); i++) {
-            ParsedTopMetrics.TopMetrics parsedTop = parsed.getTopMetrics().get(i);
-            InternalTopMetrics.TopMetric internalTop = aggregation.getTopMetrics().get(i);
-            Object expectedSort = internalTop.getSortFormat() == DocValueFormat.RAW
-                ? internalTop.getSortValue().getKey()
-                : internalTop.getSortValue().format(internalTop.getSortFormat());
-            assertThat(parsedTop.getSort(), equalTo(singletonList(expectedSort)));
-            assertThat(parsedTop.getMetrics().keySet(), hasSize(aggregation.getMetricNames().size()));
-            for (int m = 0; m < aggregation.getMetricNames().size(); m++) {
-                String name = aggregation.getMetricNames().get(m);
-                InternalTopMetrics.MetricValue value = internalTop.getMetricValues().get(m);
-                assertThat(parsedTop.getMetrics(), hasKey(name));
-                if (value.getFormat() == DocValueFormat.RAW) {
-                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.numberValue()));
-                } else {
-                    assertThat(parsedTop.getMetrics().get(name), equalTo(value.getValue().format(value.getFormat())));
-                }
-            }
-        }
     }
 
     @Override
@@ -498,10 +434,5 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             return SortValue.from(randomDoubleBetween(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999, DateUtils.MAX_MILLIS_BEFORE_9999, true));
         }
         return randomSortValue();
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(".metrics");
     }
 }

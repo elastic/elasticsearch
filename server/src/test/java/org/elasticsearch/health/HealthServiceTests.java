@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -12,27 +13,28 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.health.node.DiskHealthInfo;
+import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.health.node.HealthInfoTests.randomDiskHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -62,7 +64,6 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
@@ -119,7 +120,6 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
@@ -139,15 +139,14 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testValidateSize() {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
-        var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
+        var service = new HealthService(List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> service.getHealth(client, null, true, -1, ActionListener.NOOP)
+            () -> service.getHealth(client, null, true, -1, ActionListener.noop())
         );
         assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
     }
@@ -220,8 +219,8 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            List.of(createMockHealthIndicatorService(hasMaster)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, null),
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
@@ -251,17 +250,19 @@ public class HealthServiceTests extends ESTestCase {
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
-        Map<String, DiskHealthInfo> diskHealthInfoMap = new HashMap<>();
-        diskHealthInfoMap.put(
-            randomAlphaOfLength(30),
-            new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+        var diskHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
+        var repoHealthInfoMap = randomMap(1, 1, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
+        HealthInfo healthInfo = new HealthInfo(
+            diskHealthInfoMap,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            repoHealthInfoMap,
+            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
         );
-        HealthInfo healthInfo = new HealthInfo(diskHealthInfoMap);
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check
-            List.of(createMockHealthIndicatorService(hasMaster, HealthInfo.EMPTY_HEALTH_INFO)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, HealthInfo.EMPTY_HEALTH_INFO),
                 createMockHealthIndicatorService(networkLatency, healthInfo),
                 createMockHealthIndicatorService(slowTasks, healthInfo),
                 createMockHealthIndicatorService(shardsAvailable, healthInfo)
@@ -289,8 +290,9 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, null),
+                createMockHealthIndicatorService(true, hasStorage, null),
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
@@ -361,18 +363,27 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
-        return createMockHealthIndicatorService(result, null);
+        return createMockHealthIndicatorService(false, result, null);
+    }
+
+    private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result, HealthInfo expectedHealthInfo) {
+        return createMockHealthIndicatorService(false, result, expectedHealthInfo);
     }
 
     /**
      * This returns a test HealthIndicatorService
+     * @param isPreflight true if it's a preflight indicator
      * @param result The HealthIndicatorResult that will be returned by the calculate method when the HealthIndicatorService returned by
      *               this method is called
      * @param expectedHealthInfo If this HealthInfo is not null then the returned HealthIndicatorService's calculate method will assert
      *                           that the HealthInfo it is passed is equal to this when it is called
      * @return A test HealthIndicatorService
      */
-    private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result, HealthInfo expectedHealthInfo) {
+    private static HealthIndicatorService createMockHealthIndicatorService(
+        boolean isPreflight,
+        HealthIndicatorResult result,
+        HealthInfo expectedHealthInfo
+    ) {
         return new HealthIndicatorService() {
             @Override
             public String name() {
@@ -385,6 +396,11 @@ public class HealthServiceTests extends ESTestCase {
                     assertThat(healthInfo, equalTo(expectedHealthInfo));
                 }
                 return result;
+            }
+
+            @Override
+            public boolean isPreflight() {
+                return isPreflight;
             }
         };
     }

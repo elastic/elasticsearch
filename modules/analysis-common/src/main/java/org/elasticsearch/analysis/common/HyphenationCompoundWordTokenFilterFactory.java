@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -27,6 +28,8 @@ import java.nio.file.Path;
  */
 public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private final boolean noSubMatches;
+    private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
 
     HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -37,7 +40,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             throw new IllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        Path hyphenationPatternsFile = env.configFile().resolve(hyphenationPatternsPath);
+        Path hyphenationPatternsFile = env.configDir().resolve(hyphenationPatternsPath);
 
         try {
             InputStream in = Files.newInputStream(hyphenationPatternsFile);
@@ -45,6 +48,9 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         } catch (Exception e) {
             throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
         }
+
+        noSubMatches = settings.getAsBoolean("no_sub_matches", false);
+        noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
     }
 
     @Override
@@ -56,7 +62,9 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             minWordSize,
             minSubwordSize,
             maxSubwordSize,
-            onlyLongestMatch
+            onlyLongestMatch,
+            noSubMatches,
+            noOverlappingMatches
         );
     }
 }

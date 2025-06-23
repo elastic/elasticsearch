@@ -1,0 +1,38 @@
+{
+  "connector.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-connector-api.html",
+      "description": "Returns the details about a connector."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be returned."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "include_deleted": {
+        "type": "boolean",
+        "default": false,
+        "description": "A flag indicating whether to return connectors that have been soft-deleted."
+      }
+    }
+  }
+}

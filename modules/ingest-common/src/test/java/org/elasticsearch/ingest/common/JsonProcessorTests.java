@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -169,12 +170,9 @@ public class JsonProcessorTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(3);
         JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, true);
 
-        Map<String, Object> document = new HashMap<>();
-        String json = "{\"a\": 1, \"a\": 2}";
-        document.put("a", json);
-        document.put("c", "see");
+        Map<String, Object> document = Map.of("a", "{\"a\": 1, \"a\": 2}", "c", "see");
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
         lenientJsonProcessor.execute(ingestDocument);
 
         Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
@@ -184,7 +182,7 @@ public class JsonProcessorTests extends ESTestCase {
         JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, false);
         Exception exception = expectThrows(
             IllegalArgumentException.class,
-            () -> strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
+            () -> strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document)))
         );
         assertThat(exception.getMessage(), containsString("Duplicate field 'a'"));
     }

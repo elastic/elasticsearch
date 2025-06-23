@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -244,6 +246,11 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         @Override
         public void setNextReader(LeafReaderContext context) {
             inputFieldValueFetcher.setNextReader(context);
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return inputFieldValueFetcher.storedFieldsSpec();
         }
     }
 }

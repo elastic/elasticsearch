@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 /**
@@ -98,13 +99,13 @@
  * <ol>
  *     <li>First, {@link org.elasticsearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
  *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
- *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardsByRepoShardId()} are not
- *     created in the initial cluster state update as is done for shard snapshot assignments in
- *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
- *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
- *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a
- *     task in the cluster state, runs the risk of race conditions where the source snapshot is being deleted before the clone task is
- *     enqueued in the cluster state.</li>
+ *     creation, the shard level clone tasks in
+ *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardSnapshotStatusByRepoShardId()} are not created in the initial cluster
+ *     state update as is done for shard snapshot assignments in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is
+ *     due to the fact that shard snapshot assignments are computed purely from information in the current cluster state while shard clone
+ *     assignments require information to be read from the repository, which is too slow of a process to be done inside a cluster state
+ *     update. Loading this information ahead of creating a task in the cluster state, runs the risk of race conditions where the source
+ *     snapshot is being deleted before the clone task is enqueued in the cluster state.</li>
  *     <li>Once a placeholder task for the clone operation is put into the cluster state, we must determine the number of shards in each
  *     index that is to be cloned as well as ensure the health of the index snapshots in the source snapshot. In order to determine the
  *     shard count for each index that is to be cloned, we load the index metadata for each such index using the repository's
@@ -112,10 +113,10 @@
  *     snapshots, we load the {@link org.elasticsearch.snapshots.SnapshotInfo} for the source snapshot and check for shard snapshot
  *     failures of the relevant indices.</li>
  *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
- *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
+ *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the relevant shard clone tasks.</li>
  *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool
  *     by invoking {@link org.elasticsearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
- *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_STATE_EXECUTOR} which updates the
+ *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#masterServiceTaskQueue} which updates the
  *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
  *     <li>Once all the entries in {@code SnapshotsInProgress.Entry#clones} have completed, the clone is finalized just like any other
  *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#endSnapshot}. The only difference being that the metadata that

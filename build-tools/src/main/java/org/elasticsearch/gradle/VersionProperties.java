@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle;
 
@@ -30,6 +31,10 @@ public class VersionProperties {
         return lucene;
     }
 
+    public static String getBundledJdkMajorVersion() {
+        return bundledJdkMajorVersion;
+    }
+
     public static String getBundledJdkVersion() {
         return bundledJdkVersion;
     }
@@ -45,7 +50,9 @@ public class VersionProperties {
     private static final String elasticsearch;
     private static final String lucene;
     private static final String bundledJdkVersion;
+    private static final String bundledJdkMajorVersion;
     private static final String bundledJdkVendor;
+
     private static final Map<String, String> versions = new HashMap<String, String>();
 
     static {
@@ -54,6 +61,7 @@ public class VersionProperties {
         lucene = props.getProperty("lucene");
         bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
         bundledJdkVersion = props.getProperty("bundled_jdk");
+        bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -71,23 +73,21 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("LatLonPoint <field:-1.000000024214387,0.9999999403953552>", fields[0].toString());
-        assertEquals("LatLonDocValuesField <field:-1.000000024214387,0.9999999403953552>", fields[1].toString());
-        assertEquals("LatLonPoint <field:-2.000000006519258,1.9999999646097422>", fields[2].toString());
-        assertEquals("LatLonDocValuesField <field:-2.000000006519258,1.9999999646097422>", fields[3].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("LatLonPointWithDocValues <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
+        assertEquals("LatLonPointWithDocValues <field:-2.000000006519258,1.9999999646097422>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LatLonPoint <field:-1.000000024214387,0.9999999403953552>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LatLonPoint <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LatLonDocValuesField <field:-1.000000024214387,0.9999999403953552>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LatLonDocValuesField <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
     }
 }

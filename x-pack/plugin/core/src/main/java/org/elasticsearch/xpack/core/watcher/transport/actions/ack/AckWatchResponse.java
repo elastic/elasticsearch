@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -20,12 +19,7 @@ import java.io.IOException;
  */
 public class AckWatchResponse extends ActionResponse {
 
-    private WatchStatus status;
-
-    public AckWatchResponse(StreamInput in) throws IOException {
-        super(in);
-        status = in.readBoolean() ? new WatchStatus(in) : null;
-    }
+    private final WatchStatus status;
 
     public AckWatchResponse(@Nullable WatchStatus status) {
         this.status = status;

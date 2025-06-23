@@ -70,7 +70,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         this.jobID = in.readString();
         this.rollupIndex = in.readString();
         this.indexPattern = in.readString();
-        this.fieldCapLookup = in.readMap(StreamInput::readString, RollupFieldCaps::new);
+        this.fieldCapLookup = in.readMap(RollupFieldCaps::new);
     }
 
     public Map<String, RollupFieldCaps> getFieldCaps() {
@@ -94,7 +94,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         out.writeString(jobID);
         out.writeString(rollupIndex);
         out.writeString(indexPattern);
-        out.writeMap(fieldCapLookup, StreamOutput::writeString, (o, value) -> value.writeTo(o));
+        out.writeMap(fieldCapLookup, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -190,7 +190,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
                 final List<Map<String, Object>> metrics = metricConfig.getMetrics()
                     .stream()
                     .map(metric -> singletonMap("agg", (Object) metric))
-                    .collect(Collectors.toList());
+                    .toList();
                 metrics.forEach(m -> {
                     List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(metricConfig.getField(), new ArrayList<>());
                     caps.add(m);
@@ -211,7 +211,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             int size = in.readInt();
             List<Map<String, Object>> inAggs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                inAggs.add(in.readMap());
+                inAggs.add(in.readGenericMap());
             }
             this.aggs = Collections.unmodifiableList(inAggs);
         }

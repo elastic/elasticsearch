@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -16,16 +17,17 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -37,8 +39,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ESTestCase {
@@ -120,6 +124,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -166,6 +171,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -210,6 +216,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -232,7 +239,7 @@ public class NetworkModuleTests extends ESTestCase {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                 String action,
-                String executor,
+                Executor executor,
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {
@@ -292,7 +299,8 @@ public class NetworkModuleTests extends ESTestCase {
             null,
             xContentRegistry(),
             null,
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
+            (preRequest, threadContext) -> {},
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Tracer.NOOP
         );

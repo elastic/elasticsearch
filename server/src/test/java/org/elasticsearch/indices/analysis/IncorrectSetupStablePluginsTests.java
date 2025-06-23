@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -12,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -26,7 +28,7 @@ import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -61,7 +63,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "incorrectlyAnnotatedSettings")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of(
                     "incorrectlyAnnotatedSettings",
@@ -88,12 +90,12 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "noInjectCharFilter")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("noInjectCharFilter", new PluginInfo("noInjectCharFilter", NoInjectCharFilter.class.getName(), classLoader))
             )
         );
-        assertThat(e.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
+        assertThat(e.getMessage(), equalTo("Missing @org.elasticsearch.plugin.Inject annotation for constructor with settings."));
     }
 
     @NamedComponent("multipleConstructors")
@@ -110,7 +112,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "multipleConstructors")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("multipleConstructors", new PluginInfo("multipleConstructors", MultipleConstructors.class.getName(), classLoader))
             )
@@ -122,7 +124,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
         AnalysisRegistry registry = setupRegistry(mapOfCharFilters);
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        return registry.build(idxSettings);
+        return registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
     }
 
     private AnalysisRegistry setupRegistry(Map<String, PluginInfo> mapOfCharFilters) throws IOException {

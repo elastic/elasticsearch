@@ -1,43 +1,95 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Elasticsearch Expanded Pack Plugin - Data Streams'
-  classname 'org.elasticsearch.datastreams.DataStreamsPlugin'
+  description = 'Elasticsearch Expanded Pack Plugin - Data Streams'
+  classname ='org.elasticsearch.datastreams.DataStreamsPlugin'
 }
 
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities', 'reindex'
   }
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
-  testDistribution = 'DEFAULT'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+dependencies {
+  testImplementation project(path: ':test:test-clusters')
+  testImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:rest-root')
+  internalClusterTestImplementation project(':modules:reindex')
 }
 
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution("to be triaged")
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // These fail in CI but only when run as part of checkPart2 and not individually.
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
+
+  // Failure store configuration changed on 8.18 (earlier versions behind feature flag)
+  task.skipTest("data_stream/10_basic/Create data stream with failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/10_basic/Delete data stream with failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/10_basic/Delete data stream with failure store uninitialized", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/30_auto_create_data_stream/Don't initialize failure store during data stream auto-creation on successful index", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/150_tsdb/TSDB failures go to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/170_modify_data_stream/Modify a data stream's failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/190_failure_store_redirection/Failure redirects to original failure store during index change if final pipeline changes target", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Ensure failure is redirected to correct failure store after a reroute processor", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Test failure store status with bulk request", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Failure redirects to correct failure store when pipeline loop is detected", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Failure redirects to correct failure store when index loop is detected", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Failure redirects to original failure store during index change if self referenced", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Redirect shard failure in data stream to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/190_failure_store_redirection/Version conflicts are not redirected to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/200_rollover_failure_store/Lazily roll over a data stream's failure store after an ingest failure", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/200_rollover_failure_store/A failure store marked for lazy rollover should only be rolled over when there is a failure", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/200_rollover_failure_store/Roll over a data stream's failure store without conditions", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/200_rollover_failure_store/Lazily roll over a data stream's failure store after a shard failure", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/200_rollover_failure_store/Don't roll over a data stream's failure store when conditions aren't met", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/200_rollover_failure_store/Roll over a data stream's failure store with conditions", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/200_rollover_failure_store/Rolling over a failure store on a data stream without the failure store enabled should work", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/200_rollover_failure_store/Rolling over an uninitialized failure store should initialize it", "Rolling over a data stream using target_failure_store is no longer supported.")
+
+  task.skipTest("data_stream/210_rollover_failure_store/A failure store marked for lazy rollover should only be rolled over when there is a failure", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Don't roll over a data stream's failure store when conditions aren't met", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Rolling over a failure store on a data stream without the failure store enabled should work", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Rolling over an uninitialized failure store should initialize it", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store with conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after an ingest failure", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Lazily roll over a data stream's failure store after a shard failure", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/210_rollover_failure_store/Roll over a data stream's failure store without conditions", "Rolling over a data stream using target_failure_store is no longer supported.")
+  task.skipTest("data_stream/240_failure_store_info/Get failure store info from explicitly enabled failure store and disabled lifecycle", "failure store lifecycle is not using anymore the data stream lifecycle")
+})
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

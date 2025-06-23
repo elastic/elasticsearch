@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.azure.classic;
@@ -29,12 +30,12 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
         logger.info("--> start first node");
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        awaitMasterNode();
 
         logger.info("--> start another node");
         final String node2 = internalCluster().startNode(settings);
         registerAzureNode(node2);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        awaitMasterNode();
 
         // We expect having 2 nodes as part of the cluster, let's test that
         assertNumberOfNodes(2);

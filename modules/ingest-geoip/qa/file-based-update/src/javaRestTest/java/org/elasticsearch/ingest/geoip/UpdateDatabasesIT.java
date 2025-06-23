@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,6 +29,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateDatabasesIT extends ESRestTestCase {
+    public static TemporaryFolder configDir = new TemporaryFolder();
+
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("ingest-geoip")
+        .withConfigDir(() -> configDir.getRoot().toPath())
+        .setting("resource.reload.interval.high", "100ms")
+        .build();
+
+    @ClassRule
+    public static RuleChain ruleChain = RuleChain.outerRule(configDir).around(cluster);
 
     public void test() throws Exception {
         String body = """
@@ -50,7 +61,7 @@ public class UpdateDatabasesIT extends ESRestTestCase {
             assertThat(stats, nullValue());
         }
 
-        Path configPath = PathUtils.get(System.getProperty("tests.config.dir"));
+        Path configPath = configDir.getRoot().toPath();
         assertThat(Files.exists(configPath), is(true));
         Path ingestGeoipDatabaseDir = configPath.resolve("ingest-geoip");
         Files.createDirectory(ingestGeoipDatabaseDir);
@@ -81,9 +92,7 @@ public class UpdateDatabasesIT extends ESRestTestCase {
     }
 
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
-
 }

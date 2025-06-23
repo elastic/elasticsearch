@@ -43,13 +43,6 @@
         "required":false,
         "description":"A comma-separate list of fields to optionally include. Valid options are 'definition' and 'total_feature_importance'. Default is none."
       },
-      "include_model_definition":{
-        "type":"boolean",
-        "required":false,
-        "description":"Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
-        "default":false,
-        "deprecated": true
-      },
       "decompress_definition":{
         "type":"boolean",
         "required":false,

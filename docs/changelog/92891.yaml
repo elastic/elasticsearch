@@ -1,5 +1,0 @@
-pr: 92891
-summary: Fix wildcard expansion for delete-by-query on data streams
-area: Data streams
-type: bug
-issues: []

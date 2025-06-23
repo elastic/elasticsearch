@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -22,17 +23,15 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,12 +48,12 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -96,7 +95,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     private static final String NAME = "indices:data/read/shard_multi_search";
 
     private EnrichShardMultiSearchAction() {
-        super(NAME, MultiSearchResponse::new);
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> {
@@ -154,7 +153,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             return true;
         }
 
-        private SearchSourceBuilder copy(SearchSourceBuilder source) {
+        private static SearchSourceBuilder copy(SearchSourceBuilder source) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 source.writeTo(output);
@@ -182,6 +181,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -191,9 +191,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.SEARCH
+                threadPool.executor(ThreadPool.Names.SEARCH)
             );
             this.indicesService = indicesService;
         }
@@ -209,17 +210,16 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState project, InternalRequest request) {
             String index = request.concreteIndex();
-            IndexRoutingTable indexRouting = state.routingTable().index(index);
+            IndexRoutingTable indexRouting = project.routingTable().index(index);
             int numShards = indexRouting.size();
             if (numShards != 1) {
                 throw new IllegalStateException("index [" + index + "] should have 1 shard, but has " + numShards + " shards");
             }
-
-            GroupShardsIterator<ShardIterator> result = clusterService.operationRouting()
-                .searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
-            return result.get(0);
+            return clusterService.operationRouting()
+                .searchShards(project, new String[] { index }, null, Preference.LOCAL.type())
+                .getFirst();
         }
 
         @Override
@@ -236,15 +236,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();
-                final SearchExecutionContext context = indexService.newSearchExecutionContext(
-                    shardId.id(),
-                    0,
-                    searcher,
-                    () -> { throw new UnsupportedOperationException(); },
-                    null,
-                    runtimeFields
-                );
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(shardId.id(), 0, searcher, () -> {
+                    throw new UnsupportedOperationException();
+                }, null, runtimeFields);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
+                StoredFields storedFields = searcher.storedFields();
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
 
@@ -260,9 +256,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     final SearchHit[] hits = new SearchHit[topDocs.scoreDocs.length];
                     for (int j = 0; j < topDocs.scoreDocs.length; j++) {
                         final ScoreDoc scoreDoc = topDocs.scoreDocs[j];
-
                         visitor.reset();
-                        searcher.doc(scoreDoc.doc, visitor);
+                        storedFields.document(scoreDoc.doc, visitor);
                         visitor.postProcess(field -> {
                             if (context.isFieldMapped(field) == false) {
                                 throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
@@ -308,16 +303,26 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
-        return new SearchResponse(
-            new InternalSearchResponse(searchHits, null, null, null, false, null, 0),
-            null,
-            1,
-            1,
-            0,
-            1L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        try {
+            return new SearchResponse(
+                searchHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                0,
+                null,
+                1,
+                1,
+                0,
+                1L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+        } finally {
+            searchHits.decRef();
+        }
     }
 
 }

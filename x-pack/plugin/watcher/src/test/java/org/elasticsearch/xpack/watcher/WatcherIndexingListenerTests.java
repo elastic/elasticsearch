@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,8 +16,10 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -28,10 +29,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -396,7 +397,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
             asList(shardRouting),
             indexRoutingTable
         );
@@ -412,7 +413,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "other", true, STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
             Collections.emptyList(),
             indexRoutingTable
         );
@@ -436,7 +437,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(localShards, indexRoutingTable);
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
+            localShards,
+            indexRoutingTable
+        );
         assertThat(allocationIds.size(), is(2));
     }
 
@@ -473,29 +477,17 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node_1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(Collections.singletonList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node_1")
+            .roles(new HashSet<>(Collections.singletonList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
+            .build();
 
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node_2",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node_2")
+            .roles(new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)))
+            .build();
 
-        DiscoveryNode node3 = new DiscoveryNode(
-            "node_3",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
-        );
+        DiscoveryNode node3 = DiscoveryNodeUtils.builder("node_3")
+            .roles(new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)))
+            .build();
 
         IndexMetadata.Builder indexMetadataBuilder = createIndexBuilder(Watch.INDEX, 1, 0);
 
@@ -706,8 +698,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
      */
     private ClusterState mockClusterState(String watchIndex) {
         Metadata metadata = mock(Metadata.class);
+        ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(projectMetadata);
         if (watchIndex == null) {
-            when(metadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
+            when(projectMetadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
             SortedMap<String, IndexAbstraction> indices = new TreeMap<>();
 
@@ -722,10 +716,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 when(aliasMetadata.getAlias()).thenReturn(Watch.INDEX);
                 when(indexMetadata.getAliases()).thenReturn(Map.of(Watch.INDEX, aliasMetadata));
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
-                when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
+                when(projectMetadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
-            when(metadata.getIndicesLookup()).thenReturn(indices);
+            when(projectMetadata.getIndicesLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);
@@ -739,22 +733,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createIndexBuilder(String name, int numberOfShards, int numberOfReplicas) {
-        return IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            );
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas));
     }
 
     private static DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create(nodeId);
     }
 }

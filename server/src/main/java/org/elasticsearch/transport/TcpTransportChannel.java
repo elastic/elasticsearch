@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -11,18 +12,15 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Releasable;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public final class TcpTransportChannel implements TransportChannel {
 
-    private final AtomicBoolean released = new AtomicBoolean();
     private final OutboundHandler outboundHandler;
     private final TcpChannel channel;
     private final String action;
     private final long requestId;
     private final TransportVersion version;
     private final Compression.Scheme compressionScheme;
+    private final ResponseStatsConsumer responseStatsConsumer;
     private final boolean isHandshake;
     private final Releasable breakerRelease;
 
@@ -33,6 +31,7 @@ public final class TcpTransportChannel implements TransportChannel {
         long requestId,
         TransportVersion version,
         Compression.Scheme compressionScheme,
+        ResponseStatsConsumer responseStatsConsumer,
         boolean isHandshake,
         Releasable breakerRelease
     ) {
@@ -42,6 +41,7 @@ public final class TcpTransportChannel implements TransportChannel {
         this.action = action;
         this.requestId = requestId;
         this.compressionScheme = compressionScheme;
+        this.responseStatsConsumer = responseStatsConsumer;
         this.isHandshake = isHandshake;
         this.breakerRelease = breakerRelease;
     }
@@ -52,39 +52,30 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
-            outboundHandler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            outboundHandler.sendResponse(
+                version,
+                channel,
+                requestId,
+                action,
+                response,
+                compressionScheme,
+                isHandshake,
+                responseStatsConsumer
+            );
         } finally {
-            release(false);
-        }
-    }
-
-    @Override
-    public void sendResponse(Exception exception) throws IOException {
-        try {
-            outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
-        } finally {
-            release(true);
-        }
-    }
-
-    private Exception releaseBy;
-
-    private void release(boolean isExceptionResponse) {
-        if (released.compareAndSet(false, true)) {
-            assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerRelease.close();
-        } else if (isExceptionResponse == false) {
-            // only fail if we are not sending an error - we might send the error triggered by the previous
-            // sendResponse call
-            throw new IllegalStateException("reserved bytes are already released", releaseBy);
         }
     }
 
     @Override
-    public String getChannelType() {
-        return "transport";
+    public void sendResponse(Exception exception) {
+        try {
+            outboundHandler.sendErrorResponse(version, channel, requestId, action, responseStatsConsumer, exception);
+        } finally {
+            breakerRelease.close();
+        }
     }
 
     @Override
@@ -94,5 +85,10 @@ public final class TcpTransportChannel implements TransportChannel {
 
     public TcpChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return "TcpTransportChannel{req=" + requestId + "}{" + action + "}{" + channel + "}";
     }
 }

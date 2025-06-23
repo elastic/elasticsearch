@@ -14,6 +14,6 @@ public class GetTrialStatusAction extends ActionType<GetTrialStatusResponse> {
     public static final String NAME = "cluster:admin/xpack/license/trial_status";
 
     private GetTrialStatusAction() {
-        super(NAME, GetTrialStatusResponse::new);
+        super(NAME);
     }
 }

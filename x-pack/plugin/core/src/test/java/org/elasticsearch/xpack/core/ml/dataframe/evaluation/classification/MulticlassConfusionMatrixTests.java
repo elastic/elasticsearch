@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,6 +47,11 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     @Override
     protected MulticlassConfusionMatrix createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected MulticlassConfusionMatrix mutateInstance(MulticlassConfusionMatrix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -96,11 +101,14 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    List.of(
+                        mockTermsBucket("dog", InternalAggregations.from(List.of())),
+                        mockTermsBucket("cat", InternalAggregations.from(List.of()))
+                    ),
                     0L
                 ),
                 mockCardinality(MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 2L),
@@ -110,7 +118,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "dog",
                             30,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -126,7 +134,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "cat",
                             70,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -163,11 +171,14 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     public void testProcess_OtherClassesCountGreaterThanZero() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             List.of(
                 mockTerms(
                     MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    List.of(
+                        mockTermsBucket("dog", InternalAggregations.from(List.of())),
+                        mockTermsBucket("cat", InternalAggregations.from(List.of()))
+                    ),
                     100L
                 ),
                 mockCardinality(MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 5L),
@@ -177,7 +188,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "dog",
                             30,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -193,7 +204,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "cat",
                             85,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -230,22 +241,22 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
     }
 
     public void testProcess_MoreThanTwoStepsNeeded() {
-        Aggregations aggsStep1 = new Aggregations(
+        InternalAggregations aggsStep1 = InternalAggregations.from(
             List.of(
                 mockTerms(
                     MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
                     List.of(
-                        mockTermsBucket("ant", new Aggregations(List.of())),
-                        mockTermsBucket("cat", new Aggregations(List.of())),
-                        mockTermsBucket("dog", new Aggregations(List.of())),
-                        mockTermsBucket("fox", new Aggregations(List.of()))
+                        mockTermsBucket("ant", InternalAggregations.from(List.of())),
+                        mockTermsBucket("cat", InternalAggregations.from(List.of())),
+                        mockTermsBucket("dog", InternalAggregations.from(List.of())),
+                        mockTermsBucket("fox", InternalAggregations.from(List.of()))
                     ),
                     0L
                 ),
                 mockCardinality(MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 2L)
             )
         );
-        Aggregations aggsStep2 = new Aggregations(
+        InternalAggregations aggsStep2 = InternalAggregations.from(
             List.of(
                 mockFilters(
                     MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
@@ -253,7 +264,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "ant",
                             46,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -271,7 +282,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "cat",
                             86,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -290,7 +301,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                 )
             )
         );
-        Aggregations aggsStep3 = new Aggregations(
+        InternalAggregations aggsStep3 = InternalAggregations.from(
             List.of(
                 mockFilters(
                     MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
@@ -298,7 +309,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "dog",
                             126,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
@@ -316,7 +327,7 @@ public class MulticlassConfusionMatrixTests extends AbstractXContentSerializingT
                         mockFiltersBucket(
                             "fox",
                             166,
-                            new Aggregations(
+                            InternalAggregations.from(
                                 List.of(
                                     mockFilters(
                                         MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,

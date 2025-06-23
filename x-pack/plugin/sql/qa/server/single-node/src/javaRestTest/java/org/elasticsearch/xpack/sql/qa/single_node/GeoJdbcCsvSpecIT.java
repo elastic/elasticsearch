@@ -9,15 +9,31 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.geo.GeoCsvSpecTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
+import org.junit.ClassRule;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected void loadDataset(RestClient client) throws Exception {
+        DataLoader.loadDatasetIntoEs(client);
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {

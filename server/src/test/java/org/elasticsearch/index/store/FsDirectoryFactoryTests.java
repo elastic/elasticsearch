@@ -1,26 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -31,9 +37,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiPredicate;
 
 public class FsDirectoryFactoryTests extends ESTestCase {
+
+    final PreLoadExposingFsDirectoryFactory fsDirectoryFactory = new PreLoadExposingFsDirectoryFactory();
 
     public void testPreload() throws IOException {
         doTestPreload();
@@ -45,7 +58,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
-            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
+            FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) FilterDirectory.unwrap(directory);
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
@@ -55,12 +68,40 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
             assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
-            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdt__1.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdm__0.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdx__4.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
-            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
-            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.tmp"));
+            assertThat(delegate, Matchers.instanceOf(MMapDirectory.class));
+            var func = fsDirectoryFactory.preLoadFuncMap.get(delegate);
+            assertTrue(func.test("foo.dvd", newIOContext(random())));
+            assertTrue(func.test("foo.tmp", newIOContext(random())));
+            fsDirectoryFactory.preLoadFuncMap.clear();
+        }
+    }
+
+    public void testDisableRandomAdvice() throws IOException {
+        Directory dir = new FilterDirectory(new ByteBuffersDirectory()) {
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                assertFalse(context.readAdvice() == ReadAdvice.RANDOM);
+                return super.openInput(name, context);
+            }
+        };
+        Directory noRandomAccessDir = FsDirectoryFactory.disableRandomAdvice(dir);
+        try (IndexOutput out = noRandomAccessDir.createOutput("foo", IOContext.DEFAULT)) {
+            out.writeInt(42);
+        }
+        // Test the tester
+        expectThrows(AssertionError.class, () -> dir.openInput("foo", IOContext.DEFAULT.withReadAdvice(ReadAdvice.RANDOM)));
+
+        // The wrapped directory shouldn't fail regardless of the IOContext
+        for (IOContext context : List.of(IOContext.DEFAULT, IOContext.READONCE, IOContext.DEFAULT.withReadAdvice(ReadAdvice.RANDOM))) {
+            try (IndexInput in = noRandomAccessDir.openInput("foo", context)) {
+                assertEquals(42, in.readInt());
+            }
         }
     }
 
@@ -69,7 +110,21 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
         ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
-        return new FsDirectoryFactory().newDirectory(idxSettings, path);
+        return fsDirectoryFactory.newDirectory(idxSettings, path);
+    }
+
+    static class PreLoadExposingFsDirectoryFactory extends FsDirectoryFactory {
+
+        // expose for testing
+        final Map<MMapDirectory, BiPredicate<String, IOContext>> preLoadFuncMap = new HashMap<>();
+
+        @Override
+        public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+            var preLoadFunc = FsDirectoryFactory.getPreloadFunc(preLoadExtensions);
+            mMapDirectory.setPreload(preLoadFunc);
+            preLoadFuncMap.put(mMapDirectory, preLoadFunc);
+            return mMapDirectory;
+        }
     }
 
     private void doTestPreload(String... preload) throws IOException {
@@ -81,26 +136,22 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
+            var mmapDirectory = FilterDirectory.unwrap(directory);
+            assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
             if (preload.length == 0) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertFalse(((MMapDirectory) directory).getPreload());
+                assertEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.NO_FILES);
             } else if (Arrays.asList(preload).contains("*")) {
-                assertTrue(directory.toString(), directory instanceof MMapDirectory);
-                assertTrue(((MMapDirectory) directory).getPreload());
+                assertEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.ALL_FILES);
             } else {
-                assertTrue(directory.toString(), directory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
-                FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) directory;
+                var func = fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory);
+                assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.ALL_FILES);
+                assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.NO_FILES);
                 for (String ext : preload) {
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.useDelegate("foo." + ext));
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.getDelegate().getPreload());
+                    assertTrue("ext: " + ext, func.test("foo." + ext, newIOContext(random())));
                 }
-                assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
-                assertFalse(preLoadMMapDirectory.getPreload());
-                preLoadMMapDirectory.close();
-                expectThrows(
-                    AlreadyClosedException.class,
-                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp", IOContext.DEFAULT)
-                );
+                assertFalse(func.test("XXX", newIOContext(random())));
+                mmapDirectory.close();
+                expectThrows(AlreadyClosedException.class, () -> mmapDirectory.openInput("foo.tmp", IOContext.DEFAULT));
             }
         }
         expectThrows(
@@ -121,7 +172,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     }
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }
@@ -138,10 +189,13 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     assertTrue(type + " " + directory.toString(), directory instanceof NIOFSDirectory);
                     break;
                 case MMAPFS:
-                    assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
+                    assertTrue(
+                        type + " " + directory.getClass().getName() + " " + directory,
+                        FilterDirectory.unwrap(directory) instanceof MMapDirectory
+                    );
                     break;
                 case FS:
-                    if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+                    if (Constants.JRE_IS_64BIT) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);

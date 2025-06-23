@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+
 import java.util.Collection;
 
 public class DefaultDataTypeRegistry implements DataTypeRegistry {
@@ -21,7 +23,7 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
     }
 
     @Override
-    public DataType fromEs(String typeName) {
+    public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
         return DataTypes.fromEs(typeName);
     }
 

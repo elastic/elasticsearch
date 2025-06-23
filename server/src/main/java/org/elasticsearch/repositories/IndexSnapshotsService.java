@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
@@ -28,6 +32,9 @@ import java.util.Map;
 import java.util.Optional;
 
 public class IndexSnapshotsService {
+
+    private static final Logger logger = LogManager.getLogger(IndexSnapshotsService.class);
+
     private static final Comparator<Tuple<SnapshotId, RepositoryData.SnapshotDetails>> START_TIME_COMPARATOR = Comparator.<
         Tuple<SnapshotId, RepositoryData.SnapshotDetails>>comparingLong(pair -> pair.v2().getStartTimeMillis()).thenComparing(Tuple::v1);
 
@@ -42,12 +49,12 @@ public class IndexSnapshotsService {
         ShardId shardId,
         ActionListener<Optional<ShardSnapshotInfo>> originalListener
     ) {
+        assert repositoryName != null;
+
         final ActionListener<Optional<ShardSnapshotInfo>> listener = originalListener.delegateResponse(
-            (delegate, err) -> {
-                delegate.onFailure(
-                    new RepositoryException(repositoryName, "Unable to find the latest snapshot for shard [" + shardId + "]", err)
-                );
-            }
+            (delegate, err) -> delegate.onFailure(
+                new RepositoryException(repositoryName, "Unable to find the latest snapshot for shard [" + shardId + "]", err)
+            )
         );
 
         final Repository repository = getRepository(repositoryName);
@@ -57,12 +64,13 @@ public class IndexSnapshotsService {
         }
 
         final String indexName = shardId.getIndexName();
-        StepListener<RepositoryData> repositoryDataStepListener = new StepListener<>();
-        StepListener<FetchShardSnapshotContext> snapshotInfoStepListener = new StepListener<>();
+        ListenableFuture<RepositoryData> repositoryDataStepListener = new ListenableFuture<>();
+        ListenableFuture<FetchShardSnapshotContext> snapshotInfoStepListener = new ListenableFuture<>();
 
-        repositoryDataStepListener.whenComplete(repositoryData -> {
+        repositoryDataStepListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             if (repositoryData.hasIndex(indexName) == false) {
-                listener.onResponse(Optional.empty());
+                logger.debug("{} repository [{}] has no snapshots of this index", shardId, repositoryName);
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
@@ -81,26 +89,29 @@ public class IndexSnapshotsService {
                 // have the start/end date populated in RepositoryData. We could fetch all the backups and find out if there is
                 // a valid candidate, but for simplicity we just consider that we couldn't find any valid snapshot. Existing
                 // snapshots start/end timestamps should appear in the RepositoryData eventually.
-                listener.onResponse(Optional.empty());
+                logger.debug("{} could not determine latest snapshot of this shard in repository [{}]", shardId, repositoryName);
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
             final SnapshotId snapshotId = latestSnapshotId.get();
+            logger.debug("{} fetching details of [{}][{}]", shardId, repositoryName, snapshotId);
             repository.getSnapshotInfo(
                 snapshotId,
                 snapshotInfoStepListener.map(
                     snapshotInfo -> new FetchShardSnapshotContext(repository, repositoryData, indexId, shardId, snapshotInfo)
                 )
             );
-        }, listener::onFailure);
+        }));
 
-        snapshotInfoStepListener.whenComplete(fetchSnapshotContext -> {
+        snapshotInfoStepListener.addListener(listener.delegateFailureAndWrap((delegate, fetchSnapshotContext) -> {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
             final SnapshotInfo snapshotInfo = fetchSnapshotContext.getSnapshotInfo();
 
             if (snapshotInfo == null || snapshotInfo.state() != SnapshotState.SUCCESS) {
                 // We couldn't find a valid candidate
-                listener.onResponse(Optional.empty());
+                logger.debug("{} failed to retrieve snapshot details from [{}]", shardId, repositoryName);
+                delegate.onResponse(Optional.empty());
                 return;
             }
 
@@ -115,10 +126,13 @@ public class IndexSnapshotsService {
                 .findFirst()
                 .map(snapshotFiles -> fetchSnapshotContext.createIndexShardSnapshotInfo(indexMetadataId, snapshotFiles));
 
-            listener.onResponse(indexShardSnapshotInfo);
-        }, listener::onFailure);
+            delegate.onResponse(indexShardSnapshotInfo);
+        }));
 
-        repository.getRepositoryData(repositoryDataStepListener);
+        repository.getRepositoryData(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+            repositoryDataStepListener
+        );
     }
 
     private Repository getRepository(String repositoryName) {

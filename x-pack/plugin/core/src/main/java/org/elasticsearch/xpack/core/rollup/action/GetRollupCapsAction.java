@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,10 +34,10 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
     public static final ParseField STATUS = new ParseField("status");
 
     private GetRollupCapsAction() {
-        super(NAME, GetRollupCapsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentFragment {
+    public static class Request extends LegacyActionRequest implements ToXContentFragment {
         private String indexPattern;
 
         public Request(String indexPattern) {
@@ -96,13 +94,6 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetRollupCapsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends ActionResponse implements Writeable, ToXContentObject {
 
         private Map<String, RollableIndexCaps> jobs = Collections.emptyMap();
@@ -115,17 +106,13 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
             this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
         }
 
-        Response(StreamInput in) throws IOException {
-            jobs = in.readImmutableMap(StreamInput::readString, RollableIndexCaps::new);
-        }
-
         public Map<String, RollableIndexCaps> getJobs() {
             return jobs;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(jobs, StreamOutput::writeWriteable);
         }
 
         @Override

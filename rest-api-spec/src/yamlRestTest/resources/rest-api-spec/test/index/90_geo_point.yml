@@ -39,8 +39,8 @@
 
 ---
 "null value in array":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: fixed in 8.3.0
 
   - do:

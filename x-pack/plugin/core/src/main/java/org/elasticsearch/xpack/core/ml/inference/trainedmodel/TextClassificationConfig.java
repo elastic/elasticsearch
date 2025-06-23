@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -93,7 +95,7 @@ public class TextClassificationConfig implements NlpConfig {
     public TextClassificationConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        classificationLabels = in.readStringList();
+        classificationLabels = in.readStringCollectionAsList();
         numTopClasses = in.readInt();
         resultsField = in.readOptionalString();
     }
@@ -132,8 +134,47 @@ public class TextClassificationConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextClassificationConfigUpdate configUpdate) {
+            TextClassificationConfig.Builder builder = new TextClassificationConfig.Builder(this);
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getClassificationLabels() != null) {
+                if (classificationLabels.size() != configUpdate.getClassificationLabels().size()) {
+                    throw ExceptionsHelper.badRequestException(
+                        "The number of [{}] the model is defined with [{}] does not match the number in the update [{}]",
+                        CLASSIFICATION_LABELS,
+                        classificationLabels.size(),
+                        configUpdate.getClassificationLabels().size()
+                    );
+                }
+                builder.setClassificationLabels(configUpdate.getClassificationLabels());
+            }
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.tokenizationUpdate != null) {
+                builder.setTokenization(configUpdate.tokenizationUpdate.apply(tokenization));
+            }
+
+            return builder.build();
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new TextClassificationConfig.Builder(this).setTokenization(updatedTokenization).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     @Override

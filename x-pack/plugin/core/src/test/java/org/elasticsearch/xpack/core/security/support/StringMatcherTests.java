@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -49,7 +50,7 @@ public class StringMatcherTests extends ESTestCase {
             assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
 
-        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
+        assertThat(matcher.getPredicate(), sameInstance(Predicates.always()));
     }
 
     public void testSingleWildcard() throws Exception {

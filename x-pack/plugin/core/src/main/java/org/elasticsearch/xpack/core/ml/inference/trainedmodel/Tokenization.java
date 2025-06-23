@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
@@ -32,7 +36,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
             public boolean isInCompatibleWithSpan() {
                 return false;
             }
-        };
+        },
+        BALANCED;
 
         public boolean isInCompatibleWithSpan() {
             return true;
@@ -48,6 +53,23 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
+    public record SpanSettings(@Nullable Integer maxSequenceLength, int span) implements Writeable {
+
+        public SpanSettings(@Nullable Integer maxSequenceLength) {
+            this(maxSequenceLength, UNSET_SPAN_VALUE);
+        }
+
+        SpanSettings(StreamInput in) throws IOException {
+            this(in.readOptionalVInt(), in.readVInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalVInt(maxSequenceLength);
+            out.writeVInt(span);
+        }
+    };
+
     // TODO add global params like never_split, bos_token, eos_token, mask_token, tokenize_chinese_chars, strip_accents, etc.
     public static final ParseField DO_LOWER_CASE = new ParseField("do_lower_case");
     public static final ParseField WITH_SPECIAL_TOKENS = new ParseField("with_special_tokens");
@@ -55,11 +77,11 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     public static final ParseField TRUNCATE = new ParseField("truncate");
     public static final ParseField SPAN = new ParseField("span");
 
-    private static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
+    public static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
     private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
-    private static final int UNSET_SPAN_VALUE = -1;
+    public static final int UNSET_SPAN_VALUE = -1;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);
@@ -103,20 +125,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
                     + "] to indicate no windowing should occur"
             );
         }
-        if (this.span > this.maxSequenceLength) {
-            throw new IllegalArgumentException(
-                "["
-                    + SPAN.getPreferredName()
-                    + "] provided ["
-                    + this.span
-                    + "] must not be greater than ["
-                    + MAX_SEQUENCE_LENGTH.getPreferredName()
-                    + "] provided ["
-                    + this.maxSequenceLength
-                    + "]"
-            );
-        }
-        validateSpanAndTruncate(truncate, span);
+        validateSpanAndMaxSequenceLength(this.maxSequenceLength, this.span);
+        validateSpanAndTruncate(this.truncate, this.span);
     }
 
     public Tokenization(StreamInput in) throws IOException {
@@ -124,12 +134,42 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         this.withSpecialTokens = in.readBoolean();
         this.maxSequenceLength = in.readVInt();
         this.truncate = in.readEnum(Truncate.class);
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             this.span = in.readInt();
         } else {
             this.span = UNSET_SPAN_VALUE;
         }
     }
+
+    /**
+     * Return a copy of this with the tokenizer span settings updated
+     * @param update The settings to update
+     * @return An updated Tokenization
+     */
+    public Tokenization updateWindowSettings(SpanSettings update) {
+        int maxLength = update.maxSequenceLength() == null ? this.maxSequenceLength : update.maxSequenceLength();
+        if (update.maxSequenceLength() != null && update.maxSequenceLength() > this.maxSequenceLength) {
+            throw new ElasticsearchStatusException(
+                "Updated max sequence length [{}] cannot be greater " + "than the model's max sequence length [{}]",
+                RestStatus.BAD_REQUEST,
+                update.maxSequenceLength(),
+                this.maxSequenceLength
+            );
+        }
+
+        int updatedSpan = update.span() == UNSET_SPAN_VALUE ? this.span : update.span();
+        validateSpanAndMaxSequenceLength(maxLength, updatedSpan);
+        return buildWindowingTokenization(maxLength, updatedSpan);
+    }
+
+    /**
+     * Build a copy of this with {@code Truncate == NONE} using
+     * the specified max sequence length and span
+     * @param updatedMaxSeqLength Max sequence length
+     * @param updatedSpan Span
+     * @return A new Tokenization object
+     */
+    abstract Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan);
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -137,10 +177,12 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         out.writeBoolean(withSpecialTokens);
         out.writeVInt(maxSequenceLength);
         out.writeEnum(truncate);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeInt(span);
         }
     }
+
+    public abstract String getMaskToken();
 
     abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
@@ -155,6 +197,22 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         builder = doXContentBody(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public static void validateSpanAndMaxSequenceLength(int maxSequenceLength, int span) {
+        if (span > maxSequenceLength) {
+            throw new IllegalArgumentException(
+                "["
+                    + SPAN.getPreferredName()
+                    + "] provided ["
+                    + span
+                    + "] must not be greater than ["
+                    + MAX_SEQUENCE_LENGTH.getPreferredName()
+                    + "] provided ["
+                    + maxSequenceLength
+                    + "]"
+            );
+        }
     }
 
     public static void validateSpanAndTruncate(@Nullable Truncate truncate, @Nullable Integer span) {
@@ -200,5 +258,13 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
 
     public int getSpan() {
         return span;
+    }
+
+    public int getMaxSequenceLength() {
+        return maxSequenceLength;
+    }
+
+    public void validateVocabulary(PutTrainedModelVocabularyAction.Request request) {
+
     }
 }

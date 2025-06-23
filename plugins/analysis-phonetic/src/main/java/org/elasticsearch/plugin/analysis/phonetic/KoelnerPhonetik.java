@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.phonetic;
@@ -46,6 +47,7 @@ public class KoelnerPhonetik implements StringEncoder {
     /**
      * Constructor for  Kölner Phonetik
      */
+    @SuppressWarnings("this-escape")
     public KoelnerPhonetik() {
         init();
     }
@@ -260,11 +262,11 @@ public class KoelnerPhonetik implements StringEncoder {
         return s;
     }
 
-    private String expandUmlauts(String str) {
-        return str.replaceAll("\u00C4", "AE").replaceAll("\u00D6", "OE").replaceAll("\u00DC", "UE");
+    private static String expandUmlauts(String str) {
+        return str.replace("\u00C4", "AE").replace("\u00D6", "OE").replace("\u00DC", "UE");
     }
 
-    private String removeSequences(String str) {
+    private static String removeSequences(String str) {
         if (str == null || str.length() == 0) {
             return "";
         }

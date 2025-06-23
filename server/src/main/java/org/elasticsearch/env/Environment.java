@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.StatelessSecureSettings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -26,10 +25,8 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * The environment of where things exists.
@@ -42,45 +39,35 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.listSetting(
-        "path.data",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
-    public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.listSetting(
-        "path.repo",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING = Setting.simpleString("path.logs", Property.NodeScope);
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
 
     private final Settings settings;
 
-    private final Path[] dataFiles;
+    private final Path[] dataDirs;
 
-    private final Path[] repoFiles;
+    private final Path[] repoDirs;
 
-    private final Path configFile;
+    private final Path configDir;
 
-    private final Path pluginsFile;
+    private final Path pluginsDir;
 
-    private final Path modulesFile;
+    private final Path modulesDir;
 
-    private final Path sharedDataFile;
+    private final Path sharedDataDir;
 
     /** location of bin/, used by plugin manager */
-    private final Path binFile;
+    private final Path binDir;
 
     /** location of lib/, */
-    private final Path libFile;
+    private final Path libDir;
 
-    private final Path logsFile;
+    private final Path logsDir;
 
     /** Path to the temporary file directory used by the JDK */
-    private final Path tmpFile;
+    private final Path tmpDir;
 
     public Environment(final Settings settings, final Path configPath) {
         this(settings, configPath, PathUtils.get(System.getProperty("java.io.tmpdir")));
@@ -96,74 +83,70 @@ public class Environment {
         }
 
         if (configPath != null) {
-            configFile = configPath.toAbsolutePath().normalize();
+            configDir = configPath.toAbsolutePath().normalize();
         } else {
-            configFile = homeFile.resolve("config");
+            configDir = homeFile.resolve("config");
         }
 
-        tmpFile = Objects.requireNonNull(tmpPath);
+        tmpDir = Objects.requireNonNull(tmpPath);
 
-        pluginsFile = homeFile.resolve("plugins");
+        pluginsDir = homeFile.resolve("plugins");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         if (dataPaths.isEmpty() == false) {
-            dataFiles = new Path[dataPaths.size()];
+            dataDirs = new Path[dataPaths.size()];
             for (int i = 0; i < dataPaths.size(); i++) {
-                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
+                dataDirs[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            dataFiles = new Path[] { homeFile.resolve("data") };
+            dataDirs = new Path[] { homeFile.resolve("data") };
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
+            sharedDataDir = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
-            sharedDataFile = null;
+            sharedDataDir = null;
         }
         List<String> repoPaths = PATH_REPO_SETTING.get(settings);
         if (repoPaths.isEmpty()) {
-            repoFiles = EMPTY_PATH_ARRAY;
+            repoDirs = EMPTY_PATH_ARRAY;
         } else {
-            repoFiles = new Path[repoPaths.size()];
+            repoDirs = new Path[repoPaths.size()];
             for (int i = 0; i < repoPaths.size(); i++) {
-                repoFiles[i] = PathUtils.get(repoPaths.get(i)).toAbsolutePath().normalize();
+                repoDirs[i] = PathUtils.get(repoPaths.get(i)).toAbsolutePath().normalize();
             }
         }
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
         if (PATH_LOGS_SETTING.exists(settings)) {
-            logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).toAbsolutePath().normalize();
+            logsDir = PathUtils.get(PATH_LOGS_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
-            logsFile = homeFile.resolve("logs");
+            logsDir = homeFile.resolve("logs");
         }
 
-        binFile = homeFile.resolve("bin");
-        libFile = homeFile.resolve("lib");
-        modulesFile = homeFile.resolve("modules");
+        binDir = homeFile.resolve("bin");
+        libDir = homeFile.resolve("lib");
+        modulesDir = homeFile.resolve("modules");
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
             if (dataPathUsesList(settings)) {
-                finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).toList());
+                finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataDirs).map(Path::toString).toList());
             } else {
-                assert dataFiles.length == 1;
-                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
+                assert dataDirs.length == 1;
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataDirs[0]);
             }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
-        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
+        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsDir.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
-            finalSettings.putList(Environment.PATH_REPO_SETTING.getKey(), Arrays.stream(repoFiles).map(Path::toString).toList());
+            finalSettings.putList(Environment.PATH_REPO_SETTING.getKey(), Arrays.stream(repoDirs).map(Path::toString).toList());
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            assert sharedDataFile != null;
-            finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
+            assert sharedDataDir != null;
+            finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataDir.toString());
         }
 
-        if (DiscoveryNode.isStateless(settings)) {
-            this.settings = StatelessSecureSettings.install(finalSettings.build());
-        } else {
-            this.settings = finalSettings.build();
-        }
+        this.settings = finalSettings.build();
     }
 
     /**
@@ -176,22 +159,22 @@ public class Environment {
     /**
      * The data location.
      */
-    public Path[] dataFiles() {
-        return dataFiles;
+    public Path[] dataDirs() {
+        return dataDirs;
     }
 
     /**
      * The shared data location
      */
-    public Path sharedDataFile() {
-        return sharedDataFile;
+    public Path sharedDataDir() {
+        return sharedDataDir;
     }
 
     /**
      * The shared filesystem repo locations.
      */
-    public Path[] repoFiles() {
-        return repoFiles;
+    public Path[] repoDirs() {
+        return repoDirs;
     }
 
     /**
@@ -199,8 +182,8 @@ public class Environment {
      *
      * If the specified location doesn't match any of the roots, returns null.
      */
-    public Path resolveRepoFile(String location) {
-        return PathUtils.get(repoFiles, location);
+    public Path resolveRepoDir(String location) {
+        return PathUtils.get(repoDirs, location);
     }
 
     /**
@@ -214,7 +197,7 @@ public class Environment {
             if ("file".equalsIgnoreCase(url.getProtocol())) {
                 if (url.getHost() == null || "".equals(url.getHost())) {
                     // only local file urls are supported
-                    Path path = PathUtils.get(repoFiles, url.toURI());
+                    Path path = PathUtils.get(repoDirs, url.toURI());
                     if (path == null) {
                         // Couldn't resolve against known repo locations
                         return null;
@@ -249,49 +232,48 @@ public class Environment {
         }
     }
 
-    // TODO: rename all these "file" methods to "dir"
     /**
      * The config directory.
      */
-    public Path configFile() {
-        return configFile;
+    public Path configDir() {
+        return configDir;
     }
 
-    public Path pluginsFile() {
-        return pluginsFile;
+    public Path pluginsDir() {
+        return pluginsDir;
     }
 
-    public Path binFile() {
-        return binFile;
+    public Path binDir() {
+        return binDir;
     }
 
-    public Path libFile() {
-        return libFile;
+    public Path libDir() {
+        return libDir;
     }
 
-    public Path modulesFile() {
-        return modulesFile;
+    public Path modulesDir() {
+        return modulesDir;
     }
 
-    public Path logsFile() {
-        return logsFile;
+    public Path logsDir() {
+        return logsDir;
     }
 
     /** Path to the default temp directory used by the JDK */
-    public Path tmpFile() {
-        return tmpFile;
+    public Path tmpDir() {
+        return tmpDir;
     }
 
     /** Ensure the configured temp directory is a valid directory */
-    public void validateTmpFile() throws IOException {
-        validateTemporaryDirectory("Temporary directory", tmpFile);
+    public void validateTmpDir() throws IOException {
+        validateTemporaryDirectory("Temporary directory", tmpDir);
     }
 
     /**
      * Ensure the temp directories needed for JNA are set up correctly.
      */
     public void validateNativesConfig() throws IOException {
-        validateTmpFile();
+        validateTmpDir();
         if (Constants.LINUX) {
             validateTemporaryDirectory(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE + " environment variable", getLibffiTemporaryDirectory());
         }
@@ -343,11 +325,7 @@ public class Environment {
 
     public static long getUsableSpace(Path path) throws IOException {
         long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
-
-        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-        if (freeSpaceInBytes < 0) {
-            freeSpaceInBytes = Long.MAX_VALUE;
-        }
+        assert freeSpaceInBytes >= 0;
         return freeSpaceInBytes;
     }
 
@@ -356,15 +334,15 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
-        assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
-        assertEquals(actual.configFile(), expected.configFile(), "configFile");
-        assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");
-        assertEquals(actual.binFile(), expected.binFile(), "binFile");
-        assertEquals(actual.libFile(), expected.libFile(), "libFile");
-        assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
-        assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
-        assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
+        assertEquals(actual.dataDirs(), expected.dataDirs(), "dataDirs");
+        assertEquals(actual.repoDirs(), expected.repoDirs(), "sharedRepoDirs");
+        assertEquals(actual.configDir(), expected.configDir(), "configDir");
+        assertEquals(actual.pluginsDir(), expected.pluginsDir(), "pluginsDir");
+        assertEquals(actual.binDir(), expected.binDir(), "binDir");
+        assertEquals(actual.libDir(), expected.libDir(), "libDir");
+        assertEquals(actual.modulesDir(), expected.modulesDir(), "modulesDir");
+        assertEquals(actual.logsDir(), expected.logsDir(), "logsDir");
+        assertEquals(actual.tmpDir(), expected.tmpDir(), "tmpDir");
     }
 
     private static void assertEquals(Object actual, Object expected, String name) {

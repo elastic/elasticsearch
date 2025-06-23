@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
@@ -27,7 +27,7 @@ public class TypedChainTaskExecutor<T> {
         void run(ActionListener<T> listener);
     }
 
-    private final ExecutorService executorService;
+    private final Executor executorService;
     private final LinkedList<ChainTask<T>> tasks = new LinkedList<>();
     private final Predicate<Exception> failureShortCircuitPredicate;
     private final Predicate<T> continuationPredicate;
@@ -48,7 +48,7 @@ public class TypedChainTaskExecutor<T> {
      *                                     called.
      */
     public TypedChainTaskExecutor(
-        ExecutorService executorService,
+        Executor executorService,
         Predicate<T> continuationPredicate,
         Predicate<Exception> failureShortCircuitPredicate
     ) {

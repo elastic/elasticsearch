@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -153,7 +152,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                         client.threadPool().getThreadContext(),
                         WATCHER_ORIGIN,
                         indexRequest,
-                        ActionListener.<IndexResponse>wrap(response -> {
+                        ActionListener.<DocWriteResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
                             listener.onResponse(
                                 new PutWatchResponse(

@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -30,8 +29,8 @@ subprojects {
 
     restResources {
       restApi {
-        include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-          'search', 'async_search', 'graph', '*_point_in_time', 'scripts_painless_execute'
+        include 'capabilities', '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
+          'search', 'async_search', 'graph', '*_point_in_time', 'put_script', 'scripts_painless_execute'
       }
       restTests {
         includeCore '*'
@@ -45,6 +44,7 @@ subprojects {
       setting 'xpack.security.enabled', 'false'
 
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      requiresFeature 'es.sub_objects_auto_feature_flag_enabled', Version.fromString("8.16.0")
     }
 
     tasks.named("yamlRestTest").configure {
@@ -72,7 +72,10 @@ subprojects {
           /////// TO FIX ///////
           'aggregations/range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Field collapsing on a runtime field does not work
+          'search/111_field_collapsing_with_max_score/*', // Field collapsing on a runtime field does not work
+          'search/112_field_collapsing_with_rescore/*', // Field collapsing on a runtime field does not work
           'field_caps/30_index_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
+          'search/350_point_in_time/point-in-time with index filter', // We don't support filtering pit on runtime fields.
           'aggregations/filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           //completion suggester does not return options when the context field is a geo_point runtime field

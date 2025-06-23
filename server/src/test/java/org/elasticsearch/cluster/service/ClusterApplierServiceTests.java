@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,16 +19,16 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -69,6 +66,12 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
                 return currentTimeMillis;
             }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
+                return currentTimeMillis;
+            }
         };
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allowClusterStateApplicationFailure = false;
@@ -85,7 +88,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {
-        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
@@ -121,36 +124,32 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test1]: took [1s] no change in cluster state"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.TRACE,
-                "*failed to execute cluster state applier in [2s]*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test3]: took [0s] no change in cluster state*"
-            )
-        );
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test1",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test1]: took [1s] no change in cluster state"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test2",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "*failed to execute cluster state applier in [2s]*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test3",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test3]: took [0s] no change in cluster state*"
+                )
+            );
 
-        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try {
             currentTimeMillis = randomLongBetween(0L, Long.MAX_VALUE / 2);
             clusterApplierService.runOnApplierThread(
                 "test1",
@@ -188,48 +187,59 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            assertBusy(mockAppender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test1 shouldn't see because setting is too low",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: "
-                    + "[running task [test2]] took [*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test4",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.WARN,
-                "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: "
-                    + "[running task [test3]] took [*"
-            )
-        );
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "test1 shouldn't see because setting is too low",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test2",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: "
+                        + "[running task [test2]] took [*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test3",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: "
+                        + "[running task [test3]] took [*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test4",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test4] took [36s] which is above the warn threshold of [*]: "
+                        + "[running task [test4]] took [*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test5",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test5] took [38s] which is above the warn threshold of [*]: "
+                        + "[running task [test5]] took [*"
+                )
+            );
 
-        Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
-        Loggers.addAppender(clusterLogger, mockAppender);
-        try {
-            final CountDownLatch latch = new CountDownLatch(4);
+            final CountDownLatch latch = new CountDownLatch(6);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
             currentTimeMillis = randomLongBetween(0L, Long.MAX_VALUE / 2);
             clusterApplierService.runOnApplierThread(
@@ -280,9 +290,39 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
                 }
             );
+            clusterApplierService.runOnApplierThread("test4", Priority.HIGH, currentState -> {
+                // do nothing (testing that onResponse is included in timing)
+            }, new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void unused) {
+                    advanceTime(TimeValue.timeValueSeconds(36).millis());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail();
+                }
+            });
+            clusterApplierService.runOnApplierThread("test5", Priority.HIGH, currentState -> {
+                throw new IllegalArgumentException("Testing that onFailure is included in timing");
+            }, new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void unused) {
+                    fail();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    advanceTime(TimeValue.timeValueSeconds(38).millis());
+                    latch.countDown();
+                }
+            });
             // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
-            clusterApplierService.runOnApplierThread("test4", Priority.HIGH, currentState -> {}, new ActionListener<>() {
+            clusterApplierService.runOnApplierThread("test6", Priority.HIGH, currentState -> {}, new ActionListener<>() {
                 @Override
                 public void onResponse(Void ignored) {
                     latch.countDown();
@@ -294,11 +334,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 }
             });
             latch.await();
-        } finally {
-            Loggers.removeAppender(clusterLogger, mockAppender);
-            mockAppender.stop();
+
+            mockLog.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     public void testLocalNodeMasterListenerCallbacks() {
@@ -319,21 +357,24 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         ClusterState state = clusterApplierService.state();
         DiscoveryNodes nodes = state.nodes();
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 
         nodes = state.nodes();
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
         state = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
-            .nodes(nodesBuilder)
+            .nodes(nodes.withMasterNodeId(null))
             .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(false));
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 
@@ -349,9 +390,15 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 clusterApplierService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
-                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
-                    error.set(e);
+                // NB not a string constant shared between implementation and test, because the content of this message is important and
+                // mustn't be changed inadvertently.
+                if (e.getMessage().equals("""
+                    On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() instead \
+                    of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from within a cluster \
+                    applier since the new state has been committed at this point but is not yet applied.""")) {
+                    return;
                 }
+                error.set(e);
             }
         });
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -21,13 +22,10 @@ public final class CountDown {
     private final AtomicInteger countDown;
 
     public CountDown(int count) {
-        // A count of zero was permitted in older versions, but is trappy (requiring explicit special handling) because countDown() and
-        // fastForward() would never return true. This case is now forbidden in tests, forcing callers to handle the special case up-front,
-        // but the older behaviour is preserved when assertions are disabled. See #92196.
-        // TODO drop this leniency once we are confident nothing relies on the older behaviour any more.
-        assert count > 0 : "count must be positive";
-        if (count < 0) {
-            throw new IllegalArgumentException("count must be greater or equal to 0 but was: " + count);
+        if (count <= 0) {
+            final String message = "count must be greater than 0 but was: " + count;
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
         this.countDown = new AtomicInteger(count);
     }

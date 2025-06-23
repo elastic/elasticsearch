@@ -1,25 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -28,8 +28,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -41,77 +42,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
-    private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
+    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
-    private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
-    private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
-    private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
-    private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    private static final ParseField MAX_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
-    private static final ParseField MIN_AGE_CONDITION = new ParseField(MinAgeCondition.NAME);
-    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MinDocsCondition.NAME);
-    private static final ParseField MIN_SIZE_CONDITION = new ParseField(MinSizeCondition.NAME);
-    private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MinPrimaryShardSizeCondition.NAME);
-    private static final ParseField MIN_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MinPrimaryShardDocsCondition.NAME);
 
     static {
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-            MAX_AGE_CONDITION
-        );
-        CONDITION_PARSER.declareLong(
-            (conditions, value) -> conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)),
-            MAX_DOCS_CONDITION
-        );
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(
-                MaxSizeCondition.NAME,
-                new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))
-            ),
-            MAX_SIZE_CONDITION
-        );
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(
-                MaxPrimaryShardSizeCondition.NAME,
-                new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))
-            ),
-            MAX_PRIMARY_SHARD_SIZE_CONDITION
-        );
-        CONDITION_PARSER.declareLong(
-            (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
-            MAX_PRIMARY_SHARD_DOCS_CONDITION
-        );
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(MinAgeCondition.NAME, new MinAgeCondition(TimeValue.parseTimeValue(s, MinAgeCondition.NAME))),
-            MIN_AGE_CONDITION
-        );
-        CONDITION_PARSER.declareLong(
-            (conditions, value) -> conditions.put(MinDocsCondition.NAME, new MinDocsCondition(value)),
-            MIN_DOCS_CONDITION
-        );
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(
-                MinSizeCondition.NAME,
-                new MinSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinSizeCondition.NAME))
-            ),
-            MIN_SIZE_CONDITION
-        );
-        CONDITION_PARSER.declareString(
-            (conditions, s) -> conditions.put(
-                MinPrimaryShardSizeCondition.NAME,
-                new MinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinPrimaryShardSizeCondition.NAME))
-            ),
-            MIN_PRIMARY_SHARD_SIZE_CONDITION
-        );
-        CONDITION_PARSER.declareLong(
-            (conditions, value) -> conditions.put(MinPrimaryShardDocsCondition.NAME, new MinPrimaryShardDocsCondition(value)),
-            MIN_PRIMARY_SHARD_DOCS_CONDITION
-        );
-
         PARSER.declareField(
-            (parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
+            (parser, request, context) -> request.setConditions(RolloverConditions.fromXContent(parser)),
             CONDITIONS,
             ObjectParser.ValueType.OBJECT
         );
@@ -120,28 +57,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.SETTINGS,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField((parser, request, includeTypeName) -> {
-            if (includeTypeName) {
-                // expecting one type only
-                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
-                    request.createIndexRequest.mapping(value);
-                }
-            } else {
-                // a type is not included, add a dummy _doc type
-                Map<String, Object> mappings = parser.map();
-                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                    throw new IllegalArgumentException(
-                        "The mapping definition cannot be nested under a type "
-                            + "["
-                            + MapperService.SINGLE_MAPPING_NAME
-                            + "] unless include_type_name is set to true."
-                    );
-                }
-                request.createIndexRequest.mapping(mappings);
-            }
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
@@ -150,7 +65,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(
             (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -162,26 +77,35 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
-    private final Map<String, Condition<?>> conditions = Maps.newMapWithExpectedSize(2);
+    private boolean lazy;
+    private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
         rolloverTarget = in.readString();
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            Condition<?> condition = in.readNamedWriteable(Condition.class);
-            this.conditions.put(condition.name, condition);
-        }
+        conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            lazy = in.readBoolean();
+        } else {
+            lazy = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
     }
 
-    RolloverRequest() {}
+    RolloverRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public RolloverRequest(String rolloverTarget, String newIndexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.rolloverTarget = rolloverTarget;
         this.newIndexName = newIndexName;
     }
@@ -194,12 +118,20 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         }
 
         // if the request has any conditions, then at least one condition must be a max_* condition
-        boolean noMaxConditions = conditions.values().stream().noneMatch(c -> Condition.Type.MAX == c.type());
-        if (conditions.size() > 0 && noMaxConditions) {
+        if (conditions.hasMinConditions() && conditions.hasMaxConditions() == false) {
             validationException = addValidationError(
                 "at least one max_* rollover condition must be set when using min_* conditions",
                 validationException
             );
+        }
+
+        // Ensure we have a valid selector in the request
+        if (rolloverTarget != null) {
+            try {
+                SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            } catch (InvalidIndexNameException exception) {
+                validationException = addValidationError(exception.getMessage(), validationException);
+            }
         }
 
         return validationException;
@@ -211,11 +143,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).toList(),
-            StreamOutput::writeNamedWriteable
-        );
+        conditions.writeTo(out);
         createIndexRequest.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(lazy);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
@@ -225,7 +160,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
+    }
+
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
     }
 
     @Override
@@ -234,14 +173,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to rollover to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the alias to roll over to another index
      */
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
@@ -262,121 +201,29 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Adds condition to check if the index is at least <code>age</code> old
+     * Sets the conditions that need to be met for the index to roll over
      */
-    public void addMaxIndexAgeCondition(TimeValue age) {
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
-        if (this.conditions.containsKey(maxAgeCondition.name)) {
-            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
-        }
-        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
+    public void setConditions(RolloverConditions conditions) {
+        this.conditions = conditions;
     }
 
     /**
-     * Adds condition to check if the index has at least <code>numDocs</code>
+     * Sets if an unconditional rollover should wait for a document to come before it gets executed
      */
-    public void addMaxIndexDocsCondition(long numDocs) {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
-        if (this.conditions.containsKey(maxDocsCondition.name)) {
-            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
-        }
-        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
-    }
-
-    /**
-     * Adds a size-based condition to check if the index size is at least <code>size</code>.
-     */
-    public void addMaxIndexSizeCondition(ByteSizeValue size) {
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
-        if (this.conditions.containsKey(maxSizeCondition.name)) {
-            throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
-        }
-        this.conditions.put(maxSizeCondition.name, maxSizeCondition);
-    }
-
-    /**
-     * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
-     */
-    public void addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
-        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
-        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
-            throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
-        }
-        this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
-    }
-
-    /**
-     * Adds a size-based condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
-     */
-    public void addMaxPrimaryShardDocsCondition(long numDocs) {
-        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
-        if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
-            throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");
-        }
-        this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
-    }
-
-    /**
-     * Adds required condition to check if the index is at least <code>age</code> old
-     */
-    public void addMinIndexAgeCondition(TimeValue age) {
-        MinAgeCondition minAgeCondition = new MinAgeCondition(age);
-        if (this.conditions.containsKey(minAgeCondition.name)) {
-            throw new IllegalArgumentException(minAgeCondition.name + " condition is already set");
-        }
-        this.conditions.put(minAgeCondition.name, minAgeCondition);
-    }
-
-    /**
-     * Adds required condition to check if the index has at least <code>numDocs</code>
-     */
-    public void addMinIndexDocsCondition(long numDocs) {
-        MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
-        if (this.conditions.containsKey(minDocsCondition.name)) {
-            throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
-        }
-        this.conditions.put(minDocsCondition.name, minDocsCondition);
-    }
-
-    /**
-     * Adds a size-based required condition to check if the index size is at least <code>size</code>.
-     */
-    public void addMinIndexSizeCondition(ByteSizeValue size) {
-        MinSizeCondition minSizeCondition = new MinSizeCondition(size);
-        if (this.conditions.containsKey(minSizeCondition.name)) {
-            throw new IllegalArgumentException(minSizeCondition + " condition is already set");
-        }
-        this.conditions.put(minSizeCondition.name, minSizeCondition);
-    }
-
-    /**
-     * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
-     */
-    public void addMinPrimaryShardSizeCondition(ByteSizeValue size) {
-        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(size);
-        if (this.conditions.containsKey(minPrimaryShardSizeCondition.name)) {
-            throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
-        }
-        this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
-    }
-
-    /**
-     * Adds a size-based required condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
-     */
-    public void addMinPrimaryShardDocsCondition(long numDocs) {
-        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
-        if (this.conditions.containsKey(minPrimaryShardDocsCondition.name)) {
-            throw new IllegalArgumentException(minPrimaryShardDocsCondition.name + " condition is already set");
-        }
-        this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+    public void lazy(boolean lazy) {
+        this.lazy = lazy;
     }
 
     public boolean isDryRun() {
         return dryRun;
     }
 
-    public Map<String, Condition<?>> getConditions() {
-        return Collections.unmodifiableMap(conditions);
+    public RolloverConditions getConditions() {
+        return conditions;
+    }
+
+    public Collection<Condition<?>> getConditionValues() {
+        return conditions.getConditions().values();
     }
 
     public String getRolloverTarget() {
@@ -385,6 +232,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    public boolean isLazy() {
+        return lazy;
     }
 
     /**
@@ -400,17 +251,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * @return where the conditions for rollover are satisfied or not
      */
     public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
-        boolean allMinConditionsMet = conditions.values()
-            .stream()
-            .filter(c -> Condition.Type.MIN == c.type())
-            .allMatch(c -> conditionResults.getOrDefault(c.toString(), false));
-
-        boolean anyMaxConditionsMet = conditions.values()
-            .stream()
-            .filter(c -> Condition.Type.MAX == c.type())
-            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
-
-        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
+        return conditions.areConditionsMet(conditionResults);
     }
 
     /**
@@ -421,12 +262,35 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     // param isTypeIncluded decides how mappings should be parsed from XContent
-    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, isTypeIncluded);
+    public void fromXContent(XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, null);
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RolloverRequest that = (RolloverRequest) o;
+        return dryRun == that.dryRun
+            && lazy == that.lazy
+            && Objects.equals(rolloverTarget, that.rolloverTarget)
+            && Objects.equals(newIndexName, that.newIndexName)
+            && Objects.equals(conditions, that.conditions)
+            && Objects.equals(createIndexRequest, that.createIndexRequest)
+            && Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
     }
 }

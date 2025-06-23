@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.time.Instant;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformHealthIssueTests extends AbstractWireSerializingTestCase<TransformHealthIssue> {
 
     public static TransformHealthIssue randomTransformHealthIssue() {
         return new TransformHealthIssue(
+            randomAlphaOfLengthBetween(10, 200),
             randomAlphaOfLengthBetween(10, 200),
             randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null,
             randomIntBetween(1, 10),
@@ -31,5 +38,23 @@ public class TransformHealthIssueTests extends AbstractWireSerializingTestCase<T
     @Override
     protected TransformHealthIssue createTestInstance() {
         return randomTransformHealthIssue();
+    }
+
+    @Override
+    protected TransformHealthIssue mutateInstance(TransformHealthIssue instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public void testMissingTypePre88() throws IOException {
+        TransformHealthIssue originalIssue = new TransformHealthIssue("some-type", "some-issue", null, 1, null);
+        assertThat(originalIssue.getType(), is(equalTo("some-type")));
+        TransformHealthIssue deserializedIssue = copyInstance(
+            originalIssue,
+            getNamedWriteableRegistry(),
+            StreamOutput::writeWriteable,
+            TransformHealthIssue::new,
+            TransportVersions.V_8_7_0
+        );
+        assertThat(deserializedIssue.getType(), is(equalTo("unknown")));
     }
 }

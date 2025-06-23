@@ -20,6 +20,8 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -33,12 +35,14 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -72,12 +76,7 @@ import static org.elasticsearch.core.Strings.format;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
-        "delegate_type",
-        "",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
         "index.source_only",
         false,
@@ -103,7 +102,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
-                metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
+                metadataToSnapshot(
+                    finalizeSnapshotContext.updatedShardGenerations().liveIndices().indices(),
+                    finalizeSnapshotContext.clusterMetadata()
+                ),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 finalizeSnapshotContext,
@@ -113,9 +115,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
-        Metadata.Builder builder = Metadata.builder(metadata);
+        return Metadata.builder(metadata).put(projectMetadataToSnapshot(indices, metadata.getProject())).build();
+    }
+
+    private static ProjectMetadata projectMetadataToSnapshot(Collection<IndexId> indices, ProjectMetadata projectMetadata) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectMetadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = projectMetadata.index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
@@ -138,8 +144,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if ((mapperService.documentMapper() != null // if there is no mapping this is null
+            && mapperService.documentMapper().sourceMapper().isComplete() == false)
+            || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
             context.onFailure(
                 new IllegalStateException(
                     "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
@@ -172,7 +179,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
             Supplier<Query> querySupplier = mapperService.hasNested()
                 ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
                 : null;
@@ -194,8 +201,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
@@ -205,7 +215,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     mapperService,
                     context.snapshotId(),
                     context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
@@ -213,7 +223,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {
@@ -247,19 +257,20 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
+                throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(
-                    factory.create(new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                    factory.create(projectId, new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
                 );
             }
         };

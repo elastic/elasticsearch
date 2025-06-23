@@ -14,6 +14,6 @@ public class GetLicenseAction extends ActionType<GetLicenseResponse> {
     public static final String NAME = "cluster:monitor/xpack/license/get";
 
     private GetLicenseAction() {
-        super(NAME, GetLicenseResponse::new);
+        super(NAME);
     }
 }

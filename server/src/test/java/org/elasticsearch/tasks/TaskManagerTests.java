@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -22,13 +23,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -40,7 +43,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -184,7 +186,7 @@ public class TaskManagerTests extends ESTestCase {
                             threadPool,
                             "action-" + i,
                             randomIntBetween(0, 1000),
-                            TransportVersion.CURRENT
+                            TransportVersion.current()
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -233,7 +235,7 @@ public class TaskManagerTests extends ESTestCase {
                     threadPool,
                     "action",
                     randomIntBetween(1, 10000),
-                    TransportVersion.CURRENT
+                    TransportVersion.current()
                 )
             );
         }
@@ -280,13 +282,16 @@ public class TaskManagerTests extends ESTestCase {
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskStartsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {
@@ -294,20 +299,23 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), anyMap());
     }
 
     /**
      * Check that unregistering a task also causes tracing to be stopped on that task.
      */
     public void testUnregisterTaskStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
 
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {
@@ -317,19 +325,24 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.unregister(task);
 
-        verify(mockTracer).stopTrace("task-" + task.getId());
+        verify(mockTracer).stopTrace(task);
     }
 
     /**
      * Check that registering and executing a task also causes tracing to be started and stopped on that task.
      */
     public void testRegisterAndExecuteStartsAndStopsTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
         final Task task = taskManager.registerAndExecute(
             "testType",
-            new TransportAction<ActionRequest, ActionResponse>("actionName", new ActionFilters(Set.of()), taskManager) {
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                new ActionFilters(Set.of()),
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
                 @Override
                 protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
                     listener.onResponse(new ActionResponse() {
@@ -353,11 +366,11 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
     }
 
     public void testRegisterWithEnabledDisabledTracing() {
-        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
 
         taskManager.register("type", "action", makeTaskRequest(true, 123), false);
@@ -377,7 +390,7 @@ public class TaskManagerTests extends ESTestCase {
         verify(taskManager, times(1)).startTrace(any(), any());
     }
 
-    static class CancellableRequest extends TransportRequest {
+    static class CancellableRequest extends AbstractTransportRequest {
         private final String requestId;
 
         CancellableRequest(String requestId) {
@@ -417,6 +430,11 @@ public class TaskManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return null;
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -470,6 +488,9 @@ public class TaskManagerTests extends ESTestCase {
         return new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {

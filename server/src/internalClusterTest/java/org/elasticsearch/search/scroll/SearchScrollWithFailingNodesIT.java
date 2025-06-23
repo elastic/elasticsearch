@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.scroll;
@@ -53,40 +54,46 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            writes.add(client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
+            writes.add(prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(10)
             .setScroll(TimeValue.timeValueMinutes(1))
             .get();
-        assertAllSuccessful(searchResponse);
-        long numHits = 0;
-        do {
-            numHits += searchResponse.getHits().getHits().length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+        try {
             assertAllSuccessful(searchResponse);
-        } while (searchResponse.getHits().getHits().length > 0);
-        assertThat(numHits, equalTo(100L));
-        clearScroll("_all");
+            long numHits = 0;
+            do {
+                numHits += searchResponse.getHits().getHits().length;
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+                assertAllSuccessful(searchResponse);
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(numHits, equalTo(100L));
+            clearScroll("_all");
 
-        internalCluster().stopRandomNonMasterNode();
+            internalCluster().stopRandomNonMasterNode();
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
-        assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
-        numHits = 0;
-        int numberOfSuccessfulShards = searchResponse.getSuccessfulShards();
-        do {
-            numHits += searchResponse.getHits().getHits().length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
-        } while (searchResponse.getHits().getHits().length > 0);
-        assertThat(numHits, greaterThan(0L));
+            searchResponse.decRef();
+            searchResponse = prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
+            assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
+            numHits = 0;
+            int numberOfSuccessfulShards = searchResponse.getSuccessfulShards();
+            do {
+                numHits += searchResponse.getHits().getHits().length;
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(numHits, greaterThan(0L));
 
-        clearScroll(searchResponse.getScrollId());
+            clearScroll(searchResponse.getScrollId());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -31,7 +33,7 @@ import java.util.function.Function;
 public class ValuesSourceConfig {
 
     /**
-     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggregation run, and construct a new
      * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
      *
      * @param context - the query context
@@ -181,9 +183,8 @@ public class ValuesSourceConfig {
             aggregationScript,
             scriptValueType,
             missing,
-            timeZone,
             docValueFormat,
-            context
+            context::nowInMillis
         );
         return config;
     }
@@ -257,14 +258,14 @@ public class ValuesSourceConfig {
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
-        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
+        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, context::nowInMillis);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, AggregationContext context) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, context::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
@@ -274,13 +275,9 @@ public class ValuesSourceConfig {
     private final boolean unmapped;
     private final DocValueFormat format;
     private final Object missing;
-    private final ZoneId timeZone;
     private final ValuesSource valuesSource;
 
-    private ValuesSourceConfig() {
-        throw new UnsupportedOperationException();
-    }
-
+    @SuppressWarnings("this-escape")
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
         FieldContext fieldContext,
@@ -288,9 +285,8 @@ public class ValuesSourceConfig {
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
         Object missing,
-        ZoneId timeZone,
         DocValueFormat format,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         if (unmapped && fieldContext != null) {
             throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
@@ -301,7 +297,6 @@ public class ValuesSourceConfig {
         this.script = script;
         this.scriptValueType = scriptValueType;
         this.missing = missing;
-        this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
         if (valid() == false) {
@@ -310,10 +305,10 @@ public class ValuesSourceConfig {
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped"
             );
         }
-        valuesSource = constructValuesSource(missing, format, context);
+        valuesSource = constructValuesSource(missing, format, nowInMillis);
     }
 
-    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, AggregationContext context) {
+    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, LongSupplier nowInMillis) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
@@ -328,7 +323,7 @@ public class ValuesSourceConfig {
         }
 
         if (missing() != null) {
-            return valueSourceType().replaceMissing(vs, missing, format, context);
+            return valueSourceType().replaceMissing(vs, missing, format, nowInMillis);
         } else {
             return vs;
         }
@@ -385,10 +380,6 @@ public class ValuesSourceConfig {
         return this.missing;
     }
 
-    public ZoneId timezone() {
-        return this.timeZone;
-    }
-
     public DocValueFormat format() {
         return format;
     }
@@ -408,7 +399,11 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Check if this values source supports using global and segment ordinals.
+     * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
+     * <p>
+     * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
+     * Call {@link ValuesSource.Bytes.WithOrdinals#supportsGlobalOrdinalsMapping} to find out if global ordinals are supported.
+     *
      */
     public boolean hasOrdinals() {
         return valuesSource.hasOrdinals();
@@ -447,8 +442,15 @@ public class ValuesSourceConfig {
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            String typeName = fieldType.typeName();
+            String valuesSourceTypeName = valuesSourceType.typeName();
+            if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
+            } else {
+                // Avoid repeated names. Currently only time series values source types have a different behaviour/validation.
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
+            }
         }
-        return "unmapped field";
+        return "unmapped field with value source type [" + valuesSourceType.typeName() + "]";
     }
 }

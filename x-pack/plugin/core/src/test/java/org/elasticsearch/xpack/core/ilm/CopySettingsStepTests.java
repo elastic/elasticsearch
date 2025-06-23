@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.function.BiFunction;
 
@@ -59,7 +59,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -67,14 +67,14 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder).build())
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId()).put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder)
+        );
 
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             randomStepKey(),
@@ -83,8 +83,8 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
             LifecycleSettings.LIFECYCLE_NAME
         );
 
-        ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
-        IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
+        ProjectState newState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), state);
+        IndexMetadata newTargetIndexMetadata = newState.metadata().index(targetIndex);
         assertThat(newTargetIndexMetadata.getLifecyclePolicyName(), is(policyName));
     }
 }

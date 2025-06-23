@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shards;
@@ -12,23 +13,29 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Response for {@link IndicesShardStoresAction}
+ * Response for {@link TransportIndicesShardStoresAction}
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
  */
-public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
+public class IndicesShardStoresResponse extends ActionResponse implements ChunkedToXContentObject {
 
     /**
      * Shard store information from a node
@@ -196,7 +203,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
      * Single node failure while retrieving shard store information
      */
     public static class Failure extends DefaultShardOperationFailedException {
-        private String nodeId;
+        private final String nodeId;
 
         public Failure(String nodeId, String index, int shardId, Throwable reason) {
             super(index, shardId, reason);
@@ -238,12 +245,10 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
-        super(in);
         storeStatuses = in.readImmutableMap(
-            StreamInput::readString,
-            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readCollectionAsImmutableList(StoreStatus::new))
         );
-        failures = in.readImmutableList(Failure::readFailure);
+        failures = in.readCollectionAsImmutableList(Failure::readFailure);
     }
 
     /**
@@ -264,47 +269,41 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(
-            storeStatuses,
-            StreamOutput::writeString,
-            (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection)
-        );
-        out.writeList(failures);
+        out.writeMap(storeStatuses, (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection));
+        out.writeCollection(failures);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (failures.size() > 0) {
-            builder.startArray(Fields.FAILURES);
-            for (Failure failure : failures) {
-                failure.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
 
-        builder.startObject(Fields.INDICES);
-        for (Map.Entry<String, Map<Integer, List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
-            builder.startObject(indexShards.getKey());
+            failures.isEmpty() ? Collections.emptyIterator() : ChunkedToXContentHelper.array(Fields.FAILURES, failures.iterator()),
 
-            builder.startObject(Fields.SHARDS);
-            for (Map.Entry<Integer, List<StoreStatus>> shardStatusesEntry : indexShards.getValue().entrySet()) {
-                builder.startObject(String.valueOf(shardStatusesEntry.getKey()));
-                builder.startArray(Fields.STORES);
-                for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
-                    builder.startObject();
-                    storeStatus.toXContent(builder, params);
-                    builder.endObject();
-                }
-                builder.endArray();
+            ChunkedToXContentHelper.startObject(Fields.INDICES),
 
-                builder.endObject();
-            }
-            builder.endObject();
+            Iterators.flatMap(
+                storeStatuses.entrySet().iterator(),
+                indexShards -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(indexShards.getKey()),
+                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                    Iterators.map(indexShards.getValue().entrySet().iterator(), shardStatusesEntry -> (builder, params) -> {
+                        builder.startObject(String.valueOf(shardStatusesEntry.getKey())).startArray(Fields.STORES);
+                        for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
+                            builder.startObject();
+                            storeStatus.toXContent(builder, params);
+                            builder.endObject();
+                        }
+                        return builder.endArray().endObject();
+                    }),
+                    ChunkedToXContentHelper.endObject(),
+                    ChunkedToXContentHelper.endObject()
+                )
+            ),
 
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+            ChunkedToXContentHelper.endObject(),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     static final class Fields {

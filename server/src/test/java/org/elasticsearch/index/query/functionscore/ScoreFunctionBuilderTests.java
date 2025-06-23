@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -55,19 +56,16 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexSettings settings = new IndexSettings(IndexMetadata.builder("index").settings(indexSettings).build(), Settings.EMPTY);
+        IndexSettings settings = new IndexSettings(
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
+            Settings.EMPTY
+        );
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
         Mockito.when(context.getFieldType(IdFieldMapper.NAME)).thenReturn(new KeywordFieldMapper.KeywordFieldType(IdFieldMapper.NAME));
         Mockito.when(context.isFieldMapped(IdFieldMapper.NAME)).thenReturn(true);
         builder.toFunction(context);
-        assertWarnings("As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
     }
 
     public void testRandomScoreFunctionWithSeed() throws Exception {
@@ -75,12 +73,10 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         builder.setField("foo");
         builder.seed(42);
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexSettings settings = new IndexSettings(IndexMetadata.builder("index").settings(indexSettings).build(), Settings.EMPTY);
+        IndexSettings settings = new IndexSettings(
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
+            Settings.EMPTY
+        );
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);

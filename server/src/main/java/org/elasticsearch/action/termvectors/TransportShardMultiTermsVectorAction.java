@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -12,17 +13,18 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,7 +37,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
-    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiTermVectorsShardResponse::new);
+    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     @Inject
     public TransportShardMultiTermsVectorAction(
@@ -44,6 +46,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -52,9 +55,10 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             MultiTermVectorsShardRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
     }
@@ -75,9 +79,10 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
+        ShardIterator shards = clusterService.operationRouting()
+            .getShards(project, request.concreteIndex(), request.request().shardId(), request.request().preference());
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 
     @Override
@@ -104,13 +109,5 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         }
 
         return response;
-    }
-
-    @Override
-    protected String getExecutor(MultiTermVectorsShardRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? ThreadPool.Names.SEARCH_THROTTLED
-            : super.getExecutor(request, shardId);
     }
 }

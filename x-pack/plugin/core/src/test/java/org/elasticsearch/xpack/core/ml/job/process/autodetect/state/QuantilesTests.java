@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -90,12 +89,13 @@ public class QuantilesTests extends AbstractXContentSerializingTestCase<Quantile
         return createRandomized();
     }
 
+    @Override
+    protected Quantiles mutateInstance(Quantiles instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Quantiles createRandomized() {
-        return new Quantiles(
-            randomAlphaOfLengthBetween(1, 20),
-            new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
-            randomAlphaOfLengthBetween(0, 1000)
-        );
+        return new Quantiles(randomAlphaOfLengthBetween(1, 20), new Date(randomTimeValue().millis()), randomAlphaOfLengthBetween(0, 1000));
     }
 
     @Override

@@ -1,0 +1,109 @@
+toc:
+  - file: index.md
+  - file: plugin-management.md
+    children:
+      - file: installation.md
+      - file: plugin-management-custom-url.md
+      - file: installing-multiple-plugins.md
+      - file: mandatory-plugins.md
+      - file: listing-removing-updating.md
+      - file: _other_command_line_parameters.md
+      - file: _plugins_directory.md
+      - file: manage-plugins-using-configuration-file.md
+      - file: cloud/ec-custom-bundles.md
+      - file: cloud/ec-plugins-guide.md
+  - file: api-extension-plugins.md
+  - file: analysis-plugins.md
+    children:
+      - file: analysis-icu.md
+        children:
+          - file: analysis-icu-analyzer.md
+          - file: analysis-icu-normalization-charfilter.md
+          - file: analysis-icu-tokenizer.md
+          - file: analysis-icu-normalization.md
+          - file: analysis-icu-folding.md
+          - file: analysis-icu-collation.md
+          - file: analysis-icu-collation-keyword-field.md
+          - file: analysis-icu-transform.md
+      - file: analysis-kuromoji.md
+        children:
+          - file: analysis-kuromoji-analyzer.md
+          - file: analysis-kuromoji-charfilter.md
+          - file: analysis-kuromoji-tokenizer.md
+          - file: analysis-kuromoji-baseform.md
+          - file: analysis-kuromoji-speech.md
+          - file: analysis-kuromoji-readingform.md
+          - file: analysis-kuromoji-stemmer.md
+          - file: analysis-kuromoji-stop.md
+          - file: analysis-kuromoji-number.md
+          - file: analysis-kuromoji-hiragana-uppercase.md
+          - file: analysis-kuromoji-katakana-uppercase.md
+          - file: analysis-kuromoji-completion.md
+      - file: analysis-nori.md
+        children:
+          - file: analysis-nori-analyzer.md
+          - file: analysis-nori-tokenizer.md
+          - file: analysis-nori-speech.md
+          - file: analysis-nori-readingform.md
+          - file: analysis-nori-number.md
+      - file: analysis-phonetic.md
+        children:
+          - file: analysis-phonetic-token-filter.md
+      - file: analysis-smartcn.md
+        children:
+          - file: _reimplementing_and_extending_the_analyzers.md
+          - file: analysis-smartcn_stop.md
+      - file: analysis-stempel.md
+        children:
+          - file: _reimplementing_and_extending_the_analyzers_2.md
+          - file: analysis-polish-stop.md
+      - file: analysis-ukrainian.md
+  - file: discovery-plugins.md
+    children:
+      - file: discovery-ec2.md
+        children:
+          - file: discovery-ec2-usage.md
+          - file: cloud-aws-best-practices.md
+      - file: discovery-azure-classic.md
+        children:
+          - file: discovery-azure-classic-usage.md
+          - file: discovery-azure-classic-long.md
+          - file: discovery-azure-classic-scale.md
+      - file: discovery-gce.md
+        children:
+          - file: discovery-gce-usage.md
+          - file: discovery-gce-network-host.md
+          - file: discovery-gce-usage-long.md
+          - file: discovery-gce-usage-cloning.md
+          - file: discovery-gce-usage-zones.md
+          - file: discovery-gce-usage-tags.md
+          - file: discovery-gce-usage-port.md
+          - file: discovery-gce-usage-tips.md
+          - file: discovery-gce-usage-testing.md
+  - file: mapper-plugins.md
+    children:
+      - file: mapper-size.md
+        children:
+          - file: mapper-size-usage.md
+      - file: mapper-murmur3.md
+        children:
+          - file: mapper-murmur3-usage.md
+      - file: mapper-annotated-text.md
+        children:
+          - file: mapper-annotated-text-usage.md
+          - file: mapper-annotated-text-tips.md
+          - file: mapper-annotated-text-highlighter.md
+          - file: mapper-annotated-text-limitations.md
+  - file: snapshotrestore-repository-plugins.md
+    children:
+      - file: repository-hdfs.md
+        children:
+          - file: repository-hdfs-usage.md
+          - file: repository-hdfs-config.md
+          - file: repository-hdfs-security.md
+  - file: store-plugins.md
+    children:
+      - file: store-smb.md
+        children:
+          - file: store-smb-usage.md
+  - file: integrations.md

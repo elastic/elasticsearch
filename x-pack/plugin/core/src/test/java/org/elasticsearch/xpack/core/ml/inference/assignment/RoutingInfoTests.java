@@ -32,6 +32,11 @@ public class RoutingInfoTests extends AbstractXContentSerializingTestCase<Routin
         return randomInstance();
     }
 
+    @Override
+    protected RoutingInfo mutateInstance(RoutingInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RoutingInfo randomInstance() {
         return new RoutingInfo(
             randomIntBetween(1, 10),
@@ -63,5 +68,18 @@ public class RoutingInfoTests extends AbstractXContentSerializingTestCase<Routin
     public void testIsRoutable_GivenStartedWithNonZeroAllocations() {
         RoutingInfo routingInfo = new RoutingInfo(randomIntBetween(1, 10), 1, RoutingState.STARTED, "");
         assertThat(routingInfo.isRoutable(), is(true));
+    }
+
+    public void testGetFailedAllocations() {
+        int targetAllocations = randomIntBetween(1, 10);
+        RoutingInfo routingInfo = new RoutingInfo(
+            randomIntBetween(0, targetAllocations),
+            targetAllocations,
+            randomFrom(RoutingState.STARTING, RoutingState.STARTED, RoutingState.STOPPING),
+            ""
+        );
+        assertThat(routingInfo.getFailedAllocations(), is(0));
+        routingInfo = new RoutingInfo(randomIntBetween(0, targetAllocations), targetAllocations, RoutingState.FAILED, "");
+        assertThat(routingInfo.getFailedAllocations(), is(targetAllocations));
     }
 }

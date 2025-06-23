@@ -12,17 +12,18 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Request;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+
+import static java.time.Instant.ofEpochMilli;
 
 public class StartTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
         return new Request(
             randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? Instant.ofEpochMilli(randomNonNegativeLong()) : null,
-            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            randomBoolean() ? ofEpochMilli(randomNonNegativeLong()) : null,
+            randomTimeValue()
         );
     }
 
@@ -32,10 +33,10 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTes
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         Instant from = instance.from();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);

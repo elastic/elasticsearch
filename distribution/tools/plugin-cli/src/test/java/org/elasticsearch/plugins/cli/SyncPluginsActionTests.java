@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.SyncPluginsAction.PluginChanges;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -52,10 +55,10 @@ public class SyncPluginsActionTests extends ESTestCase {
         Path home = createTempDir();
         Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
-        Files.createDirectories(env.binFile());
-        Files.createFile(env.binFile().resolve("elasticsearch"));
-        Files.createDirectories(env.configFile());
-        Files.createDirectories(env.pluginsFile());
+        Files.createDirectories(env.binDir());
+        Files.createFile(env.binDir().resolve("elasticsearch"));
+        Files.createDirectories(env.configDir());
+        Files.createDirectories(env.pluginsDir());
 
         terminal = MockTerminal.create();
         action = new SyncPluginsAction(terminal, env);
@@ -75,7 +78,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * then an exception is thrown.
      */
     public void test_ensureNoConfigFile_withConfig_throwsException() throws Exception {
-        Files.createFile(env.configFile().resolve("elasticsearch-plugins.yml"));
+        Files.createFile(env.configDir().resolve("elasticsearch-plugins.yml"));
         final UserException e = expectThrows(UserException.class, () -> SyncPluginsAction.ensureNoConfigFile(env));
 
         assertThat(e.getMessage(), Matchers.matchesPattern("^Plugins config \\[.*] exists.*$"));
@@ -129,7 +132,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * since we can't automatically upgrade it.
      */
     public void test_getPluginChanges_withPluginToUpgrade_returnsNoChanges() throws Exception {
-        createPlugin("my-plugin", Version.CURRENT.previousMajor());
+        createPlugin("my-plugin", VersionUtils.getPreviousVersion().toString());
         config.setPlugins(List.of(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
@@ -142,7 +145,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * but needs to be upgraded, then we calculate that the plugin needs to be upgraded.
      */
     public void test_getPluginChanges_withOfficialPluginToUpgrade_returnsPluginToUpgrade() throws Exception {
-        createPlugin("analysis-icu", Version.CURRENT.previousMajor());
+        createPlugin("analysis-icu", VersionUtils.getPreviousVersion().toString());
         config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
@@ -152,6 +155,22 @@ public class SyncPluginsActionTests extends ESTestCase {
         assertThat(pluginChanges.remove, empty());
         assertThat(pluginChanges.upgrade, hasSize(1));
         assertThat(pluginChanges.upgrade.get(0).getId(), equalTo("analysis-icu"));
+    }
+
+    /**
+     * Check that when there is an official plugin in the config file and in the cached config, then we
+     * calculate that the plugin does not need to be upgraded.
+     */
+    public void test_getPluginChanges_withOfficialPluginCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
+        createPlugin("analysis-icu");
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginsConfig cachedConfig = new PluginsConfig();
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
+
+        assertThat(pluginChanges.isEmpty(), is(true));
     }
 
     /**
@@ -329,12 +348,13 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     private void createPlugin(String name) throws IOException {
-        createPlugin(name, Version.CURRENT);
+        String semanticVersion = InstallPluginAction.getSemanticVersion(Build.current().version());
+        createPlugin(name, Objects.nonNull(semanticVersion) ? semanticVersion : Build.current().version());
     }
 
-    private void createPlugin(String name, Version version) throws IOException {
+    private void createPlugin(String name, String version) throws IOException {
         PluginTestUtil.writePluginProperties(
-            env.pluginsFile().resolve(name),
+            env.pluginsDir().resolve(name),
             "description",
             "dummy",
             "name",
@@ -342,7 +362,7 @@ public class SyncPluginsActionTests extends ESTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            version.toString(),
+            version,
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

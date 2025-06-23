@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
@@ -26,7 +26,7 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
     @Override
     protected AnalyticsStatsAction.NodeResponse createTestInstance() {
         String nodeName = randomAlphaOfLength(10);
-        DiscoveryNode node = new DiscoveryNode(nodeName, buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create(nodeName);
         EnumCounters<AnalyticsStatsAction.Item> counters = new EnumCounters<>(AnalyticsStatsAction.Item.class);
         for (AnalyticsStatsAction.Item item : AnalyticsStatsAction.Item.values()) {
             if (randomBoolean()) {
@@ -34,6 +34,11 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
             }
         }
         return new AnalyticsStatsAction.NodeResponse(node, counters);
+    }
+
+    @Override
+    protected AnalyticsStatsAction.NodeResponse mutateInstance(AnalyticsStatsAction.NodeResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testItemEnum() {

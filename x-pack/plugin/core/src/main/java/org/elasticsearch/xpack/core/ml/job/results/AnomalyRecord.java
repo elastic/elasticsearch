@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -207,17 +207,17 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         isInterim = in.readBoolean();
         if (in.readBoolean()) {
-            causes = in.readList(AnomalyCause::new);
+            causes = in.readCollectionAsList(AnomalyCause::new);
         }
         recordScore = in.readDouble();
         initialRecordScore = in.readDouble();
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         if (in.readBoolean()) {
-            influences = in.readList(Influence::new);
+            influences = in.readCollectionAsList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
         }
     }
@@ -252,7 +252,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasCauses = causes != null;
         out.writeBoolean(hasCauses);
         if (hasCauses) {
-            out.writeList(causes);
+            out.writeCollection(causes);
         }
         out.writeDouble(recordScore);
         out.writeDouble(initialRecordScore);
@@ -261,10 +261,10 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasInfluencers = influences != null;
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
-            out.writeList(influences);
+            out.writeCollection(influences);
         }
         out.writeOptionalWriteable(geoResults);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             out.writeOptionalWriteable(anomalyScoreExplanation);
         }
     }
@@ -283,7 +283,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Detector.DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
-        builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            Result.TIMESTAMP.getPreferredName(),
+            Result.TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);
         }
@@ -360,7 +364,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         return result;
     }
 
-    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
+    private static void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
         if (Strings.isNullOrEmpty(inputFieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(inputFieldName)) {
                 inputFields.computeIfAbsent(inputFieldName, k -> new LinkedHashSet<>()).add(fieldValue);

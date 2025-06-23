@@ -10,16 +10,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -67,6 +71,7 @@ public class AuthenticationService {
         TimeValue.timeValueHours(1L),
         Property.NodeScope
     );
+
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
@@ -87,7 +92,9 @@ public class AuthenticationService {
         TokenService tokenService,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        CustomApiKeyAuthenticator customApiKeyAuthenticator,
+        MeterRegistry meterRegistry
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -108,10 +115,11 @@ public class AuthenticationService {
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
-            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
-            new OAuth2TokenAuthenticator(tokenService),
-            new ApiKeyAuthenticator(apiKeyService, nodeName),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
+            new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
+            new OAuth2TokenAuthenticator(tokenService, meterRegistry),
+            new PluggableApiKeyAuthenticator(customApiKeyAuthenticator),
+            new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );
     }
 
@@ -123,7 +131,7 @@ public class AuthenticationService {
      *
      * @param request The request to be authenticated
      */
-    public void authenticate(RestRequest request, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(HttpPreRequest request, ActionListener<Authentication> authenticationListener) {
         authenticate(request, true, authenticationListener);
     }
 
@@ -138,15 +146,15 @@ public class AuthenticationService {
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
      *                               configured to allow anonymous access.
      */
-    public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(HttpPreRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
-            new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+            new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request),
             null,
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, authenticationListener);
+        authenticate(context, authenticationListener);
     }
 
     /**
@@ -156,8 +164,7 @@ public class AuthenticationService {
      * message, then the given fallback user will be returned instead.
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
-     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
-    *                      be {@code null}.
+     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not be {@code null}.
      */
     public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");
@@ -168,7 +175,7 @@ public class AuthenticationService {
             false,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -196,7 +203,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -215,12 +222,10 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            null,
-            true,
-            realms
+            realms,
+            token
         );
-        context.addAuthenticationToken(token);
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     public void expire(String principal) {
@@ -237,7 +242,12 @@ public class AuthenticationService {
         }
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    @FixForMultiProject
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (lastSuccessfulAuthCache != null) {
             if (isMoveFromRedToNonRed(previousState, currentState)
                 || isIndexDeleted(previousState, currentState)
@@ -247,12 +257,29 @@ public class AuthenticationService {
         }
     }
 
+    /**
+     * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
+     * to extract any other tokens from the thread context.
+     */
+    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
+        return new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            realms,
+            authenticationToken
+        );
+    }
+
+    void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
+        authenticatorChain.authenticate(context, listener);
+    }
+
     // pkg private method for testing
     long getNumInvalidation() {
         return numInvalidation.get();
     }
 
-    abstract static class AuditableRequest {
+    public abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;
@@ -351,16 +378,16 @@ public class AuthenticationService {
 
     }
 
-    static class AuditableRestRequest extends AuditableRequest {
+    static class AuditableHttpRequest extends AuditableRequest {
 
-        private final RestRequest request;
+        private final HttpPreRequest request;
         private final String requestId;
 
-        AuditableRestRequest(
+        AuditableHttpRequest(
             AuditTrail auditTrail,
             AuthenticationFailureHandler failureHandler,
             ThreadContext threadContext,
-            RestRequest request
+            HttpPreRequest request
         ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;
@@ -370,7 +397,14 @@ public class AuthenticationService {
 
         @Override
         void authenticationSuccess(Authentication authentication) {
-            auditTrail.authenticationSuccess(requestId, authentication, request);
+            // REST requests are audited in the {@code SecurityRestFilter} because they need access to the request body
+            // see {@code AuditTrail#authenticationSuccess(HttpRequestLineAndHeaders)}
+            // It's still valuable to keep the parent interface {@code AuditableRequest#AuthenticationSuccess(Authentication)} around
+            // in order to audit authN success for transport requests for CCS. We may be able to find another way to audit that, which
+            // doesn't rely on an `AuditableRequest` instance, but it's not trivial because we'd have to make sure to not audit
+            // existing authentications. Separately, it's not easy to reconstruct another `AuditableRequest` outside the
+            // `AuthenticationService` because that's tied to the audit `request.id` generation.
+            // For more context see: https://github.com/elastic/elasticsearch/pull/94120#discussion_r1152804133
         }
 
         @Override

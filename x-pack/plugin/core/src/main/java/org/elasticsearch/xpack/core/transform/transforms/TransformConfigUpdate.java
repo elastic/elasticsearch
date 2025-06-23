@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
@@ -30,11 +30,11 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 /**
  * This class holds the mutable configuration items for a data frame transform
  */
-public class TransformConfigUpdate implements Writeable {
+public final class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+    public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -114,10 +114,10 @@ public class TransformConfigUpdate implements Writeable {
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         if (in.readBoolean()) {
-            setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+            setHeaders(in.readMap(StreamInput::readString));
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
@@ -174,7 +174,7 @@ public class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
@@ -235,7 +235,16 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(settings, config.getSettings()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    public boolean changesHeaders(TransformConfig config) {
+        return isNullOrEqual(headers, config.getHeaders()) == false;
+    }
+
+    public boolean changesDestIndex(TransformConfig config) {
+        var updatedIndex = dest == null ? null : dest.getIndex();
+        return isNullOrEqual(updatedIndex, config.getDestination().getIndex()) == false;
+    }
+
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 
@@ -292,7 +301,7 @@ public class TransformConfigUpdate implements Writeable {
             }
         }
 
-        builder.setVersion(Version.CURRENT);
+        builder.setVersion(TransformConfigVersion.CURRENT);
         return builder.build();
     }
 }

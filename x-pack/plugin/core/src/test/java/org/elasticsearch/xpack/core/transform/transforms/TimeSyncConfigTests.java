@@ -33,6 +33,11 @@ public class TimeSyncConfigTests extends AbstractXContentSerializingTestCase<Tim
     }
 
     @Override
+    protected TimeSyncConfig mutateInstance(TimeSyncConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TimeSyncConfig> instanceReader() {
         return TimeSyncConfig::new;
     }

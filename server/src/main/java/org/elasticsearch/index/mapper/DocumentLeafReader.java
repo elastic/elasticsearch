@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafMetaData;
@@ -30,10 +33,9 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -147,39 +149,39 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
-        for (IndexableField field : fields) {
-            FieldInfo fieldInfo = fieldInfo(field.name());
-            if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
-                continue;
-            }
-            if (field.numericValue() != null) {
-                Number v = field.numericValue();
-                if (v instanceof Integer) {
-                    visitor.intField(fieldInfo, v.intValue());
-                } else if (v instanceof Long) {
-                    visitor.longField(fieldInfo, v.longValue());
-                } else if (v instanceof Float) {
-                    visitor.floatField(fieldInfo, v.floatValue());
-                } else if (v instanceof Double) {
-                    visitor.doubleField(fieldInfo, v.doubleValue());
-                }
-            } else if (field.stringValue() != null) {
-                visitor.stringField(fieldInfo, field.stringValue());
-            } else if (field.binaryValue() != null) {
-                // We can't just pass field.binaryValue().bytes here as there may be offset/length
-                // considerations
-                byte[] data = new byte[field.binaryValue().length];
-                System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
-                visitor.binaryField(fieldInfo, data);
-            }
-        }
-    }
-
-    @Override
     public StoredFields storedFields() throws IOException {
-        throw new UnsupportedOperationException();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
+                for (IndexableField field : fields) {
+                    FieldInfo fieldInfo = fieldInfo(field.name());
+                    if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
+                        continue;
+                    }
+                    if (field.numericValue() != null) {
+                        Number v = field.numericValue();
+                        if (v instanceof Integer) {
+                            visitor.intField(fieldInfo, v.intValue());
+                        } else if (v instanceof Long) {
+                            visitor.longField(fieldInfo, v.longValue());
+                        } else if (v instanceof Float) {
+                            visitor.floatField(fieldInfo, v.floatValue());
+                        } else if (v instanceof Double) {
+                            visitor.doubleField(fieldInfo, v.doubleValue());
+                        }
+                    } else if (field.stringValue() != null) {
+                        visitor.stringField(fieldInfo, field.stringValue());
+                    } else if (field.binaryValue() != null) {
+                        // We can't just pass field.binaryValue().bytes here as there may be offset/length
+                        // considerations
+                        byte[] data = new byte[field.binaryValue().length];
+                        System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
+                        visitor.binaryField(fieldInfo, data);
+                    }
+                }
+            }
+        };
     }
 
     @Override
@@ -198,12 +200,17 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
+    public DocValuesSkipper getDocValuesSkipper(String s) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -228,11 +235,6 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public int numDocs() {
         throw new UnsupportedOperationException();
     }
@@ -253,7 +255,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) {
         throw new UnsupportedOperationException();
     }
 
@@ -278,6 +280,7 @@ class DocumentLeafReader extends LeafReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -286,6 +289,7 @@ class DocumentLeafReader extends LeafReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
     }
@@ -477,9 +481,7 @@ class DocumentLeafReader extends LeafReader {
             @Override
             public long nextOrd() {
                 i++;
-                if (i >= values.size()) {
-                    return NO_MORE_ORDS;
-                }
+                assert i < values.size();
                 return i;
             }
 

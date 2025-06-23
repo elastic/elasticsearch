@@ -14,9 +14,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,6 +30,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     private static final Logger logger = LogManager.getLogger(TransportGetDatafeedsAction.class);
 
     private final DatafeedManager datafeedManager;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetDatafeedsAction(
@@ -37,7 +39,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatafeedManager datafeedManager,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetDatafeedsAction.NAME,
@@ -46,12 +48,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
             threadPool,
             actionFilters,
             GetDatafeedsAction.Request::new,
-            indexNameExpressionResolver,
             GetDatafeedsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.datafeedManager = datafeedManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,12 +69,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         datafeedManager.getDatafeeds(
             request,
             parentTaskId,
-            ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, datafeeds) -> l.onResponse(new GetDatafeedsAction.Response(datafeeds)))
         );
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetDatafeedsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

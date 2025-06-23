@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -122,7 +123,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
         assertWarnings(
             "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a "
-                + "future release."
+                + "future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -140,7 +141,7 @@ public class ExportersTests extends ESTestCase {
         assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
         assertWarnings(
             "[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release."
+                + "be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -198,7 +199,7 @@ public class ExportersTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be removed in a "
-                + "future release."
+                + "future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -294,12 +295,14 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
 
         assertWarnings(
-            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
             "[xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release.",
+                + "be removed in a future release. See the deprecation documentation for the next major version.",
             "[xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
-                + "be removed in a future release."
+                + "be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -322,7 +325,7 @@ public class ExportersTests extends ESTestCase {
         exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
 
         // synchronously checks the cluster state
-        exporters.wrapExportBulk(ActionListener.wrap(bulk -> assertThat(bulk, is(nullValue())), e -> fail(e.getMessage())));
+        exporters.wrapExportBulk(ActionTestUtils.assertNoFailureListener(bulk -> assertThat(bulk, is(nullValue()))));
 
         verify(state).blocks();
     }
@@ -346,7 +349,7 @@ public class ExportersTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release."
+                + "removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 

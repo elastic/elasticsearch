@@ -10,13 +10,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * {@link WatcherSearchTemplateService} renders {@link WatcherSearchTemplateRequest} before their execution.
@@ -34,10 +34,16 @@ public class WatcherSearchTemplateService {
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public WatcherSearchTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+    public WatcherSearchTemplateService(
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     public String renderTemplate(Script source, WatchExecutionContext ctx, Payload payload) {
@@ -69,11 +75,13 @@ public class WatcherSearchTemplateService {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (
-                InputStream stream = source.streamInput();
-                XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                    source,
+                    XContentHelper.xContentType(source)
+                )
             ) {
-                sourceBuilder.parseXContent(parser, true);
+                sourceBuilder.parseXContent(parser, true, clusterSupportsFeature);
                 searchRequest.source(sourceBuilder);
             }
         }

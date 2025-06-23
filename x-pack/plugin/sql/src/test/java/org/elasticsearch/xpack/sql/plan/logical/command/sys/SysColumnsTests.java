@@ -6,22 +6,23 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
@@ -40,37 +41,23 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.UNSIGNED_LONG_TEST_VERSIONS;
+import static org.elasticsearch.xpack.sql.util.SqlVersionUtils.VERSION_FIELD_TEST_VERSIONS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
-
-    public static List<SqlVersion> UNSIGNED_LONG_TEST_VERSIONS = List.of(
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id),
-        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(Version.CURRENT.id)
-    );
-
-    public static List<SqlVersion> VERSION_FIELD_TEST_VERSIONS = List.of(
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id - SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id),
-        SqlVersion.fromId(INTRODUCING_VERSION_FIELD_TYPE.id + SqlVersion.MINOR_MULTIPLIER),
-        SqlVersion.fromId(Version.CURRENT.id)
-    );
 
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
@@ -83,7 +70,7 @@ public class SysColumnsTests extends ESTestCase {
     private void sysColumnsInMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode);
+        SysColumns.fillInRows("test", "org/elasticsearch/xpack/sql/index", MAPPING2, null, rows, null, mode);
         assertEquals(FIELD_COUNT2, rows.size());
         assertEquals(24, rows.get(0).size());
 
@@ -161,8 +148,8 @@ public class SysColumnsTests extends ESTestCase {
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
                 SysColumns.fillInRows(
                     "test",
-                    "index",
-                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
+                    "org/elasticsearch/xpack/sql/index",
+                    IndexCompatibility.compatible(mapping, version),
                     null,
                     rows,
                     null,
@@ -170,7 +157,7 @@ public class SysColumnsTests extends ESTestCase {
                 );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
-                    isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
+                    isTypeSupportedInVersion(UNSIGNED_LONG, version),
                     types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
                 );
             }
@@ -185,18 +172,15 @@ public class SysColumnsTests extends ESTestCase {
                 Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
                 SysColumns.fillInRows(
                     "test",
-                    "index",
-                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
+                    "org/elasticsearch/xpack/sql/index",
+                    IndexCompatibility.compatible(mapping, version),
                     null,
                     rows,
                     null,
                     mode
                 );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
-                assertEquals(
-                    isTypeSupportedInVersion(VERSION, Version.fromId(version.id)),
-                    types.contains(VERSION.toString().toLowerCase(Locale.ROOT))
-                );
+                assertEquals(isTypeSupportedInVersion(VERSION, version), types.contains(VERSION.toString().toLowerCase(Locale.ROOT)));
             }
         }
     }
@@ -312,7 +296,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             Mode.ODBC,
             null,
-            SqlVersion.fromId(Version.CURRENT.id),
+            SqlVersions.SERVER_COMPAT_VERSION,
             null,
             null,
             false,
@@ -359,7 +343,7 @@ public class SysColumnsTests extends ESTestCase {
             null,
             mode,
             null,
-            SqlVersion.fromId(Version.CURRENT.id),
+            SqlVersions.SERVER_COMPAT_VERSION,
             null,
             null,
             false,
@@ -370,7 +354,7 @@ public class SysColumnsTests extends ESTestCase {
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 
-        tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
+        tuple.v1().execute(tuple.v2(), ActionTestUtils.assertNoFailureListener(p -> consumer.accept((SchemaRowSet) p.rowSet())));
     }
 
     private void executeCommand(
@@ -397,9 +381,9 @@ public class SysColumnsTests extends ESTestCase {
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         when(resolver.remoteClusters()).thenReturn(Set.of(CLUSTER_NAME));
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), any(), any());
         doAnswer(invocation -> {
             ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;

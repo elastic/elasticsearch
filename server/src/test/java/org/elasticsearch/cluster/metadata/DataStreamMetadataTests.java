@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -45,7 +46,7 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
     }
 
     @Override
-    protected DataStreamMetadata mutateInstance(DataStreamMetadata instance) throws IOException {
+    protected DataStreamMetadata mutateInstance(DataStreamMetadata instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
@@ -71,28 +72,14 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
     public void testWithAlias() {
         Index index1 = new Index("data-stream-1-index", "1");
         Index index2 = new Index("data-stream-2-index", "2");
-        DataStream dataStream1 = new DataStream(
-            "data-stream-1",
-            List.of(index1),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
-        DataStream dataStream2 = new DataStream(
-            "data-stream-2",
-            List.of(index2),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        DataStream dataStream1 = DataStream.builder("data-stream-1", List.of(index1))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        DataStream dataStream2 = DataStream.builder("data-stream-2", List.of(index2))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         ImmutableOpenMap<String, DataStream> dataStreams = new ImmutableOpenMap.Builder<String, DataStream>().fPut(
             "data-stream-1",
             dataStream1

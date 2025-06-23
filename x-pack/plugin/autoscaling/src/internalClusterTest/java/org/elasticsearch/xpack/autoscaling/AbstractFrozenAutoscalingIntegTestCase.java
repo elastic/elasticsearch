@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.license.LicenseSettings.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,7 +73,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (DiscoveryNode.hasRole(otherSettings, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)) {
-            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(10, ByteSizeUnit.MB));
         }
         return builder.build();
     }
@@ -87,7 +87,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         indexRandom(
             randomBoolean(),
-            IntStream.range(0, 10).mapToObj(i -> client().prepareIndex(indexName).setSource()).collect(Collectors.toList())
+            IntStream.range(0, 10).mapToObj(i -> prepareIndex(indexName).setSource()).collect(Collectors.toList())
         );
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
@@ -97,6 +97,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         assertThat(total.storage(), equalTo(ByteSizeValue.ZERO));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -111,7 +112,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
     }
 
     protected GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         return client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
     }
 
@@ -119,6 +120,8 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         // randomly set the setting to verify it can be set.
         final Settings settings = randomBoolean() ? Settings.EMPTY : addDeciderSettings(Settings.builder()).build();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
             new TreeMap<>(Map.of(deciderName(), settings))

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.aggregation;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -26,7 +28,7 @@ public class ProfilingAggregator extends Aggregator {
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
 
-    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
+    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) {
         this.profiler = profiler;
         this.delegate = delegate;
     }
@@ -67,8 +69,8 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_AGGREGATION);
         InternalAggregation[] result;
         timer.start();
         try {
@@ -82,13 +84,18 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
+    public void releaseAggregations() {
+        delegate.releaseAggregations();
+    }
+
+    @Override
     public InternalAggregation buildEmptyAggregation() {
         return delegate.buildEmptyAggregation();
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
             return new ProfilingLeafBucketCollector(delegate.getLeafCollector(aggCtx), profileBreakdown);
@@ -100,7 +107,7 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.INITIALIZE);
         timer.start();
         try {
             delegate.preCollection();
@@ -112,7 +119,7 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public void postCollection() throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
+        Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.POST_COLLECTION);
         timer.start();
         try {
             delegate.postCollection();

@@ -1,24 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -31,11 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.newPutStoredScriptTestRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * Full integration test of the template query plugin.
@@ -55,9 +63,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
+        indicesAdmin().prepareRefresh().get();
     }
 
     // Relates to #6318
@@ -77,13 +85,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get()
         );
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
-            .setScript(query)
-            .setScriptType(ScriptType.INLINE)
-            .setScriptParams(Collections.singletonMap("my_size", 1))
-            .get();
-
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
+                .setScript(query)
+                .setScriptType(ScriptType.INLINE)
+                .setScriptParams(Collections.singletonMap("my_size", 1)),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -101,8 +109,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -122,8 +132,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -143,12 +155,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
-    public void testIndexedTemplateClient() throws Exception {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+    public void testIndexedTemplateClient() {
+        putJsonStoredScript("testTemplate", """
             {
               "script": {
                 "lang": "mustache",
@@ -160,37 +174,97 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                   }
                 }
               }
-            }"""), XContentType.JSON));
+            }""");
 
-        GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
+        GetStoredScriptResponse getResponse = safeExecute(
+            GetStoredScriptAction.INSTANCE,
+            new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "testTemplate")
+        );
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("testTemplate")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 4);
+        assertHitCount(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("testTemplate")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            4
+        );
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
+        assertAcked(
+            safeExecute(
+                TransportDeleteStoredScriptAction.TYPE,
+                new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "testTemplate")
+            )
+        );
 
-        getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
+        getResponse = safeExecute(GetStoredScriptAction.INSTANCE, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "testTemplate"));
         assertNull(getResponse.getSource());
     }
 
-    public void testIndexedTemplate() throws Exception {
+    public void testBadTemplate() {
+
+        // This template will produce badly formed json if given a multi-valued `text_fields` parameter,
+        // as it does not add commas between the entries. We test that it produces a 400 json parsing
+        // error both when used directly and when used in a render template request.
+
+        String script = """
+            {
+                "query": {
+                    "multi_match": {
+                      "query": "{{query_string}}",
+                      "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}]
+                    }
+                },
+                "from": "{{from}}",
+                "size": "{{size}}"
+            }""";
+
+        Map<String, Object> params = Map.of(
+            "text_fields",
+            List.of(Map.of("name", "title", "boost", 10), Map.of("name", "description", "boost", 2)),
+            "from",
+            0,
+            "size",
+            0
+        );
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .setSimulate(true)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
+    }
+
+    public void testIndexedTemplate() {
 
         String script = """
             {
@@ -207,28 +281,28 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }
             """;
 
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
+        putJsonStoredScript("1a", script);
+        putJsonStoredScript("2", script);
+        putJsonStoredScript("3", script);
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
-
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
-            .setScript("1a")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 4);
+        assertHitCount(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
+                .setScript("1a")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            4
+        );
 
         expectThrows(
             ResourceNotFoundException.class,
@@ -240,12 +314,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
 
         templateParams.put("fieldParam", "bar");
-        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("2")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 1);
+        assertHitCount(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("2")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            1
+        );
     }
 
     // Relates to #10397
@@ -253,8 +328,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         createIndex("testindex");
         ensureGreen("testindex");
 
-        client().prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
+        indicesAdmin().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
         String query = """
@@ -274,15 +349,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
               }
             }""";
         for (int i = 1; i < iterations; i++) {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutStoredScript()
-                    .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), XContentType.JSON)
-            );
+            putJsonStoredScript("git01", query.replace("{{slop}}", Integer.toString(-1)));
 
-            GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
+            GetStoredScriptResponse getResponse = safeExecute(
+                GetStoredScriptAction.INSTANCE,
+                new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "git01")
+            );
             assertNotNull(getResponse.getSource());
 
             Map<String, Object> templateParams = new HashMap<>();
@@ -298,25 +370,21 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             );
             assertThat(e.getMessage(), containsString("No negative slop allowed"));
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutStoredScript()
-                    .setId("git01")
-                    .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
-            );
+            putJsonStoredScript("git01", query.replace("{{slop}}", Integer.toString(0)));
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
-                .setScript("git01")
-                .setScriptType(ScriptType.STORED)
-                .setScriptParams(templateParams)
-                .get();
-            assertHitCount(searchResponse.getResponse(), 1);
+            assertHitCount(
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
+                    .setScript("git01")
+                    .setScript("git01")
+                    .setScriptType(ScriptType.STORED)
+                    .setScriptParams(templateParams),
+                1
+            );
         }
     }
 
-    public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = """
+    public void testIndexedTemplateWithArray() {
+        putJsonStoredScript("4", """
             {
               "script": {
                 "lang": "mustache",
@@ -332,33 +400,33 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                   }
                 }
               }
-            }""";
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
-        );
+            }""");
+
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> arrayTemplateParams = new HashMap<>();
         String[] fieldParams = { "foo", "bar" };
         arrayTemplateParams.put("fieldParam", fieldParams);
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("4")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(arrayTemplateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 5);
+        assertHitCount(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("4")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(arrayTemplateParams),
+            5
+        );
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -369,13 +437,35 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(new SearchRequest());
         ExecutionException ex = expectThrows(
             ExecutionException.class,
-            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+            () -> client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get()
         );
+
+        Throwable primary = ex.getCause();
+        assertNotNull(primary);
+
+        Throwable underlying = primary.getCause();
+        assertNotNull(underlying);
+
         assertThat(
-            ex.getCause().getMessage(),
+            primary.getMessage(),
             containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
         );
-        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getCause().getMessage());
+        assertThat(primary.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+
+        assertThat(
+            underlying.getMessage(),
+            matchesRegex(
+                "\\[fail_before_current_version] was released first in version .+,"
+                    + " failed compatibility check trying to send it to node with version .+"
+            )
+        );
+    }
+
+    public static void assertHitCount(SearchTemplateRequestBuilder requestBuilder, long expectedHitCount) {
+        assertResponse(requestBuilder, response -> ElasticsearchAssertions.assertHitCount(response.getResponse(), expectedHitCount));
+    }
+
+    private void putJsonStoredScript(String id, String jsonContent) {
+        assertAcked(safeExecute(TransportPutStoredScriptAction.TYPE, newPutStoredScriptTestRequest(id, jsonContent)));
     }
 }

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,10 +21,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +40,7 @@ import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
-    private final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
+    private static final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
     private final DeterministicTaskQueue deterministicTaskQueue;
     private final List<Runnable> blackholedRequests = new ArrayList<>();
     private final Set<String> blockedActions = new HashSet<>();
@@ -96,6 +99,11 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     }
 
                     @Override
+                    public TransportVersion getTransportVersion() {
+                        return TransportVersion.current();
+                    }
+
+                    @Override
                     public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                         throws TransportException {
                         if (blockedActions.contains(action)) {
@@ -144,7 +152,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false
             : "non-local message from " + getLocalNode() + " to itself";
 
-        request.incRef();
+        request.mustIncRef();
 
         destinationTransport.execute(new RebootSensitiveRunnable() {
             @Override
@@ -256,30 +264,29 @@ public abstract class DisruptableMockTransport extends MockTransport {
             }
 
             @Override
-            public String getChannelType() {
-                return "disruptable-mock-transport-channel";
-            }
-
-            @Override
             public void sendResponse(final TransportResponse response) {
+                response.mustIncRef();
+                final var releasable = Releasables.assertOnce(response::decRef);
                 execute(new RebootSensitiveRunnable() {
                     @Override
                     public void ifRebooted() {
-                        response.decRef();
-                        cleanupResponseHandler(requestId);
+                        try (releasable) {
+                            cleanupResponseHandler(requestId);
+                        }
                     }
 
                     @Override
                     public void run() {
-                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
-                        switch (connectionStatus) {
-                            case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
-                            case BLACK_HOLE, DISCONNECTED -> {
-                                response.decRef();
-                                logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
-                                onBlackholedDuringSend(requestId, action, destinationTransport);
+                        try (releasable) {
+                            final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                            switch (connectionStatus) {
+                                case CONNECTED, BLACK_HOLE_REQUESTS_ONLY -> handleResponse(requestId, response);
+                                case BLACK_HOLE, DISCONNECTED -> {
+                                    logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
+                                    onBlackholedDuringSend(requestId, action, destinationTransport);
+                                }
+                                default -> throw new AssertionError("unexpected status: " + connectionStatus);
                             }
-                            default -> throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 

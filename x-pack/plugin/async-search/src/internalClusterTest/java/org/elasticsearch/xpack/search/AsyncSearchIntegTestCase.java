@@ -12,15 +12,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -38,10 +39,10 @@ import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -73,12 +74,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Arrays.asList(
-                new QuerySpec<>(
-                    BlockingQueryBuilder.NAME,
-                    BlockingQueryBuilder::new,
-                    p -> { throw new IllegalStateException("not implemented"); }
-                ),
+            return Arrays.asList(new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new, p -> {
+                throw new IllegalStateException("not implemented");
+            }),
                 new QuerySpec<>(
                     ThrowingQueryBuilder.NAME,
                     ThrowingQueryBuilder::new,
@@ -93,18 +91,19 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 new AggregationSpec(
                     CancellingAggregationBuilder.NAME,
                     CancellingAggregationBuilder::new,
-                    (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> { throw new IllegalStateException("not implemented"); }
+                    (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> {
+                        throw new IllegalStateException("not implemented");
+                    }
                 ).addResultReader(InternalFilter::new)
             );
         }
     }
 
     @Before
-    public void startMaintenanceService() {
+    public void unpauseMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
-            if (service.lifecycleState() == Lifecycle.State.STOPPED) {
+            if (service.unpause()) {
                 // force the service to start again
-                service.start();
                 ClusterState state = internalCluster().clusterService().state();
                 service.clusterChanged(new ClusterChangedEvent("noop", state, state));
             }
@@ -112,9 +111,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void stopMaintenanceService() {
+    public void pauseMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
-            service.stop();
+            service.pause();
         }
     }
 
@@ -147,16 +146,16 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
      */
     protected void restartTaskNode(String id, String indexName) throws Exception {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-        final ClusterStateResponse clusterState = client().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
 
         // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
-        stopMaintenanceService();
+        pauseMaintenanceService();
         ensureAllSearchContextsReleased();
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
         });
-        startMaintenanceService();
+        unpauseMaintenanceService();
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
@@ -176,8 +175,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id)).get();
     }
 
+    protected AsyncStatusResponse getAsyncStatus(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
+        return client().execute(GetAsyncStatusAction.INSTANCE, new GetAsyncStatusRequest(id).setKeepAlive(keepAlive)).get();
+    }
+
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
+        return client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id)).get();
     }
 
     /**
@@ -195,7 +198,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             try {
                 AsyncSearchResponse resp = getAsyncSearch(id);
-                assertFalse(resp.isRunning());
+                try {
+                    assertFalse(resp.isRunning());
+                } finally {
+                    resp.decRef();
+                }
             } catch (Exception exc) {
                 if (ExceptionsHelper.unwrapCause(exc.getCause()) instanceof ResourceNotFoundException == false) {
                     throw exc;
@@ -211,7 +218,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             TaskId taskId = AsyncExecutionId.decode(id).getTaskId();
             try {
-                GetTaskResponse resp = client().admin().cluster().prepareGetTask(taskId).get();
+                GetTaskResponse resp = clusterAdmin().prepareGetTask(taskId).get();
                 assertNull(resp.getTask());
             } catch (Exception exc) {
                 if (exc.getCause() instanceof ResourceNotFoundException == false) {
@@ -233,11 +240,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         int numFailures,
         int progressStep
     ) throws Exception {
-        final String pitId;
+        final BytesReference pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
             OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(between(5, 10)));
-            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getPointInTimeId();
+            pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openPIT).actionGet().getPointInTimeId();
             final PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));
@@ -307,9 +314,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));
                     assertNull(newResponse.getSearchResponse().getAggregations());
                     assertNotNull(newResponse.getSearchResponse().getHits().getTotalHits());
-                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(0L));
+                    assertThat(newResponse.getSearchResponse().getHits().getTotalHits().value(), equalTo(0L));
                     assertThat(
-                        newResponse.getSearchResponse().getHits().getTotalHits().relation,
+                        newResponse.getSearchResponse().getHits().getTotalHits().relation(),
                         equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
                     );
                 } else {
@@ -331,7 +338,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             public void close() {
                 if (closed.compareAndSet(false, true)) {
                     if (pitId != null) {
-                        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+                        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
                     }
                     queryLatch.close();
                 }

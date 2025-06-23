@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+esplugin {
+  name = 'custom-processor'
+  description = 'An example plugin showing how to register a custom ingest processor'
+  classname ='org.elasticsearch.example.customprocessor.ExampleProcessorPlugin'
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
+}
+
+dependencies {
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+}

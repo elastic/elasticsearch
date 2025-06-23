@@ -1,20 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-testclusters'
 
 import org.elasticsearch.gradle.testclusters.RunTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
-  javaRestTestImplementation project(":client:rest-high-level")
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
-  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .orElse(providers.systemProperty('eql.test.credentials.file'))
   .map { s -> new File(s)}
   .getOrNull()
 
@@ -41,7 +46,9 @@ def runTaskCluster = testClusters.register('runTask') {
 }
 
 tasks.named('javaRestTest').configure {
-  onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
+  onlyIf("FIPS mode disabled and service accoutn file available") {
+      serviceAccountFile && buildParams.inFipsJvm == false
+  }
 
   testLogging {
     showStandardStreams = true

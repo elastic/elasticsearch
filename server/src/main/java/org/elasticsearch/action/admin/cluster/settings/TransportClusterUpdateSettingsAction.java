@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
@@ -20,15 +21,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsUpdater;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,15 +49,16 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
+    private final RerouteService rerouteService;
     private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportClusterUpdateSettingsAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterSettings clusterSettings
     ) {
         super(
@@ -65,10 +69,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             ClusterUpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             ClusterUpdateSettingsResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.clusterSettings = clusterSettings;
     }
 
@@ -159,7 +163,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAllNodesAcked() {
-                if (changed) {
+                if (reroute) {
                     reroute(true);
                 } else {
                     super.onAllNodesAcked();
@@ -168,8 +172,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckFailure(Exception e) {
-                if (changed) {
-                    reroute(true);
+                if (reroute) {
+                    reroute(false);
                 } else {
                     super.onAckFailure(e);
                 }
@@ -177,7 +181,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onAckTimeout() {
-                if (changed) {
+                if (reroute) {
                     reroute(false);
                 } else {
                     super.onAckTimeout();
@@ -185,24 +189,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             private void reroute(final boolean updateSettingsAcked) {
-                // We're about to send a second update task, so we need to check if we're still the elected master
-                // For example the minimum_master_node could have been breached and we're no longer elected master,
-                // so we should *not* execute the reroute.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(
-                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
-                    );
-                    return;
-                }
-
-                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulated in
+                // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
                 // completed.
-                clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
+                rerouteService.reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
                     @Override
-                    public void onResponse(ClusterState clusterState) {
+                    public void onResponse(Void ignored) {
                         listener.onResponse(
                             new ClusterUpdateSettingsResponse(
                                 updateSettingsAcked,
@@ -238,40 +231,31 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         });
     }
 
-    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
-        protected volatile boolean changed = false;
+    private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+        protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
-        private final ClusterSettings clusterSettings;
 
-        public ClusterUpdateSettingsTask(
+        ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
             ActionListener<? extends AcknowledgedResponse> listener
         ) {
             super(priority, request, listener);
-            this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
-        }
-
-        /**
-         * Used by the reserved state handler {@link ReservedClusterSettingsAction}
-         */
-        public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
-            this(clusterSettings, Priority.IMMEDIATE, request, null);
         }
 
         @Override
         public ClusterState execute(final ClusterState currentState) {
             final ClusterState clusterState = updater.updateSettings(
                 currentState,
-                clusterSettings.upgradeSettings(request.transientSettings()),
-                clusterSettings.upgradeSettings(request.persistentSettings()),
+                request.transientSettings(),
+                request.persistentSettings(),
                 logger
             );
-            changed = clusterState != currentState;
+            reroute = clusterState != currentState;
             return clusterState;
         }
     }

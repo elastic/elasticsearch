@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -66,7 +67,8 @@ public class ExecutionManager {
         Attribute tiebreaker,
         OrderDirection direction,
         TimeValue maxSpan,
-        Limit limit
+        Limit limit,
+        boolean[] missing
     ) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
 
@@ -83,6 +85,13 @@ public class ExecutionManager {
         // secondary criteria
         List<SequenceCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
+        int firstPositive = -1;
+        for (int i = 0; i < missing.length; i++) {
+            if (missing[i] == false) {
+                firstPositive = i;
+                break;
+            }
+        }
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -129,7 +138,8 @@ public class ExecutionManager {
                     tsExtractor,
                     tbExtractor,
                     itbExtractor,
-                    i == 0 && descending
+                    i == firstPositive && descending,
+                    missing[i]
                 );
                 criteria.add(criterion);
             } else {
@@ -143,13 +153,23 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
+        SequenceMatcher matcher = new SequenceMatcher(
+            completionStage,
+            descending,
+            maxSpan,
+            limit,
+            toMissing(criteria.subList(0, criteria.size() - 1)), // no need for "until" here
+            session.circuitBreaker()
+        );
 
         TumblingWindow w = new TumblingWindow(
             new PITAwareQueryClient(session),
             criteria.subList(0, completionStage),
             criteria.get(completionStage),
-            matcher
+            matcher,
+            listOfKeys,
+            cfg.allowPartialSearchResults(),
+            cfg.allowPartialSequenceResults()
         );
 
         return w;
@@ -160,7 +180,7 @@ public class ExecutionManager {
      */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
-            throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
+            throw new InvalidArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
 
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
@@ -217,11 +237,20 @@ public class ExecutionManager {
             cfg.fetchSize(),
             limit,
             session.circuitBreaker(),
-            cfg.maxSamplesPerKey()
+            cfg.maxSamplesPerKey(),
+            cfg.allowPartialSearchResults()
         );
     }
 
-    private HitExtractor timestampExtractor(HitExtractor hitExtractor) {
+    private static boolean[] toMissing(List<SequenceCriterion> criteria) {
+        boolean[] result = new boolean[criteria.size()];
+        for (int i = 0; i < criteria.size(); i++) {
+            result[i] = criteria.get(i).missing();
+        }
+        return result;
+    }
+
+    private static HitExtractor timestampExtractor(HitExtractor hitExtractor) {
         if (hitExtractor instanceof FieldHitExtractor fe) {
             return (fe instanceof TimestampFieldHitExtractor) ? hitExtractor : new TimestampFieldHitExtractor(fe);
         }
@@ -240,7 +269,7 @@ public class ExecutionManager {
         return extractors;
     }
 
-    private List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
+    private static List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
         List<BucketExtractor> extractors = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
             extractors.add(RuntimeUtils.createBucketExtractor(registry.compositeKeyExtraction(exp)));

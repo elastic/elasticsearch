@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPath
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateShardPathAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -22,9 +24,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /*
  * We rely on the shard directory being deleted after the relocation. This removal sometimes fails
@@ -49,8 +54,8 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
             .stream()
             .map(ShardRouting::shardId)
             .collect(Collectors.toSet());
-        String node1Id = internalCluster().clusterService(node1).localNode().getId();
-        String node2Id = internalCluster().clusterService(node2).localNode().getId();
+        String node1Id = getNodeId(node1);
+        String node2Id = getNodeId(node2);
         Set<ShardId> shardIdsToCheck = new HashSet<>(shardIds);
         boolean includeUnknownShardId = randomBoolean();
         if (includeUnknownShardId) {
@@ -66,29 +71,48 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
             assertThat(nodeResponse.getShardIds(), equalTo(shardIds));
         }
         // Check that after relocation the source node doesn't have the shard path
-        String node3 = internalCluster().startDataOnlyNode();
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._name", node2));
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(4);
+        logger.info("--> relocating shards from the node {}", node2);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node2), indexName);
         ensureGreen(indexName);
+        logger.info("--> green after relocation");
         assertBusy(() -> {
             try {
                 // The excluded node should eventually delete the shards
-                PrevalidateShardPathRequest req2 = new PrevalidateShardPathRequest(shardIdsToCheck, node2Id);
-                PrevalidateShardPathResponse resp2 = client().execute(TransportPrevalidateShardPathAction.TYPE, req2).get();
-                assertThat(resp2.getNodes().size(), equalTo(1));
-                assertThat(resp2.getNodes().get(0).getNode().getId(), equalTo(node2Id));
-                assertTrue("There should be no failures in the response", resp.failures().isEmpty());
-                assertTrue("The relocation source node should have removed the shard(s)", resp2.getNodes().get(0).getShardIds().isEmpty());
+                assertNoShards(shardIdsToCheck, node2Id);
             } catch (AssertionError e) {
                 // Removal of shards which are no longer allocated to the node is attempted on every cluster state change in IndicesStore.
-                // If for whatever reason the removal is not triggered (e.g. not enough nodes reported that the shards are active) or it
+                // If for whatever reason the removal is not successful (e.g. not enough nodes reported that the shards are active) or it
                 // temporarily failed to clean up the shard folder, we need to trigger another cluster state change for this removal to
                 // finally succeed.
+                logger.info("--> Triggering an extra cluster state update: {}", e.getMessage());
                 updateIndexSettings(
-                    indexName,
-                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5))
+                    Settings.builder().put("index.routing.allocation.exclude.name", "non-existent" + randomAlphaOfLength(5)),
+                    indexName
                 );
                 throw e;
             }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void assertNoShards(Set<ShardId> shards, String nodeId) throws Exception {
+        assertBusy(() -> {
+            PrevalidateShardPathRequest req = new PrevalidateShardPathRequest(shards, nodeId);
+            PrevalidateShardPathResponse resp = client().execute(TransportPrevalidateShardPathAction.TYPE, req).get();
+            assertThat(resp.getNodes().size(), equalTo(1));
+            assertThat(resp.getNodes().get(0).getNode().getId(), equalTo(nodeId));
+            assertTrue("There should be no failures in the response", resp.failures().isEmpty());
+            Set<ShardId> node2ShardIds = resp.getNodes().get(0).getShardIds();
+            assertThat(
+                Strings.format(
+                    "Relocation source node [%s] should have no shards after the relocation, but still got %s",
+                    nodeId,
+                    node2ShardIds
+                ),
+                node2ShardIds,
+                is(empty())
+            );
         });
     }
 }

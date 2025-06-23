@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.AbstractItemSetMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceAggregator;
 
@@ -65,6 +66,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
     private final int minimumSetSize;
     private final int size;
     private final QueryBuilder documentFilter;
+    private final String executionHint;
 
     public FrequentItemSetsAggregatorFactory(
         String name,
@@ -76,7 +78,8 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         double minimumSupport,
         int minimumSetSize,
         int size,
-        QueryBuilder documentFilter
+        QueryBuilder documentFilter,
+        String executionHint
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fields = fields;
@@ -84,6 +87,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         this.minimumSetSize = minimumSetSize;
         this.size = size;
         this.documentFilter = documentFilter;
+        this.executionHint = executionHint;
     }
 
     @Override
@@ -109,6 +113,19 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
             );
         }
 
+        EclatMapReducer eclatMapReducer = new EclatMapReducer(
+            FrequentItemSetsAggregationBuilder.NAME,
+            minimumSupport,
+            minimumSetSize,
+            size,
+            context.profiling()
+        );
+        AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization = eclatMapReducer.getDefaultOrdinalOptimization();
+
+        if ("map".equals(executionHint)) {
+            ordinalOptimization = AbstractItemSetMapReducer.OrdinalOptimization.NO_ORDINALS;
+        }
+
         return new ItemSetMapReduceAggregator<
             HashBasedTransactionStore,
             ImmutableTransactionStore,
@@ -119,9 +136,10 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 context,
                 parent,
                 metadata,
-                new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size, context.profiling()),
+                eclatMapReducer,
                 configsAndFilters,
-                documentFilter
+                documentFilter,
+                ordinalOptimization
             ) {
         };
     }

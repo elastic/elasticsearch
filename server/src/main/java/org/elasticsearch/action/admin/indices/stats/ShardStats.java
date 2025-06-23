@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,7 +29,7 @@ import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private static final Version DEDUPLICATE_SHARD_PATH_VERSION = Version.V_8_4_0;
+    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersions.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -41,12 +44,17 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final String statePath;
     private final boolean isCustomDataPath;
 
+    private final boolean isSearchIdle;
+
+    private final long searchIdleTime;
+
     public ShardStats(StreamInput in) throws IOException {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        if (in.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
         } else {
             dataPath = in.readString();
@@ -54,26 +62,13 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-    }
-
-    public ShardStats(
-        final ShardRouting shardRouting,
-        final ShardPath shardPath,
-        final CommonStats commonStats,
-        final CommitStats commitStats,
-        final SeqNoStats seqNoStats,
-        final RetentionLeaseStats retentionLeaseStats
-    ) {
-        this(
-            shardRouting,
-            commonStats,
-            commitStats,
-            seqNoStats,
-            retentionLeaseStats,
-            shardPath.getRootDataPath().toString(),
-            shardPath.getRootStatePath().toString(),
-            shardPath.isCustomDataPath()
-        );
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            isSearchIdle = in.readBoolean();
+            searchIdleTime = in.readVLong();
+        } else {
+            isSearchIdle = false;
+            searchIdleTime = 0;
+        }
     }
 
     public ShardStats(
@@ -84,7 +79,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         RetentionLeaseStats retentionLeaseStats,
         String dataPath,
         String statePath,
-        boolean isCustomDataPath
+        boolean isCustomDataPath,
+        boolean isSearchIdle,
+        long searchIdleTime
     ) {
         this.shardRouting = shardRouting;
         this.commonStats = commonStats;
@@ -94,6 +91,32 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.dataPath = dataPath;
         this.statePath = statePath;
         this.isCustomDataPath = isCustomDataPath;
+        this.isSearchIdle = isSearchIdle;
+        this.searchIdleTime = searchIdleTime;
+    }
+
+    public ShardStats(
+        final ShardRouting shardRouting,
+        final ShardPath shardPath,
+        final CommonStats commonStats,
+        final CommitStats commitStats,
+        final SeqNoStats seqNoStats,
+        final RetentionLeaseStats retentionLeaseStats,
+        boolean isSearchIdle,
+        long searchIdleTime
+    ) {
+        this(
+            shardRouting,
+            commonStats,
+            commitStats,
+            seqNoStats,
+            retentionLeaseStats,
+            shardPath.getRootDataPath().toString(),
+            shardPath.getRootStatePath().toString(),
+            shardPath.isCustomDataPath(),
+            isSearchIdle,
+            searchIdleTime
+        );
     }
 
     @Override
@@ -108,12 +131,25 @@ public class ShardStats implements Writeable, ToXContentFragment {
             && Objects.equals(commitStats, that.commitStats)
             && Objects.equals(commonStats, that.commonStats)
             && Objects.equals(seqNoStats, that.seqNoStats)
-            && Objects.equals(retentionLeaseStats, that.retentionLeaseStats);
+            && Objects.equals(retentionLeaseStats, that.retentionLeaseStats)
+            && Objects.equals(isSearchIdle, that.isSearchIdle)
+            && Objects.equals(searchIdleTime, that.searchIdleTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardRouting, dataPath, statePath, isCustomDataPath, commitStats, commonStats, seqNoStats, retentionLeaseStats);
+        return Objects.hash(
+            shardRouting,
+            dataPath,
+            statePath,
+            isCustomDataPath,
+            commitStats,
+            commonStats,
+            seqNoStats,
+            retentionLeaseStats,
+            isSearchIdle,
+            searchIdleTime
+        );
     }
 
     /**
@@ -158,13 +194,21 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return isCustomDataPath;
     }
 
+    public boolean isSearchIdle() {
+        return isSearchIdle;
+    }
+
+    public long getSearchIdleTime() {
+        return searchIdleTime;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        if (out.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
         } else {
             out.writeString(dataPath);
@@ -172,6 +216,10 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeBoolean(isSearchIdle);
+            out.writeVLong(searchIdleTime);
+        }
     }
 
     @Override
@@ -198,6 +246,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
         builder.field(Fields.DATA_PATH, dataPath);
         builder.field(Fields.IS_CUSTOM_DATA_PATH, isCustomDataPath);
         builder.endObject();
+        builder.field(Fields.SEARCH_IDLE, isSearchIdle);
+        builder.field(Fields.SEARCH_IDLE_TIME, searchIdleTime);
         return builder;
     }
 
@@ -211,6 +261,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
         static final String PRIMARY = "primary";
         static final String NODE = "node";
         static final String RELOCATING_NODE = "relocating_node";
+        static final String SEARCH_IDLE = "search_idle";
+        static final String SEARCH_IDLE_TIME = "search_idle_time";
     }
 
 }

@@ -46,9 +46,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
     public void setupClusterBeforeSnapshot() throws IOException {
         logger.info("-->  creating repository");
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
@@ -56,7 +54,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         logger.info("-->  creating ordinary index");
         final int shards = between(1, 10);
         ordinaryIndex = randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
-        assertAcked(prepareCreate(ordinaryIndex, 0, Settings.builder().put("number_of_shards", shards).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(ordinaryIndex, 0, indexSettings(shards, 0)));
         ensureGreen();
 
         logger.info("-->  creating snapshot_user user");
@@ -72,14 +70,14 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         // view repositories
         final GetRepositoriesResponse getRepositoriesResponse = client.admin()
             .cluster()
-            .prepareGetRepositories(randomFrom("*", "_all"))
+            .prepareGetRepositories(TEST_REQUEST_TIMEOUT, randomFrom("*", "_all"))
             .get();
         assertThat(getRepositoriesResponse.repositories().size(), is(1));
         assertThat(getRepositoriesResponse.repositories().get(0).name(), is("repo"));
         // view all indices, including restricted ones
         final GetIndexResponse getIndexResponse = client.admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(randomFrom("_all", "*"))
             .setIndicesOptions(IndicesOptions.strictExpandHidden())
             .get();
@@ -87,7 +85,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         // create snapshot that includes restricted indices
         final CreateSnapshotResponse snapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("repo", "snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
             .setIndices(randomFrom("_all", "*"))
             .setIndicesOptions(IndicesOptions.strictExpandHidden())
             .setWaitForCompletion(true)
@@ -95,7 +93,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         assertThat(snapshotResponse.getSnapshotInfo().indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
         // view snapshots for repo
-        final GetSnapshotsResponse getSnapshotResponse = client.admin().cluster().prepareGetSnapshots("repo").get();
+        final GetSnapshotsResponse getSnapshotResponse = client.admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "repo").get();
         assertThat(getSnapshotResponse.getSnapshots().size(), is(1));
         assertThat(getSnapshotResponse.getSnapshots().get(0).snapshotId().getName(), is("snap"));
         assertThat(getSnapshotResponse.getSnapshots().get(0).indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
@@ -131,7 +129,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         assertThrowsAuthorizationException(
             () -> client.admin()
                 .cluster()
-                .preparePutRepository("some_other_repo")
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "some_other_repo")
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
                 .get(),
@@ -140,18 +138,24 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         );
         // try delete repo
         assertThrowsAuthorizationException(
-            () -> client.admin().cluster().prepareDeleteRepository("repo").get(),
+            () -> client.admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo").get(),
             "cluster:admin/repository/delete",
             "snapshot_user"
         );
         // try fumble with snapshots
         assertThrowsAuthorizationException(
-            () -> client.admin().cluster().prepareRestoreSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get(),
+            () -> client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT))
+                .get(),
             "cluster:admin/snapshot/restore",
             "snapshot_user"
         );
         assertThrowsAuthorizationException(
-            () -> client.admin().cluster().prepareDeleteSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get(),
+            () -> client.admin()
+                .cluster()
+                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT))
+                .get(),
             "cluster:admin/snapshot/delete",
             "snapshot_user"
         );

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettingsTests;
 
 import java.io.IOException;
@@ -18,7 +20,30 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class PreviewTransformsActionResponseTests extends AbstractXContentSerializingTestCase<Response> {
+
+    private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+        "data_frame_transform_preview",
+        true,
+        args -> {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> docs = (List<Map<String, Object>>) args[0];
+            TransformDestIndexSettings generatedDestIndex = (TransformDestIndexSettings) args[1];
+
+            return new Response(docs, generatedDestIndex);
+        }
+    );
+
+    static {
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.mapOrdered(), PreviewTransformAction.Response.PREVIEW);
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> TransformDestIndexSettings.fromXContent(p),
+            PreviewTransformAction.Response.GENERATED_DEST_INDEX_SETTINGS
+        );
+    }
 
     public static Response randomPreviewResponse() {
         int size = randomIntBetween(0, 10);
@@ -32,7 +57,7 @@ public class PreviewTransformsActionResponseTests extends AbstractXContentSerial
 
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
-        return Response.fromXContent(parser);
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -46,7 +71,8 @@ public class PreviewTransformsActionResponseTests extends AbstractXContentSerial
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
+
 }

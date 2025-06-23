@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
@@ -78,14 +79,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        this.innerHits = in.readList(InnerHitBuilder::new);
+        this.innerHits = in.readCollectionAsList(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        out.writeList(innerHits);
+        out.writeCollection(innerHits);
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {
@@ -102,11 +103,21 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
+        if (innerHit.getName() == null) {
+            throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+        }
         this.innerHits = Collections.singletonList(innerHit);
         return this;
     }
 
     public CollapseBuilder setInnerHits(List<InnerHitBuilder> innerHits) {
+        if (innerHits != null) {
+            for (InnerHitBuilder innerHit : innerHits) {
+                if (innerHit.getName() == null) {
+                    throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+                }
+            }
+        }
         this.innerHits = innerHits;
         return this;
     }
@@ -185,6 +196,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
@@ -204,6 +220,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             );
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, fieldType);
     }
 }

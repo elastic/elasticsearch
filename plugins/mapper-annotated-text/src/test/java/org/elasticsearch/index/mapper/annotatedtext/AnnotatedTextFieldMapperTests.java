@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.annotatedtext;
@@ -14,6 +15,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -23,12 +25,15 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -38,7 +43,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TextFieldFamilySyntheticSourceTestSetup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +58,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -142,10 +150,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
-            Map.of()
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
         );
     }
 
@@ -157,10 +164,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         String annotatedText = "He paid [Stormy Daniels](Stephanie+Clifford&Payee) hush money";
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", annotatedText)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals(annotatedText, fields[0].stringValue());
+        assertEquals(annotatedText, fields.get(0).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
 
@@ -196,10 +203,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         String annotatedText = "foo [bar](MissingEndBracket baz";
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", annotatedText)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals(annotatedText, fields[0].stringValue());
+        assertEquals(annotatedText, fields.get(0).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -234,7 +241,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
-            Terms terms = leaf.getTermVector(0, "field");
+            Terms terms = leaf.termVectors().get(0, "field");
             TermsEnum iterator = terms.iterator();
             BytesRef term;
             Set<String> foundTerms = new HashSet<>();
@@ -254,11 +261,11 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -279,9 +286,67 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
+    }
+
+    public void testStoreParameterDefaults() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "annotated_text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+                b.field("dimension", "dimension1");
+            }
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
     }
 
     public void testDisableNorms() throws IOException {
@@ -293,9 +358,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -311,9 +376,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.field("index_options", option);
             }));
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(1, fields.length);
-            assertEquals(supportedOptions.get(option), fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals(supportedOptions.get(option), fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -323,11 +388,11 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "a", "b")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -349,10 +414,10 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "a", "b")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             LeafReader leaf = reader.leaves().get(0).reader();
@@ -556,7 +621,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
 
-    public void testNullConfigValuesFail() throws MapperParsingException {
+    public void testNullConfigValuesFail() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.nullField("analyzer");
@@ -596,7 +661,13 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false);
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
+        TextFieldFamilySyntheticSourceTestSetup.validateRoundTripReader(syntheticSource, reader, roundTripReader);
     }
 
     @Override

@@ -1,35 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 public class FilterRepository implements Repository {
 
@@ -44,13 +46,24 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public ProjectId getProjectId() {
+        return in.getProjectId();
+    }
+
+    @Override
     public RepositoryMetadata getMetadata() {
         return in.getMetadata();
     }
 
     @Override
-    public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        in.getSnapshotInfo(context);
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
+        in.getSnapshotInfo(snapshotIds, abortOnFailure, isCancelled, consumer, listener);
     }
 
     @Override
@@ -64,8 +77,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        in.getRepositoryData(listener);
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(responseExecutor, listener);
     }
 
     @Override
@@ -76,11 +89,12 @@ public class FilterRepository implements Repository {
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        SnapshotDeleteListener listener
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, repositoryDataUpdateListener, onCompletion);
     }
 
     @Override
@@ -131,7 +145,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
     }
 
@@ -143,15 +157,6 @@ public class FilterRepository implements Repository {
     @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
-    }
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override

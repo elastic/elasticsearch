@@ -1,6 +1,0 @@
-pr: 92890
-summary: Fix unclosed directory stream in `ClassReaders`
-area: Infra/Plugins
-type: bug
-issues:
- - 92866

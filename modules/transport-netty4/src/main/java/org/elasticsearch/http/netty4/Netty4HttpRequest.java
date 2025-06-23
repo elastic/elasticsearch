@@ -1,32 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -39,70 +38,146 @@ import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
 
-    private final FullHttpRequest request;
-    private final BytesReference content;
-    private final HttpHeadersMap headers;
+    private final int sequence;
+    private final io.netty.handler.codec.http.HttpRequest nettyRequest;
+    private boolean hasContent;
+    private HttpBody content;
+    private final Map<String, List<String>> headers;
     private final AtomicBoolean released;
     private final Exception inboundException;
-    private final boolean pooled;
+    private final QueryStringDecoder queryStringDecoder;
 
-    private final int sequence;
-
-    Netty4HttpRequest(int sequence, FullHttpRequest request) {
-        this(
-            sequence,
-            request,
-            new HttpHeadersMap(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content())
-        );
+    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, Exception exception) {
+        this(sequence, nettyRequest, HttpBody.empty(), new AtomicBoolean(false), exception);
     }
 
-    Netty4HttpRequest(int sequence, FullHttpRequest request, Exception inboundException) {
-        this(
-            sequence,
-            request,
-            new HttpHeadersMap(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content()),
-            inboundException
-        );
+    public Netty4HttpRequest(int sequence, io.netty.handler.codec.http.HttpRequest nettyRequest, HttpBody content) {
+        this(sequence, nettyRequest, content, new AtomicBoolean(false), null);
     }
 
     private Netty4HttpRequest(
         int sequence,
-        FullHttpRequest request,
-        HttpHeadersMap headers,
+        io.netty.handler.codec.http.HttpRequest nettyRequest,
+        HttpBody content,
         AtomicBoolean released,
-        boolean pooled,
-        BytesReference content
-    ) {
-        this(sequence, request, headers, released, pooled, content, null);
-    }
-
-    private Netty4HttpRequest(
-        int sequence,
-        FullHttpRequest request,
-        HttpHeadersMap headers,
-        AtomicBoolean released,
-        boolean pooled,
-        BytesReference content,
         Exception inboundException
     ) {
         this.sequence = sequence;
-        this.request = request;
-        this.headers = headers;
+        this.nettyRequest = nettyRequest;
+        this.hasContent = hasContentHeader(nettyRequest);
         this.content = content;
-        this.pooled = pooled;
+        this.headers = getHttpHeadersAsMap(nettyRequest.headers());
         this.released = released;
         this.inboundException = inboundException;
+        this.queryStringDecoder = new QueryStringDecoder(nettyRequest.uri());
+    }
+
+    private static boolean hasContentHeader(io.netty.handler.codec.http.HttpRequest nettyRequest) {
+        return HttpUtil.isTransferEncodingChunked(nettyRequest) || HttpUtil.getContentLength(nettyRequest, 0L) > 0;
+    }
+
+    @Override
+    public boolean hasContent() {
+        return hasContent;
     }
 
     @Override
     public RestRequest.Method method() {
-        HttpMethod httpMethod = request.method();
+        return translateRequestMethod(nettyRequest.method());
+    }
+
+    @Override
+    public String uri() {
+        return nettyRequest.uri();
+    }
+
+    @Override
+    public String rawPath() {
+        return queryStringDecoder.rawPath();
+    }
+
+    @Override
+    public HttpBody body() {
+        assert released.get() == false;
+        return content;
+    }
+
+    @Override
+    public void setBody(HttpBody body) {
+        assert this.content.isStream() : "only stream content can be replaced";
+        assert body.isFull() : "only full content can replace stream";
+        this.content = body;
+        this.hasContent = body.isEmpty() == false;
+    }
+
+    @Override
+    public void release() {
+        if (released.compareAndSet(false, true)) {
+            content.close();
+        }
+    }
+
+    @Override
+    public final Map<String, List<String>> getHeaders() {
+        return headers;
+    }
+
+    @Override
+    public List<String> strictCookies() {
+        String cookieString = nettyRequest.headers().get(HttpHeaderNames.COOKIE);
+        if (cookieString != null) {
+            Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
+            if (cookies.isEmpty() == false) {
+                return ServerCookieEncoder.STRICT.encode(cookies);
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public HttpVersion protocolVersion() {
+        if (nettyRequest.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
+            return HttpVersion.HTTP_1_0;
+        } else if (nettyRequest.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
+            return HttpVersion.HTTP_1_1;
+        } else {
+            throw new IllegalArgumentException("Unexpected http protocol version: " + nettyRequest.protocolVersion());
+        }
+    }
+
+    @Override
+    public HttpRequest removeHeader(String header) {
+        HttpHeaders copiedHeadersWithout = nettyRequest.headers().copy();
+        copiedHeadersWithout.remove(header);
+        var requestWithoutHeader = new DefaultHttpRequest(
+            nettyRequest.protocolVersion(),
+            nettyRequest.method(),
+            nettyRequest.uri(),
+            copiedHeadersWithout
+        );
+        return new Netty4HttpRequest(sequence, requestWithoutHeader, content, released, null);
+    }
+
+    @Override
+    public Netty4FullHttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new Netty4FullHttpResponse(sequence, nettyRequest.protocolVersion(), status, contentRef);
+    }
+
+    @Override
+    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
+        return new Netty4ChunkedHttpResponse(sequence, nettyRequest.protocolVersion(), status, firstBodyPart);
+    }
+
+    @Override
+    public Exception getInboundException() {
+        return inboundException;
+    }
+
+    public io.netty.handler.codec.http.HttpRequest getNettyRequest() {
+        return nettyRequest;
+    }
+
+    public static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
         if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
 
         if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
@@ -134,119 +209,8 @@ public class Netty4HttpRequest implements HttpRequest {
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 
-    @Override
-    public String uri() {
-        return request.uri();
-    }
-
-    @Override
-    public BytesReference content() {
-        assert released.get() == false;
-        return content;
-    }
-
-    @Override
-    public void release() {
-        if (pooled && released.compareAndSet(false, true)) {
-            request.release();
-        }
-    }
-
-    @Override
-    public HttpRequest releaseAndCopy() {
-        assert released.get() == false;
-        if (pooled == false) {
-            return this;
-        }
-        try {
-            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
-            return new Netty4HttpRequest(
-                sequence,
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    copiedContent,
-                    request.headers(),
-                    request.trailingHeaders()
-                ),
-                headers,
-                new AtomicBoolean(false),
-                false,
-                Netty4Utils.toBytesReference(copiedContent)
-            );
-        } finally {
-            release();
-        }
-    }
-
-    @Override
-    public final Map<String, List<String>> getHeaders() {
-        return headers;
-    }
-
-    @Override
-    public List<String> strictCookies() {
-        String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
-        if (cookieString != null) {
-            Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
-            if (cookies.isEmpty() == false) {
-                return ServerCookieEncoder.STRICT.encode(cookies);
-            }
-        }
-        return Collections.emptyList();
-    }
-
-    @Override
-    public HttpVersion protocolVersion() {
-        if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
-            return HttpRequest.HttpVersion.HTTP_1_0;
-        } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
-            return HttpRequest.HttpVersion.HTTP_1_1;
-        } else {
-            throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
-        }
-    }
-
-    @Override
-    public HttpRequest removeHeader(String header) {
-        HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
-        headersWithoutContentTypeHeader.add(request.headers());
-        headersWithoutContentTypeHeader.remove(header);
-        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
-        trailingHeaders.add(request.trailingHeaders());
-        trailingHeaders.remove(header);
-        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
-            request.protocolVersion(),
-            request.method(),
-            request.uri(),
-            request.content(),
-            headersWithoutContentTypeHeader,
-            trailingHeaders
-        );
-        return new Netty4HttpRequest(
-            sequence,
-            requestWithoutHeader,
-            new HttpHeadersMap(requestWithoutHeader.headers()),
-            released,
-            pooled,
-            content
-        );
-    }
-
-    @Override
-    public Netty4HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
-        return new Netty4HttpResponse(sequence, request.protocolVersion(), status, contentRef);
-    }
-
-    @Override
-    public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
-        return new Netty4ChunkedHttpResponse(sequence, request.protocolVersion(), status, content);
-    }
-
-    @Override
-    public Exception getInboundException() {
-        return inboundException;
+    public static Map<String, List<String>> getHttpHeadersAsMap(HttpHeaders httpHeaders) {
+        return new HttpHeadersMap(httpHeaders);
     }
 
     /**

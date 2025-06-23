@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ public class JwtRealmAuthIT extends SecurityRealmSmokeTestCase {
         final RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder()
             .addHeader(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_CLIENT_SECRET
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_CLIENT_SECRET
             )
             .addHeader(JwtRealm.HEADER_END_USER_AUTHENTICATION, JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT);
 

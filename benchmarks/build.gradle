@@ -1,25 +1,36 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.OS
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.java'
+apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
+apply plugin: 'java-library'
 apply plugin: 'application'
-mainClassName = 'org.openjdk.jmh.Main'
+
+var os = org.gradle.internal.os.OperatingSystem.current()
+
+application {
+  mainClass = 'org.openjdk.jmh.Main'
+}
 
 tasks.named("assemble").configure { enabled = false }
-archivesBaseName = 'elasticsearch-benchmarks'
+base {
+  archivesName = 'elasticsearch-benchmarks'
+}
 
-tasks.named("test").configure { enabled = false }
+tasks.named("javadoc").configure { enabled = false }
 
 configurations {
   expression
   painless
+  nativeLib
 }
 
 dependencies {
@@ -28,20 +39,33 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api(project(':libs:h3'))
   api(project(':modules:aggregations'))
+  implementation project(':modules:mapper-extras');
+  api(project(':x-pack:plugin:esql-core'))
+  api(project(':x-pack:plugin:core'))
+  api(project(':x-pack:plugin:esql'))
+  api(project(':x-pack:plugin:esql:compute'))
+  implementation project(path: ':libs:simdvec')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
+  nativeLib(project(':libs:native'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:4.6'
-  runtimeOnly 'org.apache.commons:commons-math3:3.2'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+
+  testImplementation(project(':test:framework'))
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+  // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
+  // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
+  options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {
@@ -57,9 +81,10 @@ tasks.register("copyPainless", Copy) {
 }
 
 tasks.named("run").configure {
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  jvmArgs << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
-  dependsOn "copyExpression", "copyPainless"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
 spotless {

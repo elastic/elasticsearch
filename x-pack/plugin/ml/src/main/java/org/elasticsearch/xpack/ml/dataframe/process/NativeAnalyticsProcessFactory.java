@@ -149,7 +149,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         ProcessPipes processPipes
     ) {
         AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile,
+            env::tmpDir,
             nativeController,
             processPipes,
             analyticsProcessConfig,

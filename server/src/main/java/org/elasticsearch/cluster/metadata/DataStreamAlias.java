@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
@@ -37,7 +38,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
+public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment, AliasInfo {
 
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
@@ -165,10 +166,10 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
 
     public DataStreamAlias(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.dataStreams = in.readStringList();
+        this.dataStreams = in.readStringCollectionAsList();
         this.writeDataStream = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-            this.dataStreamToFilterMap = in.readMap(StreamInput::readString, CompressedXContent::readCompressedString);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            this.dataStreamToFilterMap = in.readMap(CompressedXContent::readCompressedString);
         } else {
             this.dataStreamToFilterMap = new HashMap<>();
             CompressedXContent filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
@@ -189,6 +190,13 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Returns the alias name, which is the same value as getName()
+     */
+    public String getAlias() {
+        return getName();
     }
 
     /**
@@ -398,16 +406,16 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
-            out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            out.writeMap(dataStreamToFilterMap, StreamOutput::writeWriteable);
         } else {
             if (dataStreamToFilterMap.isEmpty()) {
                 out.writeBoolean(false);
             } else {
                 /*
-                 * Versions before 8.7 incorrectly only allowed a single filter for all datastreams, and randomly dropped all others. We
-                 * replicate that buggy behavior here if we have to write to an older node because there is no way to send multipole
-                 * filters to an older node.
+                 * TransportVersions before 8.7 incorrectly only allowed a single filter for all datastreams,
+                 * and randomly dropped all others. We replicate that buggy behavior here if we have to write
+                 * to an older node because there is no way to send multipole filters to an older node.
                  */
                 dataStreamToFilterMap.values().iterator().next().writeTo(out);
             }

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -35,10 +35,10 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
     public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private static final ObjectParser<List<ScheduledEvent.Builder>, Void> PARSER = new ObjectParser<>(NAME, ArrayList::new);
 
@@ -62,13 +62,13 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
             return new Request(calendarId, events.stream().map(ScheduledEvent.Builder::build).collect(Collectors.toList()));
         }
 
-        private String calendarId;
-        private List<ScheduledEvent> scheduledEvents;
+        private final String calendarId;
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();
-            scheduledEvents = in.readList(ScheduledEvent::new);
+            scheduledEvents = in.readCollectionAsList(ScheduledEvent::new);
         }
 
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
@@ -97,7 +97,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override
@@ -120,12 +120,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<ScheduledEvent> scheduledEvents;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            in.readList(ScheduledEvent::new);
-        }
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Response(List<ScheduledEvent> scheduledEvents) {
             this.scheduledEvents = scheduledEvents;
@@ -133,7 +128,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override

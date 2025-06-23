@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -53,7 +54,11 @@ public class InternalSettingsPreparer {
         loadOverrides(output, properties);
         output.put(input);
         replaceForcedSettings(output);
-        output.replacePropertyPlaceholders();
+        try {
+            output.replacePropertyPlaceholders();
+        } catch (Exception e) {
+            throw new SettingsException("Failed to replace property placeholders from [" + configFile.getFileName() + "]", e);
+        }
         ensureSpecialSettingsExist(output, defaultNodeName);
 
         return new Environment(output.build(), configDir);
@@ -162,7 +167,7 @@ public class InternalSettingsPreparer {
     private static void ensureSpecialSettingsExist(Settings.Builder output, Supplier<String> defaultNodeName) {
         // put the cluster and node name if they aren't set
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
-            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.DEFAULT.value());
         }
         if (output.get(Node.NODE_NAME_SETTING.getKey()) == null) {
             output.put(Node.NODE_NAME_SETTING.getKey(), defaultNodeName.get());

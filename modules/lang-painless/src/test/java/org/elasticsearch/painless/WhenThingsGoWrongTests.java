@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -20,6 +21,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
@@ -37,10 +39,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
         npe = expectScriptThrows(NullPointerException.class, () -> { exec("def x = [1, null]; for (y in x) y.intValue(); return null;"); });
         assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
-        npe = expectScriptThrows(
-            NullPointerException.class,
-            () -> { exec("def x = [1, 2L, 3.0, 'test', (byte)1, (short)1, (char)1, null]; for (y in x) y.toString(); return null;"); }
-        );
+        npe = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = [1, 2L, 3.0, 'test', (byte)1, (short)1, (char)1, null]; for (y in x) y.toString(); return null;");
+        });
         assertEquals(npe.getMessage(), "cannot access method/field [toString] from a null def reference");
     }
 
@@ -51,10 +52,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testScriptStack() {
         for (String type : new String[] { "String", "def   " }) {
             // trigger NPE at line 1 of the script
-            ScriptException exception = expectThrows(
-                ScriptException.class,
-                () -> { exec(type + " x = null; boolean y = x.isEmpty();\n" + "return y;"); }
-            );
+            ScriptException exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null; boolean y = x.isEmpty();\n" + "return y;");
+            });
             // null deref at x.isEmpty(), the '.' is offset 30
             assertScriptElementColumn(30, exception);
             assertScriptStack(exception, "y = x.isEmpty();\n", "     ^---- HERE");
@@ -78,12 +78,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             assertThat(exception.getCause(), instanceOf(NullPointerException.class));
 
             // trigger NPE at line 4 in script (inside conditional)
-            exception = expectThrows(
-                ScriptException.class,
-                () -> {
-                    exec(type + " x = null;\n" + "boolean y = false;\n" + "if (!y) {\n" + "  y = x.isEmpty();\n" + "}\n" + "return y;");
-                }
-            );
+            exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null;\n" + "boolean y = false;\n" + "if (!y) {\n" + "  y = x.isEmpty();\n" + "}\n" + "return y;");
+            });
             // null deref at x.isEmpty(), the '.' is offset 53
             assertScriptElementColumn(53, exception);
             assertScriptStack(exception, "y = x.isEmpty();\n}\n", "     ^---- HERE");
@@ -115,42 +112,41 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testBogusParameter() {
-        IllegalArgumentException expected = expectThrows(
-            IllegalArgumentException.class,
-            () -> { exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true); }
-        );
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true);
+        });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
 
     public void testInfiniteLoops() {
-        PainlessError expected = expectScriptThrows(PainlessError.class, () -> { exec("boolean x = true; while (x) {}"); });
+        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("boolean x = true; while (x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> { exec("while (true) {int y = 5;}"); });
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("while (true) {int y = 5;}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> { exec("while (true) { boolean x = true; while (x) {} }"); });
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("while (true) { boolean x = true; while (x) {} }"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("while (true) { boolean x = false; while (x) {} }");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("boolean x = true; for (;x;) {}");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("for (;;) {int x = 5;}");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("def x = true; do {int y = 5;} while (x)");
             fail("should have hit PainlessError");
         });
@@ -167,15 +163,14 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         // right below limit: ok
         exec("for (int x = 0; x < 999999; ++x) {}");
 
-        PainlessError expected = expectScriptThrows(PainlessError.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
+        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testIllegalDynamicMethod() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def x = 'test'; return x.getClass().toString()"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def x = 'test'; return x.getClass().toString()");
+        });
         assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, getClass/0] not found"));
     }
 
@@ -212,19 +207,20 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testSecurityException() {
-        expectThrows(
-            SecurityException.class,
-            () -> { exec("params.v.get();", Map.of("v", (Supplier<String>) () -> { throw new SecurityException(); }), true); }
-        );
+        expectThrows(SecurityException.class, () -> {
+            exec("params.v.get();", Map.of("v", (Supplier<String>) () -> { throw new SecurityException(); }), true);
+        });
     }
 
     public void testOutOfMemoryError() {
         assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
-        expectScriptThrows(OutOfMemoryError.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        assertThat(e.realCause.getClass(), equalTo(OutOfMemoryError.class));
     }
 
     public void testStackOverflowError() {
-        expectScriptThrows(StackOverflowError.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        assertThat(e.realCause.getClass(), equalTo(StackOverflowError.class));
     }
 
     public void testCanNotOverrideRegexEnabled() {

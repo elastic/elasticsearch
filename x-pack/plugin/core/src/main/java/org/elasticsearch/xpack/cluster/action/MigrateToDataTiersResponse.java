@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,20 +57,13 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
     }
 
     public MigrateToDataTiersResponse(StreamInput in) throws IOException {
-        super(in);
         removedIndexTemplateName = in.readOptionalString();
-        migratedPolicies = in.readStringList();
-        migratedIndices = in.readStringList();
+        migratedPolicies = in.readStringCollectionAsList();
+        migratedIndices = in.readStringCollectionAsList();
         dryRun = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-            migratedLegacyTemplates = in.readStringList();
-            migratedComposableTemplates = in.readStringList();
-            migratedComponentTemplates = in.readStringList();
-        } else {
-            migratedLegacyTemplates = List.of();
-            migratedComposableTemplates = List.of();
-            migratedComponentTemplates = List.of();
-        }
+        migratedLegacyTemplates = in.readStringCollectionAsList();
+        migratedComposableTemplates = in.readStringCollectionAsList();
+        migratedComponentTemplates = in.readStringCollectionAsList();
     }
 
     @Override
@@ -154,11 +146,9 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
         out.writeStringCollection(migratedPolicies);
         out.writeStringCollection(migratedIndices);
         out.writeBoolean(dryRun);
-        if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
-            out.writeStringCollection(migratedLegacyTemplates);
-            out.writeStringCollection(migratedComposableTemplates);
-            out.writeStringCollection(migratedComponentTemplates);
-        }
+        out.writeStringCollection(migratedLegacyTemplates);
+        out.writeStringCollection(migratedComposableTemplates);
+        out.writeStringCollection(migratedComponentTemplates);
     }
 
     @Override

@@ -81,20 +81,13 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
             int firstYearOfDecade = year - (year % 10);
             return new IntervalYearMonth(Period.ZERO.plusYears(firstYearOfDecade), iym.dataType());
         }, "decades"),
-        YEAR(
-            dt -> {
-                return dt.with(ChronoField.MONTH_OF_YEAR, 1).with(ChronoField.DAY_OF_MONTH, 1).toLocalDate().atStartOfDay(dt.getZone());
-            },
-            idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> {
-                Period period = iym.interval();
-                int year = period.getYears();
-                return new IntervalYearMonth(Period.ZERO.plusYears(year), iym.dataType());
-            },
-            "years",
-            "yy",
-            "yyyy"
-        ),
+        YEAR(dt -> {
+            return dt.with(ChronoField.MONTH_OF_YEAR, 1).with(ChronoField.DAY_OF_MONTH, 1).toLocalDate().atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()), iym -> {
+            Period period = iym.interval();
+            int year = period.getYears();
+            return new IntervalYearMonth(Period.ZERO.plusYears(year), iym.dataType());
+        }, "years", "yy", "yyyy"),
         QUARTER(dt -> {
             int month = dt.getMonthValue();
             int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
@@ -117,14 +110,9 @@ public class DateTrunc extends BinaryDateTimeDatePartFunction {
             "mm",
             "m"
         ),
-        WEEK(
-            dt -> { return dt.with(ChronoField.DAY_OF_WEEK, 1).toLocalDate().atStartOfDay(dt.getZone()); },
-            idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()),
-            iym -> iym,
-            "weeks",
-            "wk",
-            "ww"
-        ),
+        WEEK(dt -> {
+            return dt.with(ChronoField.DAY_OF_WEEK, 1).toLocalDate().atStartOfDay(dt.getZone());
+        }, idt -> new IntervalDayTime(Duration.ZERO, idt.dataType()), iym -> iym, "weeks", "wk", "ww"),
         DAY(
             dt -> dt.toLocalDate().atStartOfDay(dt.getZone()),
             idt -> truncateIntervalSmallerThanWeek(idt, ChronoUnit.DAYS),

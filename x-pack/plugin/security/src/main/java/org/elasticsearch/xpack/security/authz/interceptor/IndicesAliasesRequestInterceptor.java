@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -38,30 +39,32 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
+    private final boolean dlsFlsEnabled;
 
     public IndicesAliasesRequestInterceptor(
         ThreadContext threadContext,
         XPackLicenseState licenseState,
-        AuditTrailService auditTrailService
+        AuditTrailService auditTrailService,
+        boolean dlsFlsEnabled
     ) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
         this.auditTrailService = auditTrailService;
+        this.dlsFlsEnabled = dlsFlsEnabled;
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
-        if (requestInfo.getRequest()instanceof IndicesAliasesRequest request) {
+        if (requestInfo.getRequest() instanceof IndicesAliasesRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            if (isDlsLicensed || isFlsLicensed) {
+            if (dlsFlsEnabled && (isDlsLicensed || isFlsLicensed)) {
                 for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
                     if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
                         for (String index : aliasAction.indices()) {
@@ -69,14 +72,13 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             if (indexAccessControl != null
                                 && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                                     || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
-                                listener.onFailure(
+                                return SubscribableListener.newFailed(
                                     new ElasticsearchSecurityException(
                                         "Alias requests are not allowed for "
                                             + "users who have field or document level security enabled on one of the indices",
                                         RestStatus.BAD_REQUEST
                                     )
                                 );
-                                return;
                             }
                         }
                     }
@@ -96,6 +98,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     list.addAll(toMerge);
                     return list;
                 }));
+            final SubscribableListener<Void> listener = new SubscribableListener<>();
             authorizationEngine.validateIndexPermissionsAreSubset(
                 requestInfo,
                 authorizationInfo,
@@ -120,8 +123,9 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     }
                 }, listener::onFailure), threadContext)
             );
+            return listener;
         } else {
-            listener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 }

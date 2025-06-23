@@ -1,21 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
@@ -30,7 +35,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     public void testAddMetrics() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
         request.indices(randomFrom(CommonStatsFlags.ALL));
-        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(String[]::new);
+        List<Metric> metrics = randomSubsetOf(Metric.ALL);
         request.addMetrics(metrics);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
@@ -41,7 +46,7 @@ public class NodesStatsRequestTests extends ESTestCase {
      */
     public void testAddSingleMetric() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest();
-        request.addMetric(randomFrom(NodesStatsRequest.Metric.allMetrics()));
+        request.addMetric(randomFrom(Metric.ALL));
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
     }
@@ -52,7 +57,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     public void testRemoveSingleMetric() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest();
         request.all();
-        String metric = randomFrom(NodesStatsRequest.Metric.allMetrics());
+        Metric metric = randomFrom(Metric.ALL);
         request.removeMetric(metric);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
@@ -79,7 +84,7 @@ public class NodesStatsRequestTests extends ESTestCase {
         request.all();
 
         assertThat(request.indices().getFlags(), equalTo(CommonStatsFlags.ALL.getFlags()));
-        assertThat(request.requestedMetrics(), equalTo(NodesStatsRequest.Metric.allMetrics()));
+        assertThat(request.requestedMetrics(), equalTo(Metric.ALL));
     }
 
     /**
@@ -94,41 +99,15 @@ public class NodesStatsRequestTests extends ESTestCase {
     }
 
     /**
-     * Test that (for now) we can only add metrics from a set of known metrics.
-     */
-    public void testUnknownMetricsRejected() {
-        String unknownMetric1 = "unknown_metric1";
-        String unknownMetric2 = "unknown_metric2";
-        Set<String> unknownMetrics = new HashSet<>();
-        unknownMetrics.add(unknownMetric1);
-        unknownMetrics.addAll(randomSubsetOf(NodesStatsRequest.Metric.allMetrics()));
-
-        NodesStatsRequest request = new NodesStatsRequest();
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.addMetric(unknownMetric1));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
-
-        exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
-        assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
-
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
-        assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
-
-        unknownMetrics.add(unknownMetric2);
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
-        assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
-    }
-
-    /**
      * Serialize and deserialize a request.
      * @param request A request to serialize.
      * @return The deserialized, "round-tripped" request.
      */
     private static NodesStatsRequest roundTripRequest(NodesStatsRequest request) throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
+            request.getNodesStatsRequestParameters().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                return new NodesStatsRequest(in);
+                return new NodesStatsRequest(new NodesStatsRequestParameters(in), request.nodesIds());
             }
         }
     }
@@ -136,5 +115,29 @@ public class NodesStatsRequestTests extends ESTestCase {
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
         assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
+    }
+
+    public void testGetDescription() {
+        final var request = new NodesStatsRequest("nodeid1", "nodeid2");
+        request.clear();
+        request.addMetrics(Metric.OS, Metric.TRANSPORT);
+        request.indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store, CommonStatsFlags.Flag.Flush));
+        final var description = request.getDescription();
+
+        assertThat(
+            description,
+            allOf(
+                containsString("nodeid1"),
+                containsString("nodeid2"),
+                containsString(Metric.OS.metricName()),
+                containsString(Metric.TRANSPORT.metricName()),
+                not(containsString(Metric.SCRIPT.metricName())),
+                containsString(CommonStatsFlags.Flag.Store.toString()),
+                containsString(CommonStatsFlags.Flag.Flush.toString()),
+                not(containsString(CommonStatsFlags.Flag.FieldData.toString()))
+            )
+        );
+
+        assertEquals(description, request.createTask(1, "", "", TaskId.EMPTY_TASK_ID, Map.of()).getDescription());
     }
 }

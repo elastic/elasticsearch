@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -11,26 +12,15 @@ package org.elasticsearch.health;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,14 +28,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
@@ -94,24 +81,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
-            healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
-            healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));
-            healthIndicatorServices.add(new ClusterCoordinationHealthIndicatorService(clusterService));
+        public Collection<?> createComponents(PluginServices services) {
+            healthIndicatorServices.add(new IlmHealthIndicatorService(services.clusterService()));
+            healthIndicatorServices.add(new SlmHealthIndicatorService(services.clusterService()));
+            healthIndicatorServices.add(new ClusterCoordinationHealthIndicatorService(services.clusterService()));
             return new ArrayList<>(healthIndicatorServices);
         }
 
@@ -198,16 +171,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
             testIndicator(client, ilmIndicatorStatus, true);
 
             // Next, test that if we ask for a nonexistent indicator, we get an exception
-            {
-                ExecutionException exception = expectThrows(
-                    ExecutionException.class,
-                    () -> client.execute(
-                        GetHealthAction.INSTANCE,
-                        new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000)
-                    ).get()
-                );
-                assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
-            }
+            expectThrows(
+                ResourceNotFoundException.class,
+                client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000))
+            );
 
             // Check health api stats
             {

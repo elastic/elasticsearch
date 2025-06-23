@@ -7,113 +7,81 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.hamcrest.Matchers.containsString;
 
-public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<QueryApiKeyResponse> {
+public class QueryApiKeyResponseTests extends ESTestCase {
 
-    @Override
-    protected Writeable.Reader<QueryApiKeyResponse> instanceReader() {
-        return QueryApiKeyResponse::new;
-    }
-
-    @Override
-    protected QueryApiKeyResponse createTestInstance() {
-        final List<QueryApiKeyResponse.Item> items = randomList(0, 3, this::randomItem);
-        return new QueryApiKeyResponse(randomIntBetween(items.size(), 100), items);
-    }
-
-    @Override
-    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
-        final List<QueryApiKeyResponse.Item> items = Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                items.add(randomItem());
-                return new QueryApiKeyResponse(instance.getTotal(), items);
-            case 1:
-                if (false == items.isEmpty()) {
-                    return new QueryApiKeyResponse(instance.getTotal(), items.subList(1, items.size()));
-                } else {
-                    items.add(randomItem());
-                    return new QueryApiKeyResponse(instance.getTotal(), items);
-                }
-            case 2:
-                if (false == items.isEmpty()) {
-                    final int index = randomIntBetween(0, items.size() - 1);
-                    items.set(index, randomItem());
-                } else {
-                    items.add(randomItem());
-                }
-                return new QueryApiKeyResponse(instance.getTotal(), items);
-            default:
-                return new QueryApiKeyResponse(instance.getTotal() + 1, items);
+    public void testMismatchApiKeyInfoAndProfileData() {
+        List<ApiKey> apiKeys = randomList(
+            0,
+            3,
+            () -> new ApiKey(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomFrom(ApiKey.Type.values()),
+                Instant.now(),
+                Instant.now(),
+                randomBoolean(),
+                null,
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        List<Object[]> sortValues = new ArrayList<>(apiKeys.size());
+        for (int i = 0; i < apiKeys.size(); i++) {
+            sortValues.add(new String[] { "dummy sort value" });
+        }
+        List<String> profileUids = randomList(0, 5, () -> randomFrom(randomAlphaOfLength(4), null));
+        if (apiKeys.size() != profileUids.size()) {
+            IllegalStateException iae = expectThrows(
+                IllegalStateException.class,
+                () -> new QueryApiKeyResponse(100, apiKeys, sortValues, profileUids, null)
+            );
+            assertThat(iae.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
         }
     }
 
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            List.of(
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
-                ),
-                new NamedWriteableRegistry.Entry(
-                    ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
-                )
+    public void testMismatchApiKeyInfoAndSortValues() {
+        List<ApiKey> apiKeys = randomList(
+            0,
+            3,
+            () -> new ApiKey(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomFrom(ApiKey.Type.values()),
+                Instant.now(),
+                Instant.now(),
+                randomBoolean(),
+                null,
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                null,
+                null,
+                null,
+                null
             )
         );
-    }
-
-    private QueryApiKeyResponse.Item randomItem() {
-        return new QueryApiKeyResponse.Item(randomApiKeyInfo(), randomSortValues());
-    }
-
-    private ApiKey randomApiKeyInfo() {
-        final String name = randomAlphaOfLengthBetween(3, 8);
-        final String id = randomAlphaOfLength(22);
-        final String username = randomAlphaOfLengthBetween(3, 8);
-        final String realm_name = randomAlphaOfLengthBetween(3, 8);
-        final Instant creation = Instant.ofEpochMilli(randomMillisUpToYear9999());
-        final Instant expiration = randomBoolean() ? Instant.ofEpochMilli(randomMillisUpToYear9999()) : null;
-        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null);
-        return new ApiKey(
-            name,
-            id,
-            creation,
-            expiration,
-            false,
-            username,
-            realm_name,
-            metadata,
-            roleDescriptors,
-            randomUniquelyNamedRoleDescriptors(1, 3)
-        );
-    }
-
-    private Object[] randomSortValues() {
-        if (randomBoolean()) {
-            return null;
-        } else {
-            return randomArray(1, 3, Object[]::new, () -> randomFrom(42, 42L, "key-1", "2021-01-01T00:00:00.177Z", randomBoolean()));
+        List<String> profileUids = new ArrayList<>(apiKeys.size());
+        for (int i = 0; i < apiKeys.size(); i++) {
+            profileUids.add(randomFrom(randomAlphaOfLength(8), null));
+        }
+        List<Object[]> sortValues = randomList(0, 6, () -> new String[] { "dummy sort value" });
+        if (apiKeys.size() != sortValues.size()) {
+            IllegalStateException iae = expectThrows(
+                IllegalStateException.class,
+                () -> new QueryApiKeyResponse(100, apiKeys, sortValues, profileUids, null)
+            );
+            assertThat(iae.getMessage(), containsString("Each api key info must be associated to a (nullable) sort value"));
         }
     }
 }

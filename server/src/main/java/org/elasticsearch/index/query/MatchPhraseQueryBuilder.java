@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -127,6 +129,11 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this;
     }
 
+    public MatchPhraseQueryBuilder zeroTermsQuery(String zeroTermsQueryString) {
+        ZeroTermsQueryOption zeroTermsQueryOption = ZeroTermsQueryOption.readFromString(zeroTermsQueryString);
+        return zeroTermsQuery(zeroTermsQueryOption);
+    }
+
     public ZeroTermsQueryOption zeroTermsQuery() {
         return this.zeroTermsQuery;
     }
@@ -157,24 +164,21 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
-        if (sec == null) {
-            return this;
-        }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-            return termQueryBuilder.rewrite(sec);
+            return termQueryBuilder.rewrite(context);
+        } else {
+            return this;
         }
-        return this;
     }
 
-    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
@@ -288,7 +292,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

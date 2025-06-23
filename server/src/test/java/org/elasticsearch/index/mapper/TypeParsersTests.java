@@ -1,28 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -64,54 +71,47 @@ public class TypeParsersTests extends ESTestCase {
 
         Mapper.TypeParser typeParser = KeywordFieldMapper.PARSER;
 
-        // For indices created prior to 8.0, we should only emit a warning and not fail parsing.
-        Map<String, Object> fieldNode = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
-
         MapperService mapperService = mock(MapperService.class);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(defaultAnalyzers());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        MappingParserContext olderContext = new MappingParserContext(
-            null,
-            type -> typeParser,
-            type -> null,
-            olderVersion,
-            null,
-            ScriptCompiler.NONE,
-            mapperService.getIndexAnalyzers(),
-            mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA
-        );
 
-        TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
-        assertWarnings(
-            "At least one multi-field, [sub-field], "
-                + "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated "
-                + "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] "
-                + "that occur within a [fields] block should be removed from the mappings, either by flattening the chained "
-                + "[fields] blocks into a single level, or switching to [copy_to] if appropriate."
-        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
 
         // For indices created in 8.0 or later, we should throw an error.
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_8_0_0,
+            TransportVersion.current()
+        );
         MappingParserContext context = new MappingParserContext(
             null,
             type -> typeParser,
             type -> null,
             version,
+            () -> transportVersion,
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA
+            ProvidedIdFieldMapper.NO_FIELD_DATA,
+            query -> {
+                throw new UnsupportedOperationException();
+            }
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);
+        });
         assertThat(
             e.getMessage(),
             equalTo(

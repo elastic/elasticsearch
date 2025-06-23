@@ -1,30 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest
 
 import spock.lang.IgnoreIf
+import spock.lang.IgnoreRest
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 @IgnoreIf({ os.isWindows() })
 class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
+    def setup() {
+        configurationCacheCompatible = true
+        buildApiRestrictionsDisabled = true
+    }
+
+
     def "yamlRestTest does nothing when there are no tests"() {
         given:
-        // RestIntegTestTask not cc compatible due to
-        configurationCacheCompatible = false
+        internalBuild()
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-test'
-        }
+            apply plugin: 'elasticsearch.legacy-yaml-rest-test'
         """
 
         when:
@@ -38,8 +44,6 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest executes and copies api and tests to correct source set"() {
         given:
-        // RestIntegTestTask not cc compatible due to
-        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.legacy-yaml-rest-test'
@@ -51,9 +55,10 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
 
+           def clazzpath = sourceSets.yamlRestTest.runtimeClasspath
            tasks.register("printYamlRestTestClasspath").configure {
                doLast {
-                   println sourceSets.yamlRestTest.runtimeClasspath.asPath
+                   println clazzpath.asPath
                }
            }
         """
@@ -132,7 +137,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTest", "--console", 'plain', '--stacktrace').buildAndFail()
+        def result = gradleRunner("yamlRestTest", "--console", 'plain').buildAndFail()
 
         then:
         result.task(":distribution:archives:integ-test-zip:buildExpanded").outcome == TaskOutcome.SUCCESS
@@ -174,9 +179,9 @@ echo "Running elasticsearch \$0"
 
         file(distProjectFolder, 'src/config/elasticsearch.properties') << "some propes"
         file(distProjectFolder, 'src/config/jvm.options') << """
--Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
--XX:ErrorFile=logs/hs_err_pid%p.log
--XX:HeapDumpPath=data
+-Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
+-XX:ErrorFile=hs_err_pid%p.log
+# -XX:HeapDumpPath=/heap/dump/path
 """
         file(distProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;
@@ -202,5 +207,9 @@ echo "Running elasticsearch \$0"
                 it.add("extracted", buildExpanded)
             }
         """
+    }
+
+    GradleRunner gradleRunner(Object... arguments) {
+        return super.gradleRunner(arguments).withEnvironment([RUNTIME_JAVA_HOME: System.getProperty("java.home")])
     }
 }

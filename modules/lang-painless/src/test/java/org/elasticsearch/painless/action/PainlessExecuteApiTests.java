@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -35,6 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
@@ -65,6 +68,18 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
             innerShardOperation(r, scriptService, null);
         });
         assertThat(e.getCause().getMessage(), equalTo("cannot resolve symbol [doc]"));
+    }
+
+    public void testNestedDocs() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "nested", "type=nested");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "nested": [{"text": "foo"}, {"text": "bar"}]}"""), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless", "doc['rank'].value", Map.of()), "score", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(4.0D));
     }
 
     public void testFilterExecutionContext() throws IOException {
@@ -258,6 +273,51 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals("Point", points.get(1).get("type"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGeometryFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
+            "index",
+            new BytesArray("{\"test_point\":\"30.0,40.0\"}"),
+            new MatchAllQueryBuilder()
+        );
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"Point(\" + doc['test_point'].value.lon + \" \" + doc['test_point'].value.lat + \")\")",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        Response response = innerShardOperation(request, scriptService, indexService);
+        List<Map<String, Object>> geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals(40.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(0), 0.00001);
+        assertEquals(30.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", geometry.get(0).get("type"));
+
+        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"LINESTRING(78.96 12.12, 12.12 78.96)\"); emit(\"POINT(13.45 56.78)\");",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals("GeometryCollection", geometry.get(0).get("type"));
+        assertEquals(2, ((List<?>) geometry.get(0).get("geometries")).size());
+    }
+
     public void testIpFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_ip", "type=ip");
@@ -396,4 +456,116 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals(2, Integer.parseInt((String) response.getResult()));
     }
 
+    /**
+     * When an index expression with a remote cluster name is passed into Request.ContextSetup, it
+     * is parsed into separate fields - clusterAlias and index.
+     * The other tests in this suite test without a clusterAlias prefix.
+     * This test ensures that innerShardOperation works the same with one present, since the clusterAlias
+     * field is only needed by the initial coordinator of the action to determine where to run the
+     * action (which is not part of the tests in this suite).
+     */
+    public void testFilterExecutionContextWorksWithRemoteClusterPrefix() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        String indexName = "index";
+        IndexService indexService = createIndex(indexName, Settings.EMPTY, "doc", "field", "type=long");
+
+        String indexNameWithClusterAlias = "remote1:" + indexName;
+        Request.ContextSetup contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 3}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script("doc['field'].value >= 3"), "filter", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(true));
+
+        contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 3}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(true));
+
+        contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 2}"), null);
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max", singletonMap("max", 3)),
+            "filter",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(false));
+    }
+
+    public void testParseClusterAliasAndIndex() {
+        record ValidTestCase(String input, Tuple<String, String> output) {}
+
+        ValidTestCase[] cases = new ValidTestCase[] {
+            // valid index expressions
+            new ValidTestCase("remote1:foo", new Tuple<>("remote1", "foo")),
+            new ValidTestCase("foo", new Tuple<>(null, "foo")),
+            new ValidTestCase("foo,bar", new Tuple<>(null, "foo,bar")), // this method only checks for invalid ":"
+            new ValidTestCase("", new Tuple<>(null, "")),
+            new ValidTestCase(null, new Tuple<>(null, null)) };
+
+        for (ValidTestCase testCase : cases) {
+            Tuple<String, String> output = Request.ContextSetup.parseClusterAliasAndIndex(testCase.input);
+            assertEquals(testCase.output(), output);
+        }
+
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1::foo"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" :remote1:foo"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo: "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1::::"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("::"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":x:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" : : "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":blogs:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(":blogs"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex(" :blogs"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:  "));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo,remote2:bar"));
+        expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("a:b,c:d,e:f"));
+    }
+
+    public void testRemoveClusterAliasFromIndexExpression() {
+        {
+            // index expressions with no clusterAlias should come back unchanged
+            PainlessExecuteAction.Request request = createRequest("blogs");
+            assertThat(request.index(), equalTo("blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with no index specified should come back unchanged
+            PainlessExecuteAction.Request request = createRequest(null);
+            assertThat(request.index(), nullValue());
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), nullValue());
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:blogs");
+            assertThat(request.index(), equalTo("remote1:blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:remote1");
+            assertThat(request.index(), equalTo("remote1:remote1"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("remote1"));
+        }
+    }
+
+    private PainlessExecuteAction.Request createRequest(String indexExpression) {
+        return new PainlessExecuteAction.Request(
+            new Script("100.0 / 1000.0"),
+            null,
+            new PainlessExecuteAction.Request.ContextSetup(indexExpression, null, null)
+        );
+    }
 }

@@ -1,5 +1,0 @@
-pr: 92455
-summary: Correctly handle an exception case for ingest failure
-area: Ingest Node
-type: bug
-issues: []

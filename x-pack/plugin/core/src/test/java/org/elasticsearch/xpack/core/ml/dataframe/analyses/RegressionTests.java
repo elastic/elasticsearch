@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,7 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
@@ -61,6 +62,11 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     @Override
     protected Regression createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Regression mutateInstance(Regression instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -111,7 +117,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         );
     }
 
-    public static Regression mutateForVersion(Regression instance, Version version) {
+    public static Regression mutateForVersion(Regression instance, TransportVersion version) {
         return new Regression(
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
@@ -126,7 +132,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     @Override
-    protected Regression mutateInstanceForVersion(Regression instance, Version version) {
+    protected Regression mutateInstanceForVersion(Regression instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 
@@ -400,7 +406,10 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            regression.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("version", Version.CURRENT.toString())));
+            regression.toXContent(
+                builder,
+                new ToXContent.MapParams(Collections.singletonMap("version", MlConfigVersion.CURRENT.toString()))
+            );
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }

@@ -1,0 +1,505 @@
+// Conversion-specific tests
+
+convertToBoolean
+required_capability: casting_operator
+ROW zero=0::boolean, one=1::bool
+;
+
+ zero:boolean  | one:boolean
+false          |true
+;
+
+convertToInteger
+required_capability: casting_operator
+ROW zero="0"::integer, one="1"::int
+;
+
+ zero:integer  | one:integer
+0              |1
+;
+
+convertToIP
+required_capability: casting_operator
+ROW ip="1.1.1.1"::ip
+;
+
+ ip:ip       
+1.1.1.1        
+;
+
+convertToLong
+required_capability: casting_operator
+ROW long="-1"::long
+;
+
+long:long
+-1
+;
+
+convertToLongWithWarning
+required_capability: casting_operator
+ROW long="1.1.1.1"::long
+;
+warningRegex:Line 1:10: evaluation of \[\\\"1.1.1.1\\\"::long\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:10: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[1.1.1.1\]
+
+long:long
+null
+;
+
+convertToDouble
+required_capability: casting_operator
+ROW zero="0"::double
+;
+
+ zero:double
+0.0
+;
+
+convertToString
+required_capability: casting_operator
+ROW one=1::keyword, two=2::double, three=3::string
+;
+
+one:keyword | two:double | three:keyword
+1           | 2.0        | 3
+;
+
+convertToDatetime
+required_capability: casting_operator
+ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
+;
+
+ date:datetime          | zero:datetime
+1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
+;
+
+convertToDate
+required_capability: casting_operator_for_date
+ROW date="1985-01-01T00:00:00Z"::date, zero=0::date
+;
+
+ date:datetime          | zero:datetime
+1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
+;
+
+convertToVersion
+required_capability: casting_operator
+ROW ver="1.2.3"::version
+;
+
+ ver:version
+1.2.3
+;
+
+convertToUnsignedLong
+required_capability: casting_operator
+ROW zero="0"::unsigned_long, two=abs(-2)::UnsigneD_LOng
+;
+
+ zero:unsigned_long | two:unsigned_long
+0                   |2
+;
+
+convertToGeoPoint
+required_capability: casting_operator
+ROW gp="POINT(0 0)"::geo_point
+;
+
+ gp:geo_point
+POINT (0.0 0.0)
+;
+
+convertToGeoShape
+required_capability: casting_operator
+ROW gs="POINT(0 0)"::geo_shape
+;
+
+ gs:geo_shape
+POINT (0.0 0.0)
+;
+
+convertToCartesianPoint
+required_capability: casting_operator
+ROW cp="POINT(0 0)"::cartesian_point
+;
+
+ cp:cartesian_point
+POINT (0.0 0.0)
+;
+
+convertToCartesianShape
+required_capability: casting_operator
+ROW cs="POINT(0 0)"::cartesian_shape
+;
+
+ cs:cartesian_shape
+POINT (0.0 0.0)
+;
+
+convertChained
+required_capability: casting_operator
+ROW one=1::STRING::LONG::BOOL
+;
+
+one:boolean
+true
+;
+
+convertWithIndexMultipleConversionsInSameExpressionAndConversionInFiltering
+required_capability: casting_operator
+ FROM employees
+| EVAL en_str=emp_no::STRING, bd=ABS(birth_date::LONG)::STRING
+| KEEP en_str, emp_no, bd, birth_date
+| WHERE ABS(birth_date::LONG) < 176169600000
+| SORT emp_no
+;
+
+ en_str:keyword| emp_no:integer| bd:keyword    | birth_date:datetime       
+10092          |10092          |164246400000   |1964-10-18T00:00:00.000Z
+10093          |10093          |175392000000   |1964-06-11T00:00:00.000Z
+10095          |10095          |157593600000   |1965-01-03T00:00:00.000Z
+;
+
+convertWithBoolExpressionAndQualifiedName
+required_capability: casting_operator
+ FROM employees
+| EVAL neg = (NOT still_hired)::string, sf = ROUND(height.scaled_float::double, 2)
+| KEEP emp_no, still_hired, neg, sf
+| SORT emp_no
+| WHERE neg == "false"
+| LIMIT 3
+;
+
+ emp_no:integer| still_hired:boolean | neg:keyword   | sf:double
+10001          |true                 |false          |2.03
+10002          |true                 |false          |2.08
+10004          |true                 |false          |1.78
+;
+
+docsCastOperator
+required_capability: casting_operator
+//tag::docsCastOperator[]
+ROW ver = CONCAT(("0"::INT + 1)::STRING, ".2.3")::VERSION
+//end::docsCastOperator[]
+;
+
+//tag::docsCastOperator-result[]
+ver:version
+1.2.3
+//end::docsCastOperator-result[]
+;
+
+mixedNumericTypesInLiterals
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages.long in (1, 2.0, null)
+| keep emp_no, languages
+| sort emp_no
+| limit 10
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+10005          | 1
+10008          | 2
+10009          | 1
+10013          | 1
+10016          | 2
+10017          | 2
+10018          | 2
+10019          | 1
+10033          | 1
+;
+
+mixedNumericTypesInFields
+required_capability: mixed_numeric_types_in_coalesce
+from employees
+| where languages in (7.0, height)
+| keep emp_no, languages, height
+| sort emp_no
+;
+
+emp_no:integer | languages:integer | height:double
+10037          | 2                 | 2.0
+;
+
+convertToDatePeriod
+required_capability: cast_string_literal_to_temporal_amount
+//tag::castToDatePeriod[]
+ROW x = "2024-01-01"::datetime
+| EVAL y = x + "3 DAYS"::date_period, z = x - TO_DATEPERIOD("3 days");
+//end::castToDatePeriod[]
+
+//tag::castToDatePeriod-result[]
+x:datetime |y:datetime |z:datetime
+2024-01-01 |2024-01-04 |2023-12-29
+//end::castToDatePeriod-result[]
+;
+
+convertToTimeDuration
+required_capability: cast_string_literal_to_temporal_amount
+//tag::castToTimeDuration[]
+ROW x = "2024-01-01"::datetime
+| EVAL y = x + "3 hours"::time_duration, z = x - TO_TIMEDURATION("3 hours");
+//end::castToTimeDuration[]
+
+//tag::castToTimeDuration-result[]
+x:datetime |y:datetime               |z:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z
+//end::castToTimeDuration-result[]
+;
+
+convertToDatePeriodTimeDuration
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime + "3 hours"::time_duration, y = "2024-01-01"::datetime - to_timeduration("3 hours"),
+z = "2024-01-01"::datetime + "3 DAYS"::date_period, w = "2024-01-01"::datetime - to_dateperiod("3 days"), u = "3 days",
+v = "3 hours"
+| eval a = "2024-01-01" + u::date_period, b = "2024-01-01" - v::time_duration
+| keep x, y, z, w, a, b;
+
+x:datetime               |y:datetime               |z:datetime               |w:datetime               |a:datetime               |b:datetime
+2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-29T00:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-31T21:00:00.000Z
+;
+
+convertToDatePeriodNested
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime
+| eval y = x + to_dateperiod("3 days"::date_period)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-04
+;
+
+convertToTimeDurationNested
+required_capability: cast_string_literal_to_temporal_amount
+row x = "2024-01-01"::datetime
+| eval y = x + to_timeduration("3 hours"::time_duration)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z
+;
+
+convertToDatePeriodFromIndex
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 days"::date_period, y = birth_date - to_dateperiod("3 days")
+| KEEP birth_date, x, y;
+
+birth_date:datetime  |x:datetime           |y:datetime
+1953-09-02T00:00:00Z |1953-09-05T00:00:00Z |1953-08-30T00:00:00Z
+;
+
+convertToTimeDurationFromIndex
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 hours"::time_duration, y = birth_date - to_timeduration("3 hours")
+| KEEP birth_date, x, y;
+
+birth_date:datetime  |x:datetime           |y:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z
+;
+
+convertToDatePeriodTimeDurationRef
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL interval_timeduration = "3 hours", x = birth_date + interval_timeduration::time_duration, y = birth_date - concat("3 ", "hours")::time_duration
+| EVAL interval_dateperiod = "3 months", z = birth_date + interval_dateperiod::date_period, w = birth_date - concat("3 ", "months")::date_period
+| EVAL a = "3", b = "hours", c = birth_date + concat(concat(a, " "), b)::time_duration
+| KEEP birth_date, x, y, z, w, c;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime           |c:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-12-02T00:00:00Z |1953-06-02T00:00:00Z |1953-09-02T03:00:00Z
+;
+
+convertToDatePeriodNull
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + null::date_period, y = birth_date - to_dateperiod(null), z = birth_date + to_string(null)::date_period
+| KEEP birth_date, x, y, z;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
+1953-09-02T00:00:00Z |null                 |null                 |null
+;
+
+convertToTimeDurationNull
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + null::time_duration, y = birth_date - to_timeduration(null), z = birth_date + to_string(null)::time_duration
+| KEEP birth_date, x, y, z;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime
+1953-09-02T00:00:00Z |null                 |null                 |null
+;
+
+convertToDatePeriodIntegerLiteral
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + 3 days::date_period, y = birth_date - to_dateperiod(3 days),
+z = birth_date + 3 months + 3 days::date_period, w = birth_date + (3 months + 3 days)::date_period
+| KEEP birth_date, x, y, z, w;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime
+1953-09-02T00:00:00Z |1953-09-05T00:00:00Z |1953-08-30T00:00:00Z |1953-12-05T00:00:00Z |1953-12-05T00:00:00Z
+;
+
+convertToTimeDurationIntegerLiteral
+required_capability: cast_string_literal_to_temporal_amount
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + 3 hours::time_duration, y = birth_date - to_timeduration(3 hours),
+z = birth_date + 3 hours + 3 minutes::time_duration, w = birth_date + (3 hours + 3 minutes)::time_duration
+| KEEP birth_date, x, y, z, w;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |w:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-09-02T03:03:00Z |1953-09-02T03:03:00Z
+;
+
+convertToDatePeriodWithDateCasting
+required_capability: cast_string_literal_to_temporal_amount
+required_capability: casting_operator_for_date
+row x = "2024-01-01"::date 
+| eval y = x + "3 DAYS"::date_period
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-04
+;
+
+convertToTimeDurationWithDateCasting
+required_capability: cast_string_literal_to_temporal_amount
+required_capability: casting_operator_for_date
+row x = "2024-01-01"::date 
+| eval y = x + "3 hours"::time_duration
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z
+;
+
+convertToDatePeriodTimeDurationWithDateCasting
+required_capability: cast_string_literal_to_temporal_amount
+required_capability: casting_operator_for_date
+row x = "2024-01-01"::date + "3 hours"::time_duration, y = "2024-01-01"::date - to_timeduration("3 hours"),
+z = "2024-01-01"::date + "3 DAYS"::date_period, w = "2024-01-01"::date - to_dateperiod("3 days")
+| keep x, y, z, w;
+
+x:datetime               |y:datetime               |z:datetime               |w:datetime
+2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-04T00:00:00.000Z |2023-12-29T00:00:00.000Z
+;
+
+convertToDatePeriodNestedWithDateCasting
+required_capability: cast_string_literal_to_temporal_amount
+required_capability: casting_operator_for_date
+row x = "2024-01-01"::date
+| eval y = x + to_dateperiod("3 days"::date_period)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-04
+;
+
+convertToTimeDurationNestedWithDateCasting
+required_capability: cast_string_literal_to_temporal_amount
+required_capability: casting_operator_for_date
+row x = "2024-01-01"::date
+| eval y = x + to_timeduration("3 hours"::time_duration)
+;
+
+x:datetime |y:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z
+;
+
+testEvalWithDateCasting
+required_capability: casting_operator_for_date
+row x = "1986-06-26T00:00:00.000Z"
+| eval y = x::date, z = y + 10 years 
+;
+
+x:keyword                   | y:datetime                | z:datetime
+1986-06-26T00:00:00.000Z    | 1986-06-26T00:00:00.000Z  | 1996-06-26T00:00:00.000Z
+;
+
+
+filteringWithDateCasting
+required_capability: casting_operator_for_date
+from employees
+| where birth_date < "2023-08-25T11:25:41.052Z"::date - 70 years
+| sort emp_no
+| keep emp_no, birth_date;
+
+emp_no:integer  | birth_date:datetime
+10006           | 1953-04-20T00:00:00.000Z
+10009           | 1952-04-19T00:00:00.000Z
+10019           | 1953-01-23T00:00:00.000Z
+10020           | 1952-12-24T00:00:00.000Z
+10022           | 1952-07-08T00:00:00.000Z
+10026           | 1953-04-03T00:00:00.000Z
+10035           | 1953-02-08T00:00:00.000Z
+10051           | 1953-07-28T00:00:00.000Z
+10063           | 1952-08-06T00:00:00.000Z
+10066           | 1952-11-13T00:00:00.000Z
+10067           | 1953-01-07T00:00:00.000Z
+10072           | 1952-05-15T00:00:00.000Z
+10076           | 1952-06-13T00:00:00.000Z
+10097           | 1952-02-27T00:00:00.000Z
+10100           | 1953-04-21T00:00:00.000Z
+;
+
+convertToAggregateMetricDouble
+required_capability: aggregate_metric_double_convert_to
+//tag::toAggregateMetricDouble[]
+ROW x = 3892095203
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+//end::toAggregateMetricDouble[]
+;
+
+//tag::toAggregateMetricDouble-result[]
+x:long     | agg_metric:aggregate_metric_double
+3892095203 | {"min":3892095203.0,"max":3892095203.0,"sum":3892095203.0,"value_count":1}
+//end::toAggregateMetricDouble-result[]
+;
+
+convertToAggregateMetricDoubleMv
+required_capability: aggregate_metric_double_convert_to
+//tag::toAggregateMetricDoubleMv[]
+ROW x = [5032, 11111, 40814]
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+//end::toAggregateMetricDoubleMv[]
+;
+
+//tag::toAggregateMetricDoubleMv-result[]
+x:integer            | agg_metric:aggregate_metric_double
+[5032, 11111, 40814] | {"min":5032.0,"max":40814.0,"sum":56957.0,"value_count":3}
+//end::toAggregateMetricDoubleMv-result[]
+;
+
+convertToAggregateMetricDoubleCastingOperatorFromDouble
+required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
+ROW x = 29384.1256
+| EVAL agg_metric = x::aggregate_metric_double
+;
+
+x:double   | agg_metric:aggregate_metric_double
+29384.1256 | {"min":29384.1256,"max":29384.1256,"sum":29384.1256,"value_count":1}
+;
+
+convertToAggregateMetricDoubleCastingOperatorFromInt
+required_capability: suggested_cast
+required_capability: aggregate_metric_double_convert_to
+ROW x = 55555
+| EVAL agg_metric = x::aggregate_metric_double
+;
+
+x:integer | agg_metric:aggregate_metric_double
+55555     | {"min":55555,"max":55555,"sum":55555,"value_count":1}
+;

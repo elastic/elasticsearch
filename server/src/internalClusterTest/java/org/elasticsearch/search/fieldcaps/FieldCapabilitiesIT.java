@@ -1,31 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fieldcaps;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +43,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,15 +50,18 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -66,6 +75,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -79,11 +89,13 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -118,6 +130,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .startObject("playlist")
             .field("type", "text")
+            .field("store", true)
             .endObject()
             .startObject("some_dimension")
             .field("type", "keyword")
@@ -174,7 +187,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("new_index", "current"));
     }
 
     @Override
@@ -183,13 +196,16 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     public void testFieldAlias() {
@@ -205,24 +221,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, distance.size());
 
         assertTrue(distance.containsKey("double"));
-        assertEquals(
-            new FieldCapabilities(
-                "distance",
-                "double",
-                false,
-                true,
-                true,
-                new String[] { "old_index" },
-                null,
-                null,
-                Collections.emptyMap()
-            ),
-            distance.get("double")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("distance", "double").indices("old_index").build(), distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false, true, false, new String[] { "new_index" }, null, null, Collections.emptyMap()),
+            new FieldCapabilitiesBuilder("distance", "text").isAggregatable(false).indices("new_index").build(),
             distance.get("text")
         );
 
@@ -231,10 +234,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, routeLength.size());
 
         assertTrue(routeLength.containsKey("double"));
-        assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
-            routeLength.get("double")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("route_length_miles", "double").build(), routeLength.get("double"));
     }
 
     public void testFieldAliasWithWildcard() {
@@ -270,24 +270,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(2, oldField.size());
 
         assertTrue(oldField.containsKey("long"));
-        assertEquals(
-            new FieldCapabilities("old_field", "long", false, true, true, new String[] { "old_index" }, null, null, Collections.emptyMap()),
-            oldField.get("long")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("old_field", "long").indices("old_index").build(), oldField.get("long"));
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities(
-                "old_field",
-                "unmapped",
-                false,
-                false,
-                false,
-                new String[] { "new_index" },
-                null,
-                null,
-                Collections.emptyMap()
-            ),
+            new FieldCapabilitiesBuilder("old_field", "unmapped").isSearchable(false).isAggregatable(false).indices("new_index").build(),
             oldField.get("unmapped")
         );
 
@@ -295,10 +282,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, newField.size());
 
         assertTrue(newField.containsKey("long"));
-        assertEquals(
-            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
-            newField.get("long")
-        );
+        assertEquals(new FieldCapabilitiesBuilder("new_field", "long").build(), newField.get("long"));
     }
 
     public void testWithIndexAlias() {
@@ -311,15 +295,74 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(response1, response2);
     }
 
+    public void testNoIndices() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testNoIndicesIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testOneClosedIndex() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testOneClosedIndexIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
+        assertIndices(response);
+    }
+
+    public void testTwoIndicesOneClosed() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index", "new_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testTwoIndicesOneClosedIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
+            .setFields("*")
+            .setIndicesOptions(options)
+            .get();
+        assertIndices(response, "new_index");
+    }
+
     public void testWithIndexFilter() throws InterruptedException {
-        assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
-        assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
+        assertAcked(
+            prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long")
+        );
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
-        reqs.add(client().prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
-        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
-        reqs.add(client().prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("index-2").setSource("timestamp", "2020-07-08"));
         indexRandom(true, reqs);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps("index-*").setFields("*").get();
@@ -358,7 +401,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(idField.containsKey("_id"));
             assertEquals(
-                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                new FieldCapabilitiesBuilder("_id", "_id").isMetadataField(true).isAggregatable(false).build(),
                 idField.get("_id")
             );
 
@@ -366,10 +409,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertEquals(1, testField.size());
 
             assertTrue(testField.containsKey("keyword"));
-            assertEquals(
-                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
-                testField.get("keyword")
-            );
+            assertEquals(new FieldCapabilitiesBuilder("_test", "keyword").isMetadataField(true).build(), testField.get("keyword"));
         }
     }
 
@@ -406,15 +446,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testFailures() throws InterruptedException {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
-        assertAcked(prepareCreate("index1-error"));
-        assertAcked(prepareCreate("index2-error"));
+        assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
         ensureGreen("index1-error", "index2-error");
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
-        assertEquals(2, response.getFailedIndices().length);
+        assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
         assertEquals(IllegalArgumentException.class, failure.getClass());
@@ -426,10 +465,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // if all requested indices failed, we fail the request by throwing the exception
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("index1-error", "index2-error")
-                .setFields("*")
-                .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-                .get()
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
     }
@@ -437,30 +473,22 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     private void populateTimeRangeIndices() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(
-            prepareCreate("log-index-1").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=keyword")
-        );
-        assertAcked(
-            prepareCreate("log-index-2").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            ).setMapping("timestamp", "type=date", "field1", "type=long")
+            prepareCreate("log-index-1").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=keyword"),
+            prepareCreate("log-index-2").setSettings(indexSettings(between(1, 5), 1))
+                .setMapping("timestamp", "type=date", "field1", "type=long")
         );
         List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2018-07-08"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-03-03"));
-        reqs.add(client().prepareIndex("log-index-1").setSource("timestamp", "2020-09-09"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2019-10-12"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-02-02"));
-        reqs.add(client().prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2015-07-08"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2018-07-08"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2020-03-03"));
+        reqs.add(prepareIndex("log-index-1").setSource("timestamp", "2020-09-09"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2019-10-12"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2020-02-02"));
+        reqs.add(prepareIndex("log-index-2").setSource("timestamp", "2020-10-10"));
         indexRandom(true, reqs);
         ensureGreen("log-index-1", "log-index-2");
-        client().admin().indices().prepareRefresh("log-index-1", "log-index-2").get();
+        indicesAdmin().prepareRefresh("log-index-1", "log-index-2").get();
     }
 
     public void testTargetNodeFails() throws Exception {
@@ -468,17 +496,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         try {
             final AtomicBoolean failedRequest = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (failedRequest.compareAndSet(false, true)) {
                             channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
                         } else {
                             handler.messageReceived(request, channel, task);
                         }
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -486,7 +511,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
             assertTrue(failedRequest.get());
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
@@ -494,8 +519,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), hasKey("keyword"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -503,16 +527,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testNoActiveCopy() throws Exception {
         assertAcked(
             prepareCreate("log-index-inactive").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put("index.routing.allocation.require._id", "unknown")
+                indexSettings(between(1, 5), 1).put("index.routing.allocation.require._id", "unknown")
             ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
+                client().prepareFieldCaps("log-index-*").setFields("*")
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
@@ -524,7 +545,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
@@ -537,34 +558,48 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
     }
 
-    private void moveOrCloseShardsOnNodes(String nodeName) throws Exception {
+    private void moveOrCloseShardsOnNodes(String nodeName, Predicate<String> indexName) throws Exception {
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        final ClusterState clusterState = clusterService().state();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
+                if (indexName.test(indexShard.shardId().getIndexName()) == false) {
+                    continue;
+                }
                 if (randomBoolean()) {
-                    indexShard.close("test", randomBoolean());
+                    closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
-                    final String[] nodeNames = internalCluster().getNodeNames();
-                    final String newNodeName = randomValueOtherThanMany(n -> nodeName.equals(n) == false, () -> randomFrom(nodeNames));
-                    DiscoveryNode fromNode = null;
-                    DiscoveryNode toNode = null;
-                    for (DiscoveryNode node : clusterService().state().nodes()) {
-                        if (node.getName().equals(nodeName)) {
-                            fromNode = node;
+                    final var assignedNodes = new HashSet<>();
+                    clusterState.routingTable().shardRoutingTable(shardId).allShards().forEach(shr -> {
+                        if (shr.currentNodeId() != null) {
+                            assignedNodes.add(shr.currentNodeId());
                         }
-                        if (node.getName().equals(newNodeName)) {
-                            toNode = node;
+                        if (shr.relocatingNodeId() != null) {
+                            assignedNodes.add(shr.relocatingNodeId());
+                        }
+                    });
+                    final var targetNodes = new ArrayList<String>();
+                    for (final var targetIndicesService : internalCluster().getInstances(IndicesService.class)) {
+                        final var targetNode = targetIndicesService.clusterService().localNode();
+                        if (targetNode.canContainData()
+                            && targetIndicesService.getShardOrNull(shardId) == null
+                            && assignedNodes.contains(targetNode.getId()) == false) {
+                            targetNodes.add(targetNode.getId());
                         }
                     }
-                    assertNotNull(fromNode);
-                    assertNotNull(toNode);
-                    client().admin()
-                        .cluster()
-                        .prepareReroute()
-                        .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .execute()
-                        .actionGet();
+                    if (targetNodes.isEmpty()) {
+                        continue;
+                    }
+                    ClusterRerouteUtils.reroute(
+                        client(),
+                        new MoveAllocationCommand(
+                            shardId.getIndexName(),
+                            shardId.id(),
+                            indicesService.clusterService().localNode().getId(),
+                            randomFrom(targetNodes)
+                        )
+                    );
                 }
             }
         }
@@ -572,19 +607,24 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testRelocation() throws Exception {
         populateTimeRangeIndices();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("log-index-*")
+                .setSettings(Settings.builder().put("index.routing.rebalance.enable", "none").build())
+                .get()
+        );
+        ensureGreen("log-index-*");
         try {
             final AtomicBoolean relocated = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (relocated.compareAndSet(false, true)) {
-                            moveOrCloseShardsOnNodes(node);
+                            moveOrCloseShardsOnNodes(node, indexName -> indexName.startsWith("log-index-"));
                         }
                         handler.messageReceived(request, channel, task);
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -592,15 +632,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
-            final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            final FieldCapabilitiesResponse response = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, request));
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
             assertThat(response.getField("field1"), hasKey("long"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -617,9 +656,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
              }
             """;
         String[] indices = IntStream.range(0, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
-        for (String index : indices) {
-            assertAcked(client().admin().indices().prepareCreate(index).setMapping(mapping).get());
-        }
+        assertAcked(
+            Arrays.stream(indices)
+                .map(index -> indicesAdmin().prepareCreate(index).setMapping(mapping))
+                .toArray(CreateIndexRequestBuilder[]::new)
+        );
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices("test_many_index_*");
         request.fields("*");
@@ -649,16 +690,16 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             }
         };
         // Single mapping
-        verifyResponse.accept(client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet());
+        verifyResponse.accept(client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet());
 
         // add an extra field for some indices
         String[] indicesWithExtraField = randomSubsetOf(between(1, indices.length), indices).stream().sorted().toArray(String[]::new);
         ensureGreen(indices);
-        assertAcked(client().admin().indices().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
+        assertAcked(indicesAdmin().preparePutMapping(indicesWithExtraField).setSource("extra_field", "type=integer").get());
         for (String index : indicesWithExtraField) {
-            client().prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
+            prepareIndex(index).setSource("extra_field", randomIntBetween(1, 1000)).get();
         }
-        FieldCapabilitiesResponse resp = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+        FieldCapabilitiesResponse resp = client().execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet();
         verifyResponse.accept(resp);
         assertThat(resp.getField("extra_field"), hasKey("integer"));
         assertThat(resp.getField("extra_field").get("integer").indices(), nullValue());
@@ -666,50 +707,120 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(resp.getField("extra_field").get("integer").isAggregatable());
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction:TRACE",
+        reason = "verify the log output on cancelled"
+    )
     public void testCancel() throws Exception {
-        BlockingOnRewriteQueryBuilder.blockOnRewrite();
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
-        Request restRequest = new Request("POST", "/_field_caps?fields=*");
-        restRequest.setEntity(new StringEntity("""
-                  {
-                    "index_filter": {
-                        "blocking_query": {}
+        try (var mockLog = MockLog.capture(TransportFieldCapabilitiesAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "clear resources",
+                    TransportFieldCapabilitiesAction.class.getCanonicalName(),
+                    Level.TRACE,
+                    "clear index responses on cancellation submitted"
+                )
+            );
+            BlockingOnRewriteQueryBuilder.blockOnRewrite();
+            PlainActionFuture<Response> future = new PlainActionFuture<>();
+            Request restRequest = new Request("POST", "/_field_caps?fields=*");
+            restRequest.setEntity(new StringEntity("""
+                      {
+                        "index_filter": {
+                            "blocking_query": {}
+                         }
+                      }
+                """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
+            Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
+            logger.info("--> waiting for field-caps tasks to be started");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                assertThat(tasks.size(), greaterThanOrEqualTo(2));
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertFalse(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            cancellable.cancel();
+            mockLog.awaitAllExpectationsMatched();
+            logger.info("--> waiting for field-caps tasks to be cancelled");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancellable());
+                    assertTrue(task.cancelled());
+                }
+            }, 30, TimeUnit.SECONDS);
+            BlockingOnRewriteQueryBuilder.unblockOnRewrite();
+            expectThrows(CancellationException.class, future::actionGet);
+        }
+    }
+
+    public void testIndexMode() throws Exception {
+        Map<String, IndexMode> indexModes = new HashMap<>();
+        // metrics
+        {
+            final String metricsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword", "time_series_dimension": true },
+                       "request_count" : { "type" : "long", "time_series_metric" : "counter" },
+                       "cluster": {"type": "keyword"}
                      }
-                  }
-            """, ContentType.APPLICATION_JSON.withCharset(StandardCharsets.UTF_8)));
-        Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
-        logger.info("--> waiting for field-caps tasks to be started");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            assertThat(tasks.size(), greaterThanOrEqualTo(2));
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertFalse(task.cancelled());
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping),
+                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping)
+                );
+                indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
+                indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
             }
-        }, 30, TimeUnit.SECONDS);
-
-        cancellable.cancel();
-        logger.info("--> waiting for field-caps tasks to be cancelled");
-        assertBusy(() -> {
-            List<TaskInfo> tasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
-                .get()
-                .getTasks();
-            for (TaskInfo task : tasks) {
-                assertTrue(task.cancellable());
-                assertTrue(task.cancelled());
+        }
+        // logsdb
+        {
+            final String logsMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping),
+                    indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping)
+                );
+                indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
+                indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
             }
-        }, 30, TimeUnit.SECONDS);
-
-        BlockingOnRewriteQueryBuilder.unblockOnRewrite();
-        expectThrows(CancellationException.class, future::actionGet);
+        }
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.setMergeResults(false);
+        request.indices("test_*");
+        request.fields(randomFrom("*", "@timestamp", "host*"));
+        var resp = client().fieldCaps(request).get();
+        assertThat(resp.getFailures(), empty());
+        Map<String, IndexMode> actualIndexModes = new HashMap<>();
+        for (var indexResp : resp.getIndexResponses()) {
+            actualIndexModes.put(indexResp.getIndexName(), indexResp.getIndexMode());
+        }
+        assertThat(actualIndexModes, equalTo(indexModes));
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {
@@ -795,6 +906,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            // skip rewriting on the coordinator
+            if (queryRewriteContext.convertToCoordinatorRewriteContext() != null) {
+                return this;
+            }
             try {
                 blockingLatch.await();
             } catch (InterruptedException e) {
@@ -822,8 +937,23 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> field.equals("playlist") == false;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.equals("playlist") == false;
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "not-playlist:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 
@@ -841,11 +971,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         @Override
         protected String contentType() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            throw new UnsupportedOperationException();
         }
 
         private static final TypeParser PARSER = new FixedTypeParser(c -> new TestMetadataMapper());

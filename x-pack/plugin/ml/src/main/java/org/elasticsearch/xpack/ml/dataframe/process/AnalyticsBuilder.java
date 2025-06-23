@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -80,6 +81,7 @@ public class AnalyticsBuilder {
 
     private void addConfigFile(List<String> command) throws IOException {
         Path tempDir = tempDirPathSupplier.get();
+        FileUtils.recreateTempDirectoryIfNeeded(tempDir);
         Path configFile = Files.createTempFile(tempDir, "analysis", ".conf");
         filesToDelete.add(configFile);
         try (

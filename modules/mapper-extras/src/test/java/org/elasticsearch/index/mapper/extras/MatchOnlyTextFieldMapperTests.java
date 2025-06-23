@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -22,6 +23,7 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -45,8 +47,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.core.Is.is;
 
 public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
@@ -61,19 +65,19 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testExistsStandardSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(false)));
+        assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testExistsSyntheticSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(true)));
+        assertExistsQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQueryStandardSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(false)));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQuerySyntheticSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(true)));
+        assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
@@ -86,8 +90,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
                 MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
                 TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
-                assertThat(docs.totalHits.value, equalTo(1L));
-                assertThat(docs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                 assertThat(docs.scoreDocs[0].doc, equalTo(0));
             }
         }
@@ -99,13 +103,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-    }
-
-    private XContentBuilder testMapping(boolean syntheticSource) throws IOException {
-        if (syntheticSource) {
-            return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
-        }
-        return fieldMapping(b -> b.field("type", "match_only_text"));
     }
 
     @Override
@@ -124,10 +121,15 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        var reader = fields.get(0).readerValue();
+        char[] buff = new char[20];
+        assertEquals(4, reader.read(buff));
+        assertEquals("1234", new String(buff, 0, 4));
+
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -253,12 +255,99 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testStoreParameterDefaultsSyntheticSource() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "match_only_text");
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name");
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.stored(), is(false));
+        }
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name._original");
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.stored(), is(true));
+        }
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceWithKeywordMultiField() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "match_only_text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name");
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.stored(), is(false));
+        }
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name._original");
+            assertThat(fields, empty());
+        }
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "match_only_text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name.text");
+            IndexableFieldType fieldType = fields.get(0).fieldType();
+            assertThat(fieldType.stored(), is(false));
+        }
+        {
+            List<IndexableField> fields = doc.rootDoc().getFields("name.text._original");
+            assertThat(fields, empty());
+        }
     }
 }

@@ -1,0 +1,2509 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'updatable dense vector field types was added in 8.15'
+  - requires:
+      test_runner_features: [ contains ]
+---
+"Test create and update dense vector mapping with per-doc indexing and flush":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: flat }
+
+  - do:
+      index:
+        index: test_index
+        id: "1"
+        body:
+          embedding: [ 1, 1, 1, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "2"
+        body:
+          embedding: [ 1, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "3"
+        body:
+          embedding: [ 1, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "4"
+        body:
+          embedding: [ 1, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "5"
+        body:
+          embedding: [ 1, 1, 1, 5 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "6"
+        body:
+          embedding: [ 1, 1, 1, 6 ]
+  - do:
+      index:
+        index: test_index
+        id: "7"
+        body:
+          embedding: [ 1, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "8"
+        body:
+          embedding: [ 1, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "9"
+        body:
+          embedding: [ 1, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "10"
+        body:
+          embedding: [ 1, 1, 1, 10 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [1, 1, 1, 1]
+              num_candidates: 10
+              k: 10
+
+  - match: { hits.total.value: 10 }
+  - length: {hits.hits: 3}
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      index:
+        index: test_index
+        id: "11"
+        body:
+          embedding: [ 2, 1, 1, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "12"
+        body:
+          embedding: [ 3, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "13"
+        body:
+          embedding: [ 4, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "14"
+        body:
+          embedding: [ 5, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "15"
+        body:
+          embedding: [ 6, 1, 1, 5 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "16"
+        body:
+          embedding: [ 7, 1, 1, 6 ]
+  - do:
+      index:
+        index: test_index
+        id: "17"
+        body:
+          embedding: [ 8, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "18"
+        body:
+          embedding: [ 9, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "19"
+        body:
+          embedding: [ 10, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "20"
+        body:
+          embedding: [ 1, 11, 1, 10 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 20
+              k: 20
+
+  - match: { hits.total.value: 20 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      index:
+        index: test_index
+        id: "21"
+        body:
+          embedding: [ 1, 1, 2, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "22"
+        body:
+          embedding: [ 1, 1, 3, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "23"
+        body:
+          embedding: [ 1, 1, 4, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "24"
+        body:
+          embedding: [ 1, 1, 5, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "25"
+        body:
+          embedding: [ 1, 1, 6, 1 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "26"
+        body:
+          embedding: [ 1, 1, 7, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "27"
+        body:
+          embedding: [ 1, 1, 8, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "28"
+        body:
+          embedding: [ 1, 1, 9, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "29"
+        body:
+          embedding: [ 1, 1, 10, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "30"
+        body:
+          embedding: [ 1, 1, 11, 1 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+              k: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      index:
+        index: test_index
+        id: "31"
+        body:
+          embedding: [ 1, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "32"
+        body:
+          embedding: [ 1, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "33"
+        body:
+          embedding: [ 1, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "34"
+        body:
+          embedding: [ 1, 1, 1, 5 ]
+  - do:
+      index:
+        index: test_index
+        id: "35"
+        body:
+          embedding: [ 1, 1, 1, 6 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "36"
+        body:
+          embedding: [ 1, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "37"
+        body:
+          embedding: [ 1, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "38"
+        body:
+          embedding: [ 1, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "39"
+        body:
+          embedding: [ 1, 1, 1, 10 ]
+  - do:
+      index:
+        index: test_index
+        id: "40"
+        body:
+          embedding: [ 1, 1, 1, 11 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 5
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 40
+              k: 40
+
+  - match: { hits.total.value: 40 }
+  - length: { hits.hits: 5 }
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
+  - contains: {hits.hits: {_id: "31"}}
+
+---
+"Test create and update dense vector mapping with bulk indexing":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: flat }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"embedding": [1, 1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"embedding": [1, 1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"embedding": [1, 1, 1, 3]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"embedding": [1, 1, 1, 4]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"embedding": [1, 1, 1, 5]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"embedding": [1, 1, 1, 6]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"embedding": [1, 1, 1, 7]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"embedding": [1, 1, 1, 8]}'
+          - '{"index": {"_id": "9"}}'
+          - '{"embedding": [1, 1, 1, 9]}'
+          - '{"index": {"_id": "10"}}'
+          - '{"embedding": [1, 1, 1, 10]}'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [1, 1, 1, 1]
+              num_candidates: 10
+              k: 10
+
+  - match: { hits.total.value: 10 }
+  - length: {hits.hits: 3}
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "11"}}'
+          - '{"embedding": [2, 1, 1, 1]}'
+          - '{"index": {"_id": "12"}}'
+          - '{"embedding": [3, 1, 1, 2]}'
+          - '{"index": {"_id": "13"}}'
+          - '{"embedding": [4, 1, 1, 3]}'
+          - '{"index": {"_id": "14"}}'
+          - '{"embedding": [5, 1, 1, 4]}'
+          - '{"index": {"_id": "15"}}'
+          - '{"embedding": [6, 1, 1, 5]}'
+          - '{"index": {"_id": "16"}}'
+          - '{"embedding": [7, 1, 1, 6]}'
+          - '{"index": {"_id": "17"}}'
+          - '{"embedding": [8, 1, 1, 7]}'
+          - '{"index": {"_id": "18"}}'
+          - '{"embedding": [9, 1, 1, 8]}'
+          - '{"index": {"_id": "19"}}'
+          - '{"embedding": [10, 1, 1, 9]}'
+          - '{"index": {"_id": "20"}}'
+          - '{"embedding": [1, 11, 1, 10]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 20
+              k: 20
+
+  - match: { hits.total.value: 20 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "21"}}'
+          - '{"embedding": [1, 1, 2, 1]}'
+          - '{"index": {"_id": "22"}}'
+          - '{"embedding": [1, 1, 3, 1]}'
+          - '{"index": {"_id": "23"}}'
+          - '{"embedding": [1, 1, 4, 1]}'
+          - '{"index": {"_id": "24"}}'
+          - '{"embedding": [1, 1, 6, 1]}'
+          - '{"index": {"_id": "25"}}'
+          - '{"embedding": [1, 1, 7, 1]}'
+          - '{"index": {"_id": "26"}}'
+          - '{"embedding": [1, 1, 8, 1]}'
+          - '{"index": {"_id": "27"}}'
+          - '{"embedding": [1, 1, 9, 1]}'
+          - '{"index": {"_id": "28"}}'
+          - '{"embedding": [1, 1, 10, 1]}'
+          - '{"index": {"_id": "29"}}'
+          - '{"embedding": [1, 1, 11, 1]}'
+          - '{"index": {"_id": "30"}}'
+          - '{"embedding": [1, 1, 12, 1]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+              k: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "31"}}'
+          - '{"embedding": [1, 1, 1, 2]}'
+          - '{"index": {"_id": "32"}}'
+          - '{"embedding": [1, 1, 1, 3]}'
+          - '{"index": {"_id": "33"}}'
+          - '{"embedding": [1, 1, 1, 4]}'
+          - '{"index": {"_id": "34"}}'
+          - '{"embedding": [1, 1, 1, 5]}'
+          - '{"index": {"_id": "35"}}'
+          - '{"embedding": [1, 1, 1, 6]}'
+          - '{"index": {"_id": "36"}}'
+          - '{"embedding": [1, 1, 1, 7]}'
+          - '{"index": {"_id": "37"}}'
+          - '{"embedding": [1, 1, 1, 8]}'
+          - '{"index": {"_id": "38"}}'
+          - '{"embedding": [1, 1, 1, 9]}'
+          - '{"index": {"_id": "39"}}'
+          - '{"embedding": [1, 1, 1, 10]}'
+          - '{"index": {"_id": "40"}}'
+          - '{"embedding": [1, 1, 1, 11]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 5
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 40
+              k: 40
+
+  - match: { hits.total.value: 40 }
+  - length: { hits.hits: 5 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+  - contains: { hits.hits: { _id: "31" } }
+
+---
+"Index, update and merge":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: flat }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"embedding": [1, 1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"embedding": [1, 1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"embedding": [1, 1, 1, 3]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"embedding": [1, 1, 1, 4]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"embedding": [1, 1, 1, 5]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"embedding": [1, 1, 1, 6]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"embedding": [1, 1, 1, 7]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"embedding": [1, 1, 1, 8]}'
+          - '{"index": {"_id": "9"}}'
+          - '{"embedding": [1, 1, 1, 9]}'
+          - '{"index": {"_id": "10"}}'
+          - '{"embedding": [1, 1, 1, 10]}'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 10
+              k: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      indices.forcemerge:
+        index: test_index
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 10
+              k: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "11"}}'
+          - '{"embedding": [2, 1, 1, 1]}'
+          - '{"index": {"_id": "12"}}'
+          - '{"embedding": [3, 1, 1, 2]}'
+          - '{"index": {"_id": "13"}}'
+          - '{"embedding": [4, 1, 1, 3]}'
+          - '{"index": {"_id": "14"}}'
+          - '{"embedding": [5, 1, 1, 4]}'
+          - '{"index": {"_id": "15"}}'
+          - '{"embedding": [6, 1, 1, 5]}'
+          - '{"index": {"_id": "16"}}'
+          - '{"embedding": [7, 1, 1, 6]}'
+          - '{"index": {"_id": "17"}}'
+          - '{"embedding": [8, 1, 1, 7]}'
+          - '{"index": {"_id": "18"}}'
+          - '{"embedding": [9, 1, 1, 8]}'
+          - '{"index": {"_id": "19"}}'
+          - '{"embedding": [10, 1, 1, 9]}'
+          - '{"index": {"_id": "20"}}'
+          - '{"embedding": [1, 11, 1, 10]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 20
+              k: 20
+
+  - match: { hits.total.value: 20 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 20
+              k: 20
+
+  - match: { hits.total.value: 20 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "11" } }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "21"}}'
+          - '{"embedding": [1, 1, 2, 1]}'
+          - '{"index": {"_id": "22"}}'
+          - '{"embedding": [1, 1, 3, 1]}'
+          - '{"index": {"_id": "23"}}'
+          - '{"embedding": [1, 1, 4, 1]}'
+          - '{"index": {"_id": "24"}}'
+          - '{"embedding": [1, 1, 6, 1]}'
+          - '{"index": {"_id": "25"}}'
+          - '{"embedding": [1, 1, 7, 1]}'
+          - '{"index": {"_id": "26"}}'
+          - '{"embedding": [1, 1, 8, 1]}'
+          - '{"index": {"_id": "27"}}'
+          - '{"embedding": [1, 1, 9, 1]}'
+          - '{"index": {"_id": "28"}}'
+          - '{"embedding": [1, 1, 10, 1]}'
+          - '{"index": {"_id": "29"}}'
+          - '{"embedding": [1, 1, 11, 1]}'
+          - '{"index": {"_id": "30"}}'
+          - '{"embedding": [1, 1, 12, 1]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+              k: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+
+  - do:
+      indices.forcemerge:
+        index: test_index
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              k: 30
+              num_candidates: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "21" } }
+
+
+---
+"Disallowed dense vector update path hnsw --> flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path hnsw --> int8_flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+---
+"Disallowed dense vector update path hnsw --> int4_flat":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+
+---
+"Disallowed dense vector update path int8_hnsw --> flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path int8_hnsw --> int8_flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+---
+"Disallowed dense vector update path int4_hnsw --> int8_flat, int4_flat, flat":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path int8_flat --> flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path int4_flat --> flat, int8_flat":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+---
+"Allowed dense vector updates on same type but different other index_options, hnsw":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 24
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 24 }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 24
+                ef_construction: 200
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 24 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 3
+                ef_construction: 200
+
+---
+"Allowed dense vector updates on same type but different other index_options, int8_hnsw":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                m: 32
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                m: 32
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                m: 32
+                ef_construction: 200
+                confidence_interval: 0.3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 10 is less than the current value of 20
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+                m: 10
+                confidence_interval: 0.3
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 16 by default, which is less than the current value of 20
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+                confidence_interval: 0.3
+
+---
+"Allowed dense vector updates on same type but different other index_options, int4_hnsw":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - requires:
+      test_runner_features: [ contains ]
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+                m: 32
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+                m: 32
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 10 is less than the current value of 32
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+                m: 10
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 16 by default, which is less than the current value of 32
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+
+---
+"Allowed dense vector updates on same type but different other index_options, int8_flat":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+                confidence_interval: 0.3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
+
+---
+"Allowed dense vector updates on same type but different other index_options, int4_flat":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - requires:
+      test_runner_features: [ contains ]
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+                confidence_interval: 0.3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
+  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
+
+---
+"Test create and update dense vector mapping to int4 with per-doc indexing and flush":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'updatable dense vector field type for int4 was added in 8.16'
+  - requires:
+      test_runner_features: [ contains ]
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: flat }
+
+  - do:
+      index:
+        index: test_index
+        id: "1"
+        body:
+          embedding: [ 1, 1, 1, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "2"
+        body:
+          embedding: [ 1, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "3"
+        body:
+          embedding: [ 1, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "4"
+        body:
+          embedding: [ 1, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "5"
+        body:
+          embedding: [ 1, 1, 1, 5 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "6"
+        body:
+          embedding: [ 1, 1, 1, 6 ]
+  - do:
+      index:
+        index: test_index
+        id: "7"
+        body:
+          embedding: [ 1, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "8"
+        body:
+          embedding: [ 1, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "9"
+        body:
+          embedding: [ 1, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "10"
+        body:
+          embedding: [ 1, 1, 1, 10 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [1, 1, 1, 1]
+              num_candidates: 10
+              k: 10
+
+  - match: { hits.total.value: 10 }
+  - length: {hits.hits: 3}
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "2" } }
+  - contains: { hits.hits: { _id: "3" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
+
+  - do:
+      index:
+        index: test_index
+        id: "11"
+        body:
+          embedding: [ 2, 1, 1, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "12"
+        body:
+          embedding: [ 3, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "13"
+        body:
+          embedding: [ 4, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "14"
+        body:
+          embedding: [ 5, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "15"
+        body:
+          embedding: [ 6, 1, 1, 5 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "16"
+        body:
+          embedding: [ 7, 1, 1, 6 ]
+  - do:
+      index:
+        index: test_index
+        id: "17"
+        body:
+          embedding: [ 8, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "18"
+        body:
+          embedding: [ 9, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "19"
+        body:
+          embedding: [ 10, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "20"
+        body:
+          embedding: [ 1, 11, 1, 10 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 3
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 20
+              k: 20
+
+  - match: { hits.total.value: 20 }
+  - length: { hits.hits: 3 }
+  - contains: { hits.hits: { _id: "1" } }
+  - contains: { hits.hits: { _id: "11" } }
+  - contains: { hits.hits: { _id: "2" } }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                m: 3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      index:
+        index: test_index
+        id: "21"
+        body:
+          embedding: [ 1, 1, 2, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "22"
+        body:
+          embedding: [ 1, 1, 3, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "23"
+        body:
+          embedding: [ 1, 1, 4, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "24"
+        body:
+          embedding: [ 1, 1, 5, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "25"
+        body:
+          embedding: [ 1, 1, 6, 1 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "26"
+        body:
+          embedding: [ 1, 1, 7, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "27"
+        body:
+          embedding: [ 1, 1, 8, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "28"
+        body:
+          embedding: [ 1, 1, 9, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "29"
+        body:
+          embedding: [ 1, 1, 10, 1 ]
+  - do:
+      index:
+        index: test_index
+        id: "30"
+        body:
+          embedding: [ 1, 1, 11, 1 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+              k: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int4_hnsw
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int4_hnsw }
+
+  - do:
+      index:
+        index: test_index
+        id: "31"
+        body:
+          embedding: [ 1, 1, 1, 2 ]
+  - do:
+      index:
+        index: test_index
+        id: "32"
+        body:
+          embedding: [ 1, 1, 1, 3 ]
+  - do:
+      index:
+        index: test_index
+        id: "33"
+        body:
+          embedding: [ 1, 1, 1, 4 ]
+  - do:
+      index:
+        index: test_index
+        id: "34"
+        body:
+          embedding: [ 1, 1, 1, 5 ]
+  - do:
+      index:
+        index: test_index
+        id: "35"
+        body:
+          embedding: [ 1, 1, 1, 6 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      index:
+        index: test_index
+        id: "36"
+        body:
+          embedding: [ 1, 1, 1, 7 ]
+  - do:
+      index:
+        index: test_index
+        id: "37"
+        body:
+          embedding: [ 1, 1, 1, 8 ]
+  - do:
+      index:
+        index: test_index
+        id: "38"
+        body:
+          embedding: [ 1, 1, 1, 9 ]
+  - do:
+      index:
+        index: test_index
+        id: "39"
+        body:
+          embedding: [ 1, 1, 1, 10 ]
+  - do:
+      index:
+        index: test_index
+        id: "40"
+        body:
+          embedding: [ 1, 1, 1, 11 ]
+
+  - do:
+      indices.flush: { }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 5
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 40
+              k: 40
+
+  - match: { hits.total.value: 40 }
+  - length: { hits.hits: 5 }
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "11"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "21"}}
+  - contains: {hits.hits: {_id: "31"}}
+
+---
+"Test update flat --> bbq_flat --> bbq_hnsw":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path : /_mapping
+          capabilities: [ dense_vector_updatable_bbq ]
+  - do:
+      indices.create:
+        index: vectors_64
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: flat
+
+  - do:
+      index:
+        index: vectors_64
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_flat
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_flat }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_hnsw }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+
+  - do:
+      indices.forcemerge:
+        index: vectors_64
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: vectors_64
+        body:
+          knn:
+            field: vector
+            query_vector: [ 0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                            0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                            0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                            -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                            -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                            -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                            -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                            -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158 ]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test update int8_hnsw --> bbq_flat":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path : /_mapping
+          capabilities: [ dense_vector_updatable_bbq ]
+  - do:
+      indices.create:
+        index: vectors_64
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: int8_hnsw
+
+  - do:
+      index:
+        index: vectors_64
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_flat
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_flat }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+
+  - do:
+      index:
+        index: vectors_64
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: vectors_64
+        body:
+          knn:
+            field: vector
+            query_vector: [ 0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                            0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                            0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                            -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                            -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                            -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                            -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                            -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158 ]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }
+---
+"Test update int8_hnsw --> bbq_hnsw":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "BBQ is required to test upgrading to bbq_flat and bbq_hnsw"
+  - requires:
+      reason: 'dense_vector updatable to bbq capability required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path : /_mapping
+          capabilities: [ dense_vector_updatable_bbq ]
+  - do:
+      indices.create:
+        index: vectors_64
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: max_inner_product
+                index_options:
+                  type: int8_hnsw
+
+  - do:
+      index:
+        index: vectors_64
+        id: "1"
+        body:
+          vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
+                   0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
+                   0.307, -0.083,  0.504,  0.255, -0.404,  0.289, -0.226, -0.132,
+                   -0.216,  0.49 ,  0.039,  0.507, -0.307,  0.107,  0.09 , -0.265,
+                   -0.285,  0.336, -0.272,  0.369, -0.282,  0.086, -0.132,  0.475,
+                   -0.224,  0.203,  0.439,  0.064,  0.246, -0.396,  0.297,  0.242,
+                   -0.028,  0.321, -0.022, -0.009, -0.001  ,  0.031, -0.533,  0.45,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+
+  - do:
+      index:
+        index: vectors_64
+        id: "2"
+        body:
+          vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
+                   -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
+                   0.307,  0.159,  0.278,  0.119, -0.057,  0.333, -0.289, -0.438,
+                   -0.014,  0.361, -0.169,  0.292, -0.229,  0.123,  0.031, -0.138,
+                   -0.139,  0.315, -0.216,  0.322, -0.445, -0.059,  0.071,  0.429,
+                   -0.602, -0.142,  0.11 ,  0.192,  0.259, -0.241,  0.181, -0.166,
+                   0.082,  0.107, -0.05 ,  0.155,  0.011,  0.161, -0.486,  0.569,
+                   -0.489,  0.901,  0.208,  0.011, -0.209, -0.153, -0.27 , -0.013]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.put_mapping:
+        index: vectors_64
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 64
+              index_options:
+                type: bbq_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: vectors_64
+
+  - match: { vectors_64.mappings.properties.embedding.type: dense_vector }
+  - match: { vectors_64.mappings.properties.embedding.index_options.type: bbq_hnsw }
+
+  - do:
+      index:
+        index: vectors_64
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [0.139,  0.178, -0.117,  0.399,  0.014, -0.139,  0.347, -0.33 ,
+                   0.139,  0.34 , -0.052, -0.052, -0.249,  0.327, -0.288,  0.049,
+                   0.464,  0.338,  0.516,  0.247, -0.104,  0.259, -0.209, -0.246,
+                   -0.11 ,  0.323,  0.091,  0.442, -0.254,  0.195, -0.109, -0.058,
+                   -0.279,  0.402, -0.107,  0.308, -0.273,  0.019,  0.082,  0.399,
+                   -0.658, -0.03 ,  0.276,  0.041,  0.187, -0.331,  0.165,  0.017,
+                   0.171, -0.203, -0.198,  0.115, -0.007,  0.337, -0.444,  0.615,
+                   -0.683,  1.331,  0.194, -0.157, -0.1  , -0.279, -0.098, -0.176]
+  - do:
+      indices.flush:
+        index: vectors_64
+  - do:
+      indices.refresh: { }
+  - do:
+      search:
+        index: vectors_64
+        body:
+          knn:
+            field: vector
+            query_vector: [ 0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
+                            0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
+                            0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
+                            -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
+                            -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
+                            -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
+                            -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
+                            -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158 ]
+            k: 3
+            num_candidates: 3
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "2" }

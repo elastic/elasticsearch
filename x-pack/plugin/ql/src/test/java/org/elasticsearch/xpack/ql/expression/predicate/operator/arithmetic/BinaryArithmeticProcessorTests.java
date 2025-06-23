@@ -36,6 +36,11 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
     }
 
     @Override
+    protected BinaryArithmeticProcessor mutateInstance(BinaryArithmeticProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<BinaryArithmeticProcessor> instanceReader() {
         return BinaryArithmeticProcessor::new;
     }

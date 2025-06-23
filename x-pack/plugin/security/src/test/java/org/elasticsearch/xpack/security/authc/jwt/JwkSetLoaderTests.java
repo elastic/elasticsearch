@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -26,7 +25,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -43,15 +41,13 @@ public class JwkSetLoaderTests extends ESTestCase {
         final RealmConfig realmConfig = mock(RealmConfig.class);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn("jwkset.json");
         final Environment env = mock(Environment.class);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         when(realmConfig.env()).thenReturn(env);
 
         final JwkSetLoader jwkSetLoader = spy(new JwkSetLoader(realmConfig, List.of(), null));
 
         final int nThreads = randomIntBetween(2, 8);
-        final var futures = IntStream.range(0, nThreads)
-            .mapToObj(i -> new PlainActionFuture<Tuple<Boolean, JwkSetLoader.JwksAlgs>>())
-            .toList();
+        final var futures = IntStream.range(0, nThreads).mapToObj(i -> new PlainActionFuture<Void>()).toList();
 
         // Start the first thread for reloading
         // Ensure it is inside the actual loading method and make it wait there to simulate slow processing
@@ -81,9 +77,14 @@ public class JwkSetLoaderTests extends ESTestCase {
         // Notify the first thread to finish the loading work
         readyLatch.countDown();
 
-        // All concurrent reloading calls will get the same result from the first thread and skip the actual loading work
-        final Tuple<Boolean, JwkSetLoader.JwksAlgs> tuple = futures.get(0).actionGet();
-        futures.subList(1, nThreads).forEach(future -> assertThat(future.actionGet(), sameInstance(tuple)));
+        // All concurrent reloading calls will see the same result as the first thread and skip the actual loading work
+        futures.get(0).actionGet();
+        final JwkSetLoader.JwksAlgs algs = jwkSetLoader.getContentAndJwksAlgs().jwksAlgs();
+        futures.subList(1, nThreads).forEach(future -> {
+            future.actionGet();
+            assertSame(algs, jwkSetLoader.getContentAndJwksAlgs().jwksAlgs());
+        });
         verify(jwkSetLoader, never()).loadInternal(anyActionListener());
     }
+
 }

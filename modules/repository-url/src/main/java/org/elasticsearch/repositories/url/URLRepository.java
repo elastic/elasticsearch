@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.url;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -32,10 +34,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -56,10 +56,9 @@ public class URLRepository extends BlobStoreRepository {
         assert TYPE.equals(BlobStoreRepository.URL_REPOSITORY_TYPE);
     }
 
-    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING = Setting.stringListSetting(
         "repositories.url.supported_protocols",
-        Arrays.asList("http", "https", "ftp", "file", "jar"),
-        Function.identity(),
+        List.of("http", "https", "ftp", "file", "jar"),
         Property.NodeScope
     );
 
@@ -94,6 +93,7 @@ public class URLRepository extends BlobStoreRepository {
      * Constructs a read-only URL-based repository
      */
     public URLRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -102,7 +102,7 @@ public class URLRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings,
         URLHttpClient.Factory httpClientFactory
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) == false) {
             throw new RepositoryException(metadata.name(), "missing url");
@@ -160,7 +160,7 @@ public class URLRepository extends BlobStoreRepository {
                 if (normalizedUrl == null) {
                     String logMessage = "The specified url [{}] doesn't start with any repository paths specified by the "
                         + "path.repo setting or by {} setting: [{}] ";
-                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    logger.warn(logMessage, urlToCheck, ALLOWED_URLS_SETTING.getKey(), environment.repoDirs());
                     String exceptionMessage = "file url ["
                         + urlToCheck
                         + "] doesn't match any of the locations specified by path.repo or "
@@ -189,5 +189,6 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected void doClose() {
         IOUtils.closeWhileHandlingException(httpClient);
+        super.doClose();
     }
 }

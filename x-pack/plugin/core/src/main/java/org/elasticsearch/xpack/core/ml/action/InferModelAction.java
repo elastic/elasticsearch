@@ -6,14 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -22,7 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -33,7 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -45,19 +45,21 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static final InferModelAction EXTERNAL_INSTANCE = new InferModelAction(EXTERNAL_NAME);
 
     private InferModelAction(String name) {
-        super(name, Response::new);
+        super(name);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
-        public static final ParseField MODEL_ID = new ParseField("model_id");
+        public static final ParseField ID = new ParseField("id");
+        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, Builder::new);
+
         static {
-            PARSER.declareString(Builder::setModelId, MODEL_ID);
+            PARSER.declareString(Builder::setId, ID);
             PARSER.declareObjectArray(Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
             PARSER.declareNamedObject(
@@ -67,62 +69,98 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             );
         }
 
-        public static Builder parseRequest(String modelId, XContentParser parser) {
+        public static Builder parseRequest(String id, XContentParser parser) {
             Builder builder = PARSER.apply(parser, null);
-            if (modelId != null) {
-                builder.setModelId(modelId);
+            if (id != null) {
+                builder.setId(id);
             }
             return builder;
         }
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
 
-        private final String modelId;
+        private final String id;
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfigUpdate update;
         private final boolean previouslyLicensed;
-        private TimeValue inferenceTimeout;
+        private final TimeValue inferenceTimeout;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
+        private boolean highPriority;
+        private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+        private boolean chunked = false;
 
-        public static Request forDocs(
-            String modelId,
+        /**
+         * Build a request from a list of documents as maps.
+         *
+         * @param id                 The model Id
+         * @param docs               List of document maps
+         * @param update             Inference config update
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
+         * @return the new Request
+         */
+        public static Request forIngestDocs(
+            String id,
             List<Map<String, Object>> docs,
             InferenceConfigUpdate update,
-            boolean previouslyLicensed
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
         ) {
             return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                ExceptionsHelper.requireNonNull(id, Request.ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                DEFAULT_TIMEOUT,
+                inferenceTimeout,
                 previouslyLicensed
             );
         }
 
-        public static Request forTextInput(String modelId, InferenceConfigUpdate update, List<String> textInput) {
+        /**
+         * Build a request from a list of strings, each string
+         * is one evaluation of the model.
+         *
+         * @param id                 The model Id
+         * @param update             Inference config update
+         * @param textInput          Inference input
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
+         * @return the new Request
+         */
+        public static Request forTextInput(
+            String id,
+            InferenceConfigUpdate update,
+            List<String> textInput,
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
+        ) {
             return new Request(
-                modelId,
+                id,
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                DEFAULT_TIMEOUT,
-                false
+                inferenceTimeout,
+                previouslyLicensed
             );
         }
 
         Request(
-            String modelId,
+            String id,
             InferenceConfigUpdate inferenceConfigUpdate,
             List<Map<String, Object>> docs,
             List<String> textInput,
             TimeValue inferenceTimeout,
             boolean previouslyLicensed
         ) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+            this.id = ExceptionsHelper.requireNonNull(id, ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(docs, DOCS.getPreferredName()));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfigUpdate, "inference_config");
             this.textInput = textInput;
@@ -132,19 +170,32 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.modelId = in.readString();
-            this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
+            this.id = in.readString();
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                highPriority = in.readBoolean();
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            } else {
+                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                chunked = in.readBoolean();
+            } else {
+                chunked = false;
             }
         }
 
@@ -156,8 +207,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             }
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getId() {
+            return id;
         }
 
         public List<Map<String, Object>> getObjectsToInfer() {
@@ -180,8 +231,28 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return inferenceTimeout;
         }
 
-        public void setInferenceTimeout(TimeValue inferenceTimeout) {
-            this.inferenceTimeout = inferenceTimeout;
+        public boolean isHighPriority() {
+            return highPriority;
+        }
+
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
+        }
+
+        public void setPrefixType(TrainedModelPrefixStrings.PrefixType prefixType) {
+            this.prefixType = prefixType;
+        }
+
+        public TrainedModelPrefixStrings.PrefixType getPrefixType() {
+            return prefixType;
+        }
+
+        public void setChunked(boolean chunked) {
+            this.chunked = chunked;
+        }
+
+        public boolean isChunked() {
+            return chunked;
         }
 
         @Override
@@ -192,15 +263,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(id);
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                out.writeBoolean(highPriority);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeEnum(prefixType);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                out.writeBoolean(chunked);
             }
         }
 
@@ -208,36 +288,49 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Request that = (InferModelAction.Request) o;
-            return Objects.equals(modelId, that.modelId)
+            Request that = (Request) o;
+            return Objects.equals(id, that.id)
                 && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
-                && Objects.equals(textInput, that.textInput);
+                && Objects.equals(textInput, that.textInput)
+                && (highPriority == that.highPriority)
+                && (prefixType == that.prefixType)
+                && (chunked == that.chunked);
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("infer_trained_model[%s]", modelId), parentTaskId, headers);
+            return new CancellableTask(id, type, action, format("infer_trained_model[%s]", this.id), parentTaskId, headers);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput);
+            return Objects.hash(
+                id,
+                objectsToInfer,
+                update,
+                previouslyLicensed,
+                inferenceTimeout,
+                textInput,
+                highPriority,
+                prefixType,
+                chunked
+            );
         }
 
         public static class Builder {
 
-            private String modelId;
+            private String id;
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
             private InferenceConfigUpdate update = new EmptyConfigUpdate();
 
             private Builder() {}
 
-            public Builder setModelId(String modelId) {
-                this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+            public Builder setId(String id) {
+                this.id = ExceptionsHelper.requireNonNull(id, ID);
                 return this;
             }
 
@@ -265,7 +358,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             }
 
             public Request build() {
-                return new Request(modelId, update, docs, null, timeout, false);
+                return new Request(id, update, docs, null, timeout, false);
             }
         }
 
@@ -274,21 +367,20 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final List<InferenceResults> inferenceResults;
-        private final String modelId;
+        private final String id;
         private final boolean isLicensed;
 
-        public Response(List<InferenceResults> inferenceResults, String modelId, boolean isLicensed) {
+        public Response(List<InferenceResults> inferenceResults, String id, boolean isLicensed) {
             super();
             this.inferenceResults = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(inferenceResults, "inferenceResults"));
             this.isLicensed = isLicensed;
-            this.modelId = modelId;
+            this.id = id;
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
+            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
-            this.modelId = in.readOptionalString();
+            this.id = in.readOptionalString();
         }
 
         public List<InferenceResults> getInferenceResults() {
@@ -299,30 +391,28 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return isLicensed;
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getId() {
+            return id;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableList(inferenceResults);
+            out.writeNamedWriteableCollection(inferenceResults);
             out.writeBoolean(isLicensed);
-            out.writeOptionalString(modelId);
+            out.writeOptionalString(id);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Response that = (InferModelAction.Response) o;
-            return isLicensed == that.isLicensed
-                && Objects.equals(inferenceResults, that.inferenceResults)
-                && Objects.equals(modelId, that.modelId);
+            Response that = (Response) o;
+            return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults) && Objects.equals(id, that.id);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceResults, isLicensed, modelId);
+            return Objects.hash(inferenceResults, isLicensed, id);
         }
 
         public static Builder builder() {
@@ -332,14 +422,21 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("inference_results", inferenceResults.stream().map(InferenceResults::asMap).collect(Collectors.toList()));
+            builder.startArray("inference_results");
+            for (var inference : inferenceResults) {
+                // inference results implement ToXContentFragment
+                builder.startObject();
+                inference.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }
 
         public static class Builder {
-            private List<InferenceResults> inferenceResults = new ArrayList<>();
-            private String modelId;
+            private final List<InferenceResults> inferenceResults = new ArrayList<>();
+            private String id;
             private boolean isLicensed;
 
             public Builder addInferenceResults(List<InferenceResults> inferenceResults) {
@@ -352,13 +449,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 return this;
             }
 
-            public Builder setModelId(String modelId) {
-                this.modelId = modelId;
+            public Builder setId(String id) {
+                this.id = id;
                 return this;
             }
 
             public Response build() {
-                return new Response(inferenceResults, modelId, isLicensed);
+                return new Response(inferenceResults, id, isLicensed);
             }
         }
 

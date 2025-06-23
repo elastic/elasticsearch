@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -18,6 +19,8 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -27,11 +30,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -47,13 +51,16 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.TestRankShardResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -61,9 +68,9 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.Text;
 import org.junit.After;
 import org.junit.Before;
 
@@ -110,16 +117,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
+        searchPhaseController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
                 reductions.add(false);
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, s.source().aggregations());
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
             }
 
             public AggregationReduceContext forFinalReduction() {
                 reductions.add(true);
-                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, s.source().aggregations(), b -> {});
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {});
             };
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -129,7 +136,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
     }
 
@@ -146,28 +153,32 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
-        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, queryResultSize, false, false);
-        Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
-        int from = 0, size = 0;
-        if (first.isPresent()) {
-            from = first.get().queryResult().from();
-            size = first.get().queryResult().size();
+        AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, queryResultSize, false, false, false);
+        try {
+            Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
+            int from = 0, size = 0;
+            if (first.isPresent()) {
+                from = first.get().queryResult().from();
+                size = first.get().queryResult().size();
+            }
+            int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
+            List<CompletionSuggestion> reducedCompletionSuggestions = reducedSuggest(results);
+            for (Suggest.Suggestion<?> suggestion : reducedCompletionSuggestions) {
+                int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
+                accumulatedLength += suggestionSize;
+            }
+            List<TopDocs> topDocsList = new ArrayList<>();
+            for (SearchPhaseResult result : results.asList()) {
+                QuerySearchResult queryResult = result.queryResult();
+                TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+                SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+                topDocsList.add(topDocs);
+            }
+            ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList, from, size, reducedCompletionSuggestions).scoreDocs();
+            assertThat(sortedDocs.length, equalTo(accumulatedLength));
+        } finally {
+            results.asList().forEach(RefCounted::decRef);
         }
-        int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
-        List<CompletionSuggestion> reducedCompletionSuggestions = reducedSuggest(results);
-        for (Suggest.Suggestion<?> suggestion : reducedCompletionSuggestions) {
-            int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
-            accumulatedLength += suggestionSize;
-        }
-        List<TopDocs> topDocsList = new ArrayList<>();
-        for (SearchPhaseResult result : results.asList()) {
-            QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
-            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
-            topDocsList.add(topDocs);
-        }
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, topDocsList, from, size, reducedCompletionSuggestions).scoreDocs();
-        assertThat(sortedDocs.length, equalTo(accumulatedLength));
     }
 
     public void testSortDocsIsIdempotent() throws Exception {
@@ -182,36 +193,45 @@ public class SearchPhaseControllerTests extends ESTestCase {
             queryResultSize,
             useConstantScore
         );
-        boolean ignoreFrom = randomBoolean();
-        Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
-        int from = 0, size = 0;
-        if (first.isPresent()) {
-            from = first.get().queryResult().from();
-            size = first.get().queryResult().size();
-        }
         List<TopDocs> topDocsList = new ArrayList<>();
-        for (SearchPhaseResult result : results.asList()) {
-            QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
-            topDocsList.add(topDocs);
-            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+        boolean ignoreFrom = randomBoolean();
+        int from = 0, size = 0;
+        ScoreDoc[] sortedDocs;
+        try {
+            Optional<SearchPhaseResult> first = results.asList().stream().findFirst();
+            if (first.isPresent()) {
+                from = first.get().queryResult().from();
+                size = first.get().queryResult().size();
+            }
+            for (SearchPhaseResult result : results.asList()) {
+                QuerySearchResult queryResult = result.queryResult();
+                TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+                topDocsList.add(topDocs);
+                SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+            }
+            sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size, Collections.emptyList()).scoreDocs();
+        } finally {
+            results.asList().forEach(RefCounted::decRef);
         }
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size, Collections.emptyList()).scoreDocs();
-
         results = generateSeededQueryResults(randomSeed, nShards, Collections.emptyList(), queryResultSize, useConstantScore);
-        topDocsList = new ArrayList<>();
-        for (SearchPhaseResult result : results.asList()) {
-            QuerySearchResult queryResult = result.queryResult();
-            TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
-            topDocsList.add(topDocs);
-            SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
-        }
-        ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size, Collections.emptyList()).scoreDocs();
-        assertEquals(sortedDocs.length, sortedDocs2.length);
-        for (int i = 0; i < sortedDocs.length; i++) {
-            assertEquals(sortedDocs[i].doc, sortedDocs2[i].doc);
-            assertEquals(sortedDocs[i].shardIndex, sortedDocs2[i].shardIndex);
-            assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
+        try {
+            topDocsList = new ArrayList<>();
+            for (SearchPhaseResult result : results.asList()) {
+                QuerySearchResult queryResult = result.queryResult();
+                TopDocs topDocs = queryResult.consumeTopDocs().topDocs;
+                topDocsList.add(topDocs);
+                SearchPhaseController.setShardIndex(topDocs, result.getShardIndex());
+            }
+            ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, topDocsList, from, size, Collections.emptyList())
+                .scoreDocs();
+            assertEquals(sortedDocs.length, sortedDocs2.length);
+            for (int i = 0; i < sortedDocs.length; i++) {
+                assertEquals(sortedDocs[i].doc, sortedDocs2[i].doc);
+                assertEquals(sortedDocs[i].shardIndex, sortedDocs2[i].shardIndex);
+                assertEquals(sortedDocs[i].score, sortedDocs2[i].score, 0.0f);
+            }
+        } finally {
+            results.asList().forEach(RefCounted::decRef);
         }
     }
 
@@ -223,7 +243,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
         boolean useConstantScore
     ) throws Exception {
         return RandomizedContext.current()
-            .runWithPrivateRandomness(seed, () -> generateQueryResults(nShards, suggestions, searchHitsSize, useConstantScore, false));
+            .runWithPrivateRandomness(
+                seed,
+                () -> generateQueryResults(nShards, suggestions, searchHitsSize, useConstantScore, false, false)
+            );
     }
 
     public void testMerge() {
@@ -238,77 +261,169 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         boolean profile = randomBoolean();
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
-            AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false, profile);
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
-                queryResults.asList(),
-                new ArrayList<>(),
-                new ArrayList<>(),
-                new SearchPhaseController.TopDocsStats(trackTotalHits),
-                0,
-                true,
-                InternalAggregationTestCase.emptyReduceContextBuilder(),
-                true
-            );
-            List<SearchShardTarget> shards = queryResults.asList().stream().map(SearchPhaseResult::getSearchShardTarget).collect(toList());
-            AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
-                shards,
-                reducedQueryPhase.sortedTopDocs().scoreDocs(),
-                reducedQueryPhase.suggest(),
-                profile
-            );
-            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
+            AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(
+                nShards,
+                suggestions,
+                queryResultSize,
                 false,
-                reducedQueryPhase,
-                fetchResults.asList(),
-                fetchResults::get
+                profile,
+                false
             );
-            if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                assertNull(mergedResponse.hits.getTotalHits());
-            } else {
-                assertThat(mergedResponse.hits.getTotalHits().value, equalTo(0L));
-                assertEquals(mergedResponse.hits.getTotalHits().relation, Relation.EQUAL_TO);
-            }
-            for (SearchHit hit : mergedResponse.hits().getHits()) {
-                SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());
-                assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
-            }
-            int suggestSize = 0;
-            for (Suggest.Suggestion<?> s : reducedQueryPhase.suggest()) {
-                suggestSize += s.getEntries().stream().mapToInt(e -> e.getOptions().size()).sum();
-            }
-            assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
-            assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length - suggestSize));
-            Suggest suggestResult = mergedResponse.suggest();
-            for (Suggest.Suggestion<?> suggestion : reducedQueryPhase.suggest()) {
-                assertThat(suggestion, instanceOf(CompletionSuggestion.class));
-                if (suggestion.getEntries().get(0).getOptions().size() > 0) {
-                    CompletionSuggestion suggestionResult = suggestResult.getSuggestion(suggestion.getName());
-                    assertNotNull(suggestionResult);
-                    List<CompletionSuggestion.Entry.Option> options = suggestionResult.getEntries().get(0).getOptions();
-                    assertThat(options.size(), equalTo(suggestion.getEntries().get(0).getOptions().size()));
-                    for (CompletionSuggestion.Entry.Option option : options) {
-                        assertNotNull(option.getHit());
-                        SearchPhaseResult searchPhaseResult = fetchResults.get(option.getHit().getShard().getShardId().id());
-                        assertSame(searchPhaseResult.getSearchShardTarget(), option.getHit().getShard());
+            try {
+                SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
+                    queryResults.asList(),
+                    InternalAggregations.EMPTY,
+                    new ArrayList<>(),
+                    new TopDocsStats(trackTotalHits),
+                    0,
+                    true,
+                    null
+                );
+                List<SearchShardTarget> shards = queryResults.asList()
+                    .stream()
+                    .map(SearchPhaseResult::getSearchShardTarget)
+                    .collect(toList());
+                AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
+                    shards,
+                    reducedQueryPhase.sortedTopDocs().scoreDocs(),
+                    reducedQueryPhase.suggest(),
+                    profile
+                );
+                try (SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                    if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                        assertNull(mergedResponse.hits.getTotalHits());
+                    } else {
+                        assertThat(mergedResponse.hits.getTotalHits().value(), equalTo(0L));
+                        assertEquals(mergedResponse.hits.getTotalHits().relation(), Relation.EQUAL_TO);
                     }
+                    for (SearchHit hit : mergedResponse.hits().getHits()) {
+                        SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());
+                        assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
+                    }
+                    int suggestSize = 0;
+                    for (Suggest.Suggestion<?> s : reducedQueryPhase.suggest()) {
+                        suggestSize += s.getEntries().stream().mapToInt(e -> e.getOptions().size()).sum();
+                    }
+                    assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
+                    assertThat(
+                        mergedResponse.hits().getHits().length,
+                        equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length - suggestSize)
+                    );
+                    Suggest suggestResult = mergedResponse.suggest();
+                    for (Suggest.Suggestion<?> suggestion : reducedQueryPhase.suggest()) {
+                        assertThat(suggestion, instanceOf(CompletionSuggestion.class));
+                        if (suggestion.getEntries().get(0).getOptions().size() > 0) {
+                            CompletionSuggestion suggestionResult = suggestResult.getSuggestion(suggestion.getName());
+                            assertNotNull(suggestionResult);
+                            List<CompletionSuggestion.Entry.Option> options = suggestionResult.getEntries().get(0).getOptions();
+                            assertThat(options.size(), equalTo(suggestion.getEntries().get(0).getOptions().size()));
+                            for (CompletionSuggestion.Entry.Option option : options) {
+                                assertNotNull(option.getHit());
+                                SearchPhaseResult searchPhaseResult = fetchResults.get(option.getHit().getShard().getShardId().id());
+                                assertSame(searchPhaseResult.getSearchShardTarget(), option.getHit().getShard());
+                            }
+                        }
+                    }
+                    if (profile) {
+                        assertThat(mergedResponse.profile().entrySet(), hasSize(nShards));
+                        assertThat(
+                            // All shards should have a query profile
+                            mergedResponse.profile().toString(),
+                            mergedResponse.profile().values().stream().filter(r -> r.getQueryProfileResults() != null).count(),
+                            equalTo((long) nShards)
+                        );
+                        assertThat(
+                            // Some or all shards should have a fetch profile
+                            mergedResponse.profile().toString(),
+                            mergedResponse.profile().values().stream().filter(r -> r.getFetchPhase() != null).count(),
+                            both(greaterThan(0L)).and(lessThanOrEqualTo((long) nShards))
+                        );
+                    } else {
+                        assertThat(mergedResponse.profile(), is(anEmptyMap()));
+                    }
+                } finally {
+                    fetchResults.asList().forEach(RefCounted::decRef);
                 }
+            } finally {
+                queryResults.asList().forEach(RefCounted::decRef);
             }
-            if (profile) {
-                assertThat(mergedResponse.profile().entrySet(), hasSize(nShards));
-                assertThat(
-                    // All shards should have a query profile
-                    mergedResponse.profile().toString(),
-                    mergedResponse.profile().values().stream().filter(r -> r.getQueryProfileResults() != null).count(),
-                    equalTo((long) nShards)
+        }
+    }
+
+    public void testMergeWithRank() {
+        final int nShards = randomIntBetween(1, 20);
+        final int fsize = randomIntBetween(1, 10);
+        final int windowSize = randomIntBetween(11, 100);
+        final int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
+            AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, List.of(), queryResultSize, false, false, true);
+            try {
+                SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
+                    queryResults.asList(),
+                    InternalAggregations.EMPTY,
+                    new ArrayList<>(),
+                    new TopDocsStats(trackTotalHits),
+                    0,
+                    true,
+                    new QueryPhaseRankCoordinatorContext(windowSize) {
+                        @Override
+                        public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats) {
+                            PriorityQueue<RankDoc> queue = new PriorityQueue<>(windowSize) {
+                                @Override
+                                protected boolean lessThan(RankDoc a, RankDoc b) {
+                                    return a.score < b.score;
+                                }
+                            };
+                            for (QuerySearchResult qsr : querySearchResults) {
+                                RankShardResult rsr = qsr.getRankShardResult();
+                                if (rsr != null) {
+                                    for (RankDoc rd : ((TestRankShardResult) rsr).testRankDocs) {
+                                        queue.insertWithOverflow(rd);
+                                    }
+                                }
+                            }
+                            int size = Math.min(fsize, queue.size());
+                            RankDoc[] topResults = new RankDoc[size];
+                            for (int rdi = 0; rdi < size; ++rdi) {
+                                topResults[rdi] = queue.pop();
+                                topResults[rdi].rank = rdi + 1;
+                            }
+                            topDocStats.fetchHits = topResults.length;
+                            return topResults;
+                        }
+                    }
                 );
-                assertThat(
-                    // Some or all shards should have a fetch profile
-                    mergedResponse.profile().toString(),
-                    mergedResponse.profile().values().stream().filter(r -> r.getFetchPhase() != null).count(),
-                    both(greaterThan(0L)).and(lessThanOrEqualTo((long) nShards))
+                List<SearchShardTarget> shards = queryResults.asList()
+                    .stream()
+                    .map(SearchPhaseResult::getSearchShardTarget)
+                    .collect(toList());
+                AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
+                    shards,
+                    reducedQueryPhase.sortedTopDocs().scoreDocs(),
+                    reducedQueryPhase.suggest(),
+                    false
                 );
-            } else {
-                assertThat(mergedResponse.profile(), is(anEmptyMap()));
+                try (SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                    if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                        assertNull(mergedResponse.hits.getTotalHits());
+                    } else {
+                        assertThat(mergedResponse.hits.getTotalHits().value(), equalTo(0L));
+                        assertEquals(mergedResponse.hits.getTotalHits().relation(), Relation.EQUAL_TO);
+                    }
+                    int rank = 1;
+                    for (SearchHit hit : mergedResponse.hits().getHits()) {
+                        SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());
+                        assertSame(searchPhaseResult.getSearchShardTarget(), hit.getShard());
+                        assertEquals(rank++, hit.getRank());
+                    }
+                    assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
+                    assertThat(mergedResponse.profile(), is(anEmptyMap()));
+                } finally {
+                    fetchResults.asList().forEach(RefCounted::decRef);
+                }
+            } finally {
+
+                queryResults.asList().forEach(RefCounted::decRef);
             }
         }
     }
@@ -325,7 +440,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         List<CompletionSuggestion> suggestions,
         int searchHitsSize,
         boolean useConstantScore,
-        boolean profile
+        boolean profile,
+        boolean rank
     ) {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
@@ -336,6 +452,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
             float maxScore = 0;
             if (searchHitsSize == 0) {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
+            } else if (rank) {
+                int nDocs = randomIntBetween(0, searchHitsSize);
+                RankDoc[] rankDocs = new RankDoc[nDocs];
+                for (int i = 0; i < nDocs; i++) {
+                    float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
+                    rankDocs[i] = new RankDoc(i, score, shardIndex);
+                    maxScore = Math.max(score, maxScore);
+                }
+                querySearchResult.setRankShardResult(new TestRankShardResult(rankDocs));
+                topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS);
             } else {
                 int nDocs = randomIntBetween(0, searchHitsSize);
                 ScoreDoc[] scoreDocs = new ScoreDoc[nDocs];
@@ -387,8 +513,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int resultCount = 0;
         for (SearchPhaseResult shardResult : results.asList()) {
             TopDocs topDocs = shardResult.queryResult().topDocs().topDocs;
-            assert topDocs.totalHits.relation == Relation.EQUAL_TO;
-            resultCount += topDocs.totalHits.value;
+            assert topDocs.totalHits.relation() == Relation.EQUAL_TO;
+            resultCount += (int) topDocs.totalHits.value();
         }
         return resultCount;
     }
@@ -422,30 +548,35 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(new SearchHit(scoreDoc.doc, ""));
+                    searchHits.add(SearchHit.unpooled(scoreDoc.doc, ""));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
                 }
             }
-            for (Suggest.Suggestion<?> suggestion : mergedSuggest) {
-                if (suggestion instanceof CompletionSuggestion) {
-                    for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
-                        ScoreDoc doc = option.getDoc();
-                        if (doc.shardIndex == shardIndex) {
-                            searchHits.add(new SearchHit(doc.doc, ""));
-                            if (doc.score > maxScore) {
-                                maxScore = doc.score;
+            if (mergedSuggest != null) {
+                for (Suggest.Suggestion<?> suggestion : mergedSuggest) {
+                    if (suggestion instanceof CompletionSuggestion) {
+                        for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
+                            ScoreDoc doc = option.getDoc();
+                            if (doc.shardIndex == shardIndex) {
+                                searchHits.add(SearchHit.unpooled(doc.doc, ""));
+                                if (doc.score > maxScore) {
+                                    maxScore = doc.score;
+                                }
                             }
                         }
                     }
                 }
             }
-            SearchHit[] hits = searchHits.toArray(new SearchHit[0]);
+            SearchHit[] hits = searchHits.toArray(SearchHits.EMPTY);
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;
-            fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), profileResult);
+            fetchSearchResult.shardResult(
+                SearchHits.unpooled(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore),
+                profileResult
+            );
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
@@ -472,106 +603,121 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            3 + numEmptyResponses,
-            exc -> {}
-        );
-        if (numEmptyResponses == 0) {
-            assertEquals(0, reductions.size());
-        }
-        if (numEmptyResponses > 0) {
-            QuerySearchResult empty = QuerySearchResult.nullInstance();
-            int shardId = 2 + numEmptyResponses;
-            empty.setShardIndex(2 + numEmptyResponses);
-            empty.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null));
-            consumer.consumeResult(empty, latch::countDown);
-            numEmptyResponses--;
-        }
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                3 + numEmptyResponses,
+                exc -> {}
+            )
+        ) {
+            if (numEmptyResponses == 0) {
+                assertEquals(0, reductions.size());
+            }
+            if (numEmptyResponses > 0) {
+                QuerySearchResult empty = QuerySearchResult.nullInstance();
+                int shardId = 2 + numEmptyResponses;
+                empty.setShardIndex(2 + numEmptyResponses);
+                empty.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null));
+                consumer.consumeResult(empty, latch::countDown);
+                numEmptyResponses--;
+            }
 
-        QuerySearchResult result = new QuerySearchResult(
-            new ShardSearchContextId("", 0),
-            new SearchShardTarget("node", new ShardId("a", "b", 0), null),
-            null
-        );
-        result.topDocs(
-            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]
-        );
-        InternalAggregations aggs = InternalAggregations.from(singletonList(new Max("test", 1.0D, DocValueFormat.RAW, emptyMap())));
-        result.aggregations(aggs);
-        result.setShardIndex(0);
-        consumer.consumeResult(result, latch::countDown);
-
-        result = new QuerySearchResult(
-            new ShardSearchContextId("", 1),
-            new SearchShardTarget("node", new ShardId("a", "b", 0), null),
-            null
-        );
-        result.topDocs(
-            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]
-        );
-        aggs = InternalAggregations.from(singletonList(new Max("test", 3.0D, DocValueFormat.RAW, emptyMap())));
-        result.aggregations(aggs);
-        result.setShardIndex(2);
-        consumer.consumeResult(result, latch::countDown);
-
-        result = new QuerySearchResult(
-            new ShardSearchContextId("", 1),
-            new SearchShardTarget("node", new ShardId("a", "b", 0), null),
-            null
-        );
-        result.topDocs(
-            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]
-        );
-        aggs = InternalAggregations.from(singletonList(new Max("test", 2.0D, DocValueFormat.RAW, emptyMap())));
-        result.aggregations(aggs);
-        result.setShardIndex(1);
-        consumer.consumeResult(result, latch::countDown);
-
-        while (numEmptyResponses > 0) {
-            result = QuerySearchResult.nullInstance();
-            int shardId = 2 + numEmptyResponses;
-            result.setShardIndex(shardId);
-            result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null));
-            consumer.consumeResult(result, latch::countDown);
-            numEmptyResponses--;
-
-        }
-        latch.await();
-        final int numTotalReducePhases;
-        if (numShards > bufferSize) {
-            if (bufferSize == 2) {
-                assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
-                assertEquals(1, reductions.size());
-                assertEquals(false, reductions.get(0));
-                numTotalReducePhases = 2;
+            QuerySearchResult result = new QuerySearchResult(
+                new ShardSearchContextId("", 0),
+                new SearchShardTarget("node", new ShardId("a", "b", 0), null),
+                null
+            );
+            try {
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                InternalAggregations aggs = InternalAggregations.from(singletonList(new Max("test", 1.0D, DocValueFormat.RAW, emptyMap())));
+                result.aggregations(aggs);
+                result.setShardIndex(0);
+                consumer.consumeResult(result, latch::countDown);
+            } finally {
+                result.decRef();
+            }
+            result = new QuerySearchResult(
+                new ShardSearchContextId("", 1),
+                new SearchShardTarget("node", new ShardId("a", "b", 0), null),
+                null
+            );
+            try {
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                InternalAggregations aggs = InternalAggregations.from(singletonList(new Max("test", 3.0D, DocValueFormat.RAW, emptyMap())));
+                result.aggregations(aggs);
+                result.setShardIndex(2);
+                consumer.consumeResult(result, latch::countDown);
+            } finally {
+                result.decRef();
+            }
+            result = new QuerySearchResult(
+                new ShardSearchContextId("", 1),
+                new SearchShardTarget("node", new ShardId("a", "b", 0), null),
+                null
+            );
+            try {
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                InternalAggregations aggs = InternalAggregations.from(singletonList(new Max("test", 2.0D, DocValueFormat.RAW, emptyMap())));
+                result.aggregations(aggs);
+                result.setShardIndex(1);
+                consumer.consumeResult(result, latch::countDown);
+            } finally {
+                result.decRef();
+            }
+            while (numEmptyResponses > 0) {
+                result = QuerySearchResult.nullInstance();
+                try {
+                    int shardId = 2 + numEmptyResponses;
+                    result.setShardIndex(shardId);
+                    result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null));
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+                numEmptyResponses--;
+            }
+            latch.await();
+            final int numTotalReducePhases;
+            if (numShards > bufferSize) {
+                if (bufferSize == 2) {
+                    assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                    assertEquals(1, reductions.size());
+                    assertEquals(false, reductions.get(0));
+                    numTotalReducePhases = 2;
+                } else {
+                    assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                    assertEquals(0, reductions.size());
+                    numTotalReducePhases = 1;
+                }
             } else {
-                assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
                 assertEquals(0, reductions.size());
                 numTotalReducePhases = 1;
             }
-        } else {
-            assertEquals(0, reductions.size());
-            numTotalReducePhases = 1;
-        }
 
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertEquals(numTotalReducePhases, reduce.numReducePhases());
-        assertEquals(numTotalReducePhases, reductions.size());
-        assertAggReduction(request);
-        Max max = (Max) reduce.aggregations().asList().get(0);
-        assertEquals(3.0D, max.value(), 0.0D);
-        assertFalse(reduce.sortedTopDocs().isSortedByField());
-        assertNull(reduce.sortedTopDocs().sortFields());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertEquals(numTotalReducePhases, reduce.numReducePhases());
+            assertEquals(numTotalReducePhases, reductions.size());
+            assertAggReduction(request);
+            Max max = (Max) reduce.aggregations().asList().get(0);
+            assertEquals(3.0D, max.value(), 0.0D);
+            assertFalse(reduce.sortedTopDocs().isSortedByField());
+            assertNull(reduce.sortedTopDocs().sortFields());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
+        }
     }
 
     public void testConsumerConcurrently() throws Exception {
@@ -581,21 +727,20 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        AtomicInteger max = new AtomicInteger();
-        Thread[] threads = new Thread[expectedNumResults];
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            int id = i;
-            threads[i] = new Thread(() -> {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            AtomicInteger max = new AtomicInteger();
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            runInParallel(expectedNumResults, id -> {
                 int number = randomIntBetween(1, 1000);
                 max.updateAndGet(prev -> Math.max(prev, number));
                 QuerySearchResult result = new QuerySearchResult(
@@ -603,41 +748,40 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new SearchShardTarget("node", new ShardId("a", "b", id), null),
                     null
                 );
-                result.topDocs(
-                    new TopDocsAndMaxScore(
-                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
-                        number
-                    ),
-                    new DocValueFormat[0]
-                );
-                InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
-                );
-                result.aggregations(aggs);
-                result.setShardIndex(id);
-                result.size(1);
-                consumer.consumeResult(result, latch::countDown);
-
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
+                            number
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    InternalAggregations aggs = InternalAggregations.from(
+                        Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                    );
+                    result.aggregations(aggs);
+                    result.setShardIndex(id);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
             });
-            threads[i].start();
-        }
-        for (int i = 0; i < expectedNumResults; i++) {
-            threads[i].join();
-        }
-        latch.await();
+            latch.await();
 
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertAggReduction(request);
-        Max internalMax = (Max) reduce.aggregations().asList().get(0);
-        assertEquals(max.get(), internalMax.value(), 0.0D);
-        assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(max.get(), reduce.maxScore(), 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits().value);
-        assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
-        assertFalse(reduce.sortedTopDocs().isSortedByField());
-        assertNull(reduce.sortedTopDocs().sortFields());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertAggReduction(request);
+            Max internalMax = (Max) reduce.aggregations().asList().get(0);
+            assertEquals(max.get(), internalMax.value(), 0.0D);
+            assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(max.get(), reduce.maxScore(), 0.0f);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
+            assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
+            assertFalse(reduce.sortedTopDocs().isSortedByField());
+            assertNull(reduce.sortedTopDocs().sortFields());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
+        }
     }
 
     public void testConsumerOnlyAggs() throws Exception {
@@ -646,50 +790,57 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")).size(0));
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        AtomicInteger max = new AtomicInteger();
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            int number = randomIntBetween(1, 1000);
-            max.updateAndGet(prev -> Math.max(prev, number));
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            result.topDocs(
-                new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
-                new DocValueFormat[0]
-            );
-            InternalAggregations aggs = InternalAggregations.from(
-                Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
-            );
-            result.aggregations(aggs);
-            result.setShardIndex(i);
-            result.size(1);
-            consumer.consumeResult(result, latch::countDown);
-        }
-        latch.await();
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            AtomicInteger max = new AtomicInteger();
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            for (int i = 0; i < expectedNumResults; i++) {
+                int number = randomIntBetween(1, 1000);
+                max.updateAndGet(prev -> Math.max(prev, number));
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
+                        new DocValueFormat[0]
+                    );
+                    InternalAggregations aggs = InternalAggregations.from(
+                        Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                    );
+                    result.aggregations(aggs);
+                    result.setShardIndex(i);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            }
+            latch.await();
 
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertAggReduction(request);
-        Max internalMax = (Max) reduce.aggregations().asList().get(0);
-        assertEquals(max.get(), internalMax.value(), 0.0D);
-        assertEquals(0, reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(max.get(), reduce.maxScore(), 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits().value);
-        assertFalse(reduce.sortedTopDocs().isSortedByField());
-        assertNull(reduce.sortedTopDocs().sortFields());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertAggReduction(request);
+            Max internalMax = (Max) reduce.aggregations().asList().get(0);
+            assertEquals(max.get(), internalMax.value(), 0.0D);
+            assertEquals(0, reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(max.get(), reduce.maxScore(), 0.0f);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
+            assertFalse(reduce.sortedTopDocs().isSortedByField());
+            assertNull(reduce.sortedTopDocs().sortFields());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
+        }
     }
 
     public void testConsumerOnlyHits() throws Exception {
@@ -700,47 +851,55 @@ public class SearchPhaseControllerTests extends ESTestCase {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        AtomicInteger max = new AtomicInteger();
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            int number = randomIntBetween(1, 1000);
-            max.updateAndGet(prev -> Math.max(prev, number));
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            result.topDocs(
-                new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
-                    number
-                ),
-                new DocValueFormat[0]
-            );
-            result.setShardIndex(i);
-            result.size(1);
-            consumer.consumeResult(result, latch::countDown);
+
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            AtomicInteger max = new AtomicInteger();
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            for (int i = 0; i < expectedNumResults; i++) {
+                int number = randomIntBetween(1, 1000);
+                max.updateAndGet(prev -> Math.max(prev, number));
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
+                            number
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    result.setShardIndex(i);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            }
+            latch.await();
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertAggReduction(request);
+            assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(max.get(), reduce.maxScore(), 0.0f);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
+            assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
+            assertFalse(reduce.sortedTopDocs().isSortedByField());
+            assertNull(reduce.sortedTopDocs().sortFields());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
         }
-        latch.await();
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertAggReduction(request);
-        assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(max.get(), reduce.maxScore(), 0.0f);
-        assertEquals(expectedNumResults, reduce.totalHits().value);
-        assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
-        assertFalse(reduce.sortedTopDocs().isSortedByField());
-        assertNull(reduce.sortedTopDocs().sortFields());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
     }
 
     private void assertAggReduction(SearchRequest searchRequest) {
@@ -759,48 +918,55 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            4,
-            exc -> {}
-        );
-        int score = 100;
-        CountDownLatch latch = new CountDownLatch(4);
-        for (int i = 0; i < 4; i++) {
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            ScoreDoc[] docs = new ScoreDoc[3];
-            for (int j = 0; j < docs.length; j++) {
-                docs[j] = new ScoreDoc(0, score--);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                4,
+                exc -> {}
+            )
+        ) {
+            int score = 100;
+            CountDownLatch latch = new CountDownLatch(4);
+            for (int i = 0; i < 4; i++) {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    ScoreDoc[] docs = new ScoreDoc[3];
+                    for (int j = 0; j < docs.length; j++) {
+                        docs[j] = new ScoreDoc(0, score--);
+                    }
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(3, TotalHits.Relation.EQUAL_TO), docs), docs[0].score),
+                        new DocValueFormat[0]
+                    );
+                    result.setShardIndex(i);
+                    result.size(5);
+                    result.from(5);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
             }
-            result.topDocs(
-                new TopDocsAndMaxScore(new TopDocs(new TotalHits(3, TotalHits.Relation.EQUAL_TO), docs), docs[0].score),
-                new DocValueFormat[0]
-            );
-            result.setShardIndex(i);
-            result.size(5);
-            result.from(5);
-            consumer.consumeResult(result, latch::countDown);
+            latch.await();
+            // 4*3 results = 12 we get result 5 to 10 here with from=5 and size=5
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            ScoreDoc[] scoreDocs = reduce.sortedTopDocs().scoreDocs();
+            assertEquals(5, scoreDocs.length);
+            assertEquals(100.f, reduce.maxScore(), 0.0f);
+            assertEquals(12, reduce.totalHits().value());
+            assertEquals(95.0f, scoreDocs[0].score, 0.0f);
+            assertEquals(94.0f, scoreDocs[1].score, 0.0f);
+            assertEquals(93.0f, scoreDocs[2].score, 0.0f);
+            assertEquals(92.0f, scoreDocs[3].score, 0.0f);
+            assertEquals(91.0f, scoreDocs[4].score, 0.0f);
         }
-        latch.await();
-        // 4*3 results = 12 we get result 5 to 10 here with from=5 and size=5
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        ScoreDoc[] scoreDocs = reduce.sortedTopDocs().scoreDocs();
-        assertEquals(5, scoreDocs.length);
-        assertEquals(100.f, reduce.maxScore(), 0.0f);
-        assertEquals(12, reduce.totalHits().value);
-        assertEquals(95.0f, scoreDocs[0].score, 0.0f);
-        assertEquals(94.0f, scoreDocs[1].score, 0.0f);
-        assertEquals(93.0f, scoreDocs[2].score, 0.0f);
-        assertEquals(92.0f, scoreDocs[3].score, 0.0f);
-        assertEquals(91.0f, scoreDocs[4].score, 0.0f);
     }
 
     public void testConsumerSortByField() throws Exception {
@@ -809,46 +975,53 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        AtomicInteger max = new AtomicInteger();
-        SortField[] sortFields = { new SortField("field", SortField.Type.INT, true) };
-        DocValueFormat[] docValueFormats = { DocValueFormat.RAW };
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            int number = randomIntBetween(1, 1000);
-            max.updateAndGet(prev -> Math.max(prev, number));
-            FieldDoc[] fieldDocs = { new FieldDoc(0, Float.NaN, new Object[] { number }) };
-            TopDocs topDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields);
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
-            result.setShardIndex(i);
-            result.size(size);
-            consumer.consumeResult(result, latch::countDown);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            AtomicInteger max = new AtomicInteger();
+            SortField[] sortFields = { new SortField("field", SortField.Type.INT, true) };
+            DocValueFormat[] docValueFormats = { DocValueFormat.RAW };
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            for (int i = 0; i < expectedNumResults; i++) {
+                int number = randomIntBetween(1, 1000);
+                max.updateAndGet(prev -> Math.max(prev, number));
+                FieldDoc[] fieldDocs = { new FieldDoc(0, Float.NaN, new Object[] { number }) };
+                TopDocs topDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields);
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+                    result.setShardIndex(i);
+                    result.size(size);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            }
+            latch.await();
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertAggReduction(request);
+            assertEquals(Math.min(expectedNumResults, size), reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
+            assertEquals(max.get(), ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
+            assertTrue(reduce.sortedTopDocs().isSortedByField());
+            assertEquals(1, reduce.sortedTopDocs().sortFields().length);
+            assertEquals("field", reduce.sortedTopDocs().sortFields()[0].getField());
+            assertEquals(SortField.Type.INT, reduce.sortedTopDocs().sortFields()[0].getType());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
         }
-        latch.await();
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertAggReduction(request);
-        assertEquals(Math.min(expectedNumResults, size), reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(expectedNumResults, reduce.totalHits().value);
-        assertEquals(max.get(), ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
-        assertTrue(reduce.sortedTopDocs().isSortedByField());
-        assertEquals(1, reduce.sortedTopDocs().sortFields().length);
-        assertEquals("field", reduce.sortedTopDocs().sortFields()[0].getField());
-        assertEquals(SortField.Type.INT, reduce.sortedTopDocs().sortFields()[0].getType());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
     }
 
     public void testConsumerFieldCollapsing() throws Exception {
@@ -857,50 +1030,57 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        SortField[] sortFields = { new SortField("field", SortField.Type.STRING) };
-        BytesRef a = new BytesRef("a");
-        BytesRef b = new BytesRef("b");
-        BytesRef c = new BytesRef("c");
-        Object[] collapseValues = new Object[] { a, b, c };
-        DocValueFormat[] docValueFormats = { DocValueFormat.RAW };
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            Object[] values = { randomFrom(collapseValues) };
-            FieldDoc[] fieldDocs = { new FieldDoc(0, Float.NaN, values) };
-            TopDocs topDocs = new TopFieldGroups("field", new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields, values);
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
-            result.setShardIndex(i);
-            result.size(size);
-            consumer.consumeResult(result, latch::countDown);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            SortField[] sortFields = { new SortField("field", SortField.Type.STRING) };
+            BytesRef a = new BytesRef("a");
+            BytesRef b = new BytesRef("b");
+            BytesRef c = new BytesRef("c");
+            Object[] collapseValues = new Object[] { a, b, c };
+            DocValueFormat[] docValueFormats = { DocValueFormat.RAW };
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            for (int i = 0; i < expectedNumResults; i++) {
+                Object[] values = { randomFrom(collapseValues) };
+                FieldDoc[] fieldDocs = { new FieldDoc(0, Float.NaN, values) };
+                TopDocs topDocs = new TopFieldGroups("field", new TotalHits(1, Relation.EQUAL_TO), fieldDocs, sortFields, values);
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
+                    result.setShardIndex(i);
+                    result.size(size);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
+            }
+            latch.await();
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertAggReduction(request);
+            assertEquals(3, reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
+            assertEquals(a, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
+            assertEquals(b, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[1]).fields[0]);
+            assertEquals(c, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[2]).fields[0]);
+            assertTrue(reduce.sortedTopDocs().isSortedByField());
+            assertEquals(1, reduce.sortedTopDocs().sortFields().length);
+            assertEquals("field", reduce.sortedTopDocs().sortFields()[0].getField());
+            assertEquals(SortField.Type.STRING, reduce.sortedTopDocs().sortFields()[0].getType());
+            assertEquals("field", reduce.sortedTopDocs().collapseField());
+            assertArrayEquals(collapseValues, reduce.sortedTopDocs().collapseValues());
         }
-        latch.await();
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertAggReduction(request);
-        assertEquals(3, reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(expectedNumResults, reduce.totalHits().value);
-        assertEquals(a, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
-        assertEquals(b, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[1]).fields[0]);
-        assertEquals(c, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[2]).fields[0]);
-        assertTrue(reduce.sortedTopDocs().isSortedByField());
-        assertEquals(1, reduce.sortedTopDocs().sortFields().length);
-        assertEquals("field", reduce.sortedTopDocs().sortFields()[0].getField());
-        assertEquals(SortField.Type.STRING, reduce.sortedTopDocs().sortFields()[0].getType());
-        assertEquals("field", reduce.sortedTopDocs().collapseField());
-        assertArrayEquals(collapseValues, reduce.sortedTopDocs().collapseValues());
     }
 
     public void testConsumerSuggestions() throws Exception {
@@ -908,107 +1088,114 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        int maxScoreTerm = -1;
-        int maxScorePhrase = -1;
-        int maxScoreCompletion = -1;
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        for (int i = 0; i < expectedNumResults; i++) {
-            QuerySearchResult result = new QuerySearchResult(
-                new ShardSearchContextId("", i),
-                new SearchShardTarget("node", new ShardId("a", "b", i), null),
-                null
-            );
-            List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
-                new ArrayList<>();
-            {
-                TermSuggestion termSuggestion = new TermSuggestion("term", 1, SortBy.SCORE);
-                TermSuggestion.Entry entry = new TermSuggestion.Entry(new Text("entry"), 0, 10);
-                int numOptions = randomIntBetween(1, 10);
-                for (int j = 0; j < numOptions; j++) {
-                    int score = numOptions - j;
-                    maxScoreTerm = Math.max(maxScoreTerm, score);
-                    entry.addOption(new TermSuggestion.Entry.Option(new Text("option"), randomInt(), score));
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
+            int maxScoreTerm = -1;
+            int maxScorePhrase = -1;
+            int maxScoreCompletion = -1;
+            CountDownLatch latch = new CountDownLatch(expectedNumResults);
+            for (int i = 0; i < expectedNumResults; i++) {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", i),
+                    new SearchShardTarget("node", new ShardId("a", "b", i), null),
+                    null
+                );
+                try {
+                    List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
+                        new ArrayList<>();
+                    {
+                        TermSuggestion termSuggestion = new TermSuggestion("term", 1, SortBy.SCORE);
+                        TermSuggestion.Entry entry = new TermSuggestion.Entry(new Text("entry"), 0, 10);
+                        int numOptions = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOptions; j++) {
+                            int score = numOptions - j;
+                            maxScoreTerm = Math.max(maxScoreTerm, score);
+                            entry.addOption(new TermSuggestion.Entry.Option(new Text("option"), randomInt(), score));
+                        }
+                        termSuggestion.addTerm(entry);
+                        suggestions.add(termSuggestion);
+                    }
+                    {
+                        PhraseSuggestion phraseSuggestion = new PhraseSuggestion("phrase", 1);
+                        PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entry"), 0, 10);
+                        int numOptions = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOptions; j++) {
+                            int score = numOptions - j;
+                            maxScorePhrase = Math.max(maxScorePhrase, score);
+                            entry.addOption(new PhraseSuggestion.Entry.Option(new Text("option"), new Text("option"), score));
+                        }
+                        phraseSuggestion.addTerm(entry);
+                        suggestions.add(phraseSuggestion);
+                    }
+                    {
+                        CompletionSuggestion completionSuggestion = new CompletionSuggestion("completion", 1, false);
+                        CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entry"), 0, 10);
+                        int numOptions = randomIntBetween(1, 10);
+                        for (int j = 0; j < numOptions; j++) {
+                            int score = numOptions - j;
+                            maxScoreCompletion = Math.max(maxScoreCompletion, score);
+                            CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                                j,
+                                new Text("option"),
+                                score,
+                                Collections.emptyMap()
+                            );
+                            entry.addOption(option);
+                        }
+                        completionSuggestion.addTerm(entry);
+                        suggestions.add(completionSuggestion);
+                    }
+                    result.suggest(new Suggest(suggestions));
+                    result.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+                    result.setShardIndex(i);
+                    result.size(0);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
                 }
-                termSuggestion.addTerm(entry);
-                suggestions.add(termSuggestion);
+            }
+            latch.await();
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertEquals(3, reduce.suggest().size());
+            {
+                TermSuggestion term = reduce.suggest().getSuggestion("term");
+                assertEquals(1, term.getEntries().size());
+                assertEquals(1, term.getEntries().get(0).getOptions().size());
+                assertEquals(maxScoreTerm, term.getEntries().get(0).getOptions().get(0).getScore(), 0f);
             }
             {
-                PhraseSuggestion phraseSuggestion = new PhraseSuggestion("phrase", 1);
-                PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entry"), 0, 10);
-                int numOptions = randomIntBetween(1, 10);
-                for (int j = 0; j < numOptions; j++) {
-                    int score = numOptions - j;
-                    maxScorePhrase = Math.max(maxScorePhrase, score);
-                    entry.addOption(new PhraseSuggestion.Entry.Option(new Text("option"), new Text("option"), score));
-                }
-                phraseSuggestion.addTerm(entry);
-                suggestions.add(phraseSuggestion);
+                PhraseSuggestion phrase = reduce.suggest().getSuggestion("phrase");
+                assertEquals(1, phrase.getEntries().size());
+                assertEquals(1, phrase.getEntries().get(0).getOptions().size());
+                assertEquals(maxScorePhrase, phrase.getEntries().get(0).getOptions().get(0).getScore(), 0f);
             }
             {
-                CompletionSuggestion completionSuggestion = new CompletionSuggestion("completion", 1, false);
-                CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entry"), 0, 10);
-                int numOptions = randomIntBetween(1, 10);
-                for (int j = 0; j < numOptions; j++) {
-                    int score = numOptions - j;
-                    maxScoreCompletion = Math.max(maxScoreCompletion, score);
-                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
-                        j,
-                        new Text("option"),
-                        score,
-                        Collections.emptyMap()
-                    );
-                    entry.addOption(option);
-                }
-                completionSuggestion.addTerm(entry);
-                suggestions.add(completionSuggestion);
+                CompletionSuggestion completion = reduce.suggest().getSuggestion("completion");
+                assertEquals(1, completion.getSize());
+                assertEquals(1, completion.getOptions().size());
+                CompletionSuggestion.Entry.Option option = completion.getOptions().get(0);
+                assertEquals(maxScoreCompletion, option.getScore(), 0f);
             }
-            result.suggest(new Suggest(suggestions));
-            result.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
-            result.setShardIndex(i);
-            result.size(0);
-            consumer.consumeResult(result, latch::countDown);
+            assertAggReduction(request);
+            assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
+            assertEquals(maxScoreCompletion, reduce.sortedTopDocs().scoreDocs()[0].score, 0f);
+            assertEquals(0, reduce.sortedTopDocs().scoreDocs()[0].doc);
+            assertNotEquals(-1, reduce.sortedTopDocs().scoreDocs()[0].shardIndex);
+            assertEquals(0, reduce.totalHits().value());
+            assertFalse(reduce.sortedTopDocs().isSortedByField());
+            assertNull(reduce.sortedTopDocs().sortFields());
+            assertNull(reduce.sortedTopDocs().collapseField());
+            assertNull(reduce.sortedTopDocs().collapseValues());
         }
-        latch.await();
-        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-        assertEquals(3, reduce.suggest().size());
-        {
-            TermSuggestion term = reduce.suggest().getSuggestion("term");
-            assertEquals(1, term.getEntries().size());
-            assertEquals(1, term.getEntries().get(0).getOptions().size());
-            assertEquals(maxScoreTerm, term.getEntries().get(0).getOptions().get(0).getScore(), 0f);
-        }
-        {
-            PhraseSuggestion phrase = reduce.suggest().getSuggestion("phrase");
-            assertEquals(1, phrase.getEntries().size());
-            assertEquals(1, phrase.getEntries().get(0).getOptions().size());
-            assertEquals(maxScorePhrase, phrase.getEntries().get(0).getOptions().get(0).getScore(), 0f);
-        }
-        {
-            CompletionSuggestion completion = reduce.suggest().getSuggestion("completion");
-            assertEquals(1, completion.getSize());
-            assertEquals(1, completion.getOptions().size());
-            CompletionSuggestion.Entry.Option option = completion.getOptions().get(0);
-            assertEquals(maxScoreCompletion, option.getScore(), 0f);
-        }
-        assertAggReduction(request);
-        assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
-        assertEquals(maxScoreCompletion, reduce.sortedTopDocs().scoreDocs()[0].score, 0f);
-        assertEquals(0, reduce.sortedTopDocs().scoreDocs()[0].doc);
-        assertNotEquals(-1, reduce.sortedTopDocs().scoreDocs()[0].shardIndex);
-        assertEquals(0, reduce.totalHits().value);
-        assertFalse(reduce.sortedTopDocs().isSortedByField());
-        assertNull(reduce.sortedTopDocs().sortFields());
-        assertNull(reduce.sortedTopDocs().collapseField());
-        assertNull(reduce.sortedTopDocs().collapseValues());
     }
 
     public void testProgressListener() throws Exception {
@@ -1024,7 +1211,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             AtomicReference<TotalHits> totalHitsListener = new AtomicReference<>();
             SearchProgressListener progressListener = new SearchProgressListener() {
                 @Override
-                public void onQueryResult(int shardIndex) {
+                public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
                     assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryResultListener.incrementAndGet();
                 }
@@ -1047,21 +1234,20 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
             };
-            QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-                fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                () -> false,
-                progressListener,
-                request,
-                expectedNumResults,
-                exc -> {}
-            );
-            AtomicInteger max = new AtomicInteger();
-            Thread[] threads = new Thread[expectedNumResults];
-            CountDownLatch latch = new CountDownLatch(expectedNumResults);
-            for (int i = 0; i < expectedNumResults; i++) {
-                int id = i;
-                threads[i] = new Thread(() -> {
+            try (
+                SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                    fixedExecutor,
+                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    () -> false,
+                    progressListener,
+                    request,
+                    expectedNumResults,
+                    exc -> {}
+                )
+            ) {
+                AtomicInteger max = new AtomicInteger();
+                CountDownLatch latch = new CountDownLatch(expectedNumResults);
+                runInParallel(expectedNumResults, id -> {
                     int number = randomIntBetween(1, 1000);
                     max.updateAndGet(prev -> Math.max(prev, number));
                     QuerySearchResult result = new QuerySearchResult(
@@ -1069,46 +1255,46 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new SearchShardTarget("node", new ShardId("a", "b", id), null),
                         null
                     );
-                    result.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
-                            number
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    InternalAggregations aggs = InternalAggregations.from(
-                        Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
-                    );
-                    result.aggregations(aggs);
-                    result.setShardIndex(id);
-                    result.size(1);
-                    consumer.consumeResult(result, latch::countDown);
+                    try {
+                        result.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, number) }),
+                                number
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        InternalAggregations aggs = InternalAggregations.from(
+                            Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                        );
+                        result.aggregations(aggs);
+                        result.setShardIndex(id);
+                        result.size(1);
+                        consumer.consumeResult(result, latch::countDown);
+                    } finally {
+                        result.decRef();
+                    }
                 });
-                threads[i].start();
-            }
-            for (int i = 0; i < expectedNumResults; i++) {
-                threads[i].join();
-            }
-            latch.await();
-            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-            assertAggReduction(request);
-            Max internalMax = (Max) reduce.aggregations().asList().get(0);
-            assertEquals(max.get(), internalMax.value(), 0.0D);
-            assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
-            assertEquals(max.get(), reduce.maxScore(), 0.0f);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
-            assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
-            assertFalse(reduce.sortedTopDocs().isSortedByField());
-            assertNull(reduce.sortedTopDocs().sortFields());
-            assertNull(reduce.sortedTopDocs().collapseField());
-            assertNull(reduce.sortedTopDocs().collapseValues());
+                latch.await();
+                SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+                assertAggReduction(request);
+                Max internalMax = (Max) reduce.aggregations().asList().get(0);
+                assertEquals(max.get(), internalMax.value(), 0.0D);
+                assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
+                assertEquals(max.get(), reduce.maxScore(), 0.0f);
+                assertEquals(expectedNumResults, reduce.totalHits().value());
+                assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
+                assertFalse(reduce.sortedTopDocs().isSortedByField());
+                assertNull(reduce.sortedTopDocs().sortFields());
+                assertNull(reduce.sortedTopDocs().collapseField());
+                assertNull(reduce.sortedTopDocs().collapseValues());
 
-            assertEquals(reduce.aggregations(), finalAggsListener.get());
-            assertEquals(reduce.totalHits(), totalHitsListener.get());
+                assertEquals(reduce.aggregations(), finalAggsListener.get());
+                assertEquals(reduce.totalHits(), totalHitsListener.get());
 
-            assertEquals(expectedNumResults, numQueryResultListener.get());
-            assertEquals(0, numQueryFailureListener.get());
-            assertEquals(numReduceListener.get(), reduce.numReducePhases());
+                assertEquals(expectedNumResults, numQueryResultListener.get());
+                assertEquals(0, numQueryFailureListener.get());
+                assertEquals(numReduceListener.get(), reduce.numReducePhases());
+            }
         }
     }
 
@@ -1130,57 +1316,58 @@ public class SearchPhaseControllerTests extends ESTestCase {
         if (shouldFailPartial) {
             circuitBreaker.shouldBreak.set(true);
         }
-        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            circuitBreaker,
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            numShards,
-            exc -> hasConsumedFailure.set(true)
-        );
-        CountDownLatch latch = new CountDownLatch(numShards);
-        Thread[] threads = new Thread[numShards];
-        for (int i = 0; i < numShards; i++) {
-            final int index = i;
-            threads[index] = new Thread(() -> {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                circuitBreaker,
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                exc -> hasConsumedFailure.set(true)
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            runInParallel(numShards, index -> {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
                     new SearchShardTarget("node", new ShardId("a", "b", index), null),
                     null
                 );
-                result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
-                InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new Max("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
-                );
-                result.aggregations(aggs);
-                result.setShardIndex(index);
-                result.size(1);
-                consumer.consumeResult(result, latch::countDown);
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                            Float.NaN
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    InternalAggregations aggs = InternalAggregations.from(
+                        Collections.singletonList(new Max("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                    );
+                    result.aggregations(aggs);
+                    result.setShardIndex(index);
+                    result.size(1);
+                    consumer.consumeResult(result, latch::countDown);
+                } finally {
+                    result.decRef();
+                }
             });
-            threads[index].start();
-        }
-        for (int i = 0; i < numShards; i++) {
-            threads[i].join();
-        }
-        latch.await();
-        if (shouldFail) {
-            if (shouldFailPartial == false) {
-                circuitBreaker.shouldBreak.set(true);
-            } else {
+            latch.await();
+            if (shouldFail) {
+                if (shouldFailPartial == false) {
+                    circuitBreaker.shouldBreak.set(true);
+                } else {
+                    circuitBreaker.shouldBreak.set(false);
+                }
+                CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
+                assertEquals(shouldFailPartial, hasConsumedFailure.get());
+                assertThat(exc.getMessage(), containsString("<reduce_aggs>"));
                 circuitBreaker.shouldBreak.set(false);
+            } else {
+                consumer.reduce();
             }
-            CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
-            assertEquals(shouldFailPartial, hasConsumedFailure.get());
-            assertThat(exc.getMessage(), containsString("<reduce_aggs>"));
-            circuitBreaker.shouldBreak.set(false);
-        } else {
-            consumer.reduce();
         }
-        consumer.close();
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
@@ -1193,7 +1380,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
         try (
-            QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
                 fixedExecutor,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
@@ -1210,14 +1397,21 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new SearchShardTarget("node", new ShardId("a", "b", index), null),
                     null
                 );
-                result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
-                result.aggregations(null);
-                result.setShardIndex(index);
-                result.size(1);
-                expectThrows(Exception.class, () -> consumer.consumeResult(result, () -> {}));
+                try {
+                    result.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                            Float.NaN
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    result.aggregations(null);
+                    result.setShardIndex(index);
+                    result.size(1);
+                    expectThrows(Exception.class, () -> consumer.consumeResult(result, () -> {}));
+                } finally {
+                    result.decRef();
+                }
             }
             assertNull(consumer.reduce().aggregations());
         }

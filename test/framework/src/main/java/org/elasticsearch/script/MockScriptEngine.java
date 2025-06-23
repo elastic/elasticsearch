@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -136,6 +137,12 @@ public class MockScriptEngine implements ScriptEngine {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
                             return ((Number) script.apply(vars)).doubleValue();
                         }
                     };
@@ -377,13 +384,27 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);
+        } else if (context.instanceClazz.equals(GeometryFieldScript.class)) {
+            GeometryFieldScript.Factory geometryFieldScript = (f, p, s, onScriptError) -> ctx -> new GeometryFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    emitFromObject("POINT(1.2 1.2)");
+                }
+            };
+            return context.factoryClazz.cast(geometryFieldScript);
         } else if (context.instanceClazz.equals(DoubleValuesScript.class)) {
             DoubleValuesScript.Factory doubleValuesScript = () -> new MockDoubleValuesScript();
             return context.factoryClazz.cast(doubleValuesScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
-            return context.factoryClazz.cast(compiler.compile(script::apply, params));
+            return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -415,7 +436,7 @@ public class MockScriptEngine implements ScriptEngine {
         );
     }
 
-    private Map<String, Object> createVars(Map<String, Object> params) {
+    private static Map<String, Object> createVars(Map<String, Object> params) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("params", params);
         return vars;
@@ -484,10 +505,6 @@ public class MockScriptEngine implements ScriptEngine {
                     return (boolean) script.apply(ctx);
                 }
 
-                @Override
-                public void setDocument(int doc) {
-                    docReader.setDocument(doc);
-                }
             };
         }
     }
@@ -730,6 +747,11 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
+                public boolean needs_termStats() {
+                    return false;
+                }
+
+                @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, null, docReader) {
@@ -865,6 +887,12 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    try {
+                        vars.put("_score", get_score());
+                    } catch (Exception ignore) {
+                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                        // which is ok if _score was not requested e.g. top_hits.
+                    }
                     return String.valueOf(script.apply(vars));
                 }
             };
@@ -891,6 +919,12 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    try {
+                        vars.put("_score", get_score());
+                    } catch (Exception ignore) {
+                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                        // which is ok if _score was not requested e.g. top_hits.
+                    }
                     return (BytesRefProducer) script.apply(vars);
                 }
             };

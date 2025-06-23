@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -14,17 +15,19 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
-    private final ES87TSDBDocValuesEncoder encoder;
-    private final int blockSize = ES87TSDBDocValuesFormat.DEFAULT_NUMERIC_BLOCK_SIZE;
+    private final TSDBDocValuesEncoder encoder;
+    private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
     public ES87TSDBDocValuesEncoderTests() {
-        this.encoder = new ES87TSDBDocValuesEncoder(blockSize);
+        this.encoder = new TSDBDocValuesEncoder(blockSize);
     }
 
     public void testRandomValues() throws IOException {
@@ -135,6 +138,41 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         doTest(arr, expectedNumBytes);
     }
 
+    public void testFloatingPointValues() throws IOException {
+        long[] arr = new long[blockSize];
+        // NOTE: these values are crafted in such a way that after applying GCD encoding we get values represented using 36 bits per value.
+        for (int i = 0; i < blockSize; ++i) {
+            double value = (i % 2 == 1) ? (i * 1956.0) : (i * 356923.5);
+            arr[i] = Double.doubleToLongBits(value);
+        }
+        // NOTE: 36 bits per value strictly required, but we round to 40 bits per value to write exactly 5 bytes per value
+        final long expectedNumBytes = 6 // token (2 bytes) + GCD (4 bytes)
+            + (blockSize * 40) / Byte.SIZE; // data
+        doTest(arr, expectedNumBytes);
+    }
+
+    public void testBitsPerValueFullRange() throws IOException {
+        final Random random = new Random(17);
+        long[] arr = new long[blockSize];
+        long constant = 1;
+        for (int bitsPerValue = 0; bitsPerValue <= 64; bitsPerValue++) {
+            for (int i = 0; i < blockSize; ++i) {
+                if (bitsPerValue == 0) {
+                    arr[i] = constant;
+                } else {
+                    arr[i] = random.nextLong(0, bitsPerValue <= 62 ? 1L << bitsPerValue : Long.MAX_VALUE);
+                }
+            }
+            long actualBitsPerValue = DocValuesForUtil.roundBits(bitsPerValue);
+            int actualTokenBytes = bitsPerValue < 16 ? 1 : 2;
+            final long expectedNumBytes = bitsPerValue == 0
+                ? 2
+                : actualTokenBytes // token
+                    + (blockSize * actualBitsPerValue) / Byte.SIZE; // data
+            doTest(arr, expectedNumBytes);
+        }
+    }
+
     private void doTest(long[] arr, long expectedNumBytes) throws IOException {
         final long[] expected = arr.clone();
         try (Directory dir = newDirectory()) {
@@ -148,6 +186,146 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
                     decoded[i] = random().nextLong();
                 }
                 encoder.decode(in, decoded);
+                assertEquals(in.length(), in.getFilePointer());
+                assertArrayEquals(expected, decoded);
+            }
+        }
+    }
+
+    public void testEncodeOrdinalsSingleValueSmall() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 63);
+        final long expectedNumBytes = 1;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSingleValueMedium() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 64);
+        final long expectedNumBytes = 2;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSingleValueLarge() throws IOException {
+        long[] arr = new long[blockSize];
+        final long expectedNumBytes = 3;
+        // each byte of a vlong can store 7 bits (first bit is continuation bit)
+        // first byte can only store 6 bits as the first bit is the header
+        Arrays.fill(arr, (1 << 6 + 7 + 7) - 1);
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSingleValueGrande() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE);
+        final long expectedNumBytes = 1 + blockSize * Long.BYTES;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesSmall() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 63);
+        arr[0] = 1;
+        final long expectedNumBytes = 3;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesLarge() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE >> 2);
+        arr[0] = (Long.MAX_VALUE >> 2) - 1;
+        final long expectedNumBytes = 11;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesGrande() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE);
+        arr[0] = Long.MAX_VALUE - 1;
+        final long expectedNumBytes = 1 + blockSize * Long.BYTES;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsNoRepetitions() throws IOException {
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < blockSize; ++i) {
+            arr[i] = i;
+        }
+        doTestOrdinals(arr, 113);
+    }
+
+    public void testEncodeOrdinalsBitPack3Bits() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 4);
+        for (int i = 0; i < 4; i++) {
+            arr[i] = i;
+        }
+        doTestOrdinals(arr, 49);
+    }
+
+    public void testEncodeOrdinalsCycle2() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 2);
+        doTestOrdinals(arr, 3);
+    }
+
+    public void testEncodeOrdinalsCycle3() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 3);
+        doTestOrdinals(arr, 4);
+    }
+
+    public void testEncodeOrdinalsLongCycle() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 32);
+        doTestOrdinals(arr, 34);
+    }
+
+    public void testEncodeOrdinalsCycleTooLong() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 33);
+        // the cycle is too long and the vales are bit-packed
+        doTestOrdinals(arr, 97);
+    }
+
+    public void testEncodeOrdinalsAlmostCycle() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i % 3);
+        arr[arr.length - 1] = 4;
+        doTestOrdinals(arr, 49);
+    }
+
+    public void testEncodeOrdinalsDifferentCycles() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.setAll(arr, i -> i > 64 ? i % 4 : i % 3);
+        doTestOrdinals(arr, 33);
+    }
+
+    private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
+        long maxOrd = 0;
+        for (long ord : arr) {
+            maxOrd = Math.max(maxOrd, ord);
+        }
+        final int bitsPerOrd = PackedInts.bitsRequired(maxOrd);
+        final long[] expected = arr.clone();
+        try (Directory dir = newDirectory()) {
+            try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
+                encoder.encodeOrdinals(arr, out, bitsPerOrd);
+                assertEquals(expectedNumBytes, out.getFilePointer());
+            }
+            try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
+                long[] decoded = new long[blockSize];
+                for (int i = 0; i < decoded.length; ++i) {
+                    decoded[i] = random().nextLong();
+                }
+                encoder.decodeOrdinals(in, decoded, bitsPerOrd);
                 assertEquals(in.length(), in.getFilePointer());
                 assertArrayEquals(expected, decoded);
             }

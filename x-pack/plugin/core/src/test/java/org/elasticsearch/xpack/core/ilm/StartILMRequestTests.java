@@ -14,7 +14,12 @@ public class StartILMRequestTests extends AbstractWireSerializingTestCase<StartI
 
     @Override
     protected StartILMRequest createTestInstance() {
-        return new StartILMRequest();
+        return new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+    }
+
+    @Override
+    protected StartILMRequest mutateInstance(StartILMRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

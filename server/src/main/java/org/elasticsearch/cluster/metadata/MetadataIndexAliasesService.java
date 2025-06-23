@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -11,27 +12,29 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -45,55 +48,62 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting add and remove aliases requests
  */
 public class MetadataIndexAliasesService {
 
-    private final ClusterService clusterService;
-
     private final IndicesService indicesService;
-
-    private final MetadataDeleteIndexService deleteIndexService;
 
     private final NamedXContentRegistry xContentRegistry;
 
     private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
+    private final MasterServiceTaskQueue<ApplyAliasesTask> taskQueue;
+    private final ClusterService clusterService;
 
     @Inject
     public MetadataIndexAliasesService(
         ClusterService clusterService,
         IndicesService indicesService,
-        MetadataDeleteIndexService deleteIndexService,
         NamedXContentRegistry xContentRegistry
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
-                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
+                return new Tuple<>(
+                    applyAliasActions(
+                        clusterState.projectState(applyAliasesTask.request().projectId()),
+                        applyAliasesTask.request().actions()
+                    ),
+                    applyAliasesTask
+                );
             }
         };
+        this.taskQueue = clusterService.createTaskQueue("index-aliases", Priority.URGENT, this.executor);
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasesTask(request, listener);
-        var config = ClusterStateTaskConfig.build(Priority.URGENT);
-        clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
+    public void indicesAliases(
+        final IndicesAliasesClusterStateUpdateRequest request,
+        final ActionListener<IndicesAliasesResponse> listener
+    ) {
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
     }
 
     /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
-    public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
+    public ClusterState applyAliasActions(ProjectState projectState, Iterable<AliasAction> actions) {
+        ClusterState currentState = projectState.cluster();
+        ProjectId projectId = projectState.projectId();
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
+        ProjectMetadata currentProjectMetadata = projectState.metadata();
         try {
             boolean changed = false;
             // Gather all the indexes that must be removed first so:
@@ -102,20 +112,21 @@ public class MetadataIndexAliasesService {
             Set<Index> indicesToDelete = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
-                    IndexMetadata index = currentState.metadata().getIndices().get(action.getIndex());
+                    IndexMetadata index = currentProjectMetadata.indices().get(action.getIndex());
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }
-                    validateAliasTargetIsNotDSBackingIndex(currentState, action);
+                    validateAliasTargetIsNotDSBackingIndex(currentProjectMetadata, action);
                     indicesToDelete.add(index.getIndex());
                     changed = true;
                 }
             }
             // Remove the indexes if there are any to remove
             if (changed) {
-                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
+                currentState = MetadataDeleteIndexService.deleteIndices(projectState, indicesToDelete, clusterService.getSettings());
+                currentProjectMetadata = currentState.metadata().getProject(projectId);
             }
-            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentProjectMetadata);
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
@@ -164,7 +175,7 @@ public class MetadataIndexAliasesService {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
-                validateAliasTargetIsNotDSBackingIndex(currentState, action);
+                validateAliasTargetIsNotDSBackingIndex(currentProjectMetadata, action);
                 NewAliasValidator newAliasValidator = (alias, indexRouting, searchRouting, filter, writeIndex) -> {
                     AliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
                     IndexSettings.MODE.get(index.getSettings()).validateAlias(indexRouting, searchRouting);
@@ -179,7 +190,7 @@ public class MetadataIndexAliasesService {
             }
 
             for (final String maybeModifiedIndex : maybeModifiedIndices) {
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(maybeModifiedIndex);
+                final IndexMetadata currentIndexMetadata = currentProjectMetadata.index(maybeModifiedIndex);
                 final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
                 if (currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {
@@ -189,17 +200,23 @@ public class MetadataIndexAliasesService {
             }
 
             if (changed) {
-                ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
+                ProjectMetadata updatedMetadata = metadata.build();
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
-                    return updatedState;
+                if (updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
+                    return ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
                 }
             }
             return currentState;
         } finally {
             for (Index index : indicesToClose) {
-                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
+                indicesService.removeIndex(
+                    index,
+                    NO_LONGER_ASSIGNED,
+                    "created for alias processing",
+                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
+                    ActionListener.noop()
+                );
             }
         }
     }
@@ -242,8 +259,8 @@ public class MetadataIndexAliasesService {
         );
     }
 
-    private static void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
+    private static void validateAliasTargetIsNotDSBackingIndex(ProjectMetadata projectMetadata, AliasAction action) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
             throw new IllegalArgumentException(
@@ -259,7 +276,7 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<IndicesAliasesResponse> listener)
         implements
             ClusterStateTaskListener,
             ClusterStateAckListener {
@@ -276,17 +293,17 @@ public class MetadataIndexAliasesService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(IndicesAliasesResponse.build(request.actionResults()));
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override

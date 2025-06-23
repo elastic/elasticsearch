@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
@@ -38,8 +39,8 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
      * clients.
      *
-     * @return The resulting cluster state after executing all the tasks. If {code batchExecutionContext.initialState()} is returned then no
-     * update is published.
+     * @return The resulting cluster state after executing all the tasks. If {@code batchExecutionContext.initialState()} is returned then
+     * no update is published.
      */
     ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
@@ -73,8 +74,6 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         Strings.collectionToDelimitedStringWithLimit(
             (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
             ", ",
-            "",
-            "",
             1024,
             output
         );
@@ -197,9 +196,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
      *                                   cannot be associated with any specific task.
      */
-    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+    record BatchExecutionContext<T extends ClusterStateTaskListener>(
         ClusterState initialState,
-        List<TaskContext<T>> taskContexts,
+        List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         /**

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -14,13 +15,15 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,14 +127,15 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public int[] getPositions() {
         int[] result = new int[positions.size()];
-        for (int i = 0; i < positions.size(); i++)
+        for (int i = 0; i < positions.size(); i++) {
             result[i] = positions.get(i);
+        }
         return result;
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
@@ -148,26 +152,13 @@ public class MultiPhrasePrefixQuery extends Query {
         int position = positions.get(sizeMinus1);
         Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
-            getPrefixTerms(terms, term, reader);
+            getPrefixTerms(terms, term, searcher.getIndexReader());
             if (terms.size() > maxExpansions) {
                 break;
             }
         }
         if (terms.isEmpty()) {
-            if (sizeMinus1 == 0) {
-                // no prefix and the phrase query is empty
-                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
-            }
-
-            // Hack so that the Unified Highlighter can still extract the original terms from this query
-            // after rewriting, even though it would normally become a MatchNoDocsQuery against an empty
-            // index
-            return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
-                .add(
-                    new NoRewriteMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
-                    BooleanClause.Occur.MUST
-                )
-                .build();
+            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
         }
         query.add(terms.toArray(new Term[0]), position);
         return query.build();
@@ -308,20 +299,12 @@ public class MultiPhrasePrefixQuery extends Query {
                     shouldVisitor.consumeTerms(this, termArrays.get(i));
                 }
             }
-            /* We don't report automata here because this breaks the unified highlighter,
-               which extracts automata separately from phrases. MPPQ gets rewritten to a
-               SpanMTQQuery by the PhraseHelper in any case, so highlighting is taken
-               care of there instead.  If we extract automata here then the trailing prefix
-               word will be highlighted wherever it appears in the document, instead of only
-               as part of a phrase. This can be re-instated once we switch to using Matches
-               to highlight.
             for (Term prefixTerm : termArrays.get(termArrays.size() - 1)) {
                 visitor.consumeTermsMatching(this, field, () -> {
                     CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefixTerm.bytes()));
                     return ca.runAutomaton;
                 });
             }
-            */
         }
     }
 }

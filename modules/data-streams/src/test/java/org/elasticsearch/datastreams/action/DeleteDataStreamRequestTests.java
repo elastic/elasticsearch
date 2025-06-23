@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -25,17 +26,22 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
+        return new Request(TEST_REQUEST_TIMEOUT, randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testValidateRequest() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "my-data-stream" });
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "my-data-stream" });
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutName() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[0]);
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[0]);
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

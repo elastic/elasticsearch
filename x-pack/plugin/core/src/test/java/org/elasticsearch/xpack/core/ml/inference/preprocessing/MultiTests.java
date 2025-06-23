@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
@@ -32,13 +31,13 @@ public class MultiTests extends PreProcessingTests<Multi> {
     }
 
     @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.isEmpty() == false;
+    protected Multi createTestInstance() {
+        return createRandom();
     }
 
     @Override
-    protected Multi createTestInstance() {
-        return createRandom();
+    protected Multi mutateInstance(Multi instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Multi createRandom() {

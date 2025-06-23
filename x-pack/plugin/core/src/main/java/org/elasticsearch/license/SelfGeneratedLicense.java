@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,8 +26,8 @@ import static org.elasticsearch.license.CryptUtils.encryptV3Format;
 
 class SelfGeneratedLicense {
 
-    public static License create(License.Builder specBuilder, DiscoveryNodes currentNodes) {
-        return create(specBuilder, LicenseUtils.compatibleLicenseVersion(currentNodes));
+    public static License create(License.Builder specBuilder) {
+        return create(specBuilder, LicenseUtils.getMaxCompatibleLicenseVersion());
     }
 
     public static License create(License.Builder specBuilder, int version) {

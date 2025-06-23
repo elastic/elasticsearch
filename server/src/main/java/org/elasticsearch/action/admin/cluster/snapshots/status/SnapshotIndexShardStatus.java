@@ -1,44 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
-    private SnapshotIndexShardStage stage = SnapshotIndexShardStage.INIT;
+    private final SnapshotIndexShardStage stage;
 
-    private SnapshotStats stats;
+    private final SnapshotStats stats;
 
     private String nodeId;
 
     private String failure;
+
+    private String description;
 
     public SnapshotIndexShardStatus(StreamInput in) throws IOException {
         super(in);
@@ -46,6 +42,9 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats = new SnapshotStats(in);
         nodeId = in.readOptionalString();
         failure = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+            description = in.readOptionalString();
+        }
     }
 
     SnapshotIndexShardStatus(ShardId shardId, SnapshotIndexShardStage stage) {
@@ -83,11 +82,38 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     }
 
     SnapshotIndexShardStatus(ShardId shardId, SnapshotIndexShardStage stage, SnapshotStats stats, String nodeId, String failure) {
+        this(shardId, stage, stats, nodeId, failure, null);
+    }
+
+    SnapshotIndexShardStatus(
+        ShardId shardId,
+        SnapshotIndexShardStage stage,
+        SnapshotStats stats,
+        String nodeId,
+        String failure,
+        @Nullable String description
+    ) {
         super(shardId);
         this.stage = stage;
         this.stats = stats;
         this.nodeId = nodeId;
         this.failure = failure;
+        this.description = description;
+    }
+
+    /**
+     * Creates an instance for scenarios where the snapshot is {@link SnapshotIndexShardStage#DONE} but the stats are unavailable, with a
+     * non-null description of why the stats are missing.
+     */
+    public static SnapshotIndexShardStatus forDoneButMissingStats(ShardId shardId, String description) {
+        return new SnapshotIndexShardStatus(
+            shardId,
+            SnapshotIndexShardStage.DONE,
+            SnapshotStats.forMissingStats(),
+            null,
+            null,
+            Objects.requireNonNull(description)
+        );
     }
 
     /**
@@ -118,6 +144,14 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return failure;
     }
 
+    /**
+     * Returns the optional description of the data values contained in the {@code stats} field.
+     */
+    @Nullable
+    public String getDescription() {
+        return description;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -125,12 +159,16 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         stats.writeTo(out);
         out.writeOptionalString(nodeId);
         out.writeOptionalString(failure);
+        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+            out.writeOptionalString(description);
+        }
     }
 
     static final class Fields {
         static final String STAGE = "stage";
         static final String REASON = "reason";
         static final String NODE = "node";
+        static final String DESCRIPTION = "description";
     }
 
     @Override
@@ -144,61 +182,11 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         if (getFailure() != null) {
             builder.field(Fields.REASON, getFailure());
         }
+        if (getDescription() != null) {
+            builder.field(Fields.DESCRIPTION, getDescription());
+        }
         builder.endObject();
         return builder;
-    }
-
-    static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
-    static {
-        ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status",
-            true,
-            (Object[] parsedObjects, ShardId shard) -> {
-                int i = 0;
-                String rawStage = (String) parsedObjects[i++];
-                String nodeId = (String) parsedObjects[i++];
-                String failure = (String) parsedObjects[i++];
-                SnapshotStats stats = (SnapshotStats) parsedObjects[i];
-
-                SnapshotIndexShardStage stage;
-                try {
-                    stage = SnapshotIndexShardStage.valueOf(rawStage);
-                } catch (IllegalArgumentException iae) {
-                    throw new ElasticsearchParseException(
-                        "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
-                        shard.getIndex().getName(),
-                        shard.getId(),
-                        rawStage
-                    );
-                }
-                return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
-            }
-        );
-        innerParser.declareString(constructorArg(), new ParseField(Fields.STAGE));
-        innerParser.declareString(optionalConstructorArg(), new ParseField(Fields.NODE));
-        innerParser.declareString(optionalConstructorArg(), new ParseField(Fields.REASON));
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
-        PARSER = (p, indexId, shardName) -> {
-            // Combine the index name in the context with the shard name passed in for the named object parser
-            // into a ShardId to pass as context for the inner parser.
-            int shard;
-            try {
-                shard = Integer.parseInt(shardName);
-            } catch (NumberFormatException nfe) {
-                throw new ElasticsearchParseException(
-                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
-                    indexId,
-                    shardName
-                );
-            }
-            ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
-            return innerParser.parse(p, shardId);
-        };
-    }
-
-    public static SnapshotIndexShardStatus fromXContent(XContentParser parser, String indexId) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-        return PARSER.parse(parser, indexId, parser.currentName());
     }
 
     @Override
@@ -213,7 +201,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         return stage == that.stage
             && Objects.equals(stats, that.stats)
             && Objects.equals(nodeId, that.nodeId)
-            && Objects.equals(failure, that.failure);
+            && Objects.equals(failure, that.failure)
+            && Objects.equals(description, that.description);
     }
 
     @Override
@@ -222,6 +211,12 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         result = 31 * result + (stats != null ? stats.hashCode() : 0);
         result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
+        result = 31 * result + (description != null ? description.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

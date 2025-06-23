@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
@@ -14,7 +15,8 @@ public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCas
 
     @Override
     protected TimeSeriesAggregationBuilder createTestAggregatorBuilder() {
-        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean());
+        // Size set large enough tests not intending to hit the size limit shouldn't see it.
+        return new TimeSeriesAggregationBuilder(randomAlphaOfLength(10), randomBoolean(), randomIntBetween(1000, 100_000));
     }
 
 }

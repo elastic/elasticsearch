@@ -1,0 +1,5 @@
+pr: 120751
+summary: Adding support for binary embedding type to Cohere service embedding type
+area: Machine Learning
+type: enhancement
+issues: []

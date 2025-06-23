@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Processors;
@@ -19,7 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class OsInfo implements ReportingService.Info {
-    private static final Version DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = Version.V_8_5_0;
+    private static final TransportVersion DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = TransportVersions.V_8_5_0;
 
     private final long refreshInterval;
     private final int availableProcessors;
@@ -50,7 +52,7 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(StreamInput in) throws IOException {
         this.refreshInterval = in.readLong();
         this.availableProcessors = in.readInt();
-        if (in.getVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+        if (in.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
             this.allocatedProcessors = Processors.readFrom(in);
         } else {
             this.allocatedProcessors = Processors.of((double) in.readInt());
@@ -65,7 +67,7 @@ public class OsInfo implements ReportingService.Info {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
-        if (out.getVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+        if (out.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
             allocatedProcessors.writeTo(out);
         } else {
             out.writeInt(getAllocatedProcessors());

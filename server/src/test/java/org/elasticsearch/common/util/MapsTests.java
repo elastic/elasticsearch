@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -99,7 +100,31 @@ public class MapsTests extends ESTestCase {
         assertMapEntriesAndImmutability(map, entries);
     }
 
-    public void testDeepEquals() {
+    public void testDeepEqualsMapsWithSimpleValues() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<Integer> valueGenerator = () -> randomInt(5);
+        final Map<String, Integer> map = randomMap(randomInt(5), keyGenerator, valueGenerator);
+        final Map<String, Integer> mapCopy = new HashMap<>(map);
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, Integer> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), valueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final int value = mapModified.get(randomKey);
+                mapModified.put(randomKey, randomValueOtherThanMany((v) -> v.equals(value), valueGenerator));
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), valueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
+    public void testDeepEqualsMapsWithArrayValues() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
         final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
@@ -119,6 +144,42 @@ public class MapsTests extends ESTestCase {
                 mapModified.put(randomKey, randomValueOtherThanMany((v) -> Arrays.equals(v, value), arrayValueGenerator));
             } else {
                 mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), arrayValueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
+    public void testDeepEqualsMapsWithMapValuesSimple() {
+        Map<String, Map<String, int[]>> m1 = Map.of("a", Map.of("b", new int[] { 1 }));
+        Map<String, Map<String, int[]>> m2 = Map.of("a", Map.of("b", new int[] { 1 }));
+        assertTrue(Maps.deepEquals(m1, m2));
+    }
+
+    public void testDeepEqualsMapsWithMapValues() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<Map<String, int[]>> mapValueGenerator = () -> Map.of("nested", random().ints(randomInt(5)).toArray());
+        final Map<String, Map<String, int[]>> map = randomMap(randomInt(5), keyGenerator, mapValueGenerator);
+        final Map<String, Map<String, int[]>> mapCopy = map.entrySet().stream().collect(toMap(Map.Entry::getKey, e -> {
+            int[] value = e.getValue().get("nested");
+            return Map.of("nested", Arrays.copyOf(value, value.length));
+        }));
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, Map<String, int[]>> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), mapValueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final Map<String, int[]> value = mapModified.get(randomKey);
+                mapModified.put(
+                    randomKey,
+                    randomValueOtherThanMany((v) -> Arrays.equals(v.get("nested"), value.get("nested")), mapValueGenerator)
+                );
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), mapValueGenerator.get());
             }
         }
 
@@ -189,6 +250,15 @@ public class MapsTests extends ESTestCase {
             illegalStateException.getMessage(),
             equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)")
         );
+    }
+
+    public void testListFlatten() {
+        Map<String, Object> map = Map.of("parent1", List.of(Map.of("key1", "val1", "key2", "val2")));
+        Map<String, Object> flatten = Maps.flatten(map, true, true);
+        assertThat(flatten.size(), equalTo(2));
+        for (Map.Entry<String, Object> entry : flatten.entrySet()) {
+            assertThat(entry.getKey(), entry.getValue(), equalTo(deepGet(entry.getKey(), map)));
+        }
     }
 
     public void testFlatten() {

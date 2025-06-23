@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.replication;
 
@@ -21,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +49,7 @@ import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -63,6 +66,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -105,7 +109,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 public void run() {
                     try {
                         latch.countDown();
-                        latch.await();
+                        safeAwait(latch);
                         shards.appendDocs(numDocs - 1);
                     } catch (Exception e) {
                         throw new AssertionError(e);
@@ -116,7 +120,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void cleanFiles(
                         int totalTranslogOps,
@@ -126,11 +130,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     ) {
                         super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, ActionListener.runAfter(listener, () -> {
                             latch.countDown();
-                            try {
-                                latch.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
+                            safeAwait(latch);
                         }));
                     }
                 }
@@ -175,11 +175,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             indexedOnPrimary.countDown();
                             // prevent the indexing on the primary from returning (it was added to Lucene and translog already)
                             // to make sure that this operation is replicated to the replica via recovery, then via replication.
-                            try {
-                                recoveryDone.await();
-                            } catch (InterruptedException e) {
-                                throw new AssertionError(e);
-                            }
+                            safeAwait(recoveryDone);
                         }
                         return result;
                     }
@@ -199,14 +195,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(
                 replica,
-                (shard, node) -> new RecoveryTarget(shard, node, null, null, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                        try {
-                            indexedOnPrimary.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(indexedOnPrimary);
                         super.prepareForTranslogOperations(totalTranslogOps, listener);
                     }
                 }
@@ -314,7 +306,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             for (IndexShard shard : shards) {
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                     TopDocs search = searcher.search(new TermQuery(new Term("f", "2")), 10);
-                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value);
+                    assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value());
                 }
             }
         }
@@ -445,6 +437,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     throw indexException;
                 }
             }
+
+            @Override
+            public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                @SuppressWarnings("unchecked")
+                Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                assertThat(col, hasSize(1));
+                return addDocument(col.iterator().next());
+            }
         }, null, null, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(0)) {
             @Override
@@ -487,7 +487,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         Long.MAX_VALUE,
                         false,
                         randomBoolean(),
-                        randomBoolean()
+                        randomBoolean(),
+                        randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                     )
                 ) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
@@ -514,7 +515,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         Long.MAX_VALUE,
                         false,
                         randomBoolean(),
-                        randomBoolean()
+                        randomBoolean(),
+                        randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                     )
                 ) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
@@ -609,7 +611,17 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2).get();
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2, true);
-            try (Translog.Snapshot snapshot = replica3.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), true)) {
+            try (
+                Translog.Snapshot snapshot = replica3.newChangesSnapshot(
+                    "test",
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    randomBoolean(),
+                    true,
+                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                )
+            ) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 final List<Translog.Operation> expectedOps = new ArrayList<>(initOperations);
                 expectedOps.add(op2);
@@ -654,6 +666,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             indexOnReplica(indexRequest, shards, replica);  // index arrives on replica lately.
             shards.assertAllEqual(0);
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     private void updateGCDeleteCycle(IndexShard shard, TimeValue interval) {

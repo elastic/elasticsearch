@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -21,8 +22,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -68,12 +67,16 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 if (xAxisUnits != null) {
                     xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;
                 }
-                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                aggs.add(new Derivative(name(), gradient, xDiff, formatter, metadata()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    factory.createBucket(
+                        factory.getKey(bucket),
+                        bucket.getDocCount(),
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new Derivative(name(), gradient, xDiff, formatter, metadata())
+                        )
+                    )
+                );
             } else {
                 newBuckets.add(bucket);
             }

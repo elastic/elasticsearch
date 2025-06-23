@@ -11,41 +11,30 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+@ServerlessScope(Scope.PUBLIC)
 public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "bulk_update_api_key_request",
-        a -> new BulkUpdateApiKeyRequest((List<String>) a[0], (List<RoleDescriptor>) a[1], (Map<String, Object>) a[2])
-    );
+    private final BulkUpdateApiKeyRequestTranslator requestTranslator;
 
-    static {
-        PARSER.declareStringArray(constructorArg(), new ParseField("ids"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-    }
-
-    public RestBulkUpdateApiKeyAction(final Settings settings, final XPackLicenseState licenseState) {
+    public RestBulkUpdateApiKeyAction(
+        final Settings settings,
+        final XPackLicenseState licenseState,
+        final BulkUpdateApiKeyRequestTranslator requestTranslator
+    ) {
         super(settings, licenseState);
+        this.requestTranslator = requestTranslator;
     }
 
     @Override
@@ -60,9 +49,7 @@ public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        try (XContentParser parser = request.contentParser()) {
-            final BulkUpdateApiKeyRequest parsed = PARSER.parse(parser, null);
-            return channel -> client.execute(BulkUpdateApiKeyAction.INSTANCE, parsed, new RestToXContentListener<>(channel));
-        }
+        final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest = requestTranslator.translate(request);
+        return channel -> client.execute(BulkUpdateApiKeyAction.INSTANCE, bulkUpdateApiKeyRequest, new RestToXContentListener<>(channel));
     }
 }

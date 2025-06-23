@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,18 +14,20 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,7 +44,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -50,10 +52,9 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-    private static final TransportVersion VERSION_STORE_VALUES_AS_BYTES_REFERENCE = TransportVersion.V_7_12_0;
 
     private final String fieldName;
-    private final Values values;
+    private final BinaryValues values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
 
@@ -98,7 +99,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -108,7 +109,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -118,7 +119,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : null);
     }
 
     /**
@@ -128,7 +129,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -138,7 +139,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, Object... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : null);
     }
 
     /**
@@ -147,7 +148,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param fieldName The field name
      * @param values The terms
      */
-    public TermsQueryBuilder(String fieldName, Iterable<?> values) {
+    public TermsQueryBuilder(String fieldName, Collection<?> values) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -155,8 +156,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
-        if (values instanceof Values) {
-            this.values = (Values) values;
+        if (values instanceof BinaryValues binaryValues) {
+            this.values = binaryValues;
         } else {
             this.values = new BinaryValues(values, true);
         }
@@ -178,7 +179,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         super(in);
         this.fieldName = in.readString();
         this.termsLookup = in.readOptionalWriteable(TermsLookup::new);
-        this.values = Values.readFrom(in);
+        this.values = in.readOptionalWriteable(BinaryValues::new);
         this.supplier = null;
     }
 
@@ -189,14 +190,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
-        Values.writeTo(out, values);
+        out.writeOptionalWriteable(values);
     }
 
     public String fieldName() {
         return this.fieldName;
     }
 
-    public Values getValues() {
+    public BinaryValues getValues() {
         return values;
     }
 
@@ -373,7 +374,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
@@ -386,112 +387,43 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         if (values == null || values.isEmpty()) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
-
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(this.fieldName);
-            if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
-                // This logic is correct for all field types, but by only applying it to constant
-                // fields we also have the guarantee that it doesn't perform I/O, which is important
-                // since rewrites might happen on a network thread.
-                Query query = fieldType.termsQuery(values, context);
-                if (query instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder();
-                } else if (query instanceof MatchNoDocsQuery) {
-                    return new MatchNoneQueryBuilder();
-                } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
-                }
-            }
-        }
-
-        return this;
+        return super.doRewrite(queryRewriteContext);
     }
 
-    @SuppressWarnings("rawtypes")
-    private abstract static class Values extends AbstractCollection implements Writeable {
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        }
+        return maybeRewriteBasedOnConstantFields(fieldType, context);
+    }
 
-        private static Values readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
-                return in.readOptionalWriteable(BinaryValues::new);
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(this.fieldName);
+        // we don't rewrite a null field type to `match_none` on the coordinator because the coordinator has access
+        // to only a subset of fields see {@link CoordinatorRewriteContext#getFieldType}
+        return maybeRewriteBasedOnConstantFields(fieldType, coordinatorRewriteContext);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            // This logic is correct for all field types, but by only applying it to constant
+            // fields we also have the guarantee that it doesn't perform I/O, which is important
+            // since rewrites might happen on a network thread.
+            Query query = constantFieldType.innerTermsQuery(values, context);
+            if (query instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else if (query instanceof MatchNoDocsQuery) {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             } else {
-                List<?> list = (List<?>) in.readGenericValue();
-                return list == null ? null : new ListValues(list);
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }
         }
-
-        private static void writeTo(StreamOutput out, Values values) throws IOException {
-            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
-                out.writeOptionalWriteable(values);
-            } else {
-                if (values == null) {
-                    out.writeGenericValue(null);
-                } else {
-                    values.writeTo(out);
-                }
-            }
-        }
-
-        protected static BytesReference serialize(Iterable<?> values, boolean convert) {
-            List<?> list;
-            if (values instanceof List<?>) {
-                list = (List<?>) values;
-            } else {
-                ArrayList<Object> arrayList = new ArrayList<>();
-                for (Object o : values) {
-                    arrayList.add(o);
-                }
-                list = arrayList;
-            }
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                if (convert) {
-                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).toList();
-                }
-                output.writeGenericValue(list);
-                return output.bytes();
-            } catch (IOException e) {
-                throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
-            }
-        }
-
-        @Override
-        public final boolean add(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final boolean remove(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final boolean containsAll(Collection c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final boolean addAll(Collection c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final boolean removeAll(Collection c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final boolean retainAll(Collection c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final void clear() {
-            throw new UnsupportedOperationException();
-        }
+        return this;
     }
 
     /**
@@ -501,113 +433,76 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
      */
     @SuppressWarnings("rawtypes")
-    private static class BinaryValues extends Values {
+    public static final class BinaryValues extends AbstractCollection implements Writeable {
 
-        private final BytesReference valueRef;
-        private final int size;
+        @Nullable
+        private BytesReference valueRef;
+
+        private final boolean convert;
+
+        private final Collection<?> values;
 
         private BinaryValues(StreamInput in) throws IOException {
-            this(in.readBytesReference());
+            this.valueRef = null;
+            this.convert = false;
+            int ignored = in.readVInt();
+            int ignored2 = in.readByte();
+            assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
+            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
         }
 
-        private BinaryValues(Iterable<?> values, boolean convert) {
-            this(serialize(values, convert));
-        }
-
-        private BinaryValues(BytesReference bytesRef) {
-            this.valueRef = bytesRef;
-            try (StreamInput in = valueRef.streamInput()) {
-                size = consumerHeadersAndGetListSize(in);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        @Override
-        public int size() {
-            return size;
-        }
-
-        @Override
-        public Iterator iterator() {
-            return new Iterator<>() {
-                private final StreamInput in;
-                private int pos = 0;
-
-                {
-                    try {
-                        in = valueRef.streamInput();
-                        consumerHeadersAndGetListSize(in);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
-                    }
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return pos < size;
-                }
-
-                @Override
-                public Object next() {
-                    try {
-                        pos++;
-                        return in.readGenericValue();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
-                    }
-                }
-            };
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
-                out.writeBytesReference(valueRef);
-            } else {
-                valueRef.writeTo(out);
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BinaryValues that = (BinaryValues) o;
-            return Objects.equals(valueRef, that.valueRef);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(valueRef);
-        }
-
-        private static int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
-            byte genericSign = in.readByte();
-            assert genericSign == 7;
-            return in.readVInt();
-        }
-    }
-
-    /**
-     * This is for lower version requests compatible.
-     * <p>
-     * If we do not keep this, it could be expensive when receiving a request from
-     * lower version.
-     * We have to read the value list by {@link StreamInput#readGenericValue},
-     * serialize it into {@link BytesReference}, and then deserialize it again when
-     * {@link #doToQuery} called}.
-     * <p>
-     *
-     * TODO: remove in 9.0.0
-     */
-    @SuppressWarnings("rawtypes")
-    private static class ListValues extends Values {
-
-        private final List<?> values;
-
-        private ListValues(List<?> values) throws IOException {
+        private BinaryValues(Collection<?> values, boolean convert) {
+            this.convert = convert;
             this.values = values;
+        }
+
+        private static BytesReference serialize(Collection<?> values, boolean convert) {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.writeByte(StreamOutput.GENERIC_LIST_HEADER);
+                output.writeVInt(values.size());
+                if (convert) {
+                    for (Object value : values) {
+                        output.writeGenericValue(AbstractQueryBuilder.maybeConvertToBytesRef(value));
+                    }
+                } else {
+                    for (Object value : values) {
+                        output.writeGenericValue(value);
+                    }
+                }
+                return output.bytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
+            }
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean addAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean removeAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean retainAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -616,57 +511,45 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         @Override
-        public boolean contains(Object o) {
-            return values.contains(o);
-        }
-
-        @Override
-        public Iterator iterator() {
-            return values.iterator();
-        }
-
-        @Override
-        public Object[] toArray() {
-            return values.toArray();
-        }
-
-        @Override
-        public Object[] toArray(Object[] a) {
-            return values.toArray(a);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Object[] toArray(IntFunction generator) {
-            return values.toArray(generator);
+        public Iterator<?> iterator() {
+            var iter = values.iterator();
+            return convert ? Iterators.map(iter, AbstractQueryBuilder::maybeConvertToBytesRef) : iter;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
-                BytesReference bytesRef = serialize(values, false);
-                out.writeBytesReference(bytesRef);
-            } else {
-                out.writeGenericValue(values);
+            out.writeBytesReference(asBytes());
+        }
+
+        private BytesReference asBytes() {
+            var ref = valueRef;
+            if (ref == null) {
+                ref = serialize(values, convert);
+                valueRef = ref;
             }
+            return ref;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ListValues that = (ListValues) o;
-            return Objects.equals(values, that.values);
+            return Iterators.equals(iterator(), ((BinaryValues) o).iterator(), Objects::equals);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(values);
+            int hash = 1;
+            for (Object o : this) {
+                hash = 31 * hash + o.hashCode();
+            }
+            return hash;
         }
+
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

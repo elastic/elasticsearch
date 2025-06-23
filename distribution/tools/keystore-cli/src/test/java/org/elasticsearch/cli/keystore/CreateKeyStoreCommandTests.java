@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -47,7 +48,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testDefaultNotPromptForPassword() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -62,7 +63,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -78,13 +79,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
         String password = getPossibleKeystorePassword();
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
@@ -109,6 +110,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        assertNotNull(KeyStoreWrapper.load(env.configFile()));
+        assertNotNull(KeyStoreWrapper.load(env.configDir()));
     }
 }

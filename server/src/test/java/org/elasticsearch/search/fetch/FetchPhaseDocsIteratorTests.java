@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -16,6 +17,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -76,11 +78,12 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        SearchHit[] hits = it.iterate(null, reader, docs);
+        SearchHit[] hits = it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult());
 
         assertThat(hits.length, equalTo(docs.length));
         for (int i = 0; i < hits.length; i++) {
             assertThat(hits[i].docId(), equalTo(docs[i]));
+            hits[i].decRef();
         }
 
         reader.close();
@@ -123,7 +126,10 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        Exception e = expectThrows(FetchPhaseExecutionException.class, () -> it.iterate(null, reader, docs));
+        Exception e = expectThrows(
+            FetchPhaseExecutionException.class,
+            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult())
+        );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
 

@@ -40,7 +40,13 @@ public class MPNetTokenizationResultTests extends ESTestCase {
         tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null, null)).build();
 
         var requestBuilder = tokenizer.requestBuilder();
-        NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
+        NlpTask.Request request = requestBuilder.buildRequest(
+            List.of("Elasticsearch fun"),
+            "request1",
+            Tokenization.Truncate.NONE,
+            -1,
+            null
+        );
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(3));
@@ -68,7 +74,8 @@ public class MPNetTokenizationResultTests extends ESTestCase {
                     Collections.singletonList("Elasticsearch fun Elasticsearch fun Elasticsearch fun"),
                     "request1",
                     Tokenization.Truncate.NONE,
-                    -1
+                    -1,
+                    null
                 )
             );
 
@@ -81,7 +88,7 @@ public class MPNetTokenizationResultTests extends ESTestCase {
             var requestBuilder = tokenizer.requestBuilder();
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
-            requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
+            requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1, null);
         }
     }
 
@@ -94,7 +101,8 @@ public class MPNetTokenizationResultTests extends ESTestCase {
             List.of("Elasticsearch", "my little red car", "Godzilla day"),
             "request1",
             Tokenization.Truncate.NONE,
-            -1
+            -1,
+            null
         );
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 

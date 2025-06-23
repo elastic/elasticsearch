@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,12 +29,13 @@ public record TextSearchInfo(
     NamedAnalyzer searchQuoteAnalyzer
 ) {
 
-    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE = new FieldType();
+    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE;
 
     static {
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setTokenized(false);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setOmitNorms(true);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        SIMPLE_MATCH_ONLY_FIELD_TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     /**
@@ -100,7 +102,7 @@ public record TextSearchInfo(
         NamedAnalyzer searchAnalyzer,
         NamedAnalyzer searchQuoteAnalyzer
     ) {
-        this.luceneFieldType = luceneFieldType;
+        this.luceneFieldType = Mapper.freezeAndDeduplicateFieldType(luceneFieldType);
         this.similarity = similarity;
         this.searchAnalyzer = Objects.requireNonNull(searchAnalyzer);
         this.searchQuoteAnalyzer = Objects.requireNonNull(searchQuoteAnalyzer);

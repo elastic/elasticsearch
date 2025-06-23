@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.analytics.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -17,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
@@ -33,7 +32,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     public static final String NAME = "cluster:monitor/xpack/analytics/stats";
 
     private AnalyticsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
@@ -51,14 +50,10 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         MULTI_TERMS;
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -86,14 +81,12 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -107,18 +100,16 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public EnumCounters<Item> getStats() {
-            List<EnumCounters<Item>> countersPerNode = getNodes().stream()
-                .map(AnalyticsStatsAction.NodeResponse::getStats)
-                .collect(Collectors.toList());
+            List<EnumCounters<Item>> countersPerNode = getNodes().stream().map(NodeResponse::getStats).collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
         }
 
@@ -144,36 +135,13 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                counters = new EnumCounters<>(in, Item.class);
-            } else {
-                counters = new EnumCounters<>(Item.class);
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.BOXPLOT, in.readVLong());
-                }
-                counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
-                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    counters.inc(Item.STRING_STATS, in.readVLong());
-                    counters.inc(Item.TOP_METRICS, in.readVLong());
-                }
-            }
+            counters = new EnumCounters<>(in, Item.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                counters.writeTo(out);
-            } else {
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.BOXPLOT));
-                }
-                out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY));
-                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                    out.writeVLong(counters.get(Item.STRING_STATS));
-                    out.writeVLong(counters.get(Item.TOP_METRICS));
-                }
-            }
+            counters.writeTo(out);
         }
 
         public EnumCounters<Item> getStats() {

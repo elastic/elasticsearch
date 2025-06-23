@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.plan;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -25,6 +26,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
+    private List<Expression> lazyExpressions;
+    private AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
@@ -50,16 +53,42 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyInputSet;
     }
 
+    /**
+     * Returns the top-level expressions for this query plan node.
+     * In other words the node properties.
+     */
+    public List<Expression> expressions() {
+        if (lazyExpressions == null) {
+            lazyExpressions = new ArrayList<>();
+            forEachPropertyOnly(Object.class, e -> doForEachExpression(e, lazyExpressions::add));
+        }
+        return lazyExpressions;
+    }
+
+    /**
+     * Returns the expressions referenced on this query plan node.
+     */
+    public AttributeSet references() {
+        if (lazyReferences == null) {
+            lazyReferences = Expressions.references(expressions());
+        }
+        return lazyReferences;
+    }
+
     //
     // pass Object.class as a type token to pick Collections of expressions not just expressions
     //
 
     public PlanType transformExpressionsOnly(Function<Expression, ? extends Expression> rule) {
-        return transformPropertiesOnly(Expression.class, rule);
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(rule)));
     }
 
     public <E extends Expression> PlanType transformExpressionsOnly(Class<E> typeToken, Function<E, ? extends Expression> rule) {
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
+    }
+
+    public <E extends Expression> PlanType transformExpressionsOnlyUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
     }
 
     public PlanType transformExpressionsDown(Function<Expression, ? extends Expression> rule) {
@@ -79,9 +108,9 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     @SuppressWarnings("unchecked")
-    private Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
-        if (arg instanceof Expression) {
-            return traversal.apply((Expression) arg);
+    private static Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
+        if (arg instanceof Expression exp) {
+            return traversal.apply(exp);
         }
 
         // WARNING: if the collection is typed, an incompatible function will be applied to it
@@ -90,17 +119,19 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         // has no type info so it's difficult to have automatic checking without having base classes).
 
         if (arg instanceof Collection<?> c) {
-            List<Object> transformed = new ArrayList<>(c.size());
+            List<Object> transformed = null;
             boolean hasChanged = false;
+            int i = 0;
             for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
-                if (e.equals(next)) {
-                    // use the initial value
-                    next = e;
-                } else {
-                    hasChanged = true;
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
                 }
-                transformed.add(next);
+                i++;
             }
 
             return hasChanged ? transformed : arg;
@@ -134,9 +165,9 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     @SuppressWarnings("unchecked")
-    private void doForEachExpression(Object arg, Consumer<Expression> traversal) {
-        if (arg instanceof Expression) {
-            traversal.accept((Expression) arg);
+    private static void doForEachExpression(Object arg, Consumer<Expression> traversal) {
+        if (arg instanceof Expression exp) {
+            traversal.accept(exp);
         } else if (arg instanceof Collection<?> c) {
             for (Object o : c) {
                 doForEachExpression(o, traversal);

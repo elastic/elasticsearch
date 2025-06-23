@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.commons.math3.distribution.TDistribution;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public class UnpairedTTestState implements TTestState {
 
@@ -70,25 +73,37 @@ public class UnpairedTTestState implements TTestState {
     }
 
     @Override
-    public TTestState reduce(Stream<TTestState> states) {
+    public AggregatorReducer getReducer(String name, DocValueFormat format, Map<String, Object> metadata) {
         TTestStats.Reducer reducerA = new TTestStats.Reducer();
         TTestStats.Reducer reducerB = new TTestStats.Reducer();
-        states.forEach(tTestState -> {
-            UnpairedTTestState state = (UnpairedTTestState) tTestState;
-            if (state.homoscedastic != homoscedastic) {
-                throw new IllegalStateException(
-                    "Incompatible homoscedastic mode in the reduce. Expected " + state.homoscedastic + " reduced with " + homoscedastic
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                UnpairedTTestState state = (UnpairedTTestState) ((InternalTTest) aggregation).state;
+                if (state.homoscedastic != homoscedastic) {
+                    throw new IllegalStateException(
+                        "Incompatible homoscedastic mode in the reduce. Expected " + state.homoscedastic + " reduced with " + homoscedastic
+                    );
+                }
+                if (state.tails != tails) {
+                    throw new IllegalStateException(
+                        "Incompatible tails value in the reduce. Expected " + state.tails + " reduced with " + tails
+                    );
+                }
+                reducerA.accept(state.a);
+                reducerB.accept(state.b);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalTTest(
+                    name,
+                    new UnpairedTTestState(reducerA.result(), reducerB.result(), homoscedastic, tails),
+                    format,
+                    metadata
                 );
             }
-            if (state.tails != tails) {
-                throw new IllegalStateException(
-                    "Incompatible tails value in the reduce. Expected " + state.tails + " reduced with " + tails
-                );
-            }
-            reducerA.accept(state.a);
-            reducerB.accept(state.b);
-        });
-        return new UnpairedTTestState(reducerA.result(), reducerB.result(), homoscedastic, tails);
+        };
     }
 
     @Override

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -162,7 +162,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliasesPre713() {
         IndexSettings indexSettings = indexSettings(
-            Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
         );
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
@@ -220,7 +220,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             lookup::get,
             (ft, s) -> indexFieldDataService.getForField(
                 ft,
-                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
+                new FieldDataContext("test", indexSettings, s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
             )
         );
     }

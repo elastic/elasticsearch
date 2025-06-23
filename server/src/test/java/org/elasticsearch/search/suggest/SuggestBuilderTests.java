@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
@@ -78,11 +79,9 @@ public class SuggestBuilderTests extends ESTestCase {
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             // explicit about type parameters, see: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481649
-            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(
-                randomSuggestBuilder(),
-                original -> { return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new); },
-                this::createMutation
-            );
+            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
+                return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
+            }, this::createMutation);
         }
     }
 

@@ -1,0 +1,131 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'c'
+apply plugin: 'cpp'
+
+var os = org.gradle.internal.os.OperatingSystem.current()
+
+// To update this library run publish_vec_binaries.sh  ( or ./gradlew buildSharedLibrary )
+// Or
+// For local development, build the docker image with:
+//   docker build --platform linux/arm64 --progress=plain --file=Dockerfile.aarch64 . (for aarch64)
+//   docker build --platform linux/amd64 --progress=plain --file=Dockerfile.amd64 . (for x64)
+// Grab the image id from the console output, then, e.g.
+//   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/$arch/libvec.so
+//
+// To run tests and benchmarks on a locally built libvec,
+//  1. Temporarily comment out the download in libs/native/library/build.gradle
+//       libs "org.elasticsearch:vec:${vecVersion}@zip"
+//  2. Copy your locally built libvec binary, e.g.
+//       cp libs/vec/native/build/libs/vec/shared/libvec.dylib libs/native/libraries/build/platform/darwin-aarch64/libvec.dylib
+//
+// Look at the disassemble:
+//  objdump --disassemble-symbols=_dot8s build/libs/vec/shared/libvec.dylib
+// Note: symbol decoration may differ on Linux, i.e. the leading underscore is not present
+//
+// gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
+
+group = 'org.elasticsearch'
+
+def platformName = System.getProperty("os.arch");
+
+model {
+  platforms {
+    aarch64 {
+      architecture "aarch64"
+    }
+    amd64 {
+      architecture "x86-64"
+    }
+  }
+  toolChains {
+    gcc(Gcc) {
+      target("aarch64") {
+        cCompiler.executable = "/usr/bin/gcc"
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+      }
+      target("amd64") {
+        cCompiler.executable = "/usr/bin/gcc"
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
+        cppCompiler.executable = "/usr/bin/g++"
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
+      }
+    }
+    cl(VisualCpp) {
+      eachPlatform { toolchain ->
+        def platform = toolchain.getPlatform()
+        if (platform.name == "x64") {
+          cCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
+        }
+      }
+    }
+    clang(Clang) {
+      target("aarch64") {
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=armv8-a"]) }
+      }
+
+      target("amd64") {
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
+      }
+    }
+  }
+  components {
+    vec(NativeLibrarySpec) {
+      targetPlatform "aarch64"
+      targetPlatform "amd64"
+
+      sources {
+        c {
+          source {
+            srcDir "src/vec/c/${platformName}/"
+            include "*.c"
+          }
+          exportedHeaders {
+            srcDir "src/vec/headers/"
+          }
+        }
+        cpp {
+          source {
+            srcDir "src/vec/c/${platformName}/"
+            include "*.cpp"
+          }
+          exportedHeaders {
+            srcDir "src/vec/headers/"
+          }
+        }
+      }
+    }
+  }
+}
+
+tasks.register('buildSharedLibrary') {
+  description = 'Assembles native shared library for the host architecture'
+  if (platformName.equals("aarch64")) {
+    dependsOn tasks.vecAarch64SharedLibrary
+    doLast {
+      copy {
+        from tasks.linkVecAarch64SharedLibrary.outputs.files.files
+        into layout.buildDirectory.dir('output');
+        duplicatesStrategy = 'INCLUDE'
+      }
+    }
+  } else if (platformName.equals("amd64")) {
+    dependsOn tasks.vecAmd64SharedLibrary
+    doLast {
+      copy {
+        from tasks.linkVecAmd64SharedLibrary.outputs.files.files
+        into layout.buildDirectory.dir('output');
+        duplicatesStrategy = 'INCLUDE'
+      }
+    }
+  } else {
+    throw new GradleException("Unsupported platform: " + platformName)
+  }
+}

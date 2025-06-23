@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -19,15 +20,21 @@ import static org.hamcrest.Matchers.containsString;
 public class RemoteClusterPortSettingsIT extends ESIntegTestCase {
 
     public void testDirectlyConfiguringTransportProfileForRemoteClusterWillFailToStartTheNode() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final Settings.Builder builder = Settings.builder()
             .put(randomBoolean() ? masterNode() : dataOnlyNode())
             .put("discovery.initial_state_timeout", "1s")
-            .put("remote_cluster.enabled", true)
-            .put("transport.profiles._remote_cluster.port", 9900);
+            .put("remote_cluster_server.enabled", true);
+
+        // Test that the same error message is always reported for direct usage of the _remote_cluster profile
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> builder.put("transport.profiles._remote_cluster.tcp.keep_alive", true);
+            case 1 -> builder.put("transport.profiles._remote_cluster.port", 9900);
+            default -> builder.put("transport.profiles._remote_cluster.port", 9900)
+                .put("transport.profiles._remote_cluster.tcp.keep_alive", true);
+        }
+
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
         assertThat(
             e.getMessage(),

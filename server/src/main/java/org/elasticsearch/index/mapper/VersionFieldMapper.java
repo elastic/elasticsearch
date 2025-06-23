@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,7 +22,11 @@ import org.elasticsearch.script.field.VersionDocValuesField;
 
 import java.util.Collections;
 
-/** Mapper for the _version field. */
+/** Mapper for the _version field.
+ *
+ *  This is the field mapper for the monotonically increasing document version.  If you are looking for the field that stores semver style
+ *  strings in a sortable binary format, you want VersionStringFieldMapper in the xpack VersionField plugin
+ */
 public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_version";
@@ -55,9 +60,14 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.LongsBlockLoader(name());
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, isIndexed());
         }
     }
 
@@ -91,10 +101,5 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

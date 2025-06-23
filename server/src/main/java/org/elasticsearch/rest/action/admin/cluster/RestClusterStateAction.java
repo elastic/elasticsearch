@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,8 +23,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,13 +38,15 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterStateAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
@@ -76,10 +81,9 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
@@ -108,13 +112,21 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
+        // We'll probably want to review this approach of adding the XContent parameter.
+        @FixForMultiProject
+        final Map<String, String> params;
+        if (request.paramAsBoolean("multi_project", false)) {
+            params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API, "multi-project", "true");
+        } else {
+            params = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             ClusterStateAction.INSTANCE,
             clusterStateRequest,
-            new RestChunkedToXContentListener<RestClusterStateResponse>(
-                channel,
-                new ToXContent.DelegatingMapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request)
-            ).map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
+            new RestChunkedToXContentListener<RestClusterStateResponse>(channel, new ToXContent.DelegatingMapParams(params, request)).map(
+                response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool.relativeTimeInMillisSupplier())
+            )
         );
     }
 
@@ -150,6 +162,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             if (request.local() == false
+                && request.masterNodeTimeout().millis() >= 0
                 && currentTimeMillisSupplier.getAsLong() - startTimeMillis > request.masterNodeTimeout().millis()) {
                 throw new ElasticsearchTimeoutException("Timed out getting cluster state");
             }

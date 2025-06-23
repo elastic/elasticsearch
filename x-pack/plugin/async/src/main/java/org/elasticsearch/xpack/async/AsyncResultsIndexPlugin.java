@@ -7,32 +7,18 @@
 
 package org.elasticsearch.xpack.async;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -60,30 +46,17 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>();
-        if (DiscoveryNode.canContainData(environment.settings())) {
+        if (DiscoveryNode.canContainData(services.environment().settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncTaskMaintenanceService maintenanceService = new AsyncTaskMaintenanceService(
-                clusterService,
-                nodeEnvironment.nodeId(),
+                services.clusterService(),
+                services.projectResolver(),
+                services.nodeEnvironment().nodeId(),
                 settings,
-                threadPool,
-                new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN)
+                services.threadPool(),
+                new OriginSettingClient(services.client(), ASYNC_SEARCH_ORIGIN)
             );
             components.add(maintenanceService);
         }

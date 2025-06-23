@@ -1,44 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-configure(subprojects - project('elasticsearch-log4j')) {
-  /*
-   * All subprojects are java projects using Elasticsearch's standard build
-   * tools.
-   */
-  apply plugin: 'elasticsearch.build'
+configure(childProjects.values()) {
+
+  apply plugin: 'base'
 
   /*
-   * Subprojects may depend on the "core" lib but may not depend on any
-   * other libs. This keeps our dependencies simpler.
-   * With the exception that specialised plugin apis can depend on "core" plugin api project
+   * Although these libs are local to Elasticsearch, they can conflict with other similarly
+   * named libraries when downloaded into a single directory via maven. Here we set the
+   * name of all libs to begin with the "elasticsearch-" prefix. Additionally, subprojects
+   * of libs begin with their parents artifactId.
    */
-  project.afterEvaluate {
-    configurations.all { Configuration conf ->
-      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project depProject = dep.dependencyProject
-        if (depProject != null
-          && false == isPluginApi(project, depProject)
-          && false == depProject.path.equals(':libs:elasticsearch-x-content')
-          && false == depProject.path.equals(':libs:elasticsearch-core')
-          && false == depProject.path.equals(':libs:elasticsearch-plugin-api')
-          && depProject.path.startsWith(':libs')
-          && depProject.name.startsWith('elasticsearch-')) {
-          throw new InvalidUserDataException("projects in :libs "
-            + "may not depend on other projects libs except "
-            + ":libs:elasticsearch-core but "
-            + "${project.path} depends on ${depProject.path}")
-        }
-      }
+  def baseProject = project
+  def baseArtifactId = "elasticsearch-${it.name}"
+  base {
+    archivesName = baseArtifactId
+  }
+  subprojects {
+    apply plugin: 'base'
+
+    def subArtifactId = baseArtifactId
+    def currentProject = project
+    while (currentProject != baseProject) {
+      subArtifactId += "-${currentProject.name}"
+      currentProject = currentProject.parent
+    }
+    base {
+      archivesName = subArtifactId
     }
   }
-}
 
-boolean isPluginApi(Project project, Project depProject) {
-  return project.path.matches(".*elasticsearch-plugin-.*api")
+  // log4j is a hack, and not really a full elasticsearch built jar
+  if (project.name != 'log4j') {
+
+    /*
+     * All subprojects are java projects using Elasticsearch's standard build
+     * tools.
+     */
+    apply plugin: 'elasticsearch.build'
+  }
 }

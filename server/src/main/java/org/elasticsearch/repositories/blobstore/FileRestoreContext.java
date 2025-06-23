@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -159,15 +160,15 @@ public abstract class FileRestoreContext {
                     }
                 }
 
-                restoreFiles(filesToRecover, store, ActionListener.wrap(v -> {
+                restoreFiles(filesToRecover, store, listener.delegateFailureAndWrap((l, v) -> {
                     store.incRef();
                     try {
                         afterRestore(snapshotFiles, store);
-                        listener.onResponse(null);
+                        l.onResponse(null);
                     } finally {
                         store.decRef();
                     }
-                }, listener::onFailure));
+                }));
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
             }

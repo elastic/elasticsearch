@@ -1,0 +1,49 @@
+{
+  "esql.query":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-api.html",
+      "description":"Executes an ESQL request"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "delimiter":{
+        "type":"string",
+        "description":"The character to use between values within a CSV row. Only valid for the csv format.",
+        "default":false
+      },
+      "drop_null_columns": {
+        "type": "boolean",
+        "description": "Should entirely null columns be removed from the results? Their name and type will be returning in a new `all_columns` section.",
+        "default": false
+      },
+      "allow_partial_results": {
+        "type": "boolean",
+        "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.\nIf `false`, the entire query will fail if there are\nany failures.",
+        "default": true
+      }
+    },
+    "body":{
+      "description":"Use the `query` element to start a query. Use `columnar` to format the answer.",
+      "required":true
+    }
+  }
+}

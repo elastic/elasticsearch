@@ -1,15 +1,22 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 keyword:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -47,18 +54,104 @@ keyword:
         kwd: bar
 
 ---
+keyword with normalizer:
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter:
+                    - lowercase
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                normalizer: lowercase
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: lowercase
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: lowercase
+                doc_values: false
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "The five BOXING wizards jump Quickly"
+          keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+          keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [ 1, 2, 3 ]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "The five BOXING wizards jump Quickly"
+        keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+        keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+---
 stored text:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: introduced in 8.5.0
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -97,17 +190,18 @@ stored text:
 
 ---
 force_synthetic_source_ok:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               obj:
                 properties:
@@ -159,58 +253,3 @@ force_synthetic_source_ok:
         obj:
           kwd: bar
 
----
-force_synthetic_source_bad_mapping:
-  - skip:
-      version: " - 8.4.99"
-      reason: message changed in 8.5
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            number_of_shards: 1 # Use a single shard to get consistent error messages
-          mappings:
-            _source:
-              mode: stored
-            properties:
-              text:
-                type: text
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        body:
-          text: foo
-
-  - do:
-      index:
-        index:   test
-        id:      2
-        body:
-          text: bar
-
-  # When _source is used in the fetch the original _source is perfect
-  - do:
-      mget:
-        index: test
-        body:
-          ids: [ 1, 2 ]
-  - match:
-      docs.0._source:
-        text: foo
-  - match:
-      docs.1._source:
-        text: bar
-
-  # Forcing synthetic source fails because the mapping is invalid
-  - do:
-      mget:
-        index: test
-        force_synthetic_source: true
-        body:
-          ids: [ 1, 2 ]
-  - match: {docs.0.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}
-  - match: {docs.1.error.reason: "field [text] of type [text] doesn't support synthetic source unless it is stored or has a sub-field of type [keyword] with doc values or stored and without a normalizer"}

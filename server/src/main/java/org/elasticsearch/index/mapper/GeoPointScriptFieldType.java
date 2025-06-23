@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,6 +29,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -46,7 +48,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, GeoPointFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             GeoPointFieldScript.Factory factory,
             Script script,
@@ -57,12 +59,14 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         }
 
         @Override
-        GeoPointFieldScript.Factory getParseFromSourceFactory() {
+        protected GeoPointFieldScript.Factory getParseFromSourceFactory() {
             return GeoPointFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        GeoPointFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected GeoPointFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return GeoPointFieldScript.leafAdapter(parentScriptFactory);
         }
     });
@@ -214,6 +218,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
                     points.add(new GeoPoint(script.lats()[i], script.lons()[i]));
                 }
                 return formatter.apply(points);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
             }
         };
     }

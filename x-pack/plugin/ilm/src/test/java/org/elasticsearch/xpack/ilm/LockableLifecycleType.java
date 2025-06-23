@@ -31,23 +31,8 @@ public class LockableLifecycleType implements LifecycleType {
     }
 
     @Override
-    public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        return null;
-    }
-
-    @Override
-    public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        return null;
-    }
-
-    @Override
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         return new ArrayList<>(phase.getActions().values());
-    }
-
-    @Override
-    public String getNextActionName(String currentActionName, Phase phase) {
-        return null;
     }
 
     @Override

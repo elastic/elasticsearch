@@ -37,7 +37,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -309,7 +308,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets", valuesSourceBuilders)
             .subAggregation(rateAggregationBuilder);
-        AggregationExecutionException ex = expectThrows(AggregationExecutionException.class, () -> testCase(iw -> {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
@@ -851,14 +850,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
             new DateHistogramInterval("month")
         );
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                iw -> { iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1))); },
-                h -> { fail("Shouldn't be here"); },
-                new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType)
-            )
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1)));
+        }, h -> { fail("Shouldn't be here"); }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType)));
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
     }
 

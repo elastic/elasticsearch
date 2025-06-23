@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -103,7 +105,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
             if (relevanceRatings[i] != null) {
                 rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             }
-            hits[i] = new SearchHit(i, Integer.toString(i));
+            hits[i] = SearchHit.unpooled(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         return hits;
@@ -114,7 +116,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      */
     public void testNoResults() throws Exception {
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(5, 0, 10);
-        assertEquals(0.0, err.evaluate("id", new SearchHit[0], Collections.emptyList()).metricScore(), DELTA);
+        assertEquals(0.0, err.evaluate("id", SearchHits.EMPTY, Collections.emptyList()).metricScore(), DELTA);
     }
 
     public void testParseFromXContent() throws IOException {
@@ -188,11 +190,9 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createTestItem(),
-            original -> { return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK()); },
-            ExpectedReciprocalRankTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK());
+        }, ExpectedReciprocalRankTests::mutateTestItem);
     }
 
     private static ExpectedReciprocalRank mutateTestItem(ExpectedReciprocalRank original) {

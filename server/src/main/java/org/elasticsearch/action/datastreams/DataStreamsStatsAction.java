@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.datastreams;
 
@@ -32,14 +33,35 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
     public static final String NAME = "indices:monitor/data_stream/stats";
 
     public DataStreamsStatsAction() {
-        super(NAME, DataStreamsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
-            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
-            // a data stream's backing indices are retrieved from its metadata
-            super(null, IndicesOptions.fromOptions(false, true, true, true, true, false, true, false));
+            super(
+                null,
+                IndicesOptions.builder()
+                    .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+                    .wildcardOptions(
+                        IndicesOptions.WildcardOptions.builder()
+                            .matchOpen(true)
+                            .matchClosed(true)
+                            .includeHidden(false)
+                            .resolveAliases(false)
+                            .allowEmptyExpressions(true)
+                            .build()
+                    )
+                    .gatekeeperOptions(
+                        IndicesOptions.GatekeeperOptions.builder()
+                            .allowAliasToMultipleIndices(true)
+                            .allowClosedIndices(true)
+                            .ignoreThrottled(false)
+                            .allowSelectors(false)
+                            .includeFailureIndices(true)
+                            .build()
+                    )
+                    .build()
+            );
         }
 
         public Request(StreamInput in) throws IOException {

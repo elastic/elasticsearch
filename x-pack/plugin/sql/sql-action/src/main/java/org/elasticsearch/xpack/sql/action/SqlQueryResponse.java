@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.action;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -29,12 +29,10 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.isClientCompatible;
 
 /**
  * Response to perform an sql query
@@ -56,7 +54,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     private final boolean isRunning;
 
     public SqlQueryResponse(StreamInput in) throws IOException {
-        super(in);
         cursor = in.readString();
         if (in.readBoolean()) {
             // We might have rows without columns and we might have columns without rows
@@ -83,16 +80,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            columnar = in.readBoolean();
-            asyncExecutionId = in.readOptionalString();
-            isPartial = in.readBoolean();
-            isRunning = in.readBoolean();
-        } else {
-            asyncExecutionId = null;
-            isPartial = false;
-            isRunning = false;
-        }
+        columnar = in.readBoolean();
+        asyncExecutionId = in.readOptionalString();
+        isPartial = in.readBoolean();
+        isRunning = in.readBoolean();
     }
 
     public SqlQueryResponse(
@@ -108,7 +99,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
+        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersions.SERVER_COMPAT_VERSION;
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -276,7 +267,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(SqlVersions.SERVER_COMPAT_VERSION, sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));

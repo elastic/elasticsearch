@@ -48,6 +48,11 @@ public class DatafeedParamsTests extends AbstractXContentSerializingTestCase<Sta
     }
 
     @Override
+    protected StartDatafeedAction.DatafeedParams mutateInstance(StartDatafeedAction.DatafeedParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<StartDatafeedAction.DatafeedParams> instanceReader() {
         return StartDatafeedAction.DatafeedParams::new;
     }

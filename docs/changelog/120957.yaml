@@ -1,0 +1,5 @@
+pr: 120957
+summary: Introduce `AllocationBalancingRoundSummaryService`
+area: Allocation
+type: enhancement
+issues: []

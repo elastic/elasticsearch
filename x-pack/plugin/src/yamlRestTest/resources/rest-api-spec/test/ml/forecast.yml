@@ -17,7 +17,7 @@ setup:
 "Test forecast unknown job":
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/34747"
-      version: "6.5.0 - "
+      cluster_features: ["gte_v6.5.0"]
 
   - do:
       catch: missing

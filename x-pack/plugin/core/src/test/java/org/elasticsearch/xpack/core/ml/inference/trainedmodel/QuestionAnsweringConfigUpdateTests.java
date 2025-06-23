@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,8 +35,8 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
         );
     }
 
-    public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new QuestionAnsweringConfigUpdate(
                 instance.getQuestion(),
                 instance.getNumTopClasses(),
@@ -45,11 +46,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
             );
         }
         return instance;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override
@@ -68,7 +64,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     @Override
-    protected QuestionAnsweringConfigUpdate mutateInstanceForVersion(QuestionAnsweringConfigUpdate instance, Version version) {
+    protected QuestionAnsweringConfigUpdate mutateInstance(QuestionAnsweringConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected QuestionAnsweringConfigUpdate mutateInstanceForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 
@@ -121,11 +122,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setNumTopClasses(4)
-                    .setMaxAnswerLength(40)
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setNumTopClasses(4)
+                        .setMaxAnswerLength(40)
+                        .build()
+                )
             )
         );
         assertThat(
@@ -138,10 +140,9 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 "updated-field"
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -157,10 +158,11 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

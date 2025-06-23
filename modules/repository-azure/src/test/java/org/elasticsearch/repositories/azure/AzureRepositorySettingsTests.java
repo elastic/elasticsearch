@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -16,11 +18,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -33,14 +37,18 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final AzureRepository azureRepository = new AzureRepository(
+            projectId,
             new RepositoryMetadata("foo", "azure", internalSettings),
             NamedXContentRegistry.EMPTY,
             mock(AzureStorageService.class),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            RepositoriesMetrics.NOOP
         );
+        assertThat(azureRepository.getProjectId(), equalTo(projectId));
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }
@@ -130,7 +138,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // chunk size in settings
         int size = randomIntBetween(1, 256);
         azureRepository = azureRepository(Settings.builder().put("chunk_size", size + "mb").build());
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), azureRepository.chunkSize());
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), azureRepository.chunkSize());
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(

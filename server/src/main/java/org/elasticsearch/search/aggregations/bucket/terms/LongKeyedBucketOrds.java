@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -14,7 +15,10 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.NoSuchElementException;
+import java.util.TreeSet;
 
 /**
  * Maps owning bucket ordinals and long bucket keys to bucket ordinals.
@@ -22,6 +26,9 @@ import java.util.Locale;
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds} who's values have unknown bounds.
+     *
+     * @param cardinality - This should come from the owning aggregation, and is used as an upper bound on the
+     *                    owning bucket ordinals.
      */
     public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
@@ -29,6 +36,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * Build a {@link LongKeyedBucketOrds} who's values have known bounds.
+     *
+     * @param cardinality - This should come from the owning aggregation, and is used as an upper bound on the
+     *                    owning bucket ordinals.
+     * @param  min - The minimum key value for this aggregation
+     * @param max - The maximum key value for this aggregation
      */
     public static LongKeyedBucketOrds buildForValueRange(BigArrays bigArrays, CardinalityUpperBound cardinality, long min, long max) {
         return cardinality.map((int cardinalityUpperBound) -> {
@@ -48,6 +60,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             return new FromMany(bigArrays);
         });
     }
+
+    private TreeSet<Long> keySet = null;
 
     private LongKeyedBucketOrds() {}
 
@@ -100,6 +114,58 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * {@link BucketOrdsEnum#next()} to move it to the first value.
      */
     public abstract BucketOrdsEnum ordsEnum(long owningBucketOrd);
+
+    /**
+     * Return an iterator for all keys in the given owning bucket, ordered in natural sort order.
+     * This is suitable for aligning buckets across different instances of an aggregation.
+     *
+     * @param owningBucketOrd Only return keys that occured under this owning bucket
+     * @return a sorted iterator of long key values
+     */
+    public Iterator<Long> keyOrderedIterator(long owningBucketOrd) {
+        if (keySet == null) {
+            // TreeSet's contract includes a naturally ordered iterator
+            keySet = new TreeSet<>();
+            for (long ord = 0; ord < size(); ord++) {
+                keySet.add(this.get(ord));
+            }
+        }
+        Iterator<Long> toReturn = new Iterator<>() {
+            final Iterator<Long> wrapped = keySet.iterator();
+            final long filterOrd = owningBucketOrd;
+            long next;
+            boolean hasNext = true;
+
+            @Override
+            public boolean hasNext() {
+                return hasNext;
+            }
+
+            @Override
+            public Long next() {
+                if (hasNext == false) {
+                    throw new NoSuchElementException();
+                }
+                long toReturn = next;
+                hasNext = false;
+                while (wrapped.hasNext()) {
+                    long candidate = wrapped.next();
+                    if (find(filterOrd, candidate) != -1) {
+                        next = candidate;
+                        hasNext = true;
+                        break;
+                    }
+                }
+                return toReturn;
+            }
+        };
+        toReturn.next(); // Prime the first actual value
+        return toReturn;
+    }
+
+    public void close() {
+        keySet = null;
+    }
 
     /**
      * An iterator for buckets inside a particular {@code owningBucketOrd}.
@@ -223,6 +289,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }
@@ -320,6 +387,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }
@@ -455,6 +523,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }

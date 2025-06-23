@@ -20,7 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -38,9 +37,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PREFIX;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class IPFilter {
@@ -76,18 +75,14 @@ public class IPFilter {
     private static final IPFilterValidator ALLOW_VALIDATOR = new IPFilterValidator(true);
     private static final IPFilterValidator DENY_VALIDATOR = new IPFilterValidator(false);
 
-    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.stringListSetting(
         setting("transport.filter.allow"),
-        Collections.emptyList(),
-        Function.identity(),
         ALLOW_VALIDATOR,
         Property.OperatorDynamic,
         Property.NodeScope
     );
-    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.stringListSetting(
         setting("transport.filter.deny"),
-        Collections.emptyList(),
-        Function.identity(),
         DENY_VALIDATOR,
         Property.OperatorDynamic,
         Property.NodeScope
@@ -116,26 +111,12 @@ public class IPFilter {
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting(
         "transport.profiles.",
         "xpack.security.filter.deny",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            DENY_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope
-        )
+        key -> Setting.stringListSetting(key, DENY_VALIDATOR, Property.OperatorDynamic, Property.NodeScope)
     );
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting(
         "transport.profiles.",
         "xpack.security.filter.allow",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            ALLOW_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope
-        )
+        key -> Setting.stringListSetting(key, ALLOW_VALIDATOR, Property.OperatorDynamic, Property.NodeScope)
     );
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK = Setting.listSetting(
@@ -237,7 +218,7 @@ public class IPFilter {
             Setting<List<String>> denySetting = PROFILE_FILTER_DENY_SETTING.getConcreteSettingForNamespace(profile);
             profileDenyRules.put(profile, denySetting.get(settings));
         }
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
             logger.debug(
                 "Remote access is enabled, populating filters for profile [{}] with contents of [{}] and [{}]",
                 REMOTE_CLUSTER_PROFILE,
@@ -253,10 +234,8 @@ public class IPFilter {
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_SETTING, this::setTransportFiltering);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_ALLOW_SETTING, this::setTransportAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_ALLOW_SETTING, this::setRemoteAccessAllowFilter);
-            clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_DENY_SETTING, this::setRemoteAccessDenyFilter);
-        }
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_ALLOW_SETTING, this::setRemoteAccessAllowFilter);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_DENY_SETTING, this::setRemoteAccessDenyFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
         clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_ALLOW_SETTING, this::setProfileAllowRules, (a, b) -> {});
@@ -428,10 +407,8 @@ public class IPFilter {
         settings.add(HTTP_FILTER_DENY_SETTING);
         settings.add(TRANSPORT_FILTER_ALLOW_SETTING);
         settings.add(TRANSPORT_FILTER_DENY_SETTING);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.add(REMOTE_CLUSTER_FILTER_ALLOW_SETTING);
-            settings.add(REMOTE_CLUSTER_FILTER_DENY_SETTING);
-        }
+        settings.add(REMOTE_CLUSTER_FILTER_ALLOW_SETTING);
+        settings.add(REMOTE_CLUSTER_FILTER_DENY_SETTING);
         settings.add(PROFILE_FILTER_ALLOW_SETTING);
         settings.add(PROFILE_FILTER_DENY_SETTING);
     }

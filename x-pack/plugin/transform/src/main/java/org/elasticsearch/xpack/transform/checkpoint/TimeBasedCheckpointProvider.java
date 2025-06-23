@@ -9,19 +9,20 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -45,7 +46,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     TimeBasedCheckpointProvider(
         final Clock clock,
-        final Client client,
+        final ParentTaskAssigningClient client,
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
@@ -81,9 +82,9 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
+            ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value() > 0L), listener::onFailure)
         );
     }
 
@@ -95,16 +96,11 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         // for time based synchronization
         final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        getIndexCheckpoints(
-            ActionListener.wrap(
-                checkpointsByIndex -> {
-                    listener.onResponse(
-                        new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-                    );
-                },
-                listener::onFailure
-            )
-        );
+        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
+            listener.onResponse(
+                new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
+            );
+        }, listener::onFailure));
     }
 
     /**
@@ -114,11 +110,11 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      * @return function aligning the given timestamp with date histogram interval
      */
     private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
-        if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+        if (TransformEffectiveSettings.isAlignCheckpointsDisabled(transformConfig.getSettings())) {
             return identity();
         }
         // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".
-        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(Version.V_7_15_0)) {
+        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(TransformConfigVersion.V_7_15_0)) {
             return identity();
         }
         if (transformConfig.getPivotConfig() == null) {

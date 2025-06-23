@@ -68,7 +68,8 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -114,8 +115,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingCategorizerDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-state-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_categorizer_state#1")
                 .setSource("{}", XContentType.JSON)
                 .request(),
@@ -126,8 +126,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingQuantilesDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-state-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-state-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_quantiles")
                 .setSource("{}", XContentType.JSON)
                 .request(),
@@ -138,8 +137,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            client().prepareIndex(".ml-anomalies-shared")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-anomalies-shared").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_1464739200000_1")
                 .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
                 .request(),
@@ -197,7 +195,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[open-job-with-old-model-snapshot] job model snapshot [snap_1] has min version before [7.0.0], "
+                "[open-job-with-old-model-snapshot] job model snapshot [snap_1] has min version before [8.3.0], "
                     + "please revert to a newer model snapshot or reset the job"
             )
         );

@@ -90,8 +90,8 @@
 
 ---
 "Test disable source":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: "behaviour of fields when source is disabled changed in 8.4.0"
 
   - do:
@@ -252,7 +252,7 @@
           query:
             range:
               date:
-                from: "1990-12-29T22:30:00.000Z"
+                gte: "1990-12-29T22:30:00.000Z"
           fields:
             - field: date
               format: "yyyy/MM/dd"
@@ -262,44 +262,9 @@
   - match: { hits.hits.0.fields.date.0: "1990/12/29" }
 
 ---
-"Test token count":
-  - skip:
-      version: " - 7.9.99"
-      reason: "support for token_count was instroduced in 7.10"
-  - do:
-      indices.create:
-        index:  test
-        body:
-          mappings:
-            properties:
-              count:
-                type: token_count
-                analyzer: standard
-              count_without_dv:
-                type: token_count
-                analyzer: standard
-                doc_values: false
-
-  - do:
-      index:
-        index:  test
-        id:     "1"
-        refresh: true
-        body:
-          count: "some text"
-  - do:
-      search:
-        index: test
-        body:
-          fields: [count, count_without_dv]
-
-  - is_true: hits.hits.0._id
-  - match: { hits.hits.0.fields.count: [2] }
-  - is_false: hits.hits.0.fields.count_without_dv
----
 Test unmapped field:
-  -  skip:
-        version: ' - 7.10.99'
+  -  requires:
+        cluster_features: "gte_v7.11.0"
         reason: support was introduced in 7.11
   -  do:
         indices.create:
@@ -364,8 +329,8 @@ Test unmapped field:
         - some other text
 ---
 Test unmapped fields inside disabled objects:
-  -  skip:
-        version: ' - 7.10.99'
+  -  requires:
+        cluster_features: "gte_v7.11.0"
         reason: support was introduced in 7.11
   -  do:
         indices.create:
@@ -405,8 +370,8 @@ Test unmapped fields inside disabled objects:
         - b
 ---
 Test nested fields:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -479,8 +444,8 @@ Test nested fields:
   - is_false: hits.hits.0.fields
 ---
 Test nested field inside object structure:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -594,8 +559,8 @@ Test nested field inside object structure:
         hits.hits.1.fields.obj\.products.1: { "manufacturer" : ["RealTec"]}
 ---
 Test doubly nested fields:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -663,8 +628,8 @@ Test doubly nested fields:
 
 ---
 Test nested fields with unmapped subfields:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -730,8 +695,8 @@ Test nested fields with unmapped subfields:
        hits.hits.0.fields.user.0: { "address.city" : ["Berlin"]}
 ---
 Test nested fields with ignored subfields:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -773,8 +738,8 @@ Test nested fields with ignored subfields:
            - { "first" : [ "John" ] }
 ---
 Test nested field with sibling field resolving to DocValueFetcher:
-  -  skip:
-        version: ' - 7.11.99'
+  -  requires:
+        cluster_features: "gte_v7.12.0"
         reason: support was introduced in 7.12
   -  do:
         indices.create:
@@ -824,8 +789,8 @@ Test nested field with sibling field resolving to DocValueFetcher:
         hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
 ---
 "Test ignores malformed values while returning valid ones":
-  - skip:
-      version: ' - 7.11.99'
+  - requires:
+      cluster_features: "gte_v7.12.0"
       reason:  'Behaviour changed in 7.12'
   - do:
       indices.create:
@@ -859,8 +824,8 @@ Test nested field with sibling field resolving to DocValueFetcher:
 
 ---
 Test token_count inside nested field doesn't fail:
-  - skip:
-      version: ' - 7.11.99'
+  - requires:
+      cluster_features: "gte_v7.12.0"
       reason:  'fix introduced in 7.12.0'
   -  do:
         indices.create:
@@ -897,8 +862,8 @@ Test token_count inside nested field doesn't fail:
 
 ---
 error includes field name:
-  - skip:
-      version: ' - 7.15.99'
+  - requires:
+      cluster_features: "gte_v7.16.0"
       reason:  'error changed in 7.16.0'
 
   - do:
@@ -934,8 +899,8 @@ error includes field name:
 
 ---
 error includes glob pattern:
-  - skip:
-      version: ' - 7.15.99'
+  - requires:
+      cluster_features: "gte_v7.16.0"
       reason:  'error changed in 7.16.0'
 
   - do:
@@ -972,8 +937,8 @@ error includes glob pattern:
 
 ---
 error for flattened includes whole path:
-  - skip:
-      version: ' - 7.15.99'
+  - requires:
+      cluster_features: "gte_v7.16.0"
       reason:  'error changed in 7.16.0'
 
   - do:
@@ -1011,8 +976,8 @@ error for flattened includes whole path:
 
 ---
 test fetching metadata fields:
-  - skip:
-      version: ' - 7.99.99'
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason:  'fetching metadata via fields introduced in 8.0'
 
   - do:
@@ -1120,3 +1085,209 @@ fetch geo_point:
               format: wkt
   - length: { hits.hits.0.fields: 1 }
   - match: { hits.hits.0.fields.field.0: "POINT (-71.34 41.12)" }
+
+---
+"Test with subobjects: false":
+  - requires:
+      cluster_features: "gte_v8.10.0"
+      reason: 'https://github.com/elastic/elasticsearch/issues/96700 fixed in 8.10.0'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child"
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+
+---
+"Test with subobjects: auto":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: auto
+            properties:
+              message:
+                type: object
+                subobjects: auto
+                enabled: false
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: >
+          {
+            "root": "parent",
+            "root.subfield": "child",
+            "message": {
+              "foo": 10,
+              "foo.bar": 20
+            }
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              root.subfield:
+                value: 'child'
+          fields:
+            - field: 'root*'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.root.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.keyword.0: 'parent' }
+  - match: { hits.hits.0.fields.root\.subfield.0: 'child' }
+  - match: { hits.hits.0.fields.root\.subfield\.keyword.0: 'child' }
+  - is_false: hits.hits.0.fields.message
+  - match: { hits.hits.0._source.message.foo: 10 }
+  - match: { hits.hits.0._source.message.foo\.bar: 20 }
+
+---
+root with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            subobjects: false
+            dynamic: false
+            properties:
+              id:
+                type: integer
+              my.keyword.field:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 1, "my": { "keyword.field": "abc" } }'
+  - match: { errors: false }
+
+  # indexing a dynamically-mapped field still fails (silently)
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 2, "my": { "random.field": "abc" } }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: id
+          fields: [ "*" ]
+
+  - match: { hits.hits.0.fields: { my.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              my.keyword.field: abc
+
+  - match: { hits.total.value: 1 }
+
+---
+object with subobjects false and dynamic false:
+  - requires:
+      cluster_features: mapper.fix_parsing_subobjects_false_dynamic_false
+      reason: bug fix
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              my:
+                subobjects: false
+                dynamic: false
+                properties:
+                  id:
+                    type: integer
+                  nested.keyword.field:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 1, "my": { "nested": { "keyword.field": "abc" } } }'
+  - match: { errors: false }
+
+  # indexing a dynamically-mapped field still fails (silently)
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "id": 2, "my": { "nested": { "random.field": "abc" } } }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: id
+          fields: [ "*" ]
+
+  - match: { hits.hits.0.fields: { my.nested.keyword.field: [ abc ], id: [ 1 ] } }
+  - match: { hits.hits.1.fields: { id: [ 2 ] } }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              my.nested.keyword.field: abc
+
+  - match: { hits.total.value: 1 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -28,11 +29,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -89,7 +89,7 @@ public class StoreRecoveryTests extends ESTestCase {
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
         StoreRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null, 0, false, false);
-        int numFiles = 0;
+        long numFiles = 0;
         Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false
             && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
@@ -110,7 +110,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
-        assertThat(userData.get(Engine.ES_VERSION), equalTo(Version.CURRENT.toString()));
+        assertThat(userData.get(Engine.ES_VERSION), equalTo(IndexVersion.current().toString()));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
             assertEquals("all sources must be flush", info.info.getDiagnostics().get("source"), "flush");
             if (indexSort != null) {
@@ -158,7 +158,7 @@ public class StoreRecoveryTests extends ESTestCase {
         int numShards = randomIntBetween(2, 10);
         int targetShardId = randomIntBetween(0, numShards - 1);
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0)
@@ -258,7 +258,7 @@ public class StoreRecoveryTests extends ESTestCase {
             BasicFileAttributes sourceAttr = Files.readAttributes(path.resolve("foo.bar"), BasicFileAttributes.class);
             // we won't get here - no permission ;)
             return destAttr.fileKey() != null && destAttr.fileKey().equals(sourceAttr.fileKey());
-        } catch (AccessControlException ex) {
+        } catch (SecurityException ex) {
             return true; // if we run into that situation we know it's supported.
         } catch (UnsupportedOperationException ex) {
             return false;

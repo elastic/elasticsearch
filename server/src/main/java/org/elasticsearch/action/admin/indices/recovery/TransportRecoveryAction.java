@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.recovery;
@@ -18,13 +19,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             actionFilters,
             indexNameExpressionResolver,
             RecoveryRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
     }
@@ -102,7 +102,6 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     protected void shardOperation(RecoveryRequest request, ShardRouting shardRouting, Task task, ActionListener<RecoveryState> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
-            runOnShardOperation();
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             return indexShard.recoveryState();
@@ -122,20 +121,5 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
-    }
-
-    @Nullable // unless running tests that inject extra behaviour
-    private volatile Runnable onShardOperation;
-
-    private void runOnShardOperation() {
-        final Runnable onShardOperation = this.onShardOperation;
-        if (onShardOperation != null) {
-            onShardOperation.run();
-        }
-    }
-
-    // exposed for tests: inject some extra behaviour that runs when shardOperation() is called
-    void setOnShardOperation(@Nullable Runnable onShardOperation) {
-        this.onShardOperation = onShardOperation;
     }
 }

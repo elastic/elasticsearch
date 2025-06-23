@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
@@ -31,7 +33,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     public static final ParseField REQUIRES_REMOTE = new ParseField("requires_remote");
 
     private final String transformId;
-    private final Version version;
+    private final TransformConfigVersion version;
     private final Instant from;
     private final TimeValue frequency;
     private final Boolean requiresRemote;
@@ -53,20 +55,20 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     private TransformTaskParams(String transformId, String version, Long from, String frequency, Boolean remote) {
         this(
             transformId,
-            version == null ? null : Version.fromString(version),
+            version == null ? null : TransformConfigVersion.fromString(version),
             from == null ? null : Instant.ofEpochMilli(from),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
             remote == null ? false : remote.booleanValue()
         );
     }
 
-    public TransformTaskParams(String transformId, Version version, TimeValue frequency, boolean remote) {
+    public TransformTaskParams(String transformId, TransformConfigVersion version, TimeValue frequency, boolean remote) {
         this(transformId, version, null, frequency, remote);
     }
 
-    public TransformTaskParams(String transformId, Version version, Instant from, TimeValue frequency, boolean remote) {
+    public TransformTaskParams(String transformId, TransformConfigVersion version, Instant from, TimeValue frequency, boolean remote) {
         this.transformId = transformId;
-        this.version = version == null ? Version.V_7_2_0 : version;
+        this.version = version == null ? TransformConfigVersion.V_7_2_0 : version;
         this.from = from;
         this.frequency = frequency;
         this.requiresRemote = remote;
@@ -74,8 +76,8 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
 
     public TransformTaskParams(StreamInput in) throws IOException {
         this.transformId = in.readString();
-        this.version = Version.readVersion(in);
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        this.version = TransformConfigVersion.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.from = in.readOptionalInstant();
         } else {
             this.from = null;
@@ -90,15 +92,15 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_17_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(transformId);
-        Version.writeVersion(version, out);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        TransformConfigVersion.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalInstant(from);
         }
         out.writeOptionalTimeValue(frequency);
@@ -125,7 +127,7 @@ public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>,
         return transformId;
     }
 
-    public Version getVersion() {
+    public TransformConfigVersion getVersion() {
         return version;
     }
 

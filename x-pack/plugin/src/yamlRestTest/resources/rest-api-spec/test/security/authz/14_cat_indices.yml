@@ -55,8 +55,6 @@ setup:
   - do:
       indices.close:
         index:  index3
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
 ---
 teardown:
@@ -88,6 +86,9 @@ teardown:
 
 ---
 "Test empty request while single authorized index":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: cat indices was changed in 8.11.0
 
   - do:
       indices.create:
@@ -111,6 +112,7 @@ teardown:
                   0      \s+
                   0      \s+
                   0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
                   (\d+|\d+[.]\d+)(kb|b) \s+
                   (\d+|\d+[.]\d+)(kb|b) \s*
                 )
@@ -151,8 +153,6 @@ teardown:
   - do:
       indices.close:
         index:  index_to_monitor
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
@@ -160,7 +160,7 @@ teardown:
 
   - match:
       $body: |
-        /^(yellow  \s+
+        /^((yellow|green)  \s+
            close   \s+
            index_to_monitor \s+
            ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+

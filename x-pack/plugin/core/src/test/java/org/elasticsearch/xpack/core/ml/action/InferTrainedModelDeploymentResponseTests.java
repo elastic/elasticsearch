@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
 import org.junit.Before;
 
 import java.util.List;
@@ -49,20 +50,25 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
     protected InferTrainedModelDeploymentAction.Response createTestInstance() {
         return new InferTrainedModelDeploymentAction.Response(
             List.of(
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults(),
-                TextEmbeddingResultsTests.createRandomResults()
+                MlTextEmbeddingResultsTests.createRandomResults(),
+                MlTextEmbeddingResultsTests.createRandomResults(),
+                MlTextEmbeddingResultsTests.createRandomResults(),
+                MlTextEmbeddingResultsTests.createRandomResults()
             )
         );
     }
 
     @Override
+    protected InferTrainedModelDeploymentAction.Response mutateInstance(InferTrainedModelDeploymentAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected InferTrainedModelDeploymentAction.Response mutateInstanceForVersion(
         InferTrainedModelDeploymentAction.Response instance,
-        Version version
+        TransportVersion version
     ) {
-        if (version.before(Version.V_8_6_1)) {
+        if (version.before(TransportVersions.V_8_6_1)) {
             return new InferTrainedModelDeploymentAction.Response(instance.getResults().subList(0, 1));
         }
 

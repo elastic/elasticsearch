@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -19,12 +22,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 
 public class ClusterSearchShardsResponseTests extends ESTestCase {
 
@@ -47,12 +54,10 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
-            DiscoveryNode node = new DiscoveryNode(
-                shardRouting.currentNodeId(),
-                new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-                VersionUtils.randomVersion(random())
-            );
-            nodes.add(node);
+            DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
+                .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
+                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+            nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {
                 aliasFilter = AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-" + index);
@@ -71,12 +76,12 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             clusterSearchShardsResponse.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());
                 assertEquals(clusterSearchShardsResponse.getGroups().length, deserialized.getGroups().length);

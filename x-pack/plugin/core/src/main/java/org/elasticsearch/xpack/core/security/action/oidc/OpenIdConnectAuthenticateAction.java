@@ -17,7 +17,7 @@ public final class OpenIdConnectAuthenticateAction extends ActionType<OpenIdConn
     public static final String NAME = "cluster:admin/xpack/security/oidc/authenticate";
 
     private OpenIdConnectAuthenticateAction() {
-        super(NAME, OpenIdConnectAuthenticateResponse::new);
+        super(NAME);
     }
 
 }

@@ -21,18 +21,13 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
+public final class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     private Map<String, Tuple<SecureString, User>> users;
 
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
-        initRealmRef(
-            Map.of(
-                new RealmConfig.RealmIdentifier(config.type(), config.name()),
-                new Authentication.RealmRef(config.name(), config.type(), Node.NODE_NAME_SETTING.get(config.settings()))
-            )
-        );
+        setRealmRef(new Authentication.RealmRef(config.name(), config.type(), Node.NODE_NAME_SETTING.get(config.settings())));
         this.users = new HashMap<>();
     }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +35,7 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected HealthApiFeatureSetUsage mutateInstance(HealthApiFeatureSetUsage instance) throws IOException {
+    protected HealthApiFeatureSetUsage mutateInstance(HealthApiFeatureSetUsage instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

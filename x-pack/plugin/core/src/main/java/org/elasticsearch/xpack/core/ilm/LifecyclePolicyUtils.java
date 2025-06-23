@@ -8,36 +8,24 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ItemUsage;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A utility class used for index lifecycle policies
  */
 public class LifecyclePolicyUtils {
 
-    private LifecyclePolicyUtils() {};
+    private LifecyclePolicyUtils() {}
 
     /**
      * Loads a built-in index lifecycle policy and returns its source.
@@ -49,104 +37,64 @@ public class LifecyclePolicyUtils {
         NamedXContentRegistry xContentRegistry
     ) {
         try {
-            BytesReference source = load(resource);
+            String source = TemplateResources.load(resource);
             source = replaceVariables(source, variables);
             validate(source);
 
-            try (
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source.utf8ToString())
-            ) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                policy.validate();
-                return policy;
-            }
+            return parsePolicy(source, name, xContentRegistry, XContentType.JSON);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);
         }
     }
 
     /**
-     * Loads a resource from the classpath and returns it as a {@link BytesReference}
+     * Parses lifecycle policy based on the provided content type without doing any variable substitution.
+     * It is caller's responsibility to do any variable substitution if required.
      */
-    private static BytesReference load(String name) throws IOException {
-        try (InputStream is = LifecyclePolicyUtils.class.getResourceAsStream(name)) {
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                Streams.copy(is, out);
-                return new BytesArray(out.toByteArray());
-            }
+    public static LifecyclePolicy parsePolicy(
+        String rawPolicy,
+        String name,
+        NamedXContentRegistry xContentRegistry,
+        XContentType contentType
+    ) throws IOException {
+        try (
+            XContentParser parser = contentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy)
+        ) {
+            LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+            policy.validate();
+            return policy;
         }
     }
 
-    private static BytesReference replaceVariables(BytesReference input, Map<String, String> variables) {
-        String template = input.utf8ToString();
+    private static String replaceVariables(String template, Map<String, String> variables) {
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
         }
-        return new BytesArray(template);
+        return template;
     }
 
     /**
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
+        return input.replace("${" + variable + "}", value);
     }
 
     /**
      * Parses and validates that the source is not empty.
      */
-    private static void validate(BytesReference source) {
+    private static void validate(String source) {
         if (source == null) {
             throw new ElasticsearchParseException("policy must not be null");
         }
 
         try {
-            XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+            XContentHelper.convertToMap(new BytesArray(source), false, XContentType.JSON).v2();
         } catch (NotXContentException e) {
             throw new ElasticsearchParseException("policy must not be empty");
         } catch (Exception e) {
             throw new ElasticsearchParseException("invalid policy", e);
         }
-    }
-
-    /**
-     * Given a cluster state and ILM policy, calculate the {@link ItemUsage} of
-     * the policy (what indices, data streams, and templates use the policy)
-     */
-    public static ItemUsage calculateUsage(
-        final IndexNameExpressionResolver indexNameExpressionResolver,
-        final ClusterState state,
-        final String policyName
-    ) {
-        final List<String> indices = state.metadata()
-            .indices()
-            .values()
-            .stream()
-            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
-            .map(indexMetadata -> indexMetadata.getIndex().getName())
-            .collect(Collectors.toList());
-
-        final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
-            state,
-            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
-        );
-
-        final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
-            if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-            } else {
-                return false;
-            }
-        }).collect(Collectors.toList());
-
-        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
-            return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-        }).collect(Collectors.toList());
-
-        return new ItemUsage(indices, dataStreams, composableTemplates);
     }
 }

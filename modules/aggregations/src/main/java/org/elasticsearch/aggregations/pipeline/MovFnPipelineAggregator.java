@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -24,8 +25,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -50,7 +49,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final BucketHelpers.GapPolicy gapPolicy;
     private final Script script;
-    private final String bucketsPath;
     private final int window;
     private final int shift;
 
@@ -65,7 +63,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         Map<String, Object> metadata
     ) {
         super(name, new String[] { bucketsPath }, metadata);
-        this.bucketsPath = bucketsPath;
         this.script = script;
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -118,12 +115,11 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                     vars,
                     values.subList(fromIndex, toIndex).stream().mapToDouble(Double::doubleValue).toArray()
                 );
-
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map(InternalAggregation.class::cast)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                aggs.add(new InternalSimpleValue(name(), result, formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(bucket.getAggregations(), new InternalSimpleValue(name(), result, formatter, metadata()))
+                );
                 index++;
             }
             newBuckets.add(newBucket);
@@ -136,9 +132,6 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         if (index < 0) {
             return 0;
         }
-        if (index > list.size()) {
-            return list.size();
-        }
-        return index;
+        return Math.min(index, list.size());
     }
 }

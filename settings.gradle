@@ -1,17 +1,24 @@
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+
 pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
   }
+
+  includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.11.4"
+  id "com.gradle.develocity" version "4.0.1"
+  id 'elasticsearch.java-toolchain'
 }
 
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
 
 rootProject.name = "elasticsearch"
 
@@ -23,14 +30,27 @@ dependencyResolutionManagement {
   }
 }
 
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+    }
+  }
+}
+
 List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest-high-level',
-  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
-  'client:transport',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
@@ -42,24 +62,28 @@ List projects = [
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
   'distribution:docker',
-  'distribution:docker:cloud-docker-export',
-  'distribution:docker:cloud-docker-aarch64-export',
   'distribution:docker:cloud-ess-docker-export',
   'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
-  'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-export',
+  'distribution:docker:wolfi-docker-aarch64-export',
+  'distribution:docker:wolfi-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-aarch64-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
   'distribution:bwc:bugfix',
+  'distribution:bwc:bugfix2',
+  'distribution:bwc:bugfix3',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
+  'distribution:bwc:staged2',
+  'distribution:bwc:main',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',
@@ -69,23 +93,27 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'server',
-  'server:cli',
   'test:framework',
+  'test:fixtures:aws-ec2-fixture',
+  'test:fixtures:aws-fixture-utils',
+  'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
+  'test:fixtures:ec2-imds-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs2-fixture',
-  'test:fixtures:hdfs3-fixture',
+  'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:testcontainer-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
-  'test:fixtures:nginx-fixture',
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',
-  'test:yaml-rest-runner'
+  'test:yaml-rest-runner',
+  'test:metadata-extractor',
+  'test:immutable-collections-patch'
 ]
 
 /**
@@ -126,19 +154,12 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
-project(":libs").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-  libsProject.children.each { lp ->
-    lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
-  }
-}
-
-project(":qa:stable-api").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-}
+project(":libs:native:libraries").name = "native-libraries"
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
@@ -151,3 +172,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

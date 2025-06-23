@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
@@ -19,12 +21,13 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -35,6 +38,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -44,11 +48,14 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -188,7 +195,7 @@ public final class NodeEnvironment implements Closeable {
      */
     static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
 
-    public static class NodeLock implements Releasable {
+    public static final class NodeLock implements Releasable {
 
         private final Lock[] locks;
         private final DataPath[] dataPaths;
@@ -208,10 +215,10 @@ public final class NodeEnvironment implements Closeable {
             final CheckedFunction<Path, Boolean, IOException> pathFunction,
             final Function<Path, Path> subPathMapping
         ) throws IOException {
-            dataPaths = new DataPath[environment.dataFiles().length];
+            dataPaths = new DataPath[environment.dataDirs().length];
             locks = new Lock[dataPaths.length];
             try {
-                final Path[] dataPaths = environment.dataFiles();
+                final Path[] dataPaths = environment.dataDirs();
                 for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
                     Path dataDir = dataPaths[dirIndex];
                     Path dir = subPathMapping.apply(dataDir);
@@ -260,9 +267,9 @@ public final class NodeEnvironment implements Closeable {
         boolean success = false;
 
         try {
-            sharedDataPath = environment.sharedDataFile();
+            sharedDataPath = environment.sharedDataDir();
 
-            for (Path path : environment.dataFiles()) {
+            for (Path path : environment.dataDirs()) {
                 if (Files.exists(path)) {
                     // Call to toRealPath required to resolve symlinks.
                     // We let it fall through to create directories to ensure the symlink
@@ -280,7 +287,7 @@ public final class NodeEnvironment implements Closeable {
                     Locale.ROOT,
                     "failed to obtain node locks, tried %s;"
                         + " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                    Arrays.toString(environment.dataFiles())
+                    Arrays.toString(environment.dataDirs())
                 );
                 throw new IllegalStateException(message, e);
             }
@@ -303,11 +310,11 @@ public final class NodeEnvironment implements Closeable {
             }
 
             // versions 7.x and earlier put their data under ${path.data}/nodes/; leave a file at that location to prevent downgrades
-            for (Path dataPath : environment.dataFiles()) {
+            for (Path dataPath : environment.dataDirs()) {
                 final Path legacyNodesPath = dataPath.resolve("nodes");
                 if (Files.isRegularFile(legacyNodesPath) == false) {
-                    final String content = "written by Elasticsearch v"
-                        + Version.CURRENT
+                    final String content = "written by Elasticsearch "
+                        + Build.current().version()
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
                     Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);
@@ -342,7 +349,7 @@ public final class NodeEnvironment implements Closeable {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             final Path nodesFolderPath = path.resolve("nodes");
             if (Files.isDirectory(nodesFolderPath)) {
                 final List<Integer> nodeLockIds = new ArrayList<>();
@@ -385,7 +392,7 @@ public final class NodeEnvironment implements Closeable {
             return false;
         }
 
-        logger.info("upgrading legacy data folders: {}", Arrays.toString(environment.dataFiles()));
+        logger.info("upgrading legacy data folders: {}", Arrays.toString(environment.dataDirs()));
 
         // acquire locks on legacy path for duration of upgrade (to ensure there is no older ES version running on this path)
         final NodeLock legacyNodeLock;
@@ -396,7 +403,7 @@ public final class NodeEnvironment implements Closeable {
                 Locale.ROOT,
                 "failed to obtain legacy node locks, tried %s;"
                     + " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                Arrays.toString(environment.dataFiles())
+                Arrays.toString(environment.dataDirs())
             );
             throw new IllegalStateException(message, e);
         }
@@ -487,7 +494,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         // upgrade successfully completed, remove legacy nodes folders
-        IOUtils.rm(Stream.of(environment.dataFiles()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
+        IOUtils.rm(Stream.of(environment.dataDirs()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
 
         return true;
     }
@@ -504,9 +511,9 @@ public final class NodeEnvironment implements Closeable {
         if (metadata == null) {
             throw new CorruptStateException(
                 "Format version is not supported. Upgrading to ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is only supported from version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "]."
             );
         }
@@ -515,20 +522,21 @@ public final class NodeEnvironment implements Closeable {
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
-        if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
+        if (metadata.oldestIndexVersion().before(IndexVersions.MINIMUM_COMPATIBLE)) {
+            BuildVersion bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion());
             throw new IllegalStateException(
-                "Cannot start this node because it holds metadata for indices created with version ["
-                    + metadata.oldestIndexVersion()
+                "Cannot start this node because it holds metadata for indices with version ["
+                    + metadata.oldestIndexVersion().toReleaseVersion()
                     + "] with which this node of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
-                    + "] and delete any indices created in versions earlier than ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + bestDowngradeVersion
+                    + "] and delete any indices with versions earlier than ["
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "] before upgrading to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + bestDowngradeVersion
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }
@@ -617,7 +625,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
+                metadata = new NodeMetadata(generateNodeId(settings), BuildVersion.current(), IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -625,7 +633,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
+        assert metadata.nodeVersion().equals(BuildVersion.current()) : metadata.nodeVersion() + " != " + Build.current();
 
         return metadata;
     }
@@ -926,6 +934,32 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    // throttle the hot-threads calls: no more than one per minute
+    private final Semaphore shardLockHotThreadsPermit = new Semaphore(1);
+    private long nextShardLockHotThreadsNanos = Long.MIN_VALUE;
+
+    private void maybeLogThreadDump(ShardId shardId, String message) {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+
+        final var prefix = format("hot threads while failing to obtain shard lock for %s: %s", shardId, message);
+        if (shardLockHotThreadsPermit.tryAcquire()) {
+            try {
+                final var now = System.nanoTime();
+                if (now <= nextShardLockHotThreadsNanos) {
+                    return;
+                }
+                nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
+                HotThreads.logLocalHotThreads(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
+            } catch (Exception e) {
+                logger.error(format("could not obtain %s", prefix), e);
+            } finally {
+                shardLockHotThreadsPermit.release();
+            }
+        }
+    }
+
     private final class InternalShardLock {
         /*
          * This class holds a mutex for exclusive access and timeout / wait semantics
@@ -944,7 +978,7 @@ public final class NodeEnvironment implements Closeable {
             lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
-        protected void release() {
+        private void release() {
             mutex.release();
             decWaitCount();
         }
@@ -975,18 +1009,15 @@ public final class NodeEnvironment implements Closeable {
                     setDetails(details);
                 } else {
                     final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
-                    throw new ShardLockObtainFailedException(
-                        shardId,
-                        "obtaining shard lock for ["
-                            + details
-                            + "] timed out after ["
-                            + timeoutInMillis
-                            + "ms], lock already held for ["
-                            + lockDetails.v2()
-                            + "] with age ["
-                            + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
-                            + "ms]"
+                    final var message = format(
+                        "obtaining shard lock for [%s] timed out after [%dms], lock already held for [%s] with age [%dms]",
+                        details,
+                        timeoutInMillis,
+                        lockDetails.v2(),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
                     );
+                    maybeLogThreadDump(shardId, message);
+                    throw new ShardLockObtainFailedException(shardId, message);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -1086,7 +1117,7 @@ public final class NodeEnvironment implements Closeable {
      * Returns all folder names in ${data.paths}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
-        return availableIndexFolders(p -> false);
+        return availableIndexFolders(Predicates.never());
     }
 
     /**
@@ -1114,7 +1145,7 @@ public final class NodeEnvironment implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final DataPath dataPath) throws IOException {
-        return availableIndexFoldersForPath(dataPath, p -> false);
+        return availableIndexFoldersForPath(dataPath, Predicates.never());
     }
 
     /**
@@ -1161,7 +1192,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(Path[]::new);
     }
 
     /**
@@ -1230,12 +1261,14 @@ public final class NodeEnvironment implements Closeable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    logger.trace("releasing lock [{}]", lock);
-                    lock.close();
-                } catch (IOException e) {
-                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
+            synchronized (locks) {
+                for (Lock lock : locks) {
+                    try {
+                        logger.trace("releasing lock [{}]", lock);
+                        lock.close();
+                    } catch (IOException e) {
+                        logger.trace(() -> "failed to release lock [" + lock + "]", e);
+                    }
                 }
             }
         }
@@ -1243,12 +1276,15 @@ public final class NodeEnvironment implements Closeable {
 
     private void assertEnvIsLocked() {
         if (closed.get() == false && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    lock.ensureValid();
-                } catch (IOException e) {
-                    logger.warn("lock assertion failed", e);
-                    throw new IllegalStateException("environment is not locked", e);
+            synchronized (locks) {
+                if (closed.get()) return; // raced with close() - we lost
+                for (Lock lock : locks) {
+                    try {
+                        lock.ensureValid();
+                    } catch (IOException e) {
+                        logger.warn("lock assertion failed", e);
+                        throw new IllegalStateException("environment is not locked", e);
+                    }
                 }
             }
         }
@@ -1462,4 +1498,26 @@ public final class NodeEnvironment implements Closeable {
             }
         }
     }
+
+    /**
+     * Get a useful version string to direct a user's downgrade operation
+     * <p>
+     * Assuming that the index was compatible with {@code previousNodeVersion},
+     * the user should downgrade to that {@code previousNodeVersion},
+     * unless it's prior to the minimum compatible version,
+     * in which case the user should downgrade to that instead.
+     * (If the index version is so old that the minimum compatible version is incompatible with the index,
+     * then the cluster was already borked before the node upgrade began,
+     * and we can't probably help them without more info than we have here.)
+     *
+     * @return Version to downgrade to
+     */
+    // visible for testing
+    static BuildVersion getBestDowngradeVersion(BuildVersion previousNodeVersion) {
+        if (previousNodeVersion.onOrAfterMinimumCompatible()) {
+            return previousNodeVersion;
+        }
+        return BuildVersion.current().minimumCompatibilityVersion();
+    }
+
 }

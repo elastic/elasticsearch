@@ -12,7 +12,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -96,13 +94,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(doubleField("s", 1.0))); },
-            true,
-            numberFieldType(NumberType.DOUBLE, "s")
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(doubleField("s", 1.0)));
+        }, true, numberFieldType(NumberType.DOUBLE, "s"));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
@@ -110,13 +104,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingValueForDoubleMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(doubleField("s", 1.0))); },
-            true,
-            doubleFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(doubleField("s", 1.0)));
+        }, true, doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
@@ -124,13 +114,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingValueForLongMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(longField("s", 1))); },
-            true,
-            longFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(longField("s", 1)));
+        }, true, longFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1)));
@@ -138,25 +124,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testActualValueForDoubleMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0))); },
-            true,
-            doubleFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
+        }, true, doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
     }
 
     public void testActualValueForLongMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(Arrays.asList(longField("s", 1), longField("m", 2))); },
-            true,
-            longFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(Arrays.asList(longField("s", 1), longField("m", 2)));
+        }, true, longFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1, 2))));
     }
@@ -381,7 +359,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
         // Build a "simple" circuit breaker that trips at 20k
         CircuitBreakerService breaker = mock(CircuitBreakerService.class);
-        ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
         when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
 
         // Collect some buckets with it
@@ -390,17 +368,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         createIndexSettings(),
                         new MatchAllDocsQuery(),
                         breaker,
                         builder.bytesToPreallocate(),
                         MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        true,
                         false,
                         doubleFields()
                     )
@@ -595,10 +573,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 buildIndex.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 InternalAggregation agg = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(builder, fields).withShouldBeCached(shouldBeCached).withQuery(query)
                 );
                 verifyOutputFieldNames(builder, agg);

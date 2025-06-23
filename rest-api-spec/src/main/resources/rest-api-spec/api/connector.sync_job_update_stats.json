@@ -1,0 +1,38 @@
+{
+  "connector.sync_job_update_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/set-connector-sync-job-stats-api.html",
+      "description": "Updates the stats fields in the connector sync job document."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job/{connector_sync_job_id}/_stats",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_sync_job_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector sync job to be updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The stats to update for the connector sync job.",
+      "required": true
+    }
+  }
+}

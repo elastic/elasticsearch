@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.planner;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.ql.common.Failure;
 
@@ -22,8 +21,4 @@ public class PlanningException extends EqlClientException {
         super(Failure.failMessage(sources));
     }
 
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
-    }
 }

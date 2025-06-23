@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -54,12 +53,7 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
         return channel -> client.execute(
             DeleteServiceAccountTokenAction.INSTANCE,
             deleteServiceAccountTokenRequest,
-            new RestToXContentListener<>(channel) {
-                @Override
-                protected RestStatus getStatus(DeleteServiceAccountTokenResponse response) {
-                    return response.found() ? RestStatus.OK : RestStatus.NOT_FOUND;
-                }
-            }
+            new RestToXContentListener<>(channel, r -> r.found() ? RestStatus.OK : RestStatus.NOT_FOUND)
         );
     }
 }

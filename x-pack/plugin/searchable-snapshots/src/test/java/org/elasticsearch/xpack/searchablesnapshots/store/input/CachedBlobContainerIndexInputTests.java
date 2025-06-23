@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -75,14 +76,13 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     fileName,
                     input.length,
                     checksum,
-                    Version.CURRENT.luceneVersion.toString()
+                    IndexVersion.current().luceneVersion().toString()
                 );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    0L,
                     List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(partSize))),
                     0L,
                     0L,
@@ -126,8 +126,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     )
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
-                    final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                    final boolean loaded = directory.loadSnapshot(recoveryState, future);
+                    final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                    final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
                     if (randomBoolean()) {
                         // randomly wait for pre-warm before running the below reads
                         future.get();
@@ -195,12 +195,11 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 fileName,
                 input.length,
                 checksum,
-                Version.CURRENT.luceneVersion.toString()
+                IndexVersion.current().luceneVersion().toString()
             );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),
-                0L,
                 List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, ByteSizeValue.ofBytes(input.length + 1))),
                 0L,
                 0L,
@@ -232,8 +231,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 )
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());
-                final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, f);
+                final PlainActionFuture<Void> f = new PlainActionFuture<>();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, () -> false, f);
                 try {
                     f.get();
                 } catch (ExecutionException e) {
@@ -289,8 +288,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            return new CountingInputStream(this, super.readBlob(blobName, position, length));
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            return new CountingInputStream(this, super.readBlob(purpose, blobName, position, length));
         }
 
         @Override
@@ -299,7 +298,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
         }
 
         @Override
-        public InputStream readBlob(String name) {
+        public InputStream readBlob(OperationPurpose purpose, String name) {
             assert false : "this method should never be called";
             throw new UnsupportedOperationException();
         }

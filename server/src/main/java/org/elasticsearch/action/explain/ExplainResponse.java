@@ -1,30 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Objects;
 
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
@@ -33,20 +30,20 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 /**
  * Response containing the score explanation.
  */
-public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
+public class ExplainResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField _INDEX = new ParseField("_index");
-    private static final ParseField _ID = new ParseField("_id");
+    static final ParseField _INDEX = new ParseField("_index");
+    static final ParseField _ID = new ParseField("_id");
     private static final ParseField MATCHED = new ParseField("matched");
-    private static final ParseField EXPLANATION = new ParseField("explanation");
-    private static final ParseField VALUE = new ParseField("value");
-    private static final ParseField DESCRIPTION = new ParseField("description");
-    private static final ParseField DETAILS = new ParseField("details");
-    private static final ParseField GET = new ParseField("get");
+    static final ParseField EXPLANATION = new ParseField("explanation");
+    static final ParseField VALUE = new ParseField("value");
+    static final ParseField DESCRIPTION = new ParseField("description");
+    static final ParseField DETAILS = new ParseField("details");
+    static final ParseField GET = new ParseField("get");
 
-    private String index;
-    private String id;
-    private boolean exists;
+    private final String index;
+    private final String id;
+    private final boolean exists;
     private Explanation explanation;
     private GetResult getResult;
 
@@ -67,9 +64,8 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
-        super(in);
         index = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readString();
         }
         id = in.readString();
@@ -110,7 +106,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         return getResult;
     }
 
-    @Override
     public RestStatus status() {
         return exists ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
@@ -118,7 +113,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
@@ -137,51 +132,10 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         }
     }
 
-    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>(
-        "explain",
-        true,
-        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2], (GetResult) arg[3])
-    );
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
-        final ConstructingObjectParser<Explanation, Boolean> explanationParser = getExplanationsParser();
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, EXPLANATION);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<Explanation, Boolean> getExplanationsParser() {
-        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>(
-            "explanation",
-            true,
-            arg -> {
-                if ((float) arg[0] > 0) {
-                    return Explanation.match((float) arg[0], (String) arg[1], (Collection<Explanation>) arg[2]);
-                } else {
-                    return Explanation.noMatch((String) arg[1], (Collection<Explanation>) arg[2]);
-                }
-            }
-        );
-        explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);
-        explanationParser.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
-        explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, DETAILS);
-        return explanationParser;
-    }
-
-    public static ExplainResponse fromXContent(XContentParser parser, boolean exists) {
-        return PARSER.apply(parser, exists);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX.getPreferredName(), index);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
-
         builder.field(_ID.getPreferredName(), id);
         builder.field(MATCHED.getPreferredName(), isMatch());
         if (hasExplanation()) {

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
@@ -51,6 +52,11 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     @Override
     protected TransformCheckpoint createTestInstance() {
         return randomTransformCheckpoint();
+    }
+
+    @Override
+    protected TransformCheckpoint mutateInstance(TransformCheckpoint instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -276,6 +282,14 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
             TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, checkpointNew),
             equalTo(checkpointNew.getIndicesCheckpoints().keySet())
         );
+    }
+
+    public void testDocumentId() {
+        assertThat(TransformCheckpoint.documentId("my-transform", 0), is(equalTo("data_frame_transform_checkpoint-my-transform-0")));
+        assertThat(TransformCheckpoint.documentId("my-transform", 1), is(equalTo("data_frame_transform_checkpoint-my-transform-1")));
+        assertThat(TransformCheckpoint.documentId("my-transform", 2), is(equalTo("data_frame_transform_checkpoint-my-transform-2")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TransformCheckpoint.documentId("my-transform", -1));
+        assertThat(e.getMessage(), is(equalTo("checkpoint must be a non-negative number")));
     }
 
     private static Map<String, long[]> randomCheckpointsByIndex() {

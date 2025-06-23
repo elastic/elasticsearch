@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -32,7 +34,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
@@ -40,9 +41,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,14 +80,12 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting = newShardRouting(
+        final ShardRouting primaryRouting = shardRoutingBuilder(
             replicaRouting.shardId(),
             replicaRouting.currentNodeId(),
-            null,
             true,
-            ShardRoutingState.STARTED,
-            replicaRouting.allocationId()
-        );
+            ShardRoutingState.STARTED
+        ).withAllocationId(replicaRouting.allocationId()).build();
         indexShard.updateShardState(
             primaryRouting,
             indexShard.getOperationPrimaryTerm() + 1,
@@ -98,11 +96,11 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {
+        ActionListener<Releasable> actionListener = ActionTestUtils.assertNoFailureListener(releasable -> {
             releasable.close();
             latch.countDown();
-        }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC, "");
+        });
+        indexShard.acquirePrimaryOperationPermit(actionListener, threadPool.generic());
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");
@@ -133,7 +131,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
@@ -141,10 +139,10 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        target.restoreFromRepository(new RestoreOnlyRepository("test") {
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
             public void restoreShard(
                 Store store,

@@ -1,0 +1,5 @@
+pr: 124610
+summary: Remove page alignment in exchange sink
+area: ES|QL
+type: enhancement
+issues: []

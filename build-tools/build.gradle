@@ -1,10 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+}
 
 plugins {
     id 'java-gradle-plugin'
@@ -21,8 +28,11 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = versions.get("minimumRuntimeJava")
-sourceCompatibility = versions.get("minimumRuntimeJava")
+
+java {
+  targetCompatibility = versions.get("minimumRuntimeJava")
+  sourceCompatibility = versions.get("minimumRuntimeJava")
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -40,6 +50,10 @@ gradlePlugin {
         stableEsPlugin {
           id = 'elasticsearch.stable-esplugin'
           implementationClass = 'org.elasticsearch.gradle.plugin.StablePluginBuildPlugin'
+        }
+        testBuildInfo {
+          id = 'elasticsearch.test-build-info'
+          implementationClass = 'org.elasticsearch.gradle.test.TestBuildInfoPlugin'
         }
         javaRestTest {
             id = 'elasticsearch.java-rest-test'
@@ -68,7 +82,7 @@ gradlePlugin {
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-    outputFile = "${buildDir}/version.properties"
+    destinationFile = new File(buildDir, "version.properties");
     comment = 'Generated version properties'
     properties(versions)
 }
@@ -153,6 +167,10 @@ dependencies {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
 
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('test').configure {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -49,12 +51,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = randomIntBetween(0, 8);
             builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            // the defaults
-            core = switch (threadPoolName) {
-                case "generic" -> 4;
-                case "management" -> 2;
-                default -> 1;
-            };
+            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -114,7 +111,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
-        sizes.put(ThreadPool.Names.MANAGEMENT, n -> ThreadPool.boundedBy(n, 2, 5));
+        sizes.put(ThreadPool.Names.MANAGEMENT, n -> ThreadPool.boundedBy(n, 1, 5));
         sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
         sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfAllocatedProcessorsMaxFive);
@@ -122,6 +119,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT_META, n -> Math.min(n * 3, 50));
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
+        sizes.put(ThreadPool.Names.MERGE, Function.identity());
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 
@@ -144,8 +142,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 });
             }
             final ThreadPoolStats.Stats stats = stats(threadPool, threadPoolName);
-            assertThat(stats.getQueue(), equalTo(numberOfTasks - size));
-            assertThat(stats.getLargest(), equalTo(size));
+            assertThat(stats.queue(), equalTo(numberOfTasks - size));
+            assertThat(stats.largest(), equalTo(size));
             latch.countDown();
             try {
                 taskLatch.await();
@@ -157,11 +155,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        final int min = switch (threadPoolName) {
-            case "generic" -> 4;
-            case "management" -> 2;
-            default -> 1;
-        };
+        final int min = "generic".equals(threadPoolName) ? 4 : 1;
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)
             .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")
@@ -179,7 +173,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                     }
                 });
             }
-            int threads = stats(threadPool, threadPoolName).getThreads();
+            int threads = stats(threadPool, threadPoolName).threads();
             assertEquals(128, threads);
             latch.countDown();
             // this while loop is the core of this test; if threads
@@ -190,7 +184,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             // down
             do {
                 spinForAtLeastOneMillisecond();
-            } while (stats(threadPool, threadPoolName).getThreads() > min);
+            } while (stats(threadPool, threadPoolName).threads() > min);
             try {
                 taskLatch.await();
             } catch (InterruptedException e) {
@@ -290,7 +284,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             if (rejectAfterShutdown) {
                 final EsRejectedExecutionException exception = expectThrows(
                     EsRejectedExecutionException.class,
-                    () -> scalingExecutor.execute(() -> { throw new AssertionError("should be rejected"); })
+                    () -> scalingExecutor.execute(() -> {
+                        throw new AssertionError("should be rejected");
+                    })
                 );
                 assertThat(exception.getLocalizedMessage(), allOf(containsString("rejected execution of "), containsString("(shutdown)")));
                 assertThat(exception.isExecutorShutdown(), equalTo(true));
@@ -345,7 +341,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 if (t == 0) {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             scalingExecutor.shutdown();
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -354,7 +350,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 } else {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             execute(scalingExecutor, () -> {}, executed, rejected, failed);
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -431,7 +427,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         try {
             final String test = Thread.currentThread().getStackTrace()[2].getMethodName();
             final Settings nodeSettings = Settings.builder().put(settings).put("node.name", test).build();
-            threadPool = new ThreadPool(nodeSettings);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
             final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             consumer.accept(clusterSettings, threadPool);
         } finally {

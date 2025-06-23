@@ -52,6 +52,10 @@ public final class DateUtils {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
+    public static long asMillis(ZonedDateTime zonedDateTime) {
+        return zonedDateTime.toInstant().toEpochMilli();
+    }
+
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */

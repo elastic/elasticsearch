@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.4.99'
+  - requires:
+      cluster_features: "gte_v8.5.0"
       reason: 'filtered alias for kNN search added in 8.5'
 
   - do:
@@ -9,7 +9,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             dynamic: false
             properties:
@@ -18,6 +17,10 @@ setup:
                 dims: 4
                 index : true
                 similarity : l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               name:
                 type: keyword
                 store: true

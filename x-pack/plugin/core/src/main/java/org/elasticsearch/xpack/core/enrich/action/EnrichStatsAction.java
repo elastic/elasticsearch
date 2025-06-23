@@ -6,14 +6,20 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
@@ -29,20 +36,33 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/enrich/stats";
 
     private EnrichStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
-            super(in);
+            // This request extended MasterNodeRequest instead of MasterNodeReadRequest, meaning that it didn't serialize the `local` field.
+            super(in, false);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -58,13 +78,6 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             this.cacheStats = cacheStats;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            executingPolicies = in.readList(ExecutingPolicy::new);
-            coordinatorStats = in.readList(CoordinatorStats::new);
-            cacheStats = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readList(CacheStats::new) : null;
-        }
-
         public List<ExecutingPolicy> getExecutingPolicies() {
             return executingPolicies;
         }
@@ -77,13 +90,16 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             return cacheStats;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(executingPolicies);
-            out.writeList(coordinatorStats);
-            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-                out.writeList(cacheStats);
-            }
+            out.writeCollection(executingPolicies);
+            out.writeCollection(coordinatorStats);
+            out.writeCollection(cacheStats);
         }
 
         @Override
@@ -131,50 +147,16 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             return Objects.hash(executingPolicies, coordinatorStats, cacheStats);
         }
 
-        public static class CoordinatorStats implements Writeable, ToXContentFragment {
-
-            private final String nodeId;
-            private final int queueSize;
-            private final int remoteRequestsCurrent;
-            private final long remoteRequestsTotal;
-            private final long executedSearchesTotal;
-
-            public CoordinatorStats(
-                String nodeId,
-                int queueSize,
-                int remoteRequestsCurrent,
-                long remoteRequestsTotal,
-                long executedSearchesTotal
-            ) {
-                this.nodeId = nodeId;
-                this.queueSize = queueSize;
-                this.remoteRequestsCurrent = remoteRequestsCurrent;
-                this.remoteRequestsTotal = remoteRequestsTotal;
-                this.executedSearchesTotal = executedSearchesTotal;
-            }
+        public record CoordinatorStats(
+            String nodeId,
+            int queueSize,
+            int remoteRequestsCurrent,
+            long remoteRequestsTotal,
+            long executedSearchesTotal
+        ) implements Writeable, ToXContentFragment {
 
             public CoordinatorStats(StreamInput in) throws IOException {
                 this(in.readString(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong());
-            }
-
-            public String getNodeId() {
-                return nodeId;
-            }
-
-            public int getQueueSize() {
-                return queueSize;
-            }
-
-            public int getRemoteRequestsCurrent() {
-                return remoteRequestsCurrent;
-            }
-
-            public long getRemoteRequestsTotal() {
-                return remoteRequestsTotal;
-            }
-
-            public long getExecutedSearchesTotal() {
-                return executedSearchesTotal;
             }
 
             @Override
@@ -195,47 +177,15 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("executed_searches_total", executedSearchesTotal);
                 return builder;
             }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CoordinatorStats stats = (CoordinatorStats) o;
-                return Objects.equals(nodeId, stats.nodeId)
-                    && queueSize == stats.queueSize
-                    && remoteRequestsCurrent == stats.remoteRequestsCurrent
-                    && remoteRequestsTotal == stats.remoteRequestsTotal
-                    && executedSearchesTotal == stats.executedSearchesTotal;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(nodeId, queueSize, remoteRequestsCurrent, remoteRequestsTotal, executedSearchesTotal);
-            }
         }
 
-        public static class ExecutingPolicy implements Writeable, ToXContentFragment {
+        public record ExecutingPolicy(String name, TaskInfo taskInfo) implements Writeable, ToXContentFragment {
 
-            private final String name;
-            private final TaskInfo taskInfo;
-
-            public ExecutingPolicy(String name, TaskInfo taskInfo) {
-                this.name = name;
-                this.taskInfo = taskInfo;
-            }
-
-            ExecutingPolicy(StreamInput in) throws IOException {
-                this(in.readString(), TaskInfo.from(in));
-            }
-
-            public String getName() {
-                return name;
-            }
-
-            public TaskInfo getTaskInfo() {
-                return taskInfo;
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
@@ -252,59 +202,30 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.endObject();
                 return builder;
             }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ExecutingPolicy that = (ExecutingPolicy) o;
-                return name.equals(that.name) && taskInfo.equals(that.taskInfo);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(name, taskInfo);
-            }
         }
 
-        public static class CacheStats implements Writeable, ToXContentFragment {
-
-            private final String nodeId;
-            private final long count;
-            private final long hits;
-            private final long misses;
-            private final long evictions;
-
-            public CacheStats(String nodeId, long count, long hits, long misses, long evictions) {
-                this.nodeId = nodeId;
-                this.count = count;
-                this.hits = hits;
-                this.misses = misses;
-                this.evictions = evictions;
-            }
+        public record CacheStats(
+            String nodeId,
+            long count,
+            long hits,
+            long misses,
+            long evictions,
+            long hitsTimeInMillis,
+            long missesTimeInMillis,
+            long cacheSizeInBytes
+        ) implements Writeable, ToXContentFragment {
 
             public CacheStats(StreamInput in) throws IOException {
-                this(in.readString(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-            }
-
-            public String getNodeId() {
-                return nodeId;
-            }
-
-            public long getCount() {
-                return count;
-            }
-
-            public long getHits() {
-                return hits;
-            }
-
-            public long getMisses() {
-                return misses;
-            }
-
-            public long getEvictions() {
-                return evictions;
+                this(
+                    in.readString(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.readVLong(),
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readLong() : -1
+                );
             }
 
             @Override
@@ -314,6 +235,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 builder.field("hits", hits);
                 builder.field("misses", misses);
                 builder.field("evictions", evictions);
+                builder.humanReadableField("hits_time_in_millis", "hits_time", new TimeValue(hitsTimeInMillis));
+                builder.humanReadableField("misses_time_in_millis", "misses_time", new TimeValue(missesTimeInMillis));
+                builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(cacheSizeInBytes));
                 return builder;
             }
 
@@ -324,23 +248,13 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(hits);
                 out.writeVLong(misses);
                 out.writeVLong(evictions);
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CacheStats that = (CacheStats) o;
-                return count == that.count
-                    && hits == that.hits
-                    && misses == that.misses
-                    && evictions == that.evictions
-                    && nodeId.equals(that.nodeId);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(nodeId, count, hits, misses, evictions);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                    out.writeLong(hitsTimeInMillis);
+                    out.writeLong(missesTimeInMillis);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                    out.writeLong(cacheSizeInBytes);
+                }
             }
         }
     }

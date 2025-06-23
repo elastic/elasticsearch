@@ -1,0 +1,5 @@
+pr: 126578
+summary: Retrieve token text only when necessary
+area: ES|QL
+type: bug
+issues: []

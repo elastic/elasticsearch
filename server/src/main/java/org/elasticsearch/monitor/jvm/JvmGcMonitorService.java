@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -15,11 +16,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -224,7 +225,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
-        }, interval, Names.SAME);
+        }, interval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     private static final String SLOW_GC_LOG_MESSAGE =

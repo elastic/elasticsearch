@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.aggregations;
@@ -16,7 +17,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -70,9 +70,9 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         // intentionally not writing any docs
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
+        testCase(new MatchAllDocsQuery(), indexReader, parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
@@ -87,14 +87,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
-
-        testCase(new MatchAllDocsQuery(), indexSearcher, child -> {
+        testCase(new MatchAllDocsQuery(), indexReader, child -> {
             int expectedTotalChildren = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
@@ -107,7 +104,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(parent))), indexReader, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(
                     expectedParentChildRelations.get(parent).v2(),
@@ -129,13 +126,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (
-                IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
-
                 AggregationBuilder request = new TermsAggregationBuilder("t").field("kwd")
                     .subAggregation(
                         new ChildrenAggregationBuilder("children", CHILD_TYPE).subAggregation(
@@ -156,7 +151,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = searchAndReduce(indexSearcher, new AggTestConfig(request, withJoinFields(longField("number"), kwd)));
+                StringTerms result = searchAndReduce(indexReader, new AggTestConfig(request, withJoinFields(longField("number"), kwd)));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -188,9 +183,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                // maybeWrap should be false here, in ValueSource.java we sometimes cast to DirectoryReader and
-                // these casts can then fail if the maybeWrap is true.
-                var indexSearcher = newSearcher(indexReader, false, true);
                 // invalid usage,
                 {
                     var aggregationBuilder = new ChildrenAggregationBuilder("_name1", CHILD_TYPE);
@@ -203,7 +195,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     var e = expectThrows(RuntimeException.class, () -> {
                         searchAndReduce(
-                            indexSearcher,
+                            indexReader,
                             new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
                                 new TermQuery(new Term("join_field", "parent_type"))
                             )
@@ -233,7 +225,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     InternalChildren result = searchAndReduce(
-                        indexSearcher,
+                        indexReader,
                         new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
                             new TermQuery(new Term("join_field", "parent_type"))
                         )
@@ -279,7 +271,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static List<Field> createParentDocument(String id, String kwd) {
         return Arrays.asList(
             new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-            new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
             new Field("kwd", new BytesRef(kwd), KeywordFieldMapper.Defaults.FIELD_TYPE),
             new StringField("join_field", PARENT_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, id)
@@ -300,14 +291,14 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new SortedDocValuesField("join_field#" + parentType, new BytesRef(id));
     }
 
-    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify) throws IOException {
+    private void testCase(Query query, IndexReader indexReader, Consumer<InternalChildren> verify) throws IOException {
 
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalChildren result = searchAndReduce(
-            indexSearcher,
+            indexReader,
             new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
         );
         verify.accept(result);

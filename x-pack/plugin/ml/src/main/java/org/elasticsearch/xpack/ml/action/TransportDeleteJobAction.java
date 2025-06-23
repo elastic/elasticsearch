@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -21,10 +21,11 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -71,6 +73,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     private final JobManager jobManager;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
+    private final ProjectResolver projectResolver;
 
     /**
      * A map of task listeners by job_id.
@@ -86,14 +89,14 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         PersistentTasksService persistentTasksService,
         Client client,
         AnomalyDetectionAuditor auditor,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         MlMemoryTracker memoryTracker,
-        JobManager jobManager
+        JobManager jobManager,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteJobAction.NAME,
@@ -102,8 +105,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             threadPool,
             actionFilters,
             DeleteJobAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -113,11 +115,12 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         this.memoryTracker = memoryTracker;
         this.listenersByJobId = new HashMap<>();
         this.jobManager = jobManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -166,34 +169,32 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         );
 
-        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(response -> {
-            if (request.isForce()) {
-                forceDeleteJob(parentTaskClient, request, state, finalListener);
-            } else {
-                normalDeleteJob(parentTaskClient, request, state, finalListener);
+        ActionListener<AcknowledgedResponse> datafeedDeleteListener = finalListener.<PutJobAction.Response>delegateFailureAndWrap(
+            (delegate, response) -> {
+                if (request.isForce()) {
+                    forceDeleteJob(parentTaskClient, request, state, delegate);
+                } else {
+                    normalDeleteJob(parentTaskClient, request, state, delegate);
+                }
             }
-        }, finalListener::onFailure);
-
-        ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(response -> {
+        ).delegateFailureAndWrap((delegate, response) -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
             cancelResetTaskIfExists(
                 request.getJobId(),
-                ActionListener.wrap(
-                    r -> jobConfigProvider.updateJobBlockReason(
-                        request.getJobId(),
-                        new Blocked(Blocked.Reason.DELETE, taskId),
-                        markAsDeletingListener
-                    ),
-                    finalListener::onFailure
+                delegate.delegateFailureAndWrap(
+                    (l, r) -> jobConfigProvider.updateJobBlockReason(request.getJobId(), new Blocked(Blocked.Reason.DELETE, taskId), l)
                 )
             );
-        }, finalListener::onFailure);
+        });
 
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
             e -> {
                 if (request.isForce()
-                    && MlTasks.getJobTask(request.getJobId(), state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)) != null) {
+                    && MlTasks.getJobTask(
+                        request.getJobId(),
+                        state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    ) != null) {
                     logger.info("[{}] config is missing but task exists. Attempting to delete tasks and stop process", request.getJobId());
                     forceDeleteJob(parentTaskClient, request, state, finalListener);
                 } else {
@@ -279,7 +280,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         killProcess(parentTaskClient, jobId, killJobListener);
     }
 
-    private void killProcess(
+    private static void killProcess(
         ParentTaskAssigningClient parentTaskClient,
         String jobId,
         ActionListener<KillProcessAction.Response> listener
@@ -289,18 +290,22 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     }
 
     private void removePersistentTask(String jobId, ClusterState currentState, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = currentState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.delegateFailure((l, task) -> l.onResponse(Boolean.TRUE)));
+            persistentTasksService.sendRemoveRequest(
+                jobTask.getId(),
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                listener.safeMap(task -> true)
+            );
         }
     }
 
-    private void checkJobIsNotOpen(String jobId, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    private static void checkJobIsNotOpen(String jobId, ClusterState state) {
+        PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask != null) {
             JobTaskState jobTaskState = (JobTaskState) jobTask.getState();
@@ -326,7 +331,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
                 DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(datafeedIds.iterator().next());
                 deleteDatafeedRequest.setForce(deleteJobRequest.isForce());
-                deleteDatafeedRequest.timeout(deleteJobRequest.timeout());
+                deleteDatafeedRequest.ackTimeout(deleteJobRequest.ackTimeout());
                 ClientHelper.executeAsyncWithOrigin(
                     client,
                     ClientHelper.ML_ORIGIN,
@@ -365,7 +370,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    CancelTasksAction.INSTANCE,
+                    TransportCancelTasksAction.TYPE,
                     cancelTasksRequest,
                     ActionListener.wrap(cancelTasksResponse -> listener.onResponse(true), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {

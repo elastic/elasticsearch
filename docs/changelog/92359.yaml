@@ -1,6 +1,0 @@
-pr: 92359
-summary: Utilise parallel allocations where the inference request contains multiple
-  documents
-area: Machine Learning
-type: bug
-issues: []

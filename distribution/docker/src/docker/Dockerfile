@@ -21,8 +21,8 @@
 
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.6
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
+ARG BASE_TAG=9.6
 <% } %>
 
 ################################################################################
@@ -41,31 +41,34 @@ RUN chmod 0555 /bin/tini
 <% } else { %>
 
 # Install required packages to extract the Elasticsearch distribution
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
+<% if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
 
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-RUN set -eux ; \\
-    tini_bin="" ; \\
-    case "\$(arch)" in \\
-        aarch64) tini_bin='tini-arm64' ;; \\
-        x86_64)  tini_bin='tini-amd64' ;; \\
-        *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
-    curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
-    sha256sum -c \${tini_bin}.sha256sum ; \\
-    rm \${tini_bin}.sha256sum ; \\
-    mv \${tini_bin} /bin/tini ; \\
-    chmod 0555 /bin/tini
+<% if (docker_base != 'wolfi') { %>
+    # `tini` is a tiny but valid init for containers. This is used to cleanly
+    # control how ES and any child processes are shut down.
+    # For wolfi we pick it from the blessed wolfi package registry.
+    #
+    # The tini GitHub page gives instructions for verifying the binary using
+    # gpg, but the keyservers are slow to return the key and this can fail the
+    # build. Instead, we check the binary against the published checksum.
+    RUN set -eux ; \\
+        tini_bin="" ; \\
+        case "\$(arch)" in \\
+            aarch64) tini_bin='tini-arm64' ;; \\
+            x86_64)  tini_bin='tini-amd64' ;; \\
+            *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
+        esac ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
+        curl --retry 10 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin}.sha256sum ; \\
+        sha256sum -c \${tini_bin}.sha256sum ; \\
+        rm \${tini_bin}.sha256sum ; \\
+        mv \${tini_bin} /bin/tini ; \\
+        chmod 0555 /bin/tini
+<% } %>
 
 <% } %>
 
@@ -112,27 +115,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-<% if (docker_base == "cloud") { %>
-COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN set -eux ; \\
-    for beat in filebeat metricbeat ; do \\
-      if [ ! -s /tmp/\$beat-${version}.tar.gz ]; then \\
-        echo "/tmp/\$beat-${version}.tar.gz is empty - cannot uncompress" 2>&1 ; \\
-        exit 1 ; \\
-      fi ; \\
-      if ! tar tf /tmp/\$beat-${version}.tar.gz >/dev/null; then \\
-        echo "/tmp/\$beat-${version}.tar.gz is corrupt - cannot uncompress" 2>&1 ; \\
-        exit 1 ; \\
-      fi ; \\
-      mkdir -p /opt/\$beat ; \\
-      tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
-    done
-
-# Add plugins infrastructure
-RUN mkdir -p /opt/plugins/archive
-RUN chmod -R 0555 /opt/plugins
-<% } %>
-
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
 #
@@ -152,20 +134,21 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
       nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
-<% } else if (docker_base == "default" || docker_base == "cloud") { %>
+<% } else if (docker_base == "wolfi") { %>
+RUN <%= retry.loop(package_manager,
+          "export DEBIAN_FRONTEND=noninteractive && \n" +
+          "      ${package_manager} update && \n" +
+          "      ${package_manager} upgrade && \n" +
+          "      ${package_manager} add --no-cache \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
+          "      rm -rf /var/cache/apk/* "
+     ) %>
 
-# Change default shell to bash, then install required packages with retries.
-RUN yes no | dpkg-reconfigure dash && \\
-    <%= retry.loop(
-    package_manager,
-      "export DEBIAN_FRONTEND=noninteractive && \n" +
-      "      ${package_manager} update && \n" +
-      "      ${package_manager} upgrade -y && \n" +
-      "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
-      "      ${package_manager} clean && \n" +
-      "      rm -rf /var/lib/apt/lists/*"
-  ) %>
+# Set Bash as the default shell for future commands
+SHELL ["/bin/bash", "-c"]
+
+# Optionally set Bash as the default shell in the container at runtime
+CMD ["/bin/bash"]
 
 <% } else { %>
 
@@ -180,10 +163,10 @@ RUN <%= retry.loop(
 <% } %>
 
 
-<% if (docker_base == "default" || docker_base == "cloud") { %>
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
-    adduser elasticsearch root && \\
+<% if (docker_base == "wolfi") { %>
+RUN groupadd -g 1000 elasticsearch && \
+    adduser -G elasticsearch -u 1000 elasticsearch -D --home /usr/share/elasticsearch elasticsearch && \
+    adduser elasticsearch root && \
     chown -R 0:0 /usr/share/elasticsearch
 <% } else { %>
 RUN groupadd -g 1000 elasticsearch && \\
@@ -191,19 +174,17 @@ RUN groupadd -g 1000 elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 <% } %>
 
-ENV ELASTIC_CONTAINER true
+ENV ELASTIC_CONTAINER=true
 
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+<% if (docker_base != "wolfi") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-
-<% if (docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
+ENV PATH=/usr/share/elasticsearch/bin:\$PATH
+ENV SHELL=/bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. Sync the user and group permissions of /etc/passwd
@@ -223,11 +204,8 @@ RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
-# stays up-to-date with changes to Ubuntu's store)
-COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
-RUN /etc/ca-certificates/update.d/docker-openjdk
+<% if (docker_base == 'wolfi') { %>
+RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } else { %>
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } %>
@@ -254,9 +232,7 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% } %>
 
-<% if (docker_base == 'ubi') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\
@@ -266,21 +242,17 @@ LABEL name="Elasticsearch" \\
   description="You know, for search."
 <% } %>
 
-<% if (docker_base == 'ubi') { %>
-RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
-<% } else if (docker_base == 'iron_bank') { %>
-RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
+<% if (docker_base == 'iron_bank') { %>
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<% if (docker_base == "cloud") { %>
-ENTRYPOINT ["/bin/tini", "--"]
-CMD ["/app/elasticsearch.sh"]
-# Generate a stub command that will be overwritten at runtime
-RUN mkdir /app && \\
-    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
-    chmod 0555 /app/elasticsearch.sh
-
+<% if (docker_base == "wolfi") { %>
+# Our actual entrypoint is `tini`, a minimal but functional init program. It
+# calls the entrypoint we provide, while correctly forwarding signals.
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
+# Dummy overridable parameter parsed by entrypoint
+CMD ["eswrapper"]
 <% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
@@ -289,12 +261,11 @@ ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["eswrapper"]
 <% } %>
 
-USER elasticsearch:root
+USER 1000:0
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1
 <% } %>
-
 ################################################################################
 # End of multi-stage Dockerfile
 ################################################################################

@@ -1,8 +1,8 @@
 ---
 "binary":
-    - skip:
-        features: ["headers"]
-        version: " - 7.99.99"
+    - requires:
+        test_runner_features: ["headers"]
+        cluster_features: ["gte_v8.0.0"]
         reason: "docvalues_fields on binary field were corrected in 8.0"
     - do:
         indices.create:
@@ -45,3 +45,35 @@
             body:
                 _source: ["binary"]
     - match: { hits.hits.0._source.binary: "U29tZSBiaW5hcnkgYmxvYg==" }
+
+---
+"binary synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              binary:
+                type: binary
+                doc_values: true
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        id: "1"
+        body:
+          binary: U29tZSBiaW5hcnkgYmxvYg==
+
+  - do:
+      search:
+        index: test
+  - match: { hits.hits.0._source.binary: "U29tZSBiaW5hcnkgYmxvYg==" }

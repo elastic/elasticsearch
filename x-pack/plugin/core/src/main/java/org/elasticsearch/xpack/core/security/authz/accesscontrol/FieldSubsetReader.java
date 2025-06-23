@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -27,8 +28,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -155,17 +156,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields f = super.getTermVectors(docID);
-        if (f == null) {
-            return null;
-        }
-        f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return null:
-        return f.iterator().hasNext() ? f : null;
-    }
-
-    @Override
     public TermVectors termVectors() throws IOException {
         TermVectors termVectors = super.termVectors();
         return new TermVectors() {
@@ -264,11 +254,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-        super.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
-    }
-
-    @Override
     protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
         return new FieldSubsetStoredFieldsReader(reader);
     }
@@ -309,13 +294,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
-        return hasField(field) ? super.getVectorValues(field) : null;
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getFloatVectorValues(field) : null;
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        if (hasField(field)) {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
     }
 
     @Override
@@ -324,8 +311,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        if (hasField(field)) {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
     }
 
     // we share core cache keys (for e.g. fielddata)
@@ -395,6 +384,24 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
+                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
+                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                if (transformedField.isEmpty() == false) {
+                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
+                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
+                    // it's a single leaf value, e.g. a string or a number.
+                    var topValue = mappedNameValue.map().values().iterator().next();
+                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                        // The field contains an object or an array, reconstruct it from the transformed map in case
+                        // any subfield has been filtered out.
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+                    } else {
+                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
+                        visitor.binaryField(fieldInfo, value);
+                    }
+                }
             } else {
                 visitor.binaryField(fieldInfo, value);
             }

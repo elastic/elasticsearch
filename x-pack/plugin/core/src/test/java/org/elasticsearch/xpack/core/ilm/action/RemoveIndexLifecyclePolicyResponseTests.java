@@ -14,15 +14,13 @@ import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
-        List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
+        List<String> failedIndexes = List.of(generateRandomStringArray(20, 20, false));
         return new Response(failedIndexes);
     }
 
@@ -32,10 +30,10 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     }
 
     @Override
-    protected Response mutateInstance(Response instance) throws IOException {
+    protected Response mutateInstance(Response instance) {
         List<String> failedIndices = randomValueOtherThan(
             instance.getFailedIndexes(),
-            () -> Arrays.asList(generateRandomStringArray(20, 20, false))
+            () -> List.of(generateRandomStringArray(20, 20, false))
         );
         return new Response(failedIndices);
     }
@@ -43,11 +41,6 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
         return Response.PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     public void testNullFailedIndices() {
@@ -58,7 +51,7 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     public void testHasFailures() {
         Response response = new Response(new ArrayList<>());
         assertFalse(response.hasFailures());
-        assertEquals(Collections.emptyList(), response.getFailedIndexes());
+        assertEquals(List.of(), response.getFailedIndexes());
 
         int size = randomIntBetween(1, 10);
         List<String> failedIndexes = new ArrayList<>(size);

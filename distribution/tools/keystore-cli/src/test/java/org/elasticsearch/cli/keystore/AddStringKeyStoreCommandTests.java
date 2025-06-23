@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -17,29 +18,19 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
-import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
-    InputStream input;
-
     @Override
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
             protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
-            }
-
-            @Override
-            InputStream getStdin() {
-                return input;
             }
         };
     }
@@ -82,7 +73,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testMissingNoCreate() throws Exception {
         terminal.addTextInput("n"); // explicit no
         execute("foo");
-        assertNull(KeyStoreWrapper.load(env.configFile()));
+        assertNull(KeyStoreWrapper.load(env.configDir()));
     }
 
     public void testOverwritePromptDefault() throws Exception {
@@ -142,7 +133,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testPromptForValue() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         terminal.addSecretInput("secret value");
         execute("foo");
@@ -151,7 +142,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testPromptForMultipleValues() throws Exception {
         final String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         terminal.addSecretInput("bar1");
         terminal.addSecretInput("bar2");
@@ -164,54 +155,56 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinShort() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("secret value 1");
+        terminal.addSecretInput("secret value 1");
         execute("-x", "foo");
         assertSecureString("foo", "secret value 1", password);
     }
 
     public void testStdinLong() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("secret value 2");
+        terminal.addSecretInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2", password);
     }
 
     public void testStdinNoInput() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("");
+        terminal.addSecretInput("");
         execute("-x", "foo");
         assertSecureString("foo", "", password);
     }
 
     public void testStdinInputWithLineBreaks() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("Typedthisandhitenter\n");
+        terminal.addSecretInput("Typedthisandhitenter\n");
         execute("-x", "foo");
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 
     public void testStdinInputWithCarriageReturn() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("Typedthisandhitenter\r");
+        terminal.addSecretInput("Typedthisandhitenter\r\n");
         execute("-x", "foo");
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 
     public void testStdinWithMultipleValues() throws Exception {
         final String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
-        setInput("bar1\nbar2\nbar3");
+        terminal.addSecretInput("bar1");
+        terminal.addSecretInput("bar2");
+        terminal.addSecretInput("bar3");
         execute(randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3");
         assertSecureString("foo1", "bar1", password);
         assertSecureString("foo2", "bar2", password);
@@ -220,14 +213,14 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testAddUtf8String() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         final int stringSize = randomIntBetween(8, 16);
         try (CharArrayWriter secretChars = new CharArrayWriter(stringSize)) {
             for (int i = 0; i < stringSize; i++) {
                 secretChars.write((char) randomIntBetween(129, 2048));
             }
-            setInput(secretChars.toString());
+            terminal.addSecretInput(secretChars.toString());
             execute("-x", "foo");
             assertSecureString("foo", secretChars.toString(), password);
         }
@@ -263,9 +256,5 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // will not be prompted for a password
         execute("foo");
         assertSecureString("foo", "bar", password);
-    }
-
-    void setInput(String inputStr) {
-        input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }
 }

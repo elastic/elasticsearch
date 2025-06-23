@@ -1,0 +1,512 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              aggregate_metric_double:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max
+              binary:
+                type: binary
+              completion:
+                type: completion
+              date_nanos:
+                type: date_nanos
+              date_range:
+                type: date_range
+                format: "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+              dense_vector:
+                type: dense_vector
+                similarity: l2_norm
+                dims: 3
+              double_range:
+                type: double_range
+              float_range:
+                type: float_range
+              histogram:
+                type: histogram
+              integer_range:
+                type: integer_range
+              name:
+                type: keyword
+              geo_point:
+                type: geo_point
+              geo_point_alias:
+                type: alias
+                path: geo_point
+              geo_shape:
+                type: geo_shape
+              ip_range:
+                type: ip_range
+              long_range:
+                type: long_range
+              match_only_text:
+                type: match_only_text
+              nested:
+                type: nested
+              point:
+                type: point
+              rank_feature:
+                type: rank_feature
+              rank_features:
+                type: rank_features
+              search_as_you_type:
+                type: search_as_you_type
+              shape:
+                type: shape
+              some_doc:
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: long
+              text:
+                type: text
+              token_count:
+                type: token_count
+                analyzer: standard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "aggregate_metric_double": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 },
+            "binary": "U29tZSBiaW5hcnkgYmxvYg==",
+            "completion": "foo bar",
+            "date_nanos": "2015-01-01T12:10:30.123456789Z",
+            "date_range": { "gte": "2015-10-31 12:00:00", "lte": "2050-12-31 12:00:00" },
+            "dense_vector": [ 0.5, 10, 6 ],
+            "double_range": { "gte": 1.0, "lte": 2.0 },
+            "float_range": { "gte": 1.0, "lte": 2.0 },
+            "geo_point": [ 10.0, 12.0 ],
+            "geo_shape": "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)",
+            "histogram": { "values": [ 0.1, 0.25, 0.35, 0.4, 0.45, 0.5 ], "counts": [ 8, 17, 8, 7, 6, 2 ] },
+            "integer_range": { "gte": 1, "lte": 2 },
+            "ip_range": "127.0.0.1/16",
+            "long_range": { "gte": 1, "lte": 2 },
+            "match_only_text": "foo bar baz",
+            "name": "Alice",
+            "point": "POINT (-97.15447 25.9961525)",
+            "rank_feature": 10,
+            "rank_features": { "foo": 10, "bar": 20 },
+            "search_as_you_type": "foo bar baz",
+            "shape": "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)",
+            "text": "foo bar",
+            "token_count": "foo bar baz",
+            "some_doc": { "foo": "xy", "bar": 12 }
+          }
+
+---
+unsupported:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [dense_vector_field_type]
+      reason: "uses original_type"
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test'
+
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: date_nanos }
+  - match: { columns.4.name: date_range }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: dense_vector }
+  - match: { columns.6.name: double_range }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
+  - match: { columns.8.type: geo_point }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
+  - match: { columns.10.type: geo_shape }
+  - match: { columns.11.name: histogram }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: integer_range }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: ip_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
+  - match: { columns.17.type: cartesian_point }
+  - match: { columns.18.name: rank_feature }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: rank_features }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._2gram }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: search_as_you_type._3gram }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: cartesian_shape }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
+
+  - length: { values: 1 }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
+  - match: { values.0.1: null }
+  - match: { values.0.2: null }
+  - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
+  - match: { values.0.4: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
+  - match: { values.0.6: null }
+  - match: { values.0.7: null }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
+  - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
+  - match: { values.0.11: null }
+  - match: { values.0.12: null }
+  - match: { values.0.13: null }
+  - match: { values.0.14: null }
+  - match: { values.0.15: "foo bar baz" }
+  - match: { values.0.16: Alice }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
+  - match: { values.0.18: null }
+  - match: { values.0.19: null }
+  - match: { values.0.20: null }
+  - match: { values.0.21: null }
+  - match: { values.0.22: null }
+  - match: { values.0.23: null }
+  - match: { values.0.24: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
+  - match: { values.0.25: 12 }
+  - match: { values.0.26: xy }
+  - match: { values.0.27: "foo bar" }
+  - match: { values.0.28: 3 }
+
+
+# limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 0'
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: date_nanos }
+  - match: { columns.4.name: date_range }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: dense_vector }
+  - match: { columns.6.name: double_range }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
+  - match: { columns.8.type: geo_point }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
+  - match: { columns.10.type: geo_shape }
+  - match: { columns.11.name: histogram }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: integer_range }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: ip_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
+  - match: { columns.17.type: cartesian_point }
+  - match: { columns.18.name: rank_feature }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: rank_features }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._2gram }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: search_as_you_type._3gram }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: cartesian_shape }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
+
+  - length: { values: 0 }
+
+# keep unsupported and limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | keep histogram | limit 0'
+  - match: { columns.0.name: histogram }
+  - match: { columns.0.type: unsupported }
+  - length: { values: 0 }
+
+---
+unsupported with sort:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Latest types supported in ESQL as of 8.13.0"
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ dense_vector_field_type ]
+      reason: "support for sorting when dense_vector_field_type present"
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort some_doc.bar'
+
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: aggregate_metric_double }
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: completion }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: date_nanos }
+  - match: { columns.3.type: date_nanos }
+  - match: { columns.4.name: date_range }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: dense_vector }
+  - match: { columns.5.type: dense_vector }
+  - match: { columns.6.name: double_range }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: float_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: geo_point }
+  - match: { columns.8.type: geo_point }
+  - match: { columns.9.name: geo_point_alias }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
+  - match: { columns.10.type: geo_shape }
+  - match: { columns.11.name: histogram }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: integer_range }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: ip_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
+  - match: { columns.17.type: cartesian_point }
+  - match: { columns.18.name: rank_feature }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: rank_features }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._2gram }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: search_as_you_type._3gram }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: cartesian_shape }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
+
+  - length: { values: 1 }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
+  - match: { values.0.1: null }
+  - match: { values.0.2: null }
+  - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
+  - match: { values.0.4: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
+  - match: { values.0.6: null }
+  - match: { values.0.7: null }
+  - match: { values.0.8: "POINT (10.0 12.0)" }
+  - match: { values.0.9: "POINT (10.0 12.0)" }
+  - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
+  - match: { values.0.11: null }
+  - match: { values.0.12: null }
+  - match: { values.0.13: null }
+  - match: { values.0.14: null }
+  - match: { values.0.15: "foo bar baz" }
+  - match: { values.0.16: Alice }
+  - match: { values.0.17: "POINT (-97.15447 25.9961525)" }
+  - match: { values.0.18: null }
+  - match: { values.0.19: null }
+  - match: { values.0.20: null }
+  - match: { values.0.21: null }
+  - match: { values.0.22: null }
+  - match: { values.0.23: null }
+  - match: { values.0.24: "LINESTRING (-377.03653 389.897676, -377.009051 389.889939)" }
+  - match: { values.0.25: 12 }
+  - match: { values.0.26: xy }
+  - match: { values.0.27: "foo bar" }
+  - match: { values.0.28: 3 }
+---
+nested declared inline:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "find_me": 1,
+            "nested": {
+              "foo": 1,
+              "bar": "bar",
+              "baz": 1.9
+            }
+          }
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | WHERE find_me == 1 | KEEP n*'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }
+  - match: { values: [[null]] }
+
+---
+nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword
+                  bar:
+                    type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }
+
+---
+double nested declared in mapping:
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  bort:
+                    type: keyword
+                  nested:
+                    type: nested
+                    properties:
+                      foo:
+                        type: keyword
+                      bar:
+                        type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_nested'
+
+  # The `nested` field is not visible, nor are any of it's subfields.
+  - match: { columns: [{name: name, type: keyword}] }

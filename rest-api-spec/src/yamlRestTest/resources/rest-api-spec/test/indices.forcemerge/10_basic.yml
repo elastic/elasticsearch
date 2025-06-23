@@ -11,8 +11,8 @@
 
 ---
 "Force merge with incompatible only_expunge_deletes and max_num_segments values":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: only_expunge_deletes and max_num_segments are mutually exclusive since 8.0
 
   - do:
@@ -32,8 +32,8 @@
 
 ---
 "Force merge with wait_for_completion parameter":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: wait_for_completion is introduced since 8.1
 
   - do:

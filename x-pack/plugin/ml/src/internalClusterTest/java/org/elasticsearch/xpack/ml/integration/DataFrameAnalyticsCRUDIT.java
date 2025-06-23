@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -25,6 +26,7 @@ import org.junit.Before;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +42,12 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                randomBoolean()
+            ),
             getInstanceFromNode(ClusterService.class)
         );
         waitForMlTemplates();
@@ -96,7 +103,7 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
 
         client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(configId)).actionGet();
 
-        assertThat(
+        assertHitCount(
             originSettingClient.prepareSearch(".ml-state-*")
                 .setQuery(
                     QueryBuilders.idsQuery()
@@ -105,21 +112,15 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
                             "data_frame_analytics-delete-config-with-state-and-stats-progress"
                         )
                 )
-                .setTrackTotalHits(true)
-                .get()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(0L)
+                .setTrackTotalHits(true),
+            0
         );
 
-        assertThat(
+        assertHitCount(
             originSettingClient.prepareSearch(".ml-stats-*")
                 .setQuery(QueryBuilders.idsQuery().addIds("delete-config-with-state-and-stats_1", "delete-config-with-state-and-stats_2"))
-                .setTrackTotalHits(true)
-                .get()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(0L)
+                .setTrackTotalHits(true),
+            0
         );
     }
 

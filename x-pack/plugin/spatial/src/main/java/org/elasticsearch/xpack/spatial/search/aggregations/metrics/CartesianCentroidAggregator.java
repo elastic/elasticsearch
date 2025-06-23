@@ -41,22 +41,18 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (CartesianPointValuesSource) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            xSum = bigArrays().newDoubleArray(1, true);
-            xCompensations = bigArrays().newDoubleArray(1, true);
-            ySum = bigArrays().newDoubleArray(1, true);
-            yCompensations = bigArrays().newDoubleArray(1, true);
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (CartesianPointValuesSource) valuesSourceConfig.getValuesSource();
+        xSum = bigArrays().newDoubleArray(1, true);
+        xCompensations = bigArrays().newDoubleArray(1, true);
+        ySum = bigArrays().newDoubleArray(1, true);
+        yCompensations = bigArrays().newDoubleArray(1, true);
+        counts = bigArrays().newLongArray(1, true);
+
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final CartesianPointValuesSource.MultiCartesianPointValues values = valuesSource.pointValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumX = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumY = new CompensatedSum(0, 0);
@@ -103,7 +99,7 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
@@ -115,7 +111,7 @@ public final class CartesianCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCartesianCentroid(name, null, 0L, metadata());
+        return InternalCartesianCentroid.empty(name, metadata());
     }
 
     @Override

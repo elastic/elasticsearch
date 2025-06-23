@@ -21,4 +21,9 @@ public class PutFollowActionResponseTests extends AbstractWireSerializingTestCas
     protected PutFollowAction.Response createTestInstance() {
         return new PutFollowAction.Response(randomBoolean(), randomBoolean(), randomBoolean());
     }
+
+    @Override
+    protected PutFollowAction.Response mutateInstance(PutFollowAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

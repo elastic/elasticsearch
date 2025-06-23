@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.publish'
 
@@ -15,16 +16,16 @@ tasks.named("dependencyLicenses").configure {
 }
 
 dependencies {
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-plugin-api')
-  api project(":libs:elasticsearch-x-content")
+  api project(':libs:core')
+  api project(':libs:plugin-api')
+  api project(":libs:x-content")
 
-  api 'org.ow2.asm:asm:9.3'
-  api 'org.ow2.asm:asm-tree:9.3'
+  api 'org.ow2.asm:asm:9.7.1'
+  api 'org.ow2.asm:asm-tree:9.7.1'
 
   testImplementation "junit:junit:${versions.junit}"
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-plugin-scanner'
+    exclude group: 'org.elasticsearch', module: 'plugin-scanner'
   }
 }
 tasks.named('forbiddenApisMain').configure {

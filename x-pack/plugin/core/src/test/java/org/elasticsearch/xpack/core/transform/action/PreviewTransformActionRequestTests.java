@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -46,16 +45,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request createTestInstance() {
         TransformConfig config = new TransformConfig(
             "transform-preview",
             randomSourceConfig(),
-            new DestConfig("unused-transform-preview-index", null),
+            new DestConfig("unused-transform-preview-index", null, null),
             null,
             randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
             null,
@@ -68,7 +62,12 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             null,
             null
         );
-        return new Request(config, TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(config, randomTimeValue());
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testParsingOverwritesIdField() throws IOException {

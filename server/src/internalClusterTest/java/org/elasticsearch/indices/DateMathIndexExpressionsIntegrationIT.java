@@ -1,23 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,8 +24,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,21 +48,22 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
      * of failing when index resolution with `now` is one day off, this method wraps calls with the assumption that
      * the day did not change during the test run.
      */
-    public <Q extends ActionRequest, R extends ActionResponse> R dateSensitiveGet(ActionRequestBuilder<Q, R> builder) {
+    public <Q extends ActionRequest, R extends ActionResponse> void dateSensitiveGet(RequestBuilder<Q, R> builder, Consumer<R> consumer) {
         Runnable dayChangeAssumption = () -> assumeTrue(
             "day changed between requests",
             ZonedDateTime.now(ZoneOffset.UTC).getDayOfYear() == now.getDayOfYear()
         );
-        R response;
         try {
-            response = builder.get();
+            assertResponse(builder, response -> {
+                dayChangeAssumption.run();
+                consumer.accept(response);
+            });
         } catch (IndexNotFoundException e) {
             // index resolver throws this if it does not find the exact index due to day changes
             dayChangeAssumption.run();
             throw e;
         }
-        dayChangeAssumption.run();
-        return response;
+
     }
 
     public void testIndexNameDateMathExpressions() {
@@ -74,63 +72,69 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String index3 = ".marvel-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(2));
         createIndex(index1, index2, index3);
 
-        GetSettingsResponse getSettingsResponse = dateSensitiveGet(client().admin().indices().prepareGetSettings(index1, index2, index3));
-        assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        dateSensitiveGet(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index1, index2, index3), response -> {
+            assertEquals(index1, response.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+            assertEquals(index2, response.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+            assertEquals(index3, response.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        });
 
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
-        SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
-        assertHitCount(searchResponse, 3);
-        assertSearchHits(searchResponse, "1", "2", "3");
+        dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3), response -> {
+            assertHitCount(response, 3);
+            assertSearchHits(response, "1", "2", "3");
+        });
 
-        GetResponse getResponse = dateSensitiveGet(client().prepareGet(dateMathExp1, "1"));
-        assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getId(), equalTo("1"));
+        dateSensitiveGet(client().prepareGet(dateMathExp1, "1"), response -> {
+            assertThat(response.isExists(), is(true));
+            assertThat(response.getId(), equalTo("1"));
+        });
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp2, "2"));
-        assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getId(), equalTo("2"));
+        dateSensitiveGet(client().prepareGet(dateMathExp2, "2"), response -> {
+            assertThat(response.isExists(), is(true));
+            assertThat(response.getId(), equalTo("2"));
+        });
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp3, "3"));
-        assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getId(), equalTo("3"));
+        dateSensitiveGet(client().prepareGet(dateMathExp3, "3"), response -> {
+            assertThat(response.isExists(), is(true));
+            assertThat(response.getId(), equalTo("3"));
+        });
 
-        MultiGetResponse mgetResponse = dateSensitiveGet(
-            client().prepareMultiGet().add(dateMathExp1, "1").add(dateMathExp2, "2").add(dateMathExp3, "3")
-        );
-        assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
-        assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
-        assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));
-        assertThat(mgetResponse.getResponses()[1].getResponse().getId(), equalTo("2"));
-        assertThat(mgetResponse.getResponses()[2].getResponse().isExists(), is(true));
-        assertThat(mgetResponse.getResponses()[2].getResponse().getId(), equalTo("3"));
+        dateSensitiveGet(client().prepareMultiGet().add(dateMathExp1, "1").add(dateMathExp2, "2").add(dateMathExp3, "3"), response -> {
+            assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+            assertThat(response.getResponses()[0].getResponse().getId(), equalTo("1"));
+            assertThat(response.getResponses()[1].getResponse().isExists(), is(true));
+            assertThat(response.getResponses()[1].getResponse().getId(), equalTo("2"));
+            assertThat(response.getResponses()[2].getResponse().isExists(), is(true));
+            assertThat(response.getResponses()[2].getResponse().getId(), equalTo("3"));
+        });
 
-        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
-            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
-        );
-        assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
-        assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
-        assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
+        dateSensitiveGet(indicesAdmin().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3), response -> {
+            assertThat(response.getIndex(index1), notNullValue());
+            assertThat(response.getIndex(index2), notNullValue());
+            assertThat(response.getIndex(index3), notNullValue());
+        });
 
-        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "1"));
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        assertThat(deleteResponse.getId(), equalTo("1"));
+        dateSensitiveGet(client().prepareDelete(dateMathExp1, "1"), response -> {
+            assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
+            assertThat(response.getId(), equalTo("1"));
+        });
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "2"));
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        assertThat(deleteResponse.getId(), equalTo("2"));
+        dateSensitiveGet(client().prepareDelete(dateMathExp2, "2"), response -> {
+            assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
+            assertThat(response.getId(), equalTo("2"));
+        });
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "3"));
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        assertThat(deleteResponse.getId(), equalTo("3"));
+        dateSensitiveGet(client().prepareDelete(dateMathExp3, "3"), response -> {
+            assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
+            assertThat(response.getId(), equalTo("3"));
+        });
     }
 
     public void testAutoCreateIndexWithDateMathExpression() {
@@ -141,21 +145,21 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
+        prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
-        SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
-        assertHitCount(searchResponse, 3);
-        assertSearchHits(searchResponse, "1", "2", "3");
+        dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3), response -> {
+            assertHitCount(response, 3);
+            assertSearchHits(response, "1", "2", "3");
+        });
 
-        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
-            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
-        );
-        assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
-        assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
-        assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
+        dateSensitiveGet(indicesAdmin().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3), response -> {
+            assertThat(response.getIndex(index1), notNullValue());
+            assertThat(response.getIndex(index2), notNullValue());
+            assertThat(response.getIndex(index3), notNullValue());
+        });
     }
 
     public void testCreateIndexWithDateMathExpression() {
@@ -168,15 +172,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
         createIndex(dateMathExp1, dateMathExp2, dateMathExp3);
 
-        GetSettingsResponse getSettingsResponse = dateSensitiveGet(client().admin().indices().prepareGetSettings(index1, index2, index3));
-        assertEquals(dateMathExp1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(dateMathExp2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(dateMathExp3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        dateSensitiveGet(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index1, index2, index3), response -> {
+            assertEquals(dateMathExp1, response.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+            assertEquals(dateMathExp2, response.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+            assertEquals(dateMathExp3, response.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        });
 
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metadata().index(index1), notNullValue());
-        assertThat(clusterState.metadata().index(index2), notNullValue());
-        assertThat(clusterState.metadata().index(index3), notNullValue());
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertThat(clusterState.metadata().getProject().index(index1), notNullValue());
+        assertThat(clusterState.metadata().getProject().index(index2), notNullValue());
+        assertThat(clusterState.metadata().getProject().index(index3), notNullValue());
     }
-
 }

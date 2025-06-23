@@ -1,11 +1,10 @@
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restTests {
@@ -14,8 +13,8 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 configurations {
   // configuration to make use by external yaml rest test plugin in our examples
@@ -35,191 +34,17 @@ artifacts {
 
 dependencies {
   clusterModules project(":modules:mapper-extras")
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-
-  task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API")
-  task.skipTestsByFilePattern("**/indices.upgrade/*.yml", "upgrade api will only get a dummy endpoint returning an exception suggesting to use _reindex")
-  task.skipTestsByFilePattern("**/indices.stats/60_field_usage/*/*.yml", "field usage results will be different between lucene versions")
-  task.skipTestsByFilePattern("**/search.aggregation/*.yml", "run by the aggregation module")
-
-  task.skipTest("bulk/11_dynamic_templates/Dynamic templates", "Error message has changed")
-  task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
-  task.skipTest("indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template", "Type information about the type is removed and not passed down. The logic to check for this is also removed.")
-  task.skipTest("delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types", "Type information about the type is removed and not passed down. The logic to check for this is also removed.");
-  task.skipTest("get/100_mix_typeless_typeful/GET with typeless API on an index that has types", "Failing due to not recognising missing type (the type path param is ignored, will no be fixed");
-  task.skipTest("indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn't exist, but type and index do", "This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?")
-  task.skipTest("indices.get_field_mapping/30_missing_type/Raise 404 when type doesn't exist", "The information about the type is not present in the index. hence it cannot know if the type exist or not.")
-  task.skipTest("indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type", " The information about the type is not present in the index. hence it cannot know if the type exist or not")
-  task.skipTest("indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type", "The information about the type is not present in the index. hence it cannot know if the type exist or not.")
-  task.skipTest("indices.get_mapping/20_missing_type/No type matching pattern returns 404", "The information about the type is not present in the index. hence it cannot know if the type exist or not.")
-  task.skipTest("indices.get_mapping/20_missing_type/Non-existent type returns 404", "The information about the type is not present in the index. hence it cannot know if the type exist or not.")
-  task.skipTest("indices.get_mapping/20_missing_type/Type missing when no types exist", "The information about the type is not present in the index. hence it cannot know if the type exist or not.")
-  task.skipTest("indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types", "The information about the type is not present in the index. hence it cannot know if the type was already used or not")
-  task.skipTest("indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types", "The information about the type is not present in the index. hence it cannot know if the type was already used or not")
-  task.skipTest("search/160_exists_query/Test exists query on _type field", "There is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003; field search on _type field- not implementing. The data for _type is considered incorrect in this search")
-  task.skipTest("termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types", "type information is not stored, hence the the index will be found")
-  task.skipTest("mget/11_default_index_type/Default index/type", "mget - these use cases are no longer valid because we always default to _doc.;  This mean test cases where there is assertion on not finding by type won't work")
-  task.skipTest("mget/16_basic_with_types/Basic multi-get", "mget - these use cases are no longer valid, because we always default to _doc.;  This mean test cases where there is assertion on not finding by type won't work")
-  task.skipTest("explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types", "asserting about type not found won't work as we ignore the type information")
-  task.skipTest("indices.stats/20_translog/Translog retention settings are deprecated", "translog settings removal is not supported under compatible api")
-  task.skipTest("indices.stats/20_translog/Translog retention without soft_deletes", "translog settings removal is not supported under compatible api")
-  task.skipTest("indices.stats/20_translog/Translog stats on closed indices without soft-deletes", "translog settings removal is not supported under compatible api")
-  task.skipTest("indices.create/10_basic/Create index without soft deletes", "Make soft-deletes mandatory in 8.0 #51122 - settings changes are note supported in Rest Api compatibility")
-  task.skipTest("field_caps/30_filter/Field caps with index filter", "behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year")
-  task.skipTest("indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set", "#44761 bug fix")
-  task.skipTest("search/340_type_query/type query", "#47207 type query throws exception in compatible mode")
-  task.skipTest("search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception", "#42654 cutoff_frequency, common terms are not supported. Throwing an exception")
-  task.skipTest("search_shards/10_basic/Search shards aliases with and without filters", "Filter representation no longer outputs default boosts")
-  task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
-  task.skipTest("search/330_fetch_fields/Test disable source", "Error no longer thrown")
-  task.skipTest("search/370_profile/fetch fields", "profile output has changed")
-  task.skipTest("search/370_profile/fetch source", "profile output has changed")
-  task.skipTest("search/370_profile/fetch nested source", "profile output has changed")
-  task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
-
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
-  task.replaceValueInMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
-  task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")
-  task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
-  //override for indices.get and indices.create
-  //task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
-  //overrides for indices.create/20_mix_typeless_typeful
-  task.replaceIsFalse("test-1.mappings._doc","false",  "Create a typed index while there is a typeless template")
-  task.replaceIsFalse("test-1.mappings._doc","false", "Create a typeless index while there is a typed template")
-
-  task.replaceIsTrue("test-1.mappings.my_type", "test-1.mappings._doc")
-  task.replaceIsTrue("test-1.mappings.my_type.properties.foo", "test-1.mappings._doc.properties.foo")
-  task.replaceIsTrue("test-1.mappings.my_type.properties.bar", "test-1.mappings._doc.properties.bar")
-
-  // overrides for indices.get_field_mapping
-  task.replaceKeyInLength("test_index.mappings.test_type.text.mapping.text.type",
-    "test_index.mappings._doc.text.mapping.text.type"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.analyzer",
-    "test_index.mappings._doc.text.mapping.text.analyzer"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.t1.full_name",
-    "test_index.mappings._doc.t1.full_name"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.t2.full_name",
-    "test_index.mappings._doc.t2.full_name"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.t1.full_name",
-    "test_index.mappings._doc.obj\\.t1.full_name"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t1.full_name",
-    "test_index.mappings._doc.obj\\.i_t1.full_name"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t3.full_name",
-    "test_index.mappings._doc.obj\\.i_t3.full_name"
-  )
-  task.replaceKeyInLength("test_index.mappings.test_type",
-    "test_index.mappings._doc"
-  )
-  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t1.full_name",
-    "test_index.mappings._doc.t1.full_name"
-  )
-  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t2.full_name",
-    "test_index.mappings._doc.t2.full_name"
-  )
-  task.replaceKeyInLength("test_index_2.mappings.test_type_2",
-    "test_index.mappings._doc"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.type",
-    "test_index.mappings._doc.text.mapping.text.type"
-  )
-  // overrides for indices.put_mapping/11_basic_with_types
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.type",
-    "test_index.mappings._doc.properties.text1.type"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.analyzer",
-    "test_index.mappings._doc.properties.text1.analyzer"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text2.type",
-    "test_index.mappings._doc.properties.text2.type"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text2.analyzer",
-    "test_index.mappings._doc.properties.text2.analyzer"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.subfield.properties.text3.type",
-    "test_index.mappings._doc.properties.subfield.properties.text3.type"
-  )
-  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.fields.text_raw.type",
-    "test_index.mappings._doc.properties.text1.fields.text_raw.type"
-  )
-  // overrides for indices.put_mapping/all_path_options_with_types
-  task.replaceKeyInMatch("test_index1.mappings.test_type.properties.text.type",
-    "test_index1.mappings._doc.properties.text.type"
-  )
-  task.replaceKeyInMatch("test_index1.mappings.test_type.properties.text.analyzer",
-    "test_index1.mappings._doc.properties.text.analyzer"
-  )
-  task.replaceKeyInMatch("test_index2.mappings.test_type.properties.text.type",
-    "test_index2.mappings._doc.properties.text.type"
-  )
-  task.replaceKeyInMatch("test_index2.mappings.test_type.properties.text.analyzer",
-    "test_index2.mappings._doc.properties.text.analyzer"
-  )
-  task.replaceKeyInMatch("foo.mappings.test_type.properties.text.type",
-    "foo.mappings._doc.properties.text.type"
-  )
-  task.replaceKeyInMatch("foo.mappings.test_type.properties.text.analyzer",
-    "foo.mappings._doc.properties.text.analyzer"
-  )
-  // overrides for indices.get_mapping
-  task.replaceIsTrue("test_1.mappings.doc", "test_1.mappings._doc")
-  task.replaceIsTrue("test_2.mappings.doc", "test_2.mappings._doc")
-  // overrides for mget
-  task.replaceValueInMatch("docs.0._type", "_doc" , "Basic multi-get") // index found, but no doc
-  task.replaceValueInMatch("docs.0._type", "_doc", "Default index/type")
-  task.replaceValueInMatch("docs.0._type", "_doc", "Non-existent index")
-  task.replaceValueInMatch("docs.0._type", "_doc", "Missing metadata")
-  task.replaceValueInMatch("docs.0._type", "_doc", "Multi Get with alias that resolves to multiple indices")
-  task.replaceValueInMatch("docs.1._type", "_doc", "Multi Get with alias that resolves to multiple indices")
-  task.replaceValueInMatch("docs.2._type", "_doc", "Multi Get with alias that resolves to multiple indices")
-  task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
-  task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
-  task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
-
-  //overrides for indices.stats
-  //TODO fix to remove the below match
-  task.replaceKeyInMatch("_all.primaries.indexing.types.baz.index_total",
-    "_all.primaries.indexing.types._doc.index_total"
-  )
-  task.replaceKeyInMatch("_all.primaries.indexing.types.bar.index_total",
-    "_all.primaries.indexing.types._doc.index_total"
-  )
-  task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
-  // points get touched by sorting in ES 8
-  task.replaceValueInMatch("testindex.shards.0.stats.fields.price.points", 1)
-
-  //override for "indices.open/10_basic/?wait_for_active_shards default is deprecated" and "indices.open/10_basic/?wait_for_active_shards=index-setting"
-  task.addAllowedWarningRegexForTest("\\?wait_for_active_shards=index-setting is now the default behaviour.*", "?wait_for_active_shards=index-setting")
-  task.removeWarningForTest("the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; " +
-    "specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
-    , "?wait_for_active_shards default is deprecated")
-
-  // override for exception message change in #55291 tests cluster.voting_config_exclusions/10_basic/
-  // 'Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
-  // 'Throw exception when adding voting config exclusion without specifying nodes',
-  task.replaceValueTextByKeyValue("catch",
-    '/Please set node identifiers correctly. One and only one of \\[node_name\\], \\[node_names\\] and \\[node_ids\\] has to be set/',
-    '/You must set \\[node_names\\] or \\[node_ids\\] but not both/')
-
-  // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
-  task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
-
-  // we can now search using doc values only
-  task.replaceValueInMatch("fields.object\\.nested1.long.searchable", true)
+  clusterModules project(":modules:rest-root")
+  clusterModules project(":modules:reindex")
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def tree = fileTree('src/main/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/main/resources/rest-api-spec/test').files) {
+    if (tree.files) {
       throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
     }
   }
@@ -228,3 +53,40 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling with vector_operations_count")
+  task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
+  task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+  task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
+  task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
+  task.skipTest("range/20_synthetic_source/Double range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Float range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Integer range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/IP range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Long range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Date range Rounding Fixes", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/91_metrics_no_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/91_metrics_no_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
+  task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
+  task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("cluster.info/30_info_thread_pool/Cluster HTTP Info", "The search_throttled thread pool has been removed")
+  task.skipTest("synonyms/80_synonyms_from_index/Fail loading synonyms from index if synonyms_set doesn't exist", "Synonyms do no longer fail if the synonyms_set doesn't exist")
+})

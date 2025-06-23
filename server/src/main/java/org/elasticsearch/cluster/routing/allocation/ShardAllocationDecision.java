@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 
 /**
  * Represents the decision taken for the allocation of a single shard.  If
@@ -29,7 +33,7 @@ import java.io.IOException;
  * then both {@link #getAllocateDecision()} and {@link #getMoveDecision()} will return
  * objects whose {@code isDecisionTaken()} method returns {@code false}.
  */
-public final class ShardAllocationDecision implements ToXContentFragment, Writeable {
+public final class ShardAllocationDecision implements ChunkedToXContentObject, Writeable {
     public static final ShardAllocationDecision NOT_TAKEN = new ShardAllocationDecision(
         AllocateUnassignedDecision.NOT_TAKEN,
         MoveDecision.NOT_TAKEN
@@ -82,14 +86,11 @@ public final class ShardAllocationDecision implements ToXContentFragment, Writea
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (allocateDecision.isDecisionTaken()) {
-            allocateDecision.toXContent(builder, params);
-        }
-        if (moveDecision.isDecisionTaken()) {
-            moveDecision.toXContent(builder, params);
-        }
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            allocateDecision.isDecisionTaken() ? allocateDecision.toXContentChunked(params) : Collections.emptyIterator(),
+            moveDecision.isDecisionTaken() ? moveDecision.toXContentChunked(params) : Collections.emptyIterator()
+        );
     }
 
 }

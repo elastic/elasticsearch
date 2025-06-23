@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -18,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -28,9 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -72,10 +70,14 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
         }
     }
 
+    /**
+     * The only usage of this constructor is for BwC cross-cluster transforms for clusters before v8.2. The ML team is aware that we
+     * don't need to support that anymore now that we're on v9. Once they remove that BwC code, we can remove this constructor as well.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     GetIndexResponse(StreamInput in) throws IOException {
-        super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();
             assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
             if (numMappings == 1) {
@@ -87,7 +89,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);
@@ -169,21 +171,26 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
         }
     }
 
+    /**
+     * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
+        out.writeMap(aliases, StreamOutput::writeCollection);
+        out.writeMap(settings, StreamOutput::writeWriteable);
+        out.writeMap(defaultSettings, StreamOutput::writeWriteable);
+        out.writeMap(dataStreams, StreamOutput::writeOptionalString);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject()),
-            Arrays.stream(indices).<ToXContent>map(index -> (builder, params) -> {
+            Iterators.map(Iterators.forArray(indices), index -> (builder, params) -> {
                 builder.startObject(index);
 
                 builder.startObject("aliases");
@@ -199,14 +206,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 if (indexMappings == null) {
                     builder.startObject("mappings").endObject();
                 } else {
-                    if (builder.getRestApiVersion() == RestApiVersion.V_7
-                        && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                        builder.startObject("mappings");
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
-                        builder.endObject();
-                    } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
-                    }
+                    builder.field("mappings", indexMappings.sourceAsMap());
                 }
 
                 builder.startObject("settings");
@@ -229,7 +229,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 }
 
                 return builder.endObject();
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endObject())
         );
     }

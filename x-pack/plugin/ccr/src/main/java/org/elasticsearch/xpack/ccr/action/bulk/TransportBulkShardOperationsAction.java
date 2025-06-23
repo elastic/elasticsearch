@@ -11,10 +11,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +54,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -65,10 +68,12 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             actionFilters,
             BulkShardOperationsRequest::new,
             BulkShardOperationsRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
-            false,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
+            PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            projectResolver,
+            ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
 
@@ -104,7 +109,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 request.getOperations(),
                 request.getMaxSeqNoOfUpdatesOrDeletes(),
                 primary,
-                logger
+                logger,
+                postWriteRefresh
             );
             result.replicaRequest().setParentTask(request.getParentTask());
             return result;
@@ -119,6 +125,11 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     @Override
     protected int primaryOperationCount(BulkShardOperationsRequest request) {
         return request.getOperations().size();
+    }
+
+    @Override
+    protected long primaryLargestOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).max().orElse(0);
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
@@ -156,7 +167,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final List<Translog.Operation> sourceOperations,
         final long maxSeqNoOfUpdatesOrDeletes,
         final IndexShard primary,
-        final Logger logger
+        final Logger logger,
+        final PostWriteRefresh postWriteRefresh
     ) throws IOException {
         if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
             throw new IllegalStateException(
@@ -181,7 +193,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 appliedOperations.add(targetOp);
                 location = locationToSync(location, result.getTranslogLocation());
             } else {
-                if (result.getFailure()instanceof final AlreadyProcessedFollowingEngineException failure) {
+                if (result.getFailure() instanceof final AlreadyProcessedFollowingEngineException failure) {
                     // The existing operations below the global checkpoint won't be replicated as they were processed
                     // in every replicas already. However, the existing operations above the global checkpoint will be
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
@@ -220,7 +232,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger, postWriteRefresh);
     }
 
     @Override

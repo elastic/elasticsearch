@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation testArtifact(project(":x-pack:plugin:security:qa:saml-rest-tests"), "javaRestTest")
+  clusterPlugins project(':x-pack:extras:plugins:microsoft-graph-authz')
+  clusterModules project(":modules:analysis-common")
+}
+
+tasks.named("javaRestTest").configure {
+  // disable tests in FIPS mode as we need to use a custom truststore containing the certs used in MicrosoftGraphHttpFixture
+  buildParams.withFipsEnabledOnly(it)
+}

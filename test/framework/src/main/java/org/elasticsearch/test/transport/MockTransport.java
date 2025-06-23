@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -20,8 +22,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -49,7 +51,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 public class MockTransport extends StubbableTransport {
 
     private TransportMessageListener listener;
-    private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
     public TransportService createTransportService(
         Settings settings,
@@ -77,6 +79,7 @@ public class MockTransport extends StubbableTransport {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public MockTransport() {
         super(new FakeTransport());
         setDefaultConnectBehavior(
@@ -99,8 +102,6 @@ public class MockTransport extends StubbableTransport {
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
-            } finally {
-                response.decRef();
             }
             try {
                 transportResponseHandler.handleResponse(deliveredResponse);
@@ -175,6 +176,11 @@ public class MockTransport extends StubbableTransport {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
             }
 
             @Override

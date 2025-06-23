@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
@@ -14,9 +15,12 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Arrays;
 
 /**
@@ -45,7 +49,7 @@ public abstract class Command implements Closeable {
     }
 
     /** Parses options for this command from args and executes it. */
-    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
+    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws IOException {
         try {
             mainWithoutErrorHandling(args, terminal, processInfo);
         } catch (OptionException e) {
@@ -59,6 +63,14 @@ public abstract class Command implements Closeable {
             }
             printUserException(terminal, e);
             return e.exitCode;
+        } catch (IOException ioe) {
+            terminal.errorPrintln(ioe);
+            return ExitCodes.IO_ERROR;
+        } catch (Throwable t) {
+            // It's acceptable to catch Throwable at this point:
+            // We're about to exit and only want to print the stacktrace with appropriate formatting (e.g. JSON).
+            terminal.errorPrintln(t);
+            return ExitCodes.CODE_ERROR;
         }
         return ExitCodes.OK;
     }
@@ -74,12 +86,16 @@ public abstract class Command implements Closeable {
             return;
         }
 
+        LoggerFactory loggerFactory = LoggerFactory.provider();
         if (options.has(silentOption)) {
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
+            loggerFactory.setRootLevel(Level.OFF);
         } else if (options.has(verboseOption)) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+            loggerFactory.setRootLevel(Level.DEBUG);
         } else {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
+            loggerFactory.setRootLevel(Level.INFO);
         }
 
         execute(terminal, options, processInfo);
@@ -96,15 +112,17 @@ public abstract class Command implements Closeable {
 
     /** Prints a help message for the command to the terminal. */
     private void printHelp(Terminal terminal, boolean toStdError) throws IOException {
+        StringWriter writer = new StringWriter();
+        parser.printHelpOn(writer);
         if (toStdError) {
             terminal.errorPrintln(description);
             terminal.errorPrintln("");
-            parser.printHelpOn(terminal.getErrorWriter());
+            terminal.errorPrintln(writer.toString());
         } else {
             terminal.println(description);
             terminal.println("");
             printAdditionalHelp(terminal);
-            parser.printHelpOn(terminal.getWriter());
+            terminal.println(writer.toString());
         }
     }
 
@@ -114,7 +132,7 @@ public abstract class Command implements Closeable {
     protected void printUserException(Terminal terminal, UserException e) {
         if (e.getMessage() != null) {
             terminal.errorPrintln("");
-            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage() + ", with exit code " + e.exitCode);
         }
     }
 

@@ -14,15 +14,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -65,7 +63,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testOnNewContextSetsAuthentication() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
@@ -101,7 +99,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testValidateSearchContext() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
@@ -126,7 +124,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
-            AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+            AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
 
             SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             try (StoredContext ignore = threadContext.newStoredContext()) {
@@ -135,7 +133,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef("realm", "file", "node"))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                listener.validateReaderContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, new EmptyRequest());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -148,7 +146,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef(realmName, "file", nodeName))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                listener.validateReaderContext(readerContext, Empty.INSTANCE);
+                listener.validateReaderContext(readerContext, new EmptyRequest());
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -244,7 +242,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
     public void testValidateResourceAccessCheck() throws Exception {
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
-        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMinutes(between(1, 10)));
         final ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         try (
             LegacyReaderContext readerContext = new LegacyReaderContext(
@@ -261,7 +259,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
             final AuditTrail auditTrail = mock(AuditTrail.class);
-            final AuditTrailService auditTrailService = new AuditTrailService(List.of(auditTrail), licenseState);
+            final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, licenseState);
 
             final SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
             final TransportRequest request = mock(TransportRequest.class);

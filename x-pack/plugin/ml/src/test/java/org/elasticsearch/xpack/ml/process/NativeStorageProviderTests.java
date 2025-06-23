@@ -123,7 +123,7 @@ public class NativeStorageProviderTests extends ESTestCase {
     private NativeStorageProvider createNativeStorageProvider(Map<Path, Long> paths) throws IOException {
         Environment environment = mock(Environment.class);
 
-        when(environment.dataFiles()).thenReturn(paths.keySet().toArray(new Path[paths.size()]));
+        when(environment.dataDirs()).thenReturn(paths.keySet().toArray(new Path[paths.size()]));
         NativeStorageProvider storageProvider = spy(new NativeStorageProvider(environment, ByteSizeValue.ofGb(5)));
 
         doAnswer(

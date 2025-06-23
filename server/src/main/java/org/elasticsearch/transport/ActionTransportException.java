@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -24,7 +25,7 @@ public class ActionTransportException extends TransportException {
 
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_1_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_1_0)) {
             in.readOptionalWriteable(TransportAddress::new);
             in.readOptionalString();
         }
@@ -43,9 +44,9 @@ public class ActionTransportException extends TransportException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_1_0)) {
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
+        if (out.getTransportVersion().before(TransportVersions.V_8_1_0)) {
             out.writeMissingWriteable(TransportAddress.class);
             out.writeMissingString(); // action
         }
@@ -65,6 +66,6 @@ public class ActionTransportException extends TransportException {
         if (msg != null) {
             sb.append(" ").append(msg);
         }
-        return sb.toString();
+        return sb.toString().trim();
     }
 }

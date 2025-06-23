@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,14 +20,16 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,20 +37,22 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -81,13 +84,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERHEAD;
@@ -106,14 +109,12 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override
@@ -122,7 +123,7 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -134,9 +135,24 @@ public class CircuitBreakerTests extends ESTestCase {
         QueryClient client = new TestQueryClient();
         List<SequenceCriterion> criteria = buildCriteria(stages);
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            CIRCUIT_BREAKER
+        );
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
 
         CIRCUIT_BREAKER.startBreaking();
 
@@ -147,7 +163,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
         CIRCUIT_BREAKER.stopBreaking();
 
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
     }
 
     public void testCircuitBreakerSequenceMatcher() {
@@ -161,21 +177,23 @@ public class CircuitBreakerTests extends ESTestCase {
             );
         }
 
+        boolean[] missing = booleanArrayOf(stages, false);
+
         // Break on first iteration
-        SequenceMatcher matcher1 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(10000));
+        SequenceMatcher matcher1 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, new EqlTestCircuitBreaker(10000));
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> matcher1.match(0, hits));
         assertEquals("sequence_inflight", e.getMessage());
 
         // Break on second iteration
         EqlTestCircuitBreaker breaker = new EqlTestCircuitBreaker(15000);
-        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, breaker);
+        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, breaker);
         matcher2.match(0, hits);
         assertEquals(matcher2.ramBytesUsedInFlight() + matcher2.ramBytesUsedCompleted(), breaker.ramBytesUsed);
         e = expectThrows(CircuitBreakingException.class, () -> matcher2.match(0, hits));
         assertEquals("sequence_inflight", e.getMessage());
 
         // Break on 3rd iteration with clear() called in between
-        SequenceMatcher matcher3 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(15000));
+        SequenceMatcher matcher3 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, new EqlTestCircuitBreaker(15000));
         matcher3.match(0, hits);
         matcher3.clear();
         matcher3.match(0, hits);
@@ -191,22 +209,40 @@ public class CircuitBreakerTests extends ESTestCase {
         assertMemoryCleared(stages, FailureESMockClient::new);
     }
 
-    private void assertMemoryCleared(int sequenceFiltersCount, BiFunction<CircuitBreaker, Integer, ESMockClient> esClientSupplier) {
+    private void assertMemoryCleared(
+        int sequenceFiltersCount,
+        TriFunction<ThreadPool, CircuitBreaker, Integer, ESMockClient> esClientSupplier
+    ) {
         final int searchRequestsExpectedCount = 2;
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                Settings.EMPTY,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
+            final var esClient = esClientSupplier.apply(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
-            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
-            window.execute(wrap(p -> {}, ex -> {}));
+            SequenceMatcher matcher = new SequenceMatcher(
+                sequenceFiltersCount,
+                false,
+                TimeValue.MINUS_ONE,
+                null,
+                booleanArrayOf(sequenceFiltersCount, false),
+                eqlCircuitBreaker
+            );
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            window.execute(ActionListener.noop());
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
             assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip
@@ -220,24 +256,46 @@ public class CircuitBreakerTests extends ESTestCase {
         final int searchRequestsExpectedCount = 2;
 
         // let the parent circuit breaker fail, setting its limit to zero
-        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
-
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                settings,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "0%")
+            .build();
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
+            final var esClient = new SuccessfulESMockClient(
+                threadPool,
+                service.getBreaker(CIRCUIT_BREAKER_NAME),
+                searchRequestsExpectedCount
             );
-            ESMockClient esClient = new SuccessfulESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
-        ) {
+
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
 
-            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            SequenceMatcher matcher = new SequenceMatcher(
+                sequenceFiltersCount,
+                false,
+                TimeValue.MINUS_ONE,
+                null,
+                booleanArrayOf(sequenceFiltersCount, false),
+                eqlCircuitBreaker
+            );
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -271,6 +329,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     tsExtractor,
                     null,
                     implicitTbExtractor,
+                    false,
                     false
                 )
             );
@@ -291,6 +350,8 @@ public class CircuitBreakerTests extends ESTestCase {
             null,
             123,
             1,
+            randomBoolean(),
+            randomBoolean(),
             "",
             new TaskId("test", 123),
             new EqlSearchTask(
@@ -332,10 +393,10 @@ public class CircuitBreakerTests extends ESTestCase {
         protected final CircuitBreaker circuitBreaker;
         // private final String pitId;
         private int searchRequestsRemainingCount;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
-        ESMockClient(CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
-            super(getTestName());
+        ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
+            super(threadPool);
             this.circuitBreaker = circuitBreaker;
             this.searchRequestsRemainingCount = searchRequestsRemainingCount;
         }
@@ -351,7 +412,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             if (request instanceof OpenPointInTimeRequest) {
                 pitContextCounter.incrementAndGet();
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -379,23 +440,28 @@ public class CircuitBreakerTests extends ESTestCase {
      */
     private class SuccessfulESMockClient extends ESMockClient {
 
-        SuccessfulESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
-            super(circuitBreaker, expectedSearchRequestsCount);
+        SuccessfulESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(threadPool, circuitBreaker, expectedSearchRequestsCount);
         }
 
         @SuppressWarnings("unchecked")
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
-                internal,
+                searchHits,
+                null,
+                null,
+                false,
+                false,
+                null,
+                0,
                 null,
                 2,
                 0,
@@ -412,7 +478,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
             }
 
-            listener.onResponse((Response) response);
+            ActionListener.respondAndRelease(listener, (Response) response);
         }
     }
 
@@ -422,8 +488,8 @@ public class CircuitBreakerTests extends ESTestCase {
      */
     private class FailureESMockClient extends ESMockClient {
 
-        FailureESMockClient(CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
-            super(circuitBreaker, expectedSearchRequestsCount);
+        FailureESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int expectedSearchRequestsCount) {
+            super(threadPool, circuitBreaker, expectedSearchRequestsCount);
         }
 
         @SuppressWarnings("unchecked")
@@ -434,24 +500,31 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+                SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );
-                SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-                SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-                SearchResponse response = new SearchResponse(
-                    internal,
-                    null,
-                    2,
-                    0,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY,
-                    searchRequest.pointInTimeBuilder().getEncodedId()
+                SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        searchHits,
+                        null,
+                        null,
+                        false,
+                        false,
+                        null,
+                        0,
+                        null,
+                        2,
+                        0,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        searchRequest.pointInTimeBuilder().getEncodedId()
+                    )
                 );
-                listener.onResponse((Response) response);
             } else {
                 assertTrue(circuitBreaker.getUsed() > 0); // at this point the algorithm already started adding up to memory usage
                 ShardSearchFailure[] failures = new ShardSearchFailure[] {
@@ -465,28 +538,31 @@ public class CircuitBreakerTests extends ESTestCase {
                     listener.onFailure(new SearchPhaseExecutionException("search", "all shards failed", failures));
                 } else {
                     // or a partial shard failure
-                    SearchResponse response = new SearchResponse(
-                        new InternalSearchResponse(
-                            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                    // this should still be caught and the exception handled properly and circuit breaker cleared
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(1) },
+                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                                1.0f
+                            ),
                             null,
                             new Suggest(Collections.emptyList()),
+                            false,
+                            false,
                             new SearchProfileResults(Collections.emptyMap()),
-                            false,
-                            false,
-                            1
-                        ),
-                        null,
-                        2,
-                        1,
-                        0,
-                        0,
-                        failures,
-                        SearchResponse.Clusters.EMPTY,
-                        searchRequest.pointInTimeBuilder().getEncodedId()
+                            1,
+                            null,
+                            2,
+                            1,
+                            0,
+                            0,
+                            failures,
+                            SearchResponse.Clusters.EMPTY,
+                            searchRequest.pointInTimeBuilder().getEncodedId()
+                        )
                     );
-
-                    // this should still be caught and the exception handled properly and circuit breaker cleared
-                    listener.onResponse((Response) response);
                 }
             }
         }

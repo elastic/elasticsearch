@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,10 +26,10 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";
 
     private MlInfoAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public Request() {
             super();
@@ -47,7 +47,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Map<String, Object> info;
+        private final Map<String, Object> info;
 
         public Response(Map<String, Object> info) {
             this.info = info;
@@ -55,11 +55,6 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
 
         public Response() {
             this.info = Collections.emptyMap();
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            info = in.readMap();
         }
 
         public Map<String, Object> getInfo() {

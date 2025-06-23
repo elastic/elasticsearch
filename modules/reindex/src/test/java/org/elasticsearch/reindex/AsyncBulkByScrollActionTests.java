@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -11,7 +12,6 @@ package org.elasticsearch.reindex;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -20,7 +20,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,9 +45,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +68,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -89,6 +91,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,14 +100,13 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.synchronizedSet;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
+import static org.elasticsearch.common.BackoffPolicy.constantBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.contains;
@@ -126,6 +128,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
+    private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
     private WorkerBulkByScrollTaskState worker;
@@ -149,21 +152,23 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
-        localNode = new DiscoveryNode("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.builder("thenode").roles(emptySet()).build();
         taskId = new TaskId(localNode.getId(), testTask.getId());
     }
 
     private void setupClient(ThreadPool threadPool) {
-        if (client != null) {
-            client.close();
+        if (clientThreadPool != null) {
+            terminate(clientThreadPool);
         }
+        clientThreadPool = threadPool;
         client = new MyMockClient(new NoOpClient(threadPool));
         client.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @After
     public void tearDownAndVerifyCommonStuff() throws Exception {
-        client.close();
+        terminate(clientThreadPool);
+        clientThreadPool = null;
         terminate(threadPool);
     }
 
@@ -195,7 +200,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         action.start();
         assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.searchAttempts.get()));
-        assertBusy(() -> assertTrue(listener.isDone()));
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
         assertNull("There shouldn't be a search attempt pending that we didn't reject", client.lastSearch.get());
@@ -393,7 +397,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
@@ -519,7 +523,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 capturedDelay.set(delay);
                 capturedCommand.set(command);
                 return new ScheduledCancellable() {
@@ -565,47 +569,40 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.start();
 
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            internalResponse,
-            scrollId(),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.response(hits).scrollId(scrollId()).shards(5, 4, 0).build();
+        try {
+            client.lastSearch.get().listener.onResponse(searchResponse);
 
-        client.lastSearch.get().listener.onResponse(searchResponse);
+            assertEquals(0, capturedDelay.get().seconds());
+            capturedCommand.get().run();
 
-        assertEquals(0, capturedDelay.get().seconds());
-        capturedCommand.get().run();
+            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
+            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
-        // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-        assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            // Now we can simulate a response and check the delay that we used for the task
+            if (randomBoolean()) {
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                assertEquals(99, capturedDelay.get().seconds());
+            } else {
+                // Let's rethrottle between the starting the scroll and getting the response
+                worker.rethrottle(10f);
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                // The delay uses the new throttle
+                assertEquals(9, capturedDelay.get().seconds());
+            }
 
-        // Now we can simulate a response and check the delay that we used for the task
-        if (randomBoolean()) {
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            assertEquals(99, capturedDelay.get().seconds());
-        } else {
-            // Let's rethrottle between the starting the scroll and getting the response
-            worker.rethrottle(10f);
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            // The delay uses the new throttle
-            assertEquals(9, capturedDelay.get().seconds());
+            // Running the command ought to increment the delay counter on the task.
+            capturedCommand.get().run();
+            assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
+        } finally {
+            searchResponse.decRef();
         }
-
-        // Running the command ought to increment the delay counter on the task.
-        capturedCommand.get().run();
-        assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
     /**
@@ -735,7 +732,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 /*
                  * This is called twice:
                  * 1. To schedule the throttling. When that happens we immediately cancel the task.
@@ -746,7 +743,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (delay.nanos() > 0) {
                     generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
-                return super.schedule(command, delay, name);
+                return super.schedule(command, delay, executor);
             }
         });
 
@@ -982,7 +979,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-            super(actionName, actionFilters, taskManager);
+            super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

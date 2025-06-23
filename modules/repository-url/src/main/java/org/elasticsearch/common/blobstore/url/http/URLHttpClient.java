@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
@@ -21,9 +22,9 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.Closeable;
@@ -37,7 +38,7 @@ import java.util.Map;
 public class URLHttpClient implements Closeable {
     public static final int MAX_ERROR_MESSAGE_BODY_SIZE = 1024;
     private static final int MAX_CONNECTIONS = 50;
-    private final Logger logger = LogManager.getLogger(URLHttpClient.class);
+    private static final Logger logger = LogManager.getLogger(URLHttpClient.class);
 
     private final CloseableHttpClient client;
     private final URLHttpClientSettings httpClientSettings;
@@ -142,7 +143,7 @@ public class URLHttpClient implements Closeable {
         };
     }
 
-    private void handleInvalidResponse(CloseableHttpResponse response) {
+    private static void handleInvalidResponse(CloseableHttpResponse response) {
         int statusCode = response.getStatusLine().getStatusCode();
         String errorBody = parseBodyAsString(response, MAX_ERROR_MESSAGE_BODY_SIZE);
         throw new URLHttpClientException(statusCode, createErrorMessage(statusCode, errorBody));
@@ -156,7 +157,7 @@ public class URLHttpClient implements Closeable {
         }
     }
 
-    private String parseBodyAsString(CloseableHttpResponse response, int maxSize) {
+    private static String parseBodyAsString(CloseableHttpResponse response, int maxSize) {
         String errorMessage = "";
         InputStream bodyContent = null;
         try {
@@ -180,7 +181,7 @@ public class URLHttpClient implements Closeable {
         return errorMessage;
     }
 
-    private Charset getCharset(HttpEntity httpEntity) {
+    private static Charset getCharset(HttpEntity httpEntity) {
         final Header contentType = httpEntity.getContentType();
         if (contentType == null) {
             return StandardCharsets.UTF_8;
@@ -195,14 +196,14 @@ public class URLHttpClient implements Closeable {
         return StandardCharsets.UTF_8;
     }
 
-    private boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
+    private static boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
         Header contentType = httpEntity.getContentType();
         return contentType != null
             && httpEntity.getContentLength() > 0
             && (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
     }
 
-    private boolean isSuccessful(int statusCode) {
+    private static boolean isSuccessful(int statusCode) {
         return statusCode / 100 == RestStatus.OK.getStatus() / 100;
     }
 

@@ -77,7 +77,7 @@ public abstract class GeoTileGridTiler extends GeoGridTiler {
         final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         if (count == 1) {
             return setValue(values, minXTile, minYTile);
-        } else if (count <= precision) {
+        } else if (count <= 8L * precision) {
             return setValuesByBruteForceScan(values, geoValue, minXTile, minYTile, maxXTile, maxYTile);
         } else {
             return setValuesByRasterization(0, 0, 0, values, 0, geoValue);

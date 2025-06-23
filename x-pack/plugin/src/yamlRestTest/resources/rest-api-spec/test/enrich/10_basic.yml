@@ -1,6 +1,4 @@
----
-"Test enrich crud apis":
-
+setup:
   - do:
       indices.create:
         index: bar
@@ -13,8 +11,9 @@
                 type: keyword
               b:
                 type: keyword
-  - is_true: acknowledged
 
+---
+"Test enrich crud apis":
   - do:
       enrich.put_policy:
         name: policy-crud
@@ -59,4 +58,29 @@
   - do:
       enrich.delete_policy:
         name: policy-crud
+  - is_true: acknowledged
+
+---
+"Test using the deprecated elasticsearch_version field results in a warning":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "elasticsearch_version field deprecated in 8.12.0, to be removed in 9.0"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in a future version of Elasticsearch"
+      enrich.put_policy:
+        name: policy-crud-warning
+        body:
+          match:
+            indices: ["bar*"]
+            match_field: baz
+            enrich_fields: ["a", "b"]
+            elasticsearch_version: "any string here is acceptable"
+  - is_true: acknowledged
+
+  - do:
+      enrich.delete_policy:
+        name: policy-crud-warning
   - is_true: acknowledged

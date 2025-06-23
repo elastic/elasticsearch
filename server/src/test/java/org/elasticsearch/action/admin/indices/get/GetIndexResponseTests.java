@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -13,12 +14,11 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,14 +29,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
+public class GetIndexResponseTests extends ESTestCase {
 
-    @Override
-    protected Writeable.Reader<GetIndexResponse> instanceReader() {
-        return GetIndexResponse::new;
-    }
-
-    @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         Map<String, MappingMetadata> mappings = new HashMap<>();

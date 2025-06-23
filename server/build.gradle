@@ -1,44 +1,49 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
 
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }
 
-archivesBaseName = 'elasticsearch'
+base {
+  archivesName = 'elasticsearch'
+}
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
-  api project(":libs:elasticsearch-plugin-api")
-  api project(":libs:elasticsearch-plugin-analysis-api")
-
-  implementation project(':libs:elasticsearch-plugin-classloader')
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(":libs:tdigest")
+  implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-facet:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
   api "org.apache.lucene:lucene-join:${versions.lucene}"
@@ -50,11 +55,9 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
-  // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
@@ -62,7 +65,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  api "net.java.dev.jna:jna:${versions.jna}"
+  // access to native functions
+  implementation project(':libs:native')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -74,7 +78,15 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
+  internalClusterTestImplementation(project(':modules:data-streams'))
+}
 
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/index/IndexVersion.java"
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -83,13 +95,6 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.dic'
     exclude '**/*.binary'
     exclude '**/*.st'
-}
-
-tasks.named('forbiddenApisMain').configure {
-  addSignatureFiles 'hppc-signatures'
-}
-tasks.named('forbiddenApisTest').configure {
-  addSignatureFiles 'hppc-signatures'
 }
 
 tasks.named('internalClusterTestTestingConventions').configure {
@@ -127,13 +132,41 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
     }
+}
+
+tasks.named("test").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+  filter {
+    excludeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+  }
+  excludes << '**/IndexSettingsOverrideTests.class'
+}
+
+// There are tests rely on system properties to be configured differently. They must run in a separate test job
+// since the default does not work for them and configuring the system properties inside the test class/method
+// is too late because fields based on the system properties are often initialized statically.
+TaskProvider<Test> systemPropertiesOverrideTest = tasks.register("systemPropertiesOverrideTest", Test) {
+  include '**/IndexSettingsOverrideTests.class'
+  include '**/TransportServiceHandshakeTests.class'
+  filter {
+    includeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+    includeTestsMatching("*.IndexSettingsOverrideTests.*")
+  }
+  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  systemProperty 'es.serverless_transport', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
+}
+
+tasks.named("check").configure {
+  dependsOn(systemPropertiesOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -233,20 +266,28 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+    mapping from: /log4j-.*/, to: 'log4j'
+
+    configureDependencies(
+      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
+      return identifier instanceof ModuleComponentIdentifier
+        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
+    })
 }
 
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
-    excludes << 'org/elasticsearch/common/inject/**/*'
+    excludes << 'org/elasticsearch/injection/guice/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

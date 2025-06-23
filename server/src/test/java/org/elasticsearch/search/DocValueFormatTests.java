@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,7 +20,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -26,19 +29,22 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class DocValueFormatTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         List<Entry> entries = new ArrayList<>();
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::readFrom));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::readFrom));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
@@ -168,8 +174,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
         assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
         assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
-        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)));
-        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(95), 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(-95), 1)));
     }
 
     public void testRawParse() {
@@ -272,11 +278,9 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = randomLong();
         // Convert to seconds
         millis -= (millis % 1000);
-        assertEquals(
-            "failed formatting for tz " + zone,
-            millis,
-            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("failed formatting for tz " + zone, millis, formatter.parseLong(formatter.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     public void testParseEpochMillisTimezone() {
@@ -287,11 +291,9 @@ public class DocValueFormatTests extends ESTestCase {
             Resolution.MILLISECONDS
         );
         long millis = randomLong();
-        assertEquals(
-            "failed formatting for tz " + zone,
-            millis,
-            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("failed formatting for tz " + zone, millis, formatter.parseLong(formatter.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     public void testDateHMSTimezone() {
@@ -308,16 +310,12 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000L;
         assertEquals("2021-06-01T17:18:38", utc.format(millis));
         assertEquals("2021-06-02T02:18:38", tokyo.format(millis));
-        assertEquals(
-            "couldn't parse UTC",
-            millis,
-            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
-        assertEquals(
-            "couldn't parse Tokyo",
-            millis,
-            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
+        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     public void testDateTimeWithTimezone() {
@@ -335,16 +333,12 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000L;
         assertEquals("20210601T171838Z", utc.format(millis));
         assertEquals("20210602T021838+09:00", tokyo.format(millis));
-        assertEquals(
-            "couldn't parse UTC",
-            millis,
-            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
-        assertEquals(
-            "couldn't parse Tokyo",
-            millis,
-            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
+        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     /**
@@ -359,11 +353,9 @@ public class DocValueFormatTests extends ESTestCase {
         long expected = 1628719200000L;
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
-        long actualMillis = parsesZone.parseLong(
-            "2021-08-12T00:00:00.000000000+02:00",
-            false,
-            () -> { throw new UnsupportedOperationException("don't use now"); }
-        );
+        long actualMillis = parsesZone.parseLong("2021-08-12T00:00:00.000000000+02:00", false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        });
         assertEquals(expected, actualMillis);
     }
 
@@ -380,22 +372,34 @@ public class DocValueFormatTests extends ESTestCase {
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
         // assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
-        long actualMillis = parsesZone.parseLong(
-            "2021-08-12T00:00:00.000000000CET",
-            false,
-            () -> { throw new UnsupportedOperationException("don't use now"); }
-        );
+        long actualMillis = parsesZone.parseLong("2021-08-12T00:00:00.000000000CET", false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        });
         assertEquals(expected, actualMillis);
     }
 
     public void testParseTsid() throws IOException {
-        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder(null);
-        timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
-        timeSeriesIdBuilder.addLong("long", randomLong());
-        timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
-        BytesRef tsidBytes = timeSeriesIdBuilder.build().toBytesRef();
-        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
-        BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
-        assertEquals(tsidBytes, tsidParse);
+        var routingFields = new RoutingPathFields(null);
+        routingFields.addString("string", randomAlphaOfLength(10));
+        routingFields.addLong("long", randomLong());
+        routingFields.addUnsignedLong("ulong", randomLong());
+        BytesRef expected = routingFields.buildHash().toBytesRef();
+        byte[] expectedBytes = new byte[expected.length];
+        System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
+        BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);
+        assertEquals(expected, actual);
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
+        Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expectedBytes);
+        assertEquals(tsidFormat, tsidBase64);
+    }
+
+    public void testFormatAndParseTsRoutingHash() throws IOException {
+        BytesRef tsRoutingHashInput = new BytesRef("cn4exQ");
+        DocValueFormat docValueFormat = TimeSeriesRoutingHashFieldMapper.INSTANCE.fieldType().docValueFormat(null, ZoneOffset.UTC);
+        Object formattedValue = docValueFormat.format(tsRoutingHashInput);
+        // the format method takes BytesRef as input and outputs a String
+        assertThat(formattedValue, instanceOf(String.class));
+        // the parse method will output the BytesRef input
+        assertThat(docValueFormat.parseBytesRef(formattedValue), is(tsRoutingHashInput));
     }
 }

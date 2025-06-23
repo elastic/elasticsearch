@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -13,7 +14,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,8 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.internal.Requests.indexRequest;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -52,9 +52,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -69,26 +67,27 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             )
             .get();
 
-        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
+        client().index(new IndexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
             .actionGet();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
-            .get();
-        assertSearchResponse(response);
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
-            equalTo(2)
-        );
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
-            equalTo(2)
-        );
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
-            equalTo(1)
+        assertNoFailuresAndResponse(
+            prepareSearch().setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))),
+            response -> {
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+                    equalTo(2)
+                );
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+                    equalTo(2)
+                );
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+                    equalTo(1)
+                );
+            }
         );
     }
 
@@ -138,9 +137,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
-                hitContext.hit().setDocumentField(NAME, hitField);
+                hitContext.hit().setDocumentField(hitField);
             }
-            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            Terms terms = hitContext.reader().termVectors().get(hitContext.docId(), field);
             if (terms != null) {
                 TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();

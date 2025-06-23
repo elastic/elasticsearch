@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -88,8 +91,7 @@ class SignificanceLookup {
                 this.backgroundFilter = null;
             }
         } else {
-            Query contextFiltered = context.filterQuery(backgroundQuery);
-            this.backgroundFilter = contextFiltered;
+            this.backgroundFilter = context.filterQuery(backgroundQuery);
         }
         /*
          * We need to use a superset size that includes deleted docs or we
@@ -159,7 +161,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@link BytesRef} term.
      */
     private long getBackgroundFrequency(BytesRef term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(makeBackgroundFrequencyQuery(format.format(term).toString())));
     }
 
     /**
@@ -214,7 +216,18 @@ class SignificanceLookup {
      * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(makeBackgroundFrequencyQuery(format.format(term).toString())));
+    }
+
+    private QueryBuilder makeBackgroundFrequencyQuery(String value) {
+        QueryBuilder queryBuilder = new TermQueryBuilder(fieldType.name(), value);
+
+        var nestedParentField = context.nestedLookup().getNestedParent(fieldType.name());
+        if (nestedParentField != null) {
+            queryBuilder = new NestedQueryBuilder(nestedParentField, queryBuilder, ScoreMode.Avg);
+        }
+
+        return queryBuilder;
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
@@ -223,7 +236,7 @@ class SignificanceLookup {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs
             Term term = ((TermQuery) query).getTerm();
-            TermsEnum termsEnum = getTermsEnum(term.field());
+            TermsEnum termsEnum = getTermsEnum();
             if (termsEnum.seekExact(term.bytes())) {
                 return termsEnum.docFreq();
             }
@@ -233,10 +246,11 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
-    private TermsEnum getTermsEnum(String field) throws IOException {
+    private TermsEnum getTermsEnum() throws IOException {
         // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;

@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -21,9 +21,13 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -31,42 +35,50 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportResizeActionTests extends ESTestCase {
+
+    private ProjectId projectId;
+
+    @Before
+    public void generateProjectId() {
+        this.projectId = randomProjectIdOrDefault();
+    }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         return createClusterState(name, numShards, numReplicas, numShards, settings);
     }
 
-    private ClusterState createClusterState(String name, int numShards, int numReplicas, int numRoutingShards, Settings settings) {
-        Metadata.Builder metaBuilder = Metadata.builder();
-        IndexMetadata indexMetadata = IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT).put(settings))
+    private ClusterState createClusterState(String indexName, int numShards, int numReplicas, int numRoutingShards, Settings settings) {
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()).put(settings))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .setRoutingNumShards(numRoutingShards)
             .build();
-        metaBuilder.put(indexMetadata, false);
-        Metadata metadata = metaBuilder.build();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsNew(metadata.index(name));
+        projectBuilder.put(indexMetadata, false);
 
-        RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.put(projectBuilder);
+        Metadata metadata = metaBuilder.build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
-            .routingTable(routingTable)
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata))
             .build();
         return clusterState;
     }
@@ -77,12 +89,13 @@ public class TransportResizeActionTests extends ESTestCase {
             randomIntBetween(2, 42),
             randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()
-        ).metadata().index("source");
+        ).metadata().getProject(projectId).index("source");
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
                 () -> TransportResizeAction.prepareCreateIndexRequest(
                     new ResizeRequest("target", "source"),
+                    projectId,
                     state,
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
@@ -98,7 +111,10 @@ public class TransportResizeActionTests extends ESTestCase {
             req.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4));
             TransportResizeAction.prepareCreateIndexRequest(
                 req,
-                createClusterState("source", 8, 1, Settings.builder().put("index.blocks.write", true).build()).metadata().index("source"),
+                projectId,
+                createClusterState("source", 8, 1, Settings.builder().put("index.blocks.write", true).build()).metadata()
+                    .getProject(projectId)
+                    .index("source"),
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
@@ -112,12 +128,13 @@ public class TransportResizeActionTests extends ESTestCase {
             req.getTargetIndexRequest().settings(Settings.builder().put("index.soft_deletes.enabled", false));
             TransportResizeAction.prepareCreateIndexRequest(
                 req,
+                projectId,
                 createClusterState(
                     "source",
                     8,
                     1,
                     Settings.builder().put("index.blocks.write", true).put("index.soft_deletes.enabled", true).build()
-                ).metadata().index("source"),
+                ).metadata().getProject(projectId).index("source"),
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
@@ -140,15 +157,16 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
-        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
 
         TransportResizeAction.prepareCreateIndexRequest(
             new ResizeRequest("target", "source"),
-            clusterState.metadata().index("source"),
+            projectId,
+            clusterState.metadata().getProject(projectId).index("source"),
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
@@ -170,18 +188,19 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
-        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
 
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
-        IndexMetadata indexMetadata = clusterState.metadata().index("source");
+        IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index("source");
         TransportResizeAction.prepareCreateIndexRequest(
             resizeRequest,
+            projectId,
             indexMetadata,
             "target",
             new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
@@ -193,6 +212,7 @@ public class TransportResizeActionTests extends ESTestCase {
             );
         TransportResizeAction.prepareCreateIndexRequest(
             resizeRequest,
+            projectId,
             indexMetadata,
             "target",
             new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
@@ -213,18 +233,19 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
-        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
 
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", numShards * 2).build());
         TransportResizeAction.prepareCreateIndexRequest(
             resizeRequest,
-            clusterState.metadata().index("source"),
+            projectId,
+            clusterState.metadata().getProject(projectId).index("source"),
             "target",
             new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
         );
@@ -238,7 +259,8 @@ public class TransportResizeActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> TransportResizeAction.prepareCreateIndexRequest(
                 resizeRequest,
-                finalState.metadata().index("source"),
+                projectId,
+                finalState.metadata().getProject(projectId).index("source"),
                 "target",
                 new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
             )
@@ -261,19 +283,20 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
-        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
+        int numSourceShards = clusterState.metadata().getProject(projectId).index(indexName).getNumberOfShards();
         DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
         ResizeRequest target = new ResizeRequest("target", indexName);
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         target.setWaitForActiveShards(activeShardCount);
         CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
             target,
-            clusterState.metadata().index(indexName),
+            projectId,
+            clusterState.metadata().getProject(projectId).index(indexName),
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
@@ -294,7 +317,7 @@ public class TransportResizeActionTests extends ESTestCase {
             sourceIndexShardsNum,
             randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()
-        ).metadata().index("source");
+        ).metadata().getProject(projectId).index("source");
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(10));
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
@@ -303,6 +326,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> TransportResizeAction.prepareCreateIndexRequest(
                     resizeRequest,
+                    projectId,
                     state,
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
@@ -326,12 +350,12 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
-        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        int numSourceShards = clusterState.metadata().index("source").getNumberOfShards();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
+        clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
+        int numSourceShards = clusterState.metadata().getProject(projectId).index("source").getNumberOfShards();
         DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
 
         // each shard's storage will not be greater than the `max_primary_shard_size`
@@ -344,7 +368,8 @@ public class TransportResizeActionTests extends ESTestCase {
 
         CreateIndexClusterStateUpdateRequest request1 = TransportResizeAction.prepareCreateIndexRequest(
             target1,
-            clusterState.metadata().index("source"),
+            projectId,
+            clusterState.metadata().getProject(projectId).index("source"),
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(storeStats, (i) -> stats)
         );
@@ -365,7 +390,8 @@ public class TransportResizeActionTests extends ESTestCase {
 
         CreateIndexClusterStateUpdateRequest request2 = TransportResizeAction.prepareCreateIndexRequest(
             target2,
-            clusterState.metadata().index("source"),
+            projectId,
+            clusterState.metadata().getProject(projectId).index("source"),
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(storeStats2, (i) -> stats)
         );
@@ -377,13 +403,7 @@ public class TransportResizeActionTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
 }

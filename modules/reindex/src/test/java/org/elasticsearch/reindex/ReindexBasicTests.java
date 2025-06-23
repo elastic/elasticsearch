@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -30,51 +31,51 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("source").setId("1").setSource("foo", "a"),
-            client().prepareIndex("source").setId("2").setSource("foo", "a"),
-            client().prepareIndex("source").setId("3").setSource("foo", "b"),
-            client().prepareIndex("source").setId("4").setSource("foo", "c")
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "a"),
+            prepareIndex("source").setId("3").setSource("foo", "b"),
+            prepareIndex("source").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("source").setSize(0), 4);
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("dest").setSize(0), 4);
 
         // Now none of them
         createIndex("none");
         copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
-        assertHitCount(client().prepareSearch("none").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("none").setSize(0), 0);
 
         // Now half of them
         copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
+        assertHitCount(prepareSearch("dest_half").setSize(0), 2);
 
         // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
-        assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
+        assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
     }
 
     public void testCopyMany() throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
+            docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+        assertHitCount(prepareSearch("source").setSize(0), max);
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(max, 5));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
+        assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
         int half = max / 2;
@@ -83,18 +84,18 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.maxDocs(half);
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
+        assertHitCount(prepareSearch("dest_half").setSize(0), half);
     }
 
     public void testCopyManyWithSlices() throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);
         for (int i = 0; i < max; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
+            docs.add(prepareIndex("source").setId(Integer.toString(i)).setSource("foo", "a"));
         }
 
         indexRandom(true, docs);
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+        assertHitCount(prepareSearch("source").setSize(0), max);
 
         int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "source");
@@ -104,7 +105,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
+        assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
         int half = max / 2;
@@ -114,7 +115,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.maxDocs(half);
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
+        assertHitCount(prepareSearch("dest_half").setSize(0), response.getCreated());
     }
 
     public void testMultipleSources() throws Exception {
@@ -127,14 +128,14 @@ public class ReindexBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(50, 200);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName).setId("id_" + sourceIndex + "_" + i).setSource("foo", "a"));
+                docs.get(indexName).add(prepareIndex(indexName).setId("id_" + sourceIndex + "_" + i).setSource("foo", "a"));
             }
         }
 
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
-            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
+            assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
         int slices = randomSlices(1, 10);
@@ -145,7 +146,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         BulkByScrollResponse response = request.get();
         assertThat(response, matcher().created(allDocs.size()).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), allDocs.size());
+        assertHitCount(prepareSearch("dest").setSize(0), allDocs.size());
     }
 
     public void testMissingSources() {
@@ -154,6 +155,24 @@ public class ReindexBasicTests extends ReindexTestCase {
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().created(0).slices(hasSize(0)));
+    }
+
+    public void testReindexFromComplexDateMathIndexName() throws Exception {
+        String sourceIndexName = "datemath-2001-01-01-14";
+        String destIndexName = "<reindex-datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
+        indexRandom(
+            true,
+            prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
+            prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
+            prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source(sourceIndexName).destination(destIndexName).refresh(true);
+        assertThat(copy.get(), matcher().created(4));
+        assertHitCount(prepareSearch(destIndexName).setSize(0), 4);
     }
 
 }

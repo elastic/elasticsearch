@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -20,39 +19,41 @@ import java.util.Map;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse>
-    implements
-        WriteRequestBuilder<PutRoleRequestBuilder> {
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
+
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowDescription(true).build();
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
-        this(client, PutRoleAction.INSTANCE);
-    }
-
-    public PutRoleRequestBuilder(ElasticsearchClient client, PutRoleAction action) {
-        super(client, action, new PutRoleRequest());
+        super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
     }
 
     /**
      * Populate the put role request from the source and the role's name
      */
     public PutRoleRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
-        // we pass false as last parameter because we want to reject the request if field permissions
-        // are given in 2.x syntax
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType);
+        // we want to reject the request if field permissions are given in 2.x syntax, hence we do not allow2xFormat
+        RoleDescriptor descriptor = ROLE_DESCRIPTOR_PARSER.parse(name, source, xContentType);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
         request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.addRemoteIndex(descriptor.getRemoteIndicesPrivileges());
+        request.putRemoteCluster(descriptor.getRemoteClusterPermissions());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
+        request.description(descriptor.getDescription());
         return this;
     }
 
     public PutRoleRequestBuilder name(String name) {
         request.name(name);
+        return this;
+    }
+
+    public PutRoleRequestBuilder description(String description) {
+        request.description(description);
         return this;
     }
 
@@ -80,6 +81,11 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
 
     public PutRoleRequestBuilder metadata(Map<String, Object> metadata) {
         request.metadata(metadata);
+        return this;
+    }
+
+    public PutRoleRequestBuilder setRefreshPolicy(@Nullable String refreshPolicy) {
+        request.setRefreshPolicy(refreshPolicy);
         return this;
     }
 }

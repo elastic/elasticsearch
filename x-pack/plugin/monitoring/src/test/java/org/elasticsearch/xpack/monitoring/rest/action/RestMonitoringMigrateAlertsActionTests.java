@@ -35,7 +35,7 @@ public class RestMonitoringMigrateAlertsActionTests extends ESTestCase {
     }
 
     public void testSupportsContentStream() {
-        assertThat(action.supportsContentStream(), is(false));
+        assertThat(action.supportsBulkContent(), is(false));
     }
 
     public void testRestActionCompletion() throws Exception {

@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -28,13 +29,13 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
@@ -42,9 +43,11 @@ import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /** A dummy repository for testing which just needs restore overridden */
 public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+    private final ProjectId projectId;
     private final String indexName;
 
-    public RestoreOnlyRepository(String indexName) {
+    public RestoreOnlyRepository(ProjectId projectId, String indexName) {
+        this.projectId = projectId;
         this.indexName = indexName;
     }
 
@@ -58,13 +61,24 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     protected void doClose() {}
 
     @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
+    @Override
     public RepositoryMetadata getMetadata() {
         return null;
     }
 
     @Override
-    public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        throw new UnsupportedOperationException();
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException());
     }
 
     @Override
@@ -78,7 +92,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(
             new RepositoryData(
@@ -102,11 +116,12 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        SnapshotDeleteListener listener
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        listener.onFailure(new UnsupportedOperationException());
+        repositoryDataUpdateListener.onFailure(new UnsupportedOperationException());
     }
 
     @Override
@@ -136,7 +151,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void snapshotShard(SnapshotShardContext context) {}
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }
 
@@ -148,15 +163,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void awaitIdle() {}
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        throw new UnsupportedOperationException("Unsupported for restore-only repository");
-    }
 
     @Override
     public void cloneShardSnapshot(

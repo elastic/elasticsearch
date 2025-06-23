@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
@@ -39,21 +40,21 @@ public class BertTokenizer extends NlpTokenizer {
     public static final String SEPARATOR_TOKEN = "[SEP]";
     public static final String PAD_TOKEN = "[PAD]";
     public static final String CLASS_TOKEN = "[CLS]";
-    public static final String MASK_TOKEN = "[MASK]";
+    public static final String MASK_TOKEN = BertTokenization.MASK_TOKEN;
 
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
     private final WordPieceAnalyzer wordPieceAnalyzer;
     protected final List<String> originalVocab;
-    // TODO Not sure this needs to be a sorted map
-    private final SortedMap<String, Integer> vocab;
     protected final boolean withSpecialTokens;
     private final int maxSequenceLength;
-    protected final int sepTokenId;
+    private final int sepTokenId;
     private final int clsTokenId;
     private final String padToken;
-    protected final int padTokenId;
+    private final int padTokenId;
     private final String maskToken;
+    private final OptionalInt maskTokenId;
+
     private final String unknownToken;
 
     protected BertTokenizer(
@@ -98,7 +99,7 @@ public class BertTokenizer extends NlpTokenizer {
         String maskToken,
         String unknownToken
     ) {
-        wordPieceAnalyzer = new WordPieceAnalyzer(
+        wordPieceAnalyzer = createWordPieceAnalyzer(
             originalVocab,
             new ArrayList<>(neverSplit),
             doLowerCase,
@@ -107,7 +108,6 @@ public class BertTokenizer extends NlpTokenizer {
             unknownToken
         );
         this.originalVocab = originalVocab;
-        this.vocab = vocab;
         this.withSpecialTokens = withSpecialTokens;
         this.maxSequenceLength = maxSequenceLength;
         if (vocab.containsKey(unknownToken) == false) {
@@ -131,7 +131,27 @@ public class BertTokenizer extends NlpTokenizer {
         }
         this.padToken = padToken;
         this.maskToken = maskToken;
+        this.maskTokenId = vocab.containsKey(maskToken) ? OptionalInt.of(vocab.get(maskToken)) : OptionalInt.empty();
+
         this.unknownToken = unknownToken;
+    }
+
+    protected WordPieceAnalyzer createWordPieceAnalyzer(
+        List<String> vocabulary,
+        List<String> neverSplit,
+        boolean doLowerCase,
+        boolean doTokenizeCjKChars,
+        boolean doStripAccents,
+        String unknownToken
+    ) {
+        return new WordPieceAnalyzer(
+            vocabulary,
+            new ArrayList<>(neverSplit),
+            doLowerCase,
+            doTokenizeCjKChars,
+            doStripAccents,
+            unknownToken
+        );
     }
 
     @Override
@@ -150,6 +170,16 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int getNumExtraTokensForSeqPair() {
+        return 3;
+    }
+
+    @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
+    }
+
+    @Override
     int clsTokenId() {
         return clsTokenId;
     }
@@ -164,22 +194,12 @@ public class BertTokenizer extends NlpTokenizer {
 
     @Override
     public OptionalInt getPadTokenId() {
-        Integer pad = vocab.get(this.padToken);
-        if (pad != null) {
-            return OptionalInt.of(pad);
-        } else {
-            return OptionalInt.empty();
-        }
+        return OptionalInt.of(padTokenId);
     }
 
     @Override
     public OptionalInt getMaskTokenId() {
-        Integer pad = vocab.get(this.maskToken);
-        if (pad != null) {
-            return OptionalInt.of(pad);
-        } else {
-            return OptionalInt.empty();
-        }
+        return maskTokenId;
     }
 
     @Override
@@ -188,8 +208,13 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
+    public List<String> getVocabulary() {
+        return originalVocab;
+    }
+
+    @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
-        return new BertTokenizationResult(originalVocab, tokenizations, vocab.get(this.padToken));
+        return new BertTokenizationResult(originalVocab, tokenizations, padTokenId);
     }
 
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
@@ -198,19 +223,18 @@ public class BertTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
     }
 
-    @Override
-    int getNumExtraTokensForSeqPair() {
-        return 3;
-    }
-
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();
@@ -231,10 +255,6 @@ public class BertTokenizer extends NlpTokenizer {
     @Override
     public void close() {
         wordPieceAnalyzer.close();
-    }
-
-    public int getMaxSequenceLength() {
-        return maxSequenceLength;
     }
 
     public static Builder builder(List<String> vocab, Tokenization tokenization) {

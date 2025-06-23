@@ -34,6 +34,11 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     @Override
+    protected InsensitiveBinaryComparisonProcessor mutateInstance(InsensitiveBinaryComparisonProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<InsensitiveBinaryComparisonProcessor> instanceReader() {
         return InsensitiveBinaryComparisonProcessor::new;
     }

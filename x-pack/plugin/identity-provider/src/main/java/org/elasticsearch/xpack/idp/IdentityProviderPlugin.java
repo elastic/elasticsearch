@@ -7,34 +7,20 @@
 
 package org.elasticsearch.xpack.idp;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
@@ -59,6 +45,7 @@ import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlMetadataAction;
 import org.elasticsearch.xpack.idp.saml.rest.action.RestSamlValidateAuthenticationRequestAction;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderFactory;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTemplateRegistry;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderCacheSettings;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
@@ -70,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -80,39 +68,37 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
 
-    private final Logger logger = LogManager.getLogger(IdentityProviderPlugin.class);
     private boolean enabled;
     private Settings settings;
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        settings = environment.settings();
+    public Collection<?> createComponents(PluginServices services) {
+        settings = services.environment().settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
             return List.of();
         }
 
+        var indexTemplateRegistry = new SamlServiceProviderIndexTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        indexTemplateRegistry.initialize();
+
         SamlInit.initialize();
-        final SamlServiceProviderIndex index = new SamlServiceProviderIndex(client, clusterService);
-        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
+        final SamlServiceProviderIndex index = new SamlServiceProviderIndex(services.client(), services.clusterService());
+        final SecurityContext securityContext = new SecurityContext(settings, services.threadPool().getThreadContext());
 
         final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
-        final ApplicationActionsResolver actionsResolver = new ApplicationActionsResolver(settings, serviceProviderDefaults, client);
-        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(client, securityContext, actionsResolver);
+        final ApplicationActionsResolver actionsResolver = new ApplicationActionsResolver(
+            settings,
+            serviceProviderDefaults,
+            services.client()
+        );
+        final UserPrivilegeResolver userPrivilegeResolver = new UserPrivilegeResolver(services.client(), securityContext, actionsResolver);
 
         final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
         final SamlServiceProviderResolver registeredServiceProviderResolver = new SamlServiceProviderResolver(
@@ -120,45 +106,49 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
             index,
             serviceProviderFactory
         );
+        services.clusterService().addListener(registeredServiceProviderResolver);
+
         final WildcardServiceProviderResolver wildcardServiceProviderResolver = WildcardServiceProviderResolver.create(
-            environment,
-            resourceWatcherService,
-            scriptService,
+            services.environment(),
+            services.resourceWatcherService(),
+            services.scriptService(),
             serviceProviderFactory
         );
         final SamlIdentityProvider idp = SamlIdentityProvider.builder(registeredServiceProviderResolver, wildcardServiceProviderResolver)
-            .fromSettings(environment)
+            .fromSettings(services.environment())
             .serviceProviderDefaults(serviceProviderDefaults)
             .build();
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(index, idp, factory, userPrivilegeResolver);
+        return List.of(index, idp, factory, userPrivilegeResolver, indexTemplateRegistry);
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         if (enabled == false) {
             return List.of();
         }
         return List.of(
-            new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
-            new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
-            new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
-            new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
-            new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
+            new ActionHandler(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
+            new ActionHandler(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
+            new ActionHandler(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
+            new ActionHandler(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
+            new ActionHandler(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return List.of();

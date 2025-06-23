@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -24,16 +26,23 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -43,6 +52,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -56,28 +66,33 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.injection.guice.AbstractModule;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.script.ScriptMetadata;
+import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -88,8 +103,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -99,11 +112,12 @@ public class ClusterModule extends AbstractModule {
 
     public static final String BALANCED_ALLOCATOR = "balanced";
     public static final String DESIRED_BALANCE_ALLOCATOR = "desired_balance"; // default
-    public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = new Setting<>(
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING = Setting.simpleString(
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
-        Function.identity(),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private final ClusterService clusterService;
@@ -116,6 +130,8 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final AllocationStatsService allocationStatsService;
+    private final TelemetryProvider telemetryProvider;
 
     public ClusterModule(
         Settings settings,
@@ -125,22 +141,38 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        WriteLoadForecaster writeLoadForecaster
+        ProjectResolver projectResolver,
+        WriteLoadForecaster writeLoadForecaster,
+        TelemetryProvider telemetryProvider
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
+        final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
+        final BalancingWeightsFactory balancingWeightsFactory = getBalancingWeightsFactory(
+            clusterPlugins,
+            balancerSettings,
+            clusterService.getClusterSettings()
+        );
+        var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
+            writeLoadForecaster,
+            balancingWeightsFactory
+        );
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
+            balancerSettings,
+            balancingWeightsFactory,
             threadPool,
             clusterPlugins,
             clusterService,
             this::reconcile,
-            writeLoadForecaster
+            writeLoadForecaster,
+            telemetryProvider,
+            nodeAllocationStatsAndWeightsCalculator
         );
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
         this.shardRoutingRoleStrategy = getShardRoutingRoleStrategy(clusterPlugins);
         this.allocationService = new AllocationService(
             allocationDeciders,
@@ -149,7 +181,15 @@ public class ClusterModule extends AbstractModule {
             snapshotsInfoService,
             shardRoutingRoleStrategy
         );
+        this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+        this.allocationStatsService = new AllocationStatsService(
+            clusterService,
+            clusterInfoService,
+            shardsAllocator,
+            nodeAllocationStatsAndWeightsCalculator
+        );
+        this.telemetryProvider = telemetryProvider;
     }
 
     static ShardRoutingRoleStrategy getShardRoutingRoleStrategy(List<ClusterPlugin> clusterPlugins) {
@@ -175,8 +215,24 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
-        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
+    static BalancingWeightsFactory getBalancingWeightsFactory(
+        List<ClusterPlugin> clusterPlugins,
+        BalancerSettings balancerSettings,
+        ClusterSettings clusterSettings
+    ) {
+        final var strategies = clusterPlugins.stream()
+            .map(pl -> pl.getBalancingWeightsFactory(balancerSettings, clusterSettings))
+            .filter(Objects::nonNull)
+            .toList();
+        return switch (strategies.size()) {
+            case 0 -> new GlobalBalancingWeightsFactory(balancerSettings);
+            case 1 -> strategies.getFirst();
+            default -> throw new IllegalArgumentException("multiple plugins define balancing weights factories, which is not permitted");
+        };
+    }
+
+    private ClusterState reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
+        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", rerouteStrategy);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -197,39 +253,58 @@ public class ClusterModule extends AbstractModule {
             RepositoryCleanupInProgress::readDiffFrom
         );
         // Metadata
-        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
-        registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
-        registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
-        registerMetadataCustom(
+        registerProjectCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
+        registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        // Project scoped persistent tasks
+        registerProjectCustom(
             entries,
             PersistentTasksCustomMetadata.TYPE,
             PersistentTasksCustomMetadata::new,
             PersistentTasksCustomMetadata::readDiffFrom
         );
+        // Cluster scoped persistent tasks
         registerMetadataCustom(
+            entries,
+            ClusterPersistentTasksCustomMetadata.TYPE,
+            ClusterPersistentTasksCustomMetadata::new,
+            ClusterPersistentTasksCustomMetadata::readDiffFrom
+        );
+        registerProjectCustom(
             entries,
             ComponentTemplateMetadata.TYPE,
             ComponentTemplateMetadata::new,
             ComponentTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(
+        registerProjectCustom(
             entries,
             ComposableIndexTemplateMetadata.TYPE,
             ComposableIndexTemplateMetadata::new,
             ComposableIndexTemplateMetadata::readDiffFrom
         );
-        registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerProjectCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
-        registerMetadataCustom(entries, FeatureMigrationResults.TYPE, FeatureMigrationResults::new, FeatureMigrationResults::readDiffFrom);
         registerMetadataCustom(entries, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new, DesiredNodesMetadata::readDiffFrom);
-
+        registerProjectCustom(
+            entries,
+            RegisteredPolicySnapshots.TYPE,
+            RegisteredPolicySnapshots::new,
+            RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
+        );
+        // Secrets
+        registerClusterCustom(entries, ClusterSecrets.TYPE, ClusterSecrets::new, ClusterSecrets::readDiffFrom);
+        registerProjectCustom(entries, ProjectSecrets.TYPE, ProjectSecrets::new, ProjectSecrets::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
         // Health API
         entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
         entries.addAll(HealthMetadataService.getNamedWriteables());
+
+        // Streams
+        registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
+
         return entries;
     }
 
@@ -238,58 +313,67 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RepositoriesMetadata.TYPE),
                 RepositoriesMetadata::fromXContent
             )
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
         );
         entries.add(
-            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
         );
+        // Project scoped persistent tasks
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(PersistentTasksCustomMetadata.TYPE),
                 PersistentTasksCustomMetadata::fromXContent
             )
         );
+        // Cluster scoped persistent tasks
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
+                new ParseField(ClusterPersistentTasksCustomMetadata.TYPE),
+                ClusterPersistentTasksCustomMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
                 new ParseField(ComponentTemplateMetadata.TYPE),
                 ComponentTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ComposableIndexTemplateMetadata.TYPE),
                 ComposableIndexTemplateMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(NodesShutdownMetadata.TYPE),
                 NodesShutdownMetadata::fromXContent
             )
         );
         entries.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ClusterCustom.class,
                 new ParseField(DesiredNodesMetadata.TYPE),
                 DesiredNodesMetadata::fromXContent
             )
@@ -306,13 +390,22 @@ public class ClusterModule extends AbstractModule {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
-    private static <T extends Metadata.Custom> void registerMetadataCustom(
+    private static <T extends Metadata.ClusterCustom> void registerMetadataCustom(
         List<Entry> entries,
         String name,
         Reader<? extends T> reader,
         Reader<NamedDiff<?>> diffReader
     ) {
-        registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
+        registerCustom(entries, Metadata.ClusterCustom.class, name, reader, diffReader);
+    }
+
+    private static <T extends Metadata.ProjectCustom> void registerProjectCustom(
+        List<Entry> entries,
+        String name,
+        Reader<? extends T> reader,
+        Reader<NamedDiff<?>> diffReader
+    ) {
+        registerCustom(entries, Metadata.ProjectCustom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(
@@ -346,6 +439,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new IndexVersionAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
@@ -372,29 +466,40 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // in v10 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        BalancerSettings balancerSettings,
+        BalancingWeightsFactory balancingWeightsFactory,
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        WriteLoadForecaster writeLoadForecaster
+        WriteLoadForecaster writeLoadForecaster,
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(clusterSettings, writeLoadForecaster));
+        allocators.put(
+            BALANCED_ALLOCATOR,
+            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
+        );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory),
                 threadPool,
                 clusterService,
-                reconciler
+                reconciler,
+                telemetryProvider,
+                nodeAllocationStatsAndWeightsCalculator
             )
         );
 
         for (ClusterPlugin plugin : clusterPlugins) {
+            // noinspection removal
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {
                 if (allocators.put(k, v) != null) {
                     throw new IllegalArgumentException("ShardsAllocator [" + k + "] already defined");
@@ -411,10 +516,6 @@ public class ClusterModule extends AbstractModule {
 
     public AllocationService getAllocationService() {
         return allocationService;
-    }
-
-    public MetadataDeleteIndexService getMetadataDeleteIndexService() {
-        return metadataDeleteIndexService;
     }
 
     @Override
@@ -436,6 +537,9 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationDeciders.class).toInstance(allocationDeciders);
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
         bind(ShardRoutingRoleStrategy.class).toInstance(shardRoutingRoleStrategy);
+        bind(AllocationStatsService.class).toInstance(allocationStatsService);
+        bind(TelemetryProvider.class).toInstance(telemetryProvider);
+        bind(MetadataRolloverService.class).asEagerSingleton();
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

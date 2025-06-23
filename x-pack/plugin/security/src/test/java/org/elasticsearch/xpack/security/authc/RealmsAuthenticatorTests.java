@@ -8,18 +8,15 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -28,24 +25,28 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RealmsAuthenticatorTests extends ESTestCase {
+public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
 
     private ThreadContext threadContext;
     private Realms realms;
@@ -63,6 +64,8 @@ public class RealmsAuthenticatorTests extends ESTestCase {
     private Cache<String, Realm> lastSuccessfulAuthCache;
     private String nodeName;
     private RealmsAuthenticator realmsAuthenticator;
+    private TestTelemetryPlugin telemetryPlugin;
+    private TestNanoTimeSupplier nanoTimeSupplier;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -92,7 +95,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(realm3.realmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, domain3));
 
         request = randomBoolean()
-            ? mock(AuthenticationService.AuditableRestRequest.class)
+            ? mock(AuthenticationService.AuditableHttpRequest.class)
             : mock(AuthenticationService.AuditableTransportRequest.class);
         authenticationToken = mock(AuthenticationToken.class);
         username = randomAlphaOfLength(5);
@@ -101,7 +104,14 @@ public class RealmsAuthenticatorTests extends ESTestCase {
 
         numInvalidation = new AtomicLong();
         lastSuccessfulAuthCache = mock(Cache.class);
-        realmsAuthenticator = new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache);
+        telemetryPlugin = new TestTelemetryPlugin();
+        nanoTimeSupplier = new TestNanoTimeSupplier(randomLongBetween(0, 100));
+        realmsAuthenticator = new RealmsAuthenticator(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry(),
+            nanoTimeSupplier
+        );
     }
 
     public void testExtractCredentials() {
@@ -195,25 +205,20 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.authenticationFailed(authenticationToken)).thenReturn(e);
 
-        final Logger unlicensedRealmsLogger = LogManager.getLogger(RealmsAuthenticator.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
-                    "Authentication failed using realms [realm1/realm1,realm2/reaml2]."
+                    "Authentication failed using realms [realm1/realm1,realm2/realm2]."
                         + " Realms [realm3/realm3] were skipped because they are not permitted on the current license"
                 )
             );
             final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
-        } finally {
-            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -256,6 +261,107 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(request.runAsDenied(any(), any())).thenReturn(e);
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), authentication, future);
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
+    }
+
+    public void testRecodingSuccessfulAuthenticationMetrics() {
+        when(lastSuccessfulAuthCache.get(username)).thenReturn(randomFrom(realm1, realm2, null));
+        final Realm successfulRealm = randomFrom(realm1, realm2);
+        when(successfulRealm.supports(authenticationToken)).thenReturn(true);
+        final long successfulExecutionTimeInNanos = randomLongBetween(0, 500);
+        doAnswer(invocationOnMock -> {
+            nanoTimeSupplier.advanceTime(successfulExecutionTimeInNanos);
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.success(user));
+            return null;
+        }).when(successfulRealm).authenticate(eq(authenticationToken), any());
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        context.addAuthenticationToken(authenticationToken);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        realmsAuthenticator.authenticate(context, future);
+        final AuthenticationResult<Authentication> result = future.actionGet();
+        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+
+        assertSingleSuccessAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_REALMS,
+            Map.ofEntries(
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, successfulRealm.name()),
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, successfulRealm.type())
+            )
+        );
+
+        assertZeroFailedAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_REALMS);
+
+        assertAuthenticationTimeMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_REALMS,
+            successfulExecutionTimeInNanos,
+            Map.ofEntries(
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, successfulRealm.name()),
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, successfulRealm.type())
+            )
+        );
+    }
+
+    public void testRecordingFailedAuthenticationMetric() {
+        when(lastSuccessfulAuthCache.get(username)).thenReturn(randomFrom(realm1, realm2, null));
+
+        final Realm unsuccessfulRealm;
+        if (randomBoolean()) {
+            when(realm1.supports(authenticationToken)).thenReturn(false);
+            unsuccessfulRealm = realm2;
+        } else {
+            when(realm2.supports(authenticationToken)).thenReturn(false);
+            unsuccessfulRealm = realm1;
+        }
+
+        when(unsuccessfulRealm.supports(authenticationToken)).thenReturn(true);
+        final long unsuccessfulExecutionTimeInNanos = randomLongBetween(0, 500);
+        doAnswer(invocationOnMock -> {
+            nanoTimeSupplier.advanceTime(unsuccessfulExecutionTimeInNanos);
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful realms authentication", null));
+            return null;
+        }).when(unsuccessfulRealm).authenticate(eq(authenticationToken), any());
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException("realms authentication failed");
+        when(request.authenticationFailed(same(authenticationToken))).thenReturn(exception);
+        context.addAuthenticationToken(authenticationToken);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        realmsAuthenticator.authenticate(context, future);
+        var e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+        assertThat(e, sameInstance(exception));
+
+        assertSingleFailedAuthMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_REALMS,
+            Map.ofEntries(
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, unsuccessfulRealm.name()),
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type()),
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, "unsuccessful realms authentication")
+            )
+        );
+
+        assertZeroSuccessAuthMetrics(telemetryPlugin, SecurityMetricType.AUTHC_REALMS);
+
+        assertAuthenticationTimeMetric(
+            telemetryPlugin,
+            SecurityMetricType.AUTHC_REALMS,
+            unsuccessfulExecutionTimeInNanos,
+            Map.ofEntries(
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, unsuccessfulRealm.name()),
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type())
+            )
+        );
+
     }
 
     private void configureRealmAuthResponse(Realm realm, AuthenticationResult<User> authenticationResult) {

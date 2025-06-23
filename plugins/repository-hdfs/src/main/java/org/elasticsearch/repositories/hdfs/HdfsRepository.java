@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.hdfs;
 
@@ -16,7 +17,7 @@ import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -37,11 +39,13 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
+
+    private static final int MIN_REPLICATION_FACTOR = 1;
+    private static final int MAX_REPLICATION_FACTOR = Short.MAX_VALUE;
 
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
@@ -53,6 +57,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final String pathSetting;
 
     public HdfsRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -60,7 +65,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -109,6 +114,42 @@ public final class HdfsRepository extends BlobStoreRepository {
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
+        Integer replicationFactor = repositorySettings.getAsInt("replication_factor", null);
+        if (replicationFactor != null && replicationFactor < MIN_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= {}",
+                replicationFactor,
+                MIN_REPLICATION_FACTOR
+            );
+        }
+        if (replicationFactor != null && replicationFactor > MAX_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= {}",
+                replicationFactor,
+                MAX_REPLICATION_FACTOR
+            );
+        }
+        int minReplicationFactory = hadoopConfiguration.getInt("dfs.replication.min", 0);
+        int maxReplicationFactory = hadoopConfiguration.getInt("dfs.replication.max", 512);
+        if (replicationFactor != null && replicationFactor < minReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= dfs.replication.min [{}]",
+                replicationFactor,
+                minReplicationFactory
+            );
+        }
+        if (replicationFactor != null && replicationFactor > maxReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= dfs.replication.max [{}]",
+                replicationFactor,
+                maxReplicationFactory
+            );
+        }
+
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
 
@@ -142,7 +183,14 @@ public final class HdfsRepository extends BlobStoreRepository {
         );
 
         try {
-            return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
+            return new HdfsBlobStore(
+                fileContext,
+                path,
+                bufferSize,
+                isReadOnly(),
+                haEnabled,
+                replicationFactor != null ? replicationFactor.shortValue() : null
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", blobstoreUri), e);
         }
@@ -233,12 +281,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     @Override
     protected HdfsBlobStore createBlobStore() {
-        // initialize our blobstore using elevated privileges.
-        SpecialPermission.check();
-        final HdfsBlobStore blobStore = AccessController.doPrivileged(
-            (PrivilegedAction<HdfsBlobStore>) () -> createBlobstore(uri, pathSetting, getMetadata().settings())
-        );
-        return blobStore;
+        return createBlobstore(uri, pathSetting, getMetadata().settings());
     }
 
     @Override

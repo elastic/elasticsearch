@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
 
@@ -24,24 +24,15 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
      * them garbled together, or trying to write one after the channel had closed, etc.
      */
     public void testListenerOnlyInvokedOnceWhenIndexDoesNotExist() {
-        final AtomicBoolean invoked = new AtomicBoolean();
-        final ActionListener<ValidateQueryResponse> listener = new ActionListener<>() {
-
-            @Override
-            public void onResponse(final ValidateQueryResponse validateQueryResponse) {
-                fail("onResponse should not be invoked in this failure case");
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                if (invoked.compareAndSet(false, true) == false) {
-                    fail("onFailure invoked more than once");
-                }
-            }
-
-        };
-        client().admin().indices().validateQuery(new ValidateQueryRequest("non-existent-index"), listener);
-        assertThat(invoked.get(), equalTo(true)); // ensure that onFailure was invoked
+        assertThat(
+            safeAwaitFailure(
+                ValidateQueryResponse.class,
+                listener -> client().admin()
+                    .indices()
+                    .validateQuery(new ValidateQueryRequest("non-existent-index"), ActionListener.assertOnce(listener))
+            ),
+            instanceOf(IndexNotFoundException.class)
+        );
     }
 
 }

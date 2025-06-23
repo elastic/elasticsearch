@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.metadata;
@@ -52,8 +53,17 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         return randomHealthMetadata();
     }
 
+    @Override
+    protected ClusterState.Custom mutateInstance(ClusterState.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static HealthMetadata randomHealthMetadata() {
-        return new HealthMetadata(randomDiskMetadata());
+        return new HealthMetadata(randomDiskMetadata(), randomShardLimitsMetadata());
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
+        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -75,7 +85,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         }
     }
 
-    static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
+    static HealthMetadata.Disk mutate(HealthMetadata.Disk base) {
         RelativeByteSizeValue highWatermark = base.highWatermark();
         ByteSizeValue highWatermarkMaxHeadRoom = base.highMaxHeadroom();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
@@ -100,8 +110,19 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         );
     }
 
+    static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
+        if (base == null) {
+            return null;
+        }
+        if (randomBoolean()) {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
+        } else {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+        }
+    }
+
     private HealthMetadata mutate(HealthMetadata base) {
-        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+        return new HealthMetadata(mutate(base.getDiskMetadata()), mutate(base.getShardLimitsMetadata()));
     }
 
     public void testChunking() {

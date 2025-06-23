@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
@@ -13,14 +14,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -50,9 +52,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
-    public static final ActionType<GetFieldMappingsResponse> TYPE = new ActionType<>(ACTION_NAME, GetFieldMappingsResponse::new);
+    public static final ActionType<GetFieldMappingsResponse> TYPE = new ActionType<>(ACTION_NAME);
 
-    protected final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
@@ -62,6 +63,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -70,11 +72,11 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             GetFieldMappingsIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
 
@@ -85,7 +87,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardsIterator shards(ProjectState state, InternalRequest request) {
         // Will balance requests between shards
         return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
     }
@@ -108,8 +110,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ, request.concreteIndex());
     }
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {
@@ -160,12 +162,12 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
-                    addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
+                    addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {
-                    if (Regex.simpleMatch(field, fieldMapper.name())) {
-                        addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
+                    if (Regex.simpleMatch(field, fieldMapper.fullPath())) {
+                        addFieldMapper(fieldPredicate, fieldMapper.fullPath(), fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
@@ -197,7 +199,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
                     includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS,
                     false
                 );
-                fieldMappings.put(field, new FieldMappingMetadata(fieldMapper.name(), bytes));
+                fieldMappings.put(field, new FieldMappingMetadata(fieldMapper.fullPath(), bytes));
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
             }

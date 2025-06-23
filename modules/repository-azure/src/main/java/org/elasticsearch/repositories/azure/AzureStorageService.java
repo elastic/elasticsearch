@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.util.logging.ClientLogger;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,9 +25,8 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.URL;
 import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
@@ -36,7 +37,7 @@ public class AzureStorageService {
      * The maximum size of a BlockBlob block.
      * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
      */
-    public static ByteSizeValue MAX_BLOCK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+    public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
 
     /**
      * The maximum number of blocks.
@@ -67,29 +68,45 @@ public class AzureStorageService {
     public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
 
     private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
+    private final int multipartUploadMaxConcurrency;
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
+    private final boolean stateless;
 
     public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshSettings(clientsSettings);
         this.azureClientProvider = azureClientProvider;
+        this.stateless = DiscoveryNode.isStateless(settings);
+        this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode) {
-        return client(clientName, locationMode, null);
+    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
+        return client(clientName, locationMode, purpose, null);
     }
 
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, BiConsumer<String, URL> successfulRequestConsumer) {
+    public AzureBlobServiceClient client(
+        String clientName,
+        LocationMode locationMode,
+        OperationPurpose purpose,
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler
+    ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
-        return azureClientProvider.createClient(azureStorageSettings, locationMode, retryOptions, proxyOptions, successfulRequestConsumer);
+        return azureClientProvider.createClient(
+            azureStorageSettings,
+            locationMode,
+            retryOptions,
+            proxyOptions,
+            requestMetricsHandler,
+            purpose
+        );
     }
 
     private AzureStorageSettings getClientSettings(String clientName) {
@@ -123,12 +140,15 @@ public class AzureStorageService {
         return azureStorageSettings.getMaxRetries();
     }
 
+    boolean isStateless() {
+        return stateless;
+    }
+
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-        String connectString = azureStorageSettings.getConnectString();
-        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, clientLogger);
-        String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
-        String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+        AzureStorageSettings.StorageEndpoint endpoint = azureStorageSettings.getStorageEndpoint();
+        String primaryUri = endpoint.primaryURI();
+        String secondaryUri = endpoint.secondaryURI();
 
         if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");
@@ -166,5 +186,20 @@ public class AzureStorageService {
     public void refreshSettings(Map<String, AzureStorageSettings> clientsSettings) {
         this.storageSettings = Map.copyOf(clientsSettings);
         // clients are built lazily by {@link client(String, LocationMode)}
+    }
+
+    /**
+     * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
+     */
+    public Set<String> getExtraUsageFeatures(String clientName) {
+        try {
+            return getClientSettings(clientName).credentialsUsageFeatures();
+        } catch (Exception e) {
+            return Set.of();
+        }
+    }
+
+    public int getMultipartUploadMaxConcurrency() {
+        return multipartUploadMaxConcurrency;
     }
 }

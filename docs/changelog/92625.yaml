@@ -1,6 +1,0 @@
-pr: 92625
-summary: Fix Security's expression resolver to not remove unavailable but authorized
-  names
-area: Authorization
-type: bug
-issues: []

@@ -1,5 +1,0 @@
-pr: 92328
-summary: Increase the default timeout for the start trained model deployment API
-area: Machine Learning
-type: enhancement
-issues: []

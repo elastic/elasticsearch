@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -13,12 +14,13 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -63,6 +65,30 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
+            assertEquals(0d, stats.getCount(), 0);
+            assertEquals(0d, stats.getSum(), 0);
+            assertEquals(Float.NaN, stats.getAvg(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(stats));
+        }, ft);
+    }
+
+    public void testEmptyDate() throws IOException {
+        DateFormatter.forPattern("epoch_millis");
+        final MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "field",
+            true,
+            true,
+            false,
+            true,
+            DateFormatter.forPattern("epoch_millis"),
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            null,
+            Map.of()
+        );
         testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
@@ -220,9 +246,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 IndexReader unmappedReader = unmappedWriter.getReader();
                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
             ) {
-
-                final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = searchAndReduce(searcher, new AggTestConfig(builder, ft));
+                final InternalStats stats = searchAndReduce(multiReader, new AggTestConfig(builder, ft));
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.mget;
 
@@ -37,8 +38,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -75,8 +75,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -115,8 +114,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 )
         );
 
-        client().prepareIndex("alias1")
-            .setId("1")
+        prepareIndex("alias1").setId("1")
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -142,7 +140,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .endObject()
         );
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
@@ -173,7 +171,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 assertThat(((Map<String, Object>) source.get("included")).size(), equalTo(1));
                 assertThat(((Map<String, Object>) source.get("included")), hasKey("field"));
             } else {
-                assertThat(responseItem.getResponse().getSourceAsBytes(), nullValue());
+                assertThat(responseItem.getResponse().getSourceAsBytesRef(), nullValue());
             }
         }
     }
@@ -189,8 +187,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        client().prepareIndex("test")
-            .setId(id)
+        prepareIndex("test").setId(id)
             .setRefreshPolicy(IMMEDIATE)
             .setRouting(routingOtherShard)
             .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())

@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -27,6 +28,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -68,7 +72,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         // Disable native ML autodetect_process as the c++ controller won't be available
         newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), ByteSizeValue.ofBytes(1024));
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Disable security otherwise delete-by-query action fails to get authorized
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -99,7 +103,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Needed for scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            // Needed for wildcard fields
+            Wildcard.class
         );
     }
 
@@ -107,7 +113,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
+            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         } finally {
             super.tearDown();
         }
@@ -115,10 +121,11 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
-        });
+        ClusterServiceUtils.awaitClusterState(
+            logger,
+            MachineLearning::criticalTemplatesInstalled,
+            getInstanceFromNode(ClusterService.class)
+        );
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -153,6 +160,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected static ThreadPool mockThreadPool() {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
@@ -162,7 +170,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return tp;
     }
 

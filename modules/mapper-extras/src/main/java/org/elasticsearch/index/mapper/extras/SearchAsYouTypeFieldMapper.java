@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -35,8 +36,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -142,9 +143,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -187,7 +188,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 fieldType,
                 similarity.getValue(),
                 analyzers.getSearchAnalyzer(),
@@ -202,7 +203,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
-            final String fullName = context.buildFullName(name);
+            final String fullName = context.buildFullName(leafName());
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(
                 indexAnalyzer.analyzer(),
@@ -228,7 +229,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final int shingleSize = i + 2;
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
-                String fieldName = getShingleFieldName(context.buildFullName(name), shingleSize);
+                String fieldName = getShingleFieldName(context.buildFullName(leafName()), shingleSize);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper = SearchAsYouTypeAnalyzer.withShingle(
                     indexAnalyzer.analyzer(),
@@ -260,13 +261,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
             return new SearchAsYouTypeFieldMapper(
-                name,
+                leafName(),
                 ft,
-                copyTo.build(),
+                builderParams(this, context),
                 indexAnalyzers,
                 prefixFieldMapper,
                 shingleFieldMappers,
-                multiFieldsBuilder.build(this, context),
                 this
             );
         }
@@ -312,7 +312,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer),
                 meta
             );
-            this.fieldType = fieldType;
+            this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
         public void setPrefixField(PrefixFieldType prefixField) {
@@ -351,7 +351,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final Query query = prefixField.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                     return new ConstantScoreQuery(query);
                 } else {
                     return query;
@@ -361,7 +362,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private void checkForPositions() {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 
@@ -413,7 +414,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }
@@ -464,8 +467,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = method == null
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -494,8 +498,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final FieldType fieldType;
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
-            this.fieldType = fieldType;
+            super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
+            this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
         }
 
         @Override
@@ -533,8 +537,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         private final FieldType fieldType;
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
-            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
-            this.fieldType = fieldType;
+            super(mappedFieldtype.name(), mappedFieldtype, BuilderParams.empty());
+            this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         }
 
         FieldType getLuceneFieldType() {
@@ -608,7 +612,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final Query query = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                     return new ConstantScoreQuery(query);
                 } else {
                     return query;
@@ -649,7 +654,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }
@@ -665,14 +672,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Map<String, NamedAnalyzer> indexAnalyzers,
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
-        MultiFields multiFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -714,7 +720,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {
@@ -740,12 +746,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return subfieldsAndMultifieldsIterator();
+    }
+
+    private Iterator<Mapper> subfieldsAndMultifieldsIterator() {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        @SuppressWarnings("unchecked")
-        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
-        return concat;
+        return Iterators.concat(multiFieldsIterator(), subIterators.iterator());
+    }
+
+    @Override
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return subfieldsAndMultifieldsIterator();
     }
 
     /**

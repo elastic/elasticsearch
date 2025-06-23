@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -23,6 +25,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,22 +36,18 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
-    public NodesInfoResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeInfo::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -63,8 +62,14 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("ip", nodeInfo.getNode().getHostAddress());
 
             builder.field("version", nodeInfo.getVersion());
-            // flavor no longer exists, but we keep it here for backcompat
-            builder.field("build_flavor", "default");
+            builder.field("transport_version", nodeInfo.getTransportVersion().id());
+            builder.field("index_version", nodeInfo.getIndexVersion().id());
+            builder.startObject("component_versions");
+            for (var cv : nodeInfo.getComponentVersions().entrySet()) {
+                builder.field(cv.getKey(), cv.getValue());
+            }
+            builder.endObject();
+            builder.field("build_flavor", nodeInfo.getBuild().flavor());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {
@@ -109,6 +114,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getInfo(HttpInfo.class) != null) {
                 nodeInfo.getInfo(HttpInfo.class).toXContent(builder, params);
+            }
+            if (nodeInfo.getInfo(RemoteClusterServerInfo.class) != null) {
+                nodeInfo.getInfo(RemoteClusterServerInfo.class).toXContent(builder, params);
             }
             if (nodeInfo.getInfo(PluginsAndModules.class) != null) {
                 nodeInfo.getInfo(PluginsAndModules.class).toXContent(builder, params);

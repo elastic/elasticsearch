@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -16,7 +16,7 @@ setup:
             settings:
               index:
                 mode: time_series
-                number_of_replicas: 0
+                number_of_replicas: 1
                 number_of_shards: 2
                 routing_path: [metricset, time_series_dimension]
                 time_series:
@@ -86,9 +86,13 @@ setup:
 
 ---
 created the data stream:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:
@@ -114,7 +118,8 @@ created the data stream:
   - match: { $body.$backing_index.data_stream: 'k8s' }
   - match: { $body.$backing_index.settings.index.mode: 'time_series' }
   - match: { $body.$backing_index.settings.index.time_series.start_time: '2021-04-28T00:00:00Z' }
-  - match: { $body.$backing_index.settings.index.time_series.end_time: '2021-04-29T00:00:00Z' }
+# We can't match on index.time_series.end_time in this test because UpdateTimeSeriesRangeService updates it every 5 minutes, so every
+# once in a while it is not what we expect it to be. See #93068.
 
   - do:
       cat.indices:
@@ -127,9 +132,9 @@ created the data stream:
 
 ---
 fetch the tsid:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -142,13 +147,13 @@ fetch the tsid:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" ]}
 
 ---
 "aggregate the tsid":
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hahing introduced in 8.13
 
   - do:
       search:
@@ -163,9 +168,9 @@ fetch the tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -178,6 +183,112 @@ index without timestamp:
           - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
 
 ---
+TSDB failures go to failure store:
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [ "fs-k8s*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 1
+                number_of_shards: 2
+                routing_path: [ metricset, time_series_dimension ]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            data_stream_options:
+              failure_store:
+                enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      index:
+        index: fs-k8s
+        body:
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - match: { result : "created"}
+  - match: { failure_store : "used"}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{"@timestamp":"2021-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp": "2021-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "fs-k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "create": { "_index": "k8s"} }'
+          - '{ "@timestamp":"2000-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+  - is_true: errors
+
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.0.create.failure_store
+  - match: { items.1.create._index: '/\.ds-k8s-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+  - match: { items.3.create._index: '/\.fs-fs-k8s-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.3.create.status: 201 }
+  - match: { items.3.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
+  - match: { items.4.create._index: 'k8s' }
+  - match: { items.4.create.status: 400 }
+  - match: { items.4.create.error.type: timestamp_error }
+  - match: { items.4.create.failure_store: not_enabled }
+
+---
 index without timestamp with pipeline:
   - do:
       catch: /Error extracting data stream timestamp field\:\ failed to parse date field \[wrong_format\] with format \[strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis\]/
@@ -186,3 +297,1090 @@ index without timestamp with pipeline:
         pipeline: my_pipeline
         body:
           - '{"@timestamp": "wrong_format", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+
+---
+dynamic templates:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 0
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": "10", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z", "data": "20", "attributes.dim1": "A", "attributes.dim2": "1", "attributes.another.dim1": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z", "data": "30", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z", "data": "40", "attributes.dim1": "B", "attributes.dim2": "2", "attributes.another.dim1": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim1: A
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim2: 1
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim1: C
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim2: 10.5
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim3: true
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+---
+dynamic templates - conflicting aliases:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 2
+                resource_attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes.dim": "A", "resource_attributes.dim": "C" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "attributes.dim": "A", "resource_attributes.dim": "C" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "attributes.dim": "B", "resource_attributes.dim": "D" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "attributes.dim": "B", "resource_attributes.dim": "D" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim: A
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  resource_attributes.dim: C
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+---
+dynamic templates - conflicting aliases with top-level field:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [otel] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [otel]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                body:
+                  type: match_only_text
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+                scope:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 2
+                resource:
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 3
+                metrics:
+                  type: passthrough
+                  dynamic: true
+                  priority: 0
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+                      ignore_malformed: true
+                - strings_as_keyword:
+                    mapping:
+                      type: keyword
+                      ignore_above: 1024
+                      match_mapping_type: string
+                      path_match: "*attributes.*"
+
+  - do:
+      bulk:
+        index: otel
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics": {"data": "10"}, "body": "top-level", "attributes": {"body": "attribute"}, "scope": {"attributes": {"body": "scope" }}, "resource": {"attributes": {"body": "resource" }}}'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: otel
+        body:
+          size: 1
+          fields: ["*"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.body: [ top-level ] }
+  - match: { hits.hits.0.fields.attributes\.body: [ attribute ] }
+  - match: { hits.hits.0.fields.scope\.attributes\.body: [ scope ] }
+  - match: { hits.hits.0.fields.resource\.attributes\.body: [ resource ] }
+
+---
+dynamic templates with nesting:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 2
+                resource:
+                  type: object
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true, "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "resource.attributes.another.dim1": "1", "attributes.dim2": "C", "attributes.another.dim2": "10.5", "attributes.another.dim3": true, "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false, "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "resource.attributes.another.dim1": "2", "attributes.dim2": "D", "attributes.another.dim2": "20.5", "attributes.another.dim3": false, "attributes.a.much.deeper.nested.dim": "BD" }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 4 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim1: A
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim2: C
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim1: 1
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim2: 10.5
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.dim3: true
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  a.much.deeper.nested.dim: AC
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+---
+dynamic templates with incremental indexing:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 2
+                resource:
+                  type: object
+                  properties:
+                    attributes:
+                      type: passthrough
+                      dynamic: true
+                      time_series_dimension: true
+                      priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "resource.attributes.dim1": "A", "attributes.dim2": "C" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:09.138Z","data": "20", "resource.attributes.dim1": "A", "attributes.dim2": "C" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.138Z","data": "30", "resource.attributes.dim1": "B", "attributes.dim2": "D" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:10.238Z","data": "40", "resource.attributes.dim1": "B", "attributes.dim2": "D" }'
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:04:08.138Z","data": "110", "resource.attributes.another.dim1": "1", "attributes.another.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:04:09.138Z","data": "120", "resource.attributes.another.dim1": "1", "attributes.another.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:04:10.138Z","data": "130", "resource.attributes.another.dim1": "2", "attributes.another.dim2": "20.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:04:10.238Z","data": "140", "resource.attributes.another.dim1": "2", "attributes.another.dim2": "20.5" }'
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:08.138Z","data": "210", "resource.attributes.another.deeper.dim1": "1", "attributes.another.deeper.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:09.138Z","data": "220", "resource.attributes.another.deeper.dim1": "1", "attributes.another.deeper.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.138Z","data": "230", "resource.attributes.another.deeper.dim1": "2", "attributes.another.deeper.dim2": "20.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.238Z","data": "240", "resource.attributes.another.deeper.dim1": "2", "attributes.another.deeper.dim2": "20.5" }'
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:06:08.138Z","data": "310",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:06:09.138Z","data": "320",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:06:10.138Z","data": "330",  "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:06:10.238Z","data": "340",  "attributes.a.much.deeper.nested.dim": "BD" }'
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:08.138Z","data": "210", "resource.attributes.another.deeper.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:09.138Z","data": "220", "resource.attributes.another.deeper.dim3": true }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.138Z","data": "230", "resource.attributes.another.deeper.dim3": false }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.238Z","data": "240", "resource.attributes.another.deeper.dim3": false }'
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+
+  - match: { hits.total.value: 20 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim1: A
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  dim2: C
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.deeper.dim1: 1
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.deeper.dim2: 10.5
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  a.much.deeper.nested.dim: AC
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            filterA:
+              filter:
+                term:
+                  another.deeper.dim3: true
+              aggs:
+                tsids:
+                  terms:
+                    field: _tsid
+
+  - length: { aggregations.filterA.tsids.buckets: 1 }
+  - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
+
+---
+subobject in passthrough object auto flatten:
+  - do:
+      allowed_warnings:
+        - "index template [my-passthrough-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-passthrough-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-passthrough-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: time_series
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  time_series_dimension: true
+                  priority: 0
+                  properties:
+                    subcategory:
+                      type: object
+                      properties:
+                        dim:
+                          type: keyword
+  - do:
+      indices.create_data_stream:
+        name: k9s
+  - is_true: acknowledged
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: k9s
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.subcategory\.dim.type: 'keyword' }
+
+---
+enable subobjects in passthrough object:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Support for passthrough fields was added in 8.13"
+  - do:
+      catch: /Mapping definition for \[attributes\] has unsupported parameters:\  \[subobjects \:\ true\]/
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  subobjects: true
+
+---
+passthrough objects with duplicate priority:
+  - do:
+      catch: /has a conflicting param/
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  priority: 1
+                resource.attributes:
+                  type: passthrough
+                  priority: 1
+
+---
+dimensions with ignore_malformed and ignore_above:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  time_series_dimension: true
+                  priority: 0
+                  properties:
+                    keyword_dim:
+                      type: keyword
+                    keyword_dim_ignored:
+                      type: keyword
+                      ignore_above: 2
+                    long_dim_ignored:
+                      type: long
+                      ignore_malformed: true
+                data:
+                  type: long
+                  time_series_metric: gauge
+                  ignore_malformed: true
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 10, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 20, "attributes.keyword_dim": "foo", "attributes.keyword_dim_ignored": "ignored too", "attributes.long_dim_ignored": "ignored" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 30, "attributes.keyword_dim_ignored": "ignored 3" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 40, "attributes.keyword_dim_ignored": "ignored 4" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 50, "attributes.keyword_dim_ignored": "duplicate" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 60, "attributes.keyword_dim_ignored": "duplicate" }'
+  - match: { errors: true }
+  - match: { items.0.create.result: created }
+  - match: { items.1.create.result: created }
+  - match: { items.2.create.result: created }
+  - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
+  - match: { items.5.create.error.type: version_conflict_engine_exception }
+
+  - do:
+      search:
+        index: k9s
+        body:
+          sort:
+            - data: asc
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
+  - match: { hits.hits.1._ignored: ["attributes.keyword_dim_ignored", "attributes.long_dim_ignored"]}
+  - match: { hits.hits.2._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.3._ignored: ["attributes.keyword_dim_ignored"]}
+  - match: { hits.hits.4._ignored: ["attributes.keyword_dim_ignored"]}
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            keyword_dims:
+              terms:
+                field: keyword_dim
+
+  - length: { aggregations.keyword_dims.buckets: 1 }
+  - match: { aggregations.keyword_dims.buckets.0.key: "foo" }
+  - match: { aggregations.keyword_dims.buckets.0.doc_count: 2 }
+
+---
+non string dimension fields:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 0
+                metrics:
+                  type: passthrough
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+                - ip_attributes:
+                    path_match: "*.ip"
+                    match_mapping_type: string
+                    mapping:
+                      type: ip
+                - strings_as_keywords:
+                    match_mapping_type: string
+                    mapping:
+                      type: keyword
+                - double_as_double:
+                    match_mapping_type: double
+                    mapping:
+                      type: double
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "metrics.data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "metrics.data": "10", "attributes.string": "foo", "attributes.boolean": true, "attributes.integer": 1, "attributes.double": 1.1, "attributes.host.ip": "127.0.0.1" }'
+  - is_false: errors
+
+  - do:
+      search:
+        index: k9s
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    attributes.string:
+                      value: foo
+                - term:
+                    attributes.boolean:
+                      value: true
+                - term:
+                    attributes.integer:
+                      value: 1
+                - term:
+                    attributes.double:
+                      value: 1.1
+                - term:
+                    attributes.host.ip:
+                      value: 127.0.0.1
+          size: 1
+          fields: [ "*" ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.attributes\.string: [ "foo" ] }
+  - match: { hits.hits.0.fields.attributes\.boolean: [ true ] }
+  - match: { hits.hits.0.fields.attributes\.integer: [ 1 ] }
+  - match: { hits.hits.0.fields.attributes\.double: [ 1.1 ] }
+  - match: { hits.hits.0.fields.attributes\.host\.ip: [ "127.0.0.1" ] }
+
+  - do:
+      indices.get_data_stream:
+        name: k9s
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.attributes.properties.string.type: 'keyword' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.string.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.type: 'boolean' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.boolean.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.attributes.properties.integer.type: 'long' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.integer.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.attributes.properties.double.type: 'double' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.double.time_series_dimension: true }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.type: 'ip' }
+  - match: { .$idx0name.mappings.properties.attributes.properties.host\.ip.time_series_dimension: true }
+
+---
+multi value dimensions:
+  - do:
+      allowed_warnings:
+        - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  time_series_dimension: true
+                  priority: 1
+              dynamic_templates:
+                - counter_metric:
+                    mapping:
+                      type: integer
+                      time_series_metric: counter
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "10", "attributes": { "dim1": ["a" , "b"], "dim2": [1, 2] } }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["b" , "a"], "dim2": [1, 2] } }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z","data": "20", "attributes": { "dim1": ["c" , "b"], "dim2": [1, 2] } }'
+  - is_false: errors
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+
+  - length: { aggregations.tsids.buckets: 3 } # only the order of the dim1 attribute is different, yet we expect to have two distinct time series
+
+  - do:
+      search:
+        index: k9s
+        body:
+          size: 0
+          aggs:
+            dims:
+              terms:
+                field: dim1
+                order:
+                  _key: asc
+
+  - length: { aggregations.dims.buckets: 3 }
+  - match: { aggregations.dims.buckets.0.key: a }
+  - match: { aggregations.dims.buckets.0.doc_count: 2 }
+  - match: { aggregations.dims.buckets.1.key: b }
+  - match: { aggregations.dims.buckets.1.doc_count: 3 }
+  - match: { aggregations.dims.buckets.2.key: c }
+  - match: { aggregations.dims.buckets.2.doc_count: 1 }

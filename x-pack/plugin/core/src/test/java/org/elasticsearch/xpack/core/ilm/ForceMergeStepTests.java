@@ -8,18 +8,16 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
@@ -53,41 +51,47 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ForceMergeStep(key, nextKey, instance.getClient(), maxNumSegments);
+        return new ForceMergeStep(key, nextKey, instance.getClientWithoutProject(), maxNumSegments);
     }
 
     @Override
     public ForceMergeStep copyInstance(ForceMergeStep instance) {
-        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getMaxNumSegments());
+        return new ForceMergeStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClientWithoutProject(),
+            instance.getMaxNumSegments()
+        );
     }
 
     public void testPerformActionComplete() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
-        ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
+        BroadcastResponse forceMergeResponse = Mockito.mock(BroadcastResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")
-            ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(forceMergeResponse);
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testPerformActionThrowsException() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -95,7 +99,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
-        ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
+        BroadcastResponse forceMergeResponse = Mockito.mock(BroadcastResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
@@ -103,30 +107,25 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             assertThat(request.indices()[0], equalTo(indexMetadata.getIndex().getName()));
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")
-            ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[1];
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
-            )
-        );
+        var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
     }
 
     public void testForcemergeFailsOnSomeShards() {
         int numberOfShards = randomIntBetween(2, 5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "ilmPolicy"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "ilmPolicy"))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         Index index = indexMetadata.getIndex();
-        ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
+        BroadcastResponse forceMergeResponse = Mockito.mock(BroadcastResponse.class);
         Mockito.when(forceMergeResponse.getTotalShards()).thenReturn(numberOfShards);
         Mockito.when(forceMergeResponse.getFailedShards()).thenReturn(numberOfShards - 1);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.BAD_REQUEST);
@@ -143,16 +142,14 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(forceMergeResponse);
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
         SetOnce<ElasticsearchException> failedStep = new SetOnce<>();
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1);
         step.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override

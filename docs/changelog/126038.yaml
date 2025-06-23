@@ -1,0 +1,5 @@
+pr: 126038
+summary: Mark `rescore_vector` as generally available
+area: Vector Search
+type: enhancement
+issues: []

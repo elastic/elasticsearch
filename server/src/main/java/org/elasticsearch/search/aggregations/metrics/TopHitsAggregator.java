@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -18,9 +19,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -38,6 +41,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -135,12 +140,14 @@ class TopHitsAggregator extends MetricsAggregator {
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     if (sort == null) {
-                        collectors = new Collectors(TopScoreDocCollector.create(topN, Integer.MAX_VALUE), null);
+                        TopScoreDocCollector topScoreDocCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE)
+                            .newCollector();
+                        collectors = new Collectors(topScoreDocCollector, null);
                     } else {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                            TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
+                            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE).newCollector(),
                             subSearchContext.trackScores() ? new MaxScoreCollector() : null
                         );
                     }
@@ -191,9 +198,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad);
-        subSearchContext.fetchPhase().execute(subSearchContext);
-        FetchSearchResult fetchResult = subSearchContext.fetchResult();
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -217,15 +222,48 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+        InnerHitsContext innerHitsContext = new InnerHitsContext(
+            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
+        );
+
+        SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
+            @Override
+            public SearchExecutionContext getSearchExecutionContext() {
+                return searchExecutionContext;
+            }
+
+            @Override
+            public InnerHitsContext innerHits() {
+                return innerHitsContext;
+            }
+        };
+
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
+        return fetchSubSearchContext.fetchResult();
+    }
+
+    private static Map<String, InnerHitSubContext> getForkedInnerHits(
+        Map<String, InnerHitSubContext> originalInnerHits,
+        SearchExecutionContext searchExecutionContext
+    ) {
+        Map<String, InnerHitSubContext> forkedInnerHits = new HashMap<>();
+        for (Map.Entry<String, InnerHitSubContext> entry : originalInnerHits.entrySet()) {
+            var forkedContext = entry.getValue().copyWithSearchExecutionContext(searchExecutionContext);
+            forkedInnerHits.put(entry.getKey(), forkedContext);
+        }
+
+        return forkedInnerHits;
+    }
+
     @Override
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                new FieldDoc[0],
-                subSearchContext.sort().sort.getSort()
-            );
+            topDocs = new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, new FieldDoc[0], subSearchContext.sort().sort.getSort());
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }

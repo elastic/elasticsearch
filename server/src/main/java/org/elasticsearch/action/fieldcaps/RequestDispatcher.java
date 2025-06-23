@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -16,16 +17,23 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -69,6 +77,8 @@ final class RequestDispatcher {
     RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
+        ProjectResolver projectResolver,
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         Task parentTask,
         FieldCapabilitiesRequest fieldCapsRequest,
         OriginalIndices originalIndices,
@@ -91,11 +101,25 @@ final class RequestDispatcher {
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
+
+        ProjectState project = projectResolver.getProjectState(clusterState);
+
         for (String index : indices) {
-            final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, new String[] { index }, null, null, null, null);
-            final IndexSelector indexResult = new IndexSelector(shardIts);
-            if (indexResult.nodeToShards.isEmpty()) {
+            final List<ShardIterator> shardIts;
+            try {
+                shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
+            } catch (Exception e) {
+                onIndexFailure.accept(index, e);
+                continue;
+            }
+            final IndexSelector indexResult = new IndexSelector(
+                fieldCapsRequest.clusterAlias(),
+                shardIts,
+                fieldCapsRequest.indexFilter(),
+                nowInMillis,
+                coordinatorRewriteContextProvider
+            );
+            if (indexResult.nodeToShards.isEmpty() && indexResult.unmatchedShardIds.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
             } else {
                 this.indexSelectors.put(index, indexResult);
@@ -168,7 +192,7 @@ final class RequestDispatcher {
         assert node != null;
         LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
         final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(
-            r -> onRequestResponse(shardIds, r),
+            this::onRequestResponse,
             failure -> onRequestFailure(shardIds, failure)
         );
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
@@ -179,7 +203,8 @@ final class RequestDispatcher {
             originalIndices,
             fieldCapsRequest.indexFilter(),
             nowInMillis,
-            fieldCapsRequest.runtimeFields()
+            fieldCapsRequest.runtimeFields(),
+            fieldCapsRequest.includeEmptyFields()
         );
         transportService.sendChildRequest(
             node,
@@ -187,7 +212,11 @@ final class RequestDispatcher {
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new)
+            new ActionListenerResponseHandler<>(
+                ActionListener.runAfter(listener, () -> afterRequestsCompleted(shardIds.size())),
+                FieldCapabilitiesNodeResponse::new,
+                executor
+            )
         );
     }
 
@@ -200,10 +229,13 @@ final class RequestDispatcher {
         }
     }
 
-    private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
+    private void onRequestResponse(FieldCapabilitiesNodeResponse nodeResponse) {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
-                if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+                if (fieldCapsRequest.includeEmptyFields() == false) {
+                    // we accept all the responses because they may vary from node to node if we exclude empty fields
+                    onIndexResponse.accept(indexResponse);
+                } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
                     onIndexResponse.accept(indexResponse);
                 }
             }
@@ -220,7 +252,6 @@ final class RequestDispatcher {
                 indexSelector.setFailure(e.getKey(), e.getValue());
             }
         }
-        afterRequestsCompleted(shardIds.size());
     }
 
     private void onRequestFailure(List<ShardId> shardIds, Exception e) {
@@ -230,7 +261,6 @@ final class RequestDispatcher {
                 indexSelector.setFailure(shardId, e);
             }
         }
-        afterRequestsCompleted(shardIds.size());
     }
 
     private static class IndexSelector {
@@ -238,10 +268,34 @@ final class RequestDispatcher {
         private final Set<ShardId> unmatchedShardIds = new HashSet<>();
         private final Map<ShardId, Exception> failures = new HashMap<>();
 
-        IndexSelector(GroupShardsIterator<ShardIterator> shardIts) {
+        IndexSelector(
+            String clusterAlias,
+            List<ShardIterator> shardIts,
+            QueryBuilder indexFilter,
+            long nowInMillis,
+            CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        ) {
             for (ShardIterator shardIt : shardIts) {
-                for (ShardRouting shard : shardIt) {
-                    nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
+                boolean canMatch = true;
+                final ShardId shardId = shardIt.shardId();
+                if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
+                    var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
+                    if (coordinatorRewriteContext != null) {
+                        var shardRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY, clusterAlias);
+                        shardRequest.source(new SearchSourceBuilder().query(indexFilter));
+                        try {
+                            canMatch = SearchService.queryStillMatchesAfterRewrite(shardRequest, coordinatorRewriteContext);
+                        } catch (Exception e) {
+                            // treat as if shard is still a potential match
+                        }
+                    }
+                }
+                if (canMatch) {
+                    for (ShardRouting shard : shardIt) {
+                        nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
+                    }
+                } else {
+                    unmatchedShardIds.add(shardId);
                 }
             }
         }
@@ -249,14 +303,23 @@ final class RequestDispatcher {
         synchronized Exception getFailure() {
             Exception first = null;
             for (Exception e : failures.values()) {
-                first = ExceptionsHelper.useOrSuppress(first, e);
+                first = useOrSuppressIfDifferent(first, e);
+            }
+            return first;
+        }
+
+        static Exception useOrSuppressIfDifferent(Exception first, Exception second) {
+            if (first == null) {
+                return second;
+            } else if (ExceptionsHelper.unwrap(first) != ExceptionsHelper.unwrap(second)) {
+                first.addSuppressed(second);
             }
             return first;
         }
 
         synchronized void setFailure(ShardId shardId, Exception failure) {
             assert unmatchedShardIds.contains(shardId) == false : "Shard " + shardId + " was unmatched already";
-            failures.compute(shardId, (k, curr) -> ExceptionsHelper.useOrSuppress(curr, failure));
+            failures.compute(shardId, (k, curr) -> useOrSuppressIfDifferent(curr, failure));
         }
 
         synchronized void addUnmatchedShardId(ShardId shardId) {

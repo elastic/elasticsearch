@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +30,8 @@ public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
     private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
 
-    private Integer numberOfShards;
-    private ByteSizeValue maxPrimaryShardSize;
+    private final Integer numberOfShards;
+    private final ByteSizeValue maxPrimaryShardSize;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards, ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);
@@ -55,7 +55,7 @@ public class ShrinkStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -83,6 +83,9 @@ public class ShrinkStep extends AsyncActionStep {
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            // We add the skip setting to prevent ILM from processing the shrunken index before the execution state has been copied - which
+            // could happen if the shards of the shrunken index take a long time to allocate.
+            .put(LifecycleSettings.LIFECYCLE_SKIP, true)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
@@ -95,12 +98,12 @@ public class ShrinkStep extends AsyncActionStep {
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
-        getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
-            // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
-            // eventual retry will not be able to succeed anymore (shrunk index was created already)
-            // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
-            listener.onResponse(null);
-        }, listener::onFailure));
+        // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
+        // eventual retry will not be able to succeed anymore (shrunk index was created already)
+        // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
+        getClient(currentState.projectId()).admin()
+            .indices()
+            .resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
 
     }
 

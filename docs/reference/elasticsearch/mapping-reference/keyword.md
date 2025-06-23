@@ -71,20 +71,18 @@ The following parameters are accepted by `keyword` fields:
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
 :   Do not index any field containing a string with more characters than this value. This is important because {{es}}
-    will reject entire documents if they contain keyword fields that exceed `32766` bytes when UTF-8 encoded.
+    will reject entire documents if they contain keyword fields that exceed `32766` UTF-8 encoded bytes.
 
     To avoid any risk of document rejection, set this value to `8191` or less. Fields with strings exceeding this
     length will be excluded from indexing.
 
     The defaults are complicated:
-    * Standard indices: `2147483647` (effectively unbounded). Documents containing `keyword` fields longer than `32766`
-      bytes will be rejected.
-    * `logsdb` indices: `8191`. `keyword` fields longer than `8191` characters won't be indexed, but the documents are
-      accepted and the values unindexed values are available from `_source.
-    * The [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields
-      defaults to a `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword`
-      field with an `ignore_above` of `256`.  String fields longer than 256 characters are available for full text
-      search but won't have a value in their `.keyword` sub-field they can not do exact matching over _search.
+
+    | Index type | Default | Effect |
+    | ---------- | ------- | ------ |
+    | Standard indices | `2147483647` (effectively unbounded) | Documents will be rejected if this keyword exceeds `32766` UTF-8 encoded bytes. |
+    | `logsdb` indices | `8191` | This `keyword` field will never cause documents to be rejected. If this field is longer than `8191` characters it won't be indexed and it's values are available from `_source`. |
+    | [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields | `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword` field with an `ignore_above` of `256` | All string fields are availale. Values longer than 256 characters are only available for full text search and won't have a value in their `.keyword` sub-field they can not do exact matching over _search. |
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.

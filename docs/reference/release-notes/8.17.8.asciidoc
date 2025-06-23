@@ -19,7 +19,7 @@ Codec::
 * Use new source loader when lower `docId` is accessed {es-pull}128320[#128320]
 
 Data streams::
-* [apm-data] fix(8.17): update resource version {es-pull}129539[#129539]
+* Bump APM data resource version {es-pull}129539[#129539]
 
 Infra/Core::
 * Update AbstractXContentParser to support parsers that don't provide text characters {es-pull}129005[#129005]

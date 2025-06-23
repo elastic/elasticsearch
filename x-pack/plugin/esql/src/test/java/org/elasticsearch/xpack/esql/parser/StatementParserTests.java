@@ -3403,11 +3403,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
+
+        expectError("""
+            FROM foo*
+            | FORK (where true) (where true) (where true) (where true)
+                   (where true) (where true) (where true) (where true)
+                   (where true)
+            """, "Fork requires less than 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");

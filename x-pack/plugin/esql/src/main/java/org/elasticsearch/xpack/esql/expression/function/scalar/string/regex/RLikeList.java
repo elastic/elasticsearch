@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
-import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.EsqlAutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -85,19 +85,21 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
     }
 
+
     /**
      * Returns a {@link Query} that matches the field against the provided patterns.
      * For now, we only support a single pattern in the list for pushdown.
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        //throw new RuntimeException("As query called");
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
     }
 
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
+        return new EsqlAutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
     @Override
@@ -108,6 +110,6 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     private String getAutomatonDescription() {
         // we use the information used to create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(RLikePattern::pattern).collect(Collectors.joining("\", \""));
-        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
+        return "RLIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 }

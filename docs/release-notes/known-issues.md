@@ -7,6 +7,10 @@ mapped_pages:
 # Elasticsearch known issues [elasticsearch-known-issues]
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.0.3 [elasticsearch-9.0.3-known-issues]
+* A bug in the merge scheduler in Elasticsearch 9.0.3 may prevent shards from closing when there isn’t enough disk space to complete a merge. As a result, operations such as closing or relocating an index may hang until sufficient disk space becomes available.
+To mitigate this issue, the disk space checker is disabled by default in `9.0.3` by setting `indices.merge.disk.check_interval` to `0` seconds. Manually enabling this setting is not recommended.
+
 ## 9.0.0 [elasticsearch-9.0.0-known-issues]
 * Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.
 

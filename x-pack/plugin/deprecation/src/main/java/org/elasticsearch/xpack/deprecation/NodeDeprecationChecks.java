@@ -1010,7 +1010,6 @@ public class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-
         Setting<Integer> deprecatedSetting = Setting.intSetting(
             "xpack.watcher.bulk.concurrent_requests",
             0,

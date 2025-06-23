@@ -1,7 +1,8 @@
 setup:
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
+      cluster_features: [ "search.vectors.mappers.default_bbq_hnsw" ]
+      reason: "Test cluster feature 'search.vectors.mappers.default_bbq_hnsw' is required for using bbq as default
+      indexing for vector fields."
   - skip:
       features: headers
 

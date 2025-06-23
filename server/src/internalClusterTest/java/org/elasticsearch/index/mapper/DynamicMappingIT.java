@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -908,6 +909,29 @@ public class DynamicMappingIT extends ESIntegTestCase {
         client().index(
             new IndexRequest("test").source("obj.vector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
         ).get();
+    }
+
+    public void testDenseVectorDynamicMapping() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
+            {
+            "dynamic": "true"
+            }""").get());
+
+        client().index(
+            new IndexRequest("test").source("vector_int8", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD - 1, 0.0, 5.0).toArray())
+        ).get();
+        client().index(
+            new IndexRequest("test").source("vector_bbq", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray())
+        ).get();
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+            .get()
+            .mappings()
+            .get("test")
+            .sourceAsMap();
+        assertTrue(new WriteField("properties.vector_int8", () -> mappings).exists());
+        assertTrue(new WriteField("properties.vector_int8.index_options.type", () -> mappings).get(null).toString().equals("int8_hnsw"));
+        assertTrue(new WriteField("properties.vector_bbq", () -> mappings).exists());
+        assertTrue(new WriteField("properties.vector_bbq.index_options.type", () -> mappings).get(null).toString().equals("bbq_hnsw"));
 
     }
 }

@@ -472,10 +472,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
                      "foo, test-*, abc, xyz", test123
                 """);
             assertStringAsIndexPattern("foo,test,xyz", command + " foo,   test,xyz");
+            assertStringAsIndexPattern("<logstash-{now/M{yyyy.MM}}>", command + " <logstash-{now/M{yyyy.MM}}>");
             assertStringAsIndexPattern(
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
             );
+            assertStringAsIndexPattern("<logstash-{now/d{yyyy.MM.dd|+12:00}}>", command + " \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"");
             assertStringAsIndexPattern(
                 "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
                     + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
@@ -500,6 +502,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/d}>*");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
@@ -596,6 +599,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Map<String, String> commands = new HashMap<>();
         commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
+            commands.put("TS {}", "line 1:4: ");
             commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
@@ -636,7 +640,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
                 // Cluster name cannot be combined with selector yet.
-                var parseLineNumber = command.contains("FROM") ? 6 : 9;
+                int parseLineNumber = 6;
+                if (command.startsWith("TS")) {
+                    parseLineNumber = 4;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
 
@@ -644,13 +652,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::data",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"foo\"::failures",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
@@ -699,7 +707,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectErrorWithLineNumber(
                     command,
                     "cluster:\"index,index2\"::failures",
-                    "line 1:14: ",
+                    command.startsWith("FROM") ? "line 1:14: " : "line 1:12: ",
                     "mismatched input '\"index,index2\"' expecting UNQUOTED_SOURCE"
                 );
             }
@@ -764,6 +772,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "index#pattern",
                 "must not contain '#'"
             );
+            expectDateMathErrorWithLineNumber(command, "cluster*:<logstash-{now/D}*>", commands.get(command), dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
@@ -3183,11 +3192,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
+    public void testInvalidFromPatterns() {
+        var sourceCommands = new String[] { "FROM", "TS" };
+        var indexIsBlank = "Blank index specified in index pattern";
+        var remoteIsEmpty = "remote part is empty";
+        var invalidDoubleColonUsage = "invalid usage of :: separator";
+
+        expectError(randomFrom(sourceCommands) + " \"\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \" \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,, \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \", , ,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \",,,\",*", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,<-+^,index2\",*", "must not contain the following characters");
+        expectError(randomFrom(sourceCommands) + " \"\",*", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*: ,*,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*: ,*,\",validIndexName", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"\", \" \", \"  \",validIndexName", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1\", \"index2\", \"  ,index3,index4\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,,index3\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,  ,index3\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*, \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \" \"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*\", \":index1\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"index1,*,:index2\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"::data\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*\", \"::failures\"", remoteIsEmpty);
+        expectError(randomFrom(sourceCommands) + " \"*,index1::\"", invalidDoubleColonUsage);
+        expectError(randomFrom(sourceCommands) + " \"*\", index1, index2, \"index3:: \"", invalidDoubleColonUsage);
+        expectError(randomFrom(sourceCommands) + " \"*,index1::*\"", invalidDoubleColonUsage);
+    }
+
     public void testInvalidPatternsWithIntermittentQuotes() {
-        // There are 3 ways of crafting an invalid index pattern that conforms to the grammar defined through ANTLR.
-        // 1. Quoting the entire pattern.
-        // 2. Quoting the cluster alias - "invalid cluster alias":<rest of the pattern>
-        // 3. Quoting the index name - <cluster alias>:"invalid index"
+        // There are 3 ways of crafting invalid index patterns that conforms to the grammar defined through ANTLR.
+        // 1. Not quoting the pattern,
+        // 2. Quoting individual patterns ("index1", "index2", ...), and,
+        // 3. Clubbing all the patterns into a single quoted string ("index1,index2,...).
         //
         // Note that in these tests, we unquote a pattern and then quote it immediately.
         // This is because when randomly generating an index pattern, it may look like: "foo"::data.
@@ -3198,7 +3239,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var randomIndex = randomIndexPattern();
             // Select an invalid char to sneak in.
             // Note: some chars like '|' and '"' are excluded to generate a proper invalid name.
-            char[] invalidChars = { ' ', '/', '<', '>', '?' };
+            Character[] invalidChars = { ' ', '/', '<', '>', '?' };
             var randomInvalidChar = randomFrom(invalidChars);
 
             // Construct the new invalid index pattern.
@@ -3207,7 +3248,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(query, "must not contain the following characters [' ','\"','*',',','/','<','>','?','\\','|']");
         }
 
-        // Cluster names with invalid characters, i.e. ':' should result in an error.
+        // Colon outside a quoted string should result in an ANTLR error: a comma is expected.
         {
             var randomIndex = randomIndexPattern();
 
@@ -3222,8 +3263,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(query, " mismatched input ':'");
         }
 
-        // If a remote index is quoted and has a remote cluster alias and the pattern is already prefixed with
-        // a cluster alias, we should flag the cluster alias in the pattern.
+        // If an explicit cluster string is present, then we expect an unquoted string next.
         {
             var randomIndex = randomIndexPattern();
             var remoteClusterAlias = randomBoolean() ? "*" : randomIdentifier();

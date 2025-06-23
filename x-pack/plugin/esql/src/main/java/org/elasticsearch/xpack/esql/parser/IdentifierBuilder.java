@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR;
@@ -30,6 +31,8 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
+
+    private static final String BLANK_INDEX_ERROR_MESSAGE = "Blank index specified in index pattern";
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
@@ -96,12 +99,13 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
+    private static void throwInvalidIndexNameException(String indexPattern, String message, EsqlBaseParser.IndexPatternContext ctx) {
+        var ie = new InvalidIndexNameException(indexPattern, message);
+        throw new ParsingException(ie, source(ctx), ie.getMessage());
+    }
+
     private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
-        InvalidIndexNameException ie = new InvalidIndexNameException(
-            indexPattern,
-            "Selectors are not yet supported on remote cluster patterns"
-        );
-        throw new ParsingException(ie, source(c), ie.getMessage());
+        throwInvalidIndexNameException(indexPattern, "Selectors are not yet supported on remote cluster patterns", c);
     }
 
     private static String reassembleIndexName(String clusterString, String indexPattern, String selectorString) {
@@ -160,7 +164,16 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             patterns = new String[] { indexPattern };
         }
 
-        if (patterns.length == 1) {
+        patterns = Arrays.stream(patterns).map(String::strip).toArray(String[]::new);
+        if (Arrays.stream(patterns).anyMatch(String::isBlank)) {
+            throwInvalidIndexNameException(indexPattern, BLANK_INDEX_ERROR_MESSAGE, ctx);
+        }
+
+        // Edge case: happens when all the index names in a pattern are empty.
+        if (patterns.length == 0) {
+            throwInvalidIndexNameException(indexPattern, BLANK_INDEX_ERROR_MESSAGE, ctx);
+        } else if (patterns.length == 1) {
+            // Pattern is an unquoted string.
             validateSingleIndexPattern(clusterString, patterns[0], selectorString, ctx, hasSeenStar);
         } else {
             /*
@@ -260,6 +273,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     private static void resolveAndValidateIndex(String index, EsqlBaseParser.IndexPatternContext ctx, boolean hasSeenStar) {
+        // If index name is blank without any replacements, it was likely blank right from the beginning and is invalid.
+        if (index.isBlank()) {
+            throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);
+        }
+
         hasSeenStar = hasSeenStar || index.contains(WILDCARD);
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {

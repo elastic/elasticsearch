@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
+package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
@@ -22,64 +23,89 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.COMPLETIONS;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.RERANKS;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.TEXT;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.V1;
 
-public class IbmWatsonxRerankModel extends IbmWatsonxModel {
-    public static IbmWatsonxRerankModel of(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = IbmWatsonxRerankTaskSettings.fromMap(taskSettings);
-        return new IbmWatsonxRerankModel(model, IbmWatsonxRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
-    }
+public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
 
-    public IbmWatsonxRerankModel(
-        String modelId,
+    /**
+     * Constructor for IbmWatsonxChatCompletionModel.
+     *
+     * @param inferenceEntityId The unique identifier for the inference entity.
+     * @param taskType The type of task this model is designed for.
+     * @param service The name of the service this model belongs to.
+     * @param serviceSettings The settings specific to the Ibm Granite chat completion service.
+     * @param secrets The secrets required for accessing the service.
+     * @param context The context for parsing configuration settings.
+     */
+    public IbmWatsonxChatCompletionModel(
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
         this(
-            modelId,
+            inferenceEntityId,
             taskType,
             service,
-            IbmWatsonxRerankServiceSettings.fromMap(serviceSettings, context),
-            IbmWatsonxRerankTaskSettings.fromMap(taskSettings),
+            IbmWatsonxChatCompletionServiceSettings.fromMap(serviceSettings, context),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
+    /**
+     * Creates a new IbmWatsonxChatCompletionModel with overridden service settings.
+     *
+     * @param model The original IbmWatsonxChatCompletionModel.
+     * @param request The UnifiedCompletionRequest containing the model override.
+     * @return A new IbmWatsonxChatCompletionModel with the overridden model ID.
+     */
+    public static IbmWatsonxChatCompletionModel of(IbmWatsonxChatCompletionModel model, UnifiedCompletionRequest request) {
+        if (request.model() == null) {
+            // If no model is specified in the request, return the original model
+            return model;
+        }
+
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new IbmWatsonxChatCompletionServiceSettings(
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.apiVersion(),
+            request.model(),
+            originalModelServiceSettings.projectId(),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new IbmWatsonxChatCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getSecretSettings()
+        );
+    }
+
     // should only be used for testing
-    IbmWatsonxRerankModel(
-        String modelId,
+    IbmWatsonxChatCompletionModel(
+        String inferenceEntityId,
         TaskType taskType,
         String service,
-        IbmWatsonxRerankServiceSettings serviceSettings,
-        IbmWatsonxRerankTaskSettings taskSettings,
+        IbmWatsonxChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
             new ModelSecrets(secretSettings),
             serviceSettings
         );
     }
 
-    private IbmWatsonxRerankModel(IbmWatsonxRerankModel model, IbmWatsonxRerankTaskSettings taskSettings) {
-        super(model, taskSettings);
-    }
-
     @Override
-    public IbmWatsonxRerankServiceSettings getServiceSettings() {
-        return (IbmWatsonxRerankServiceSettings) super.getServiceSettings();
-    }
-
-    @Override
-    public IbmWatsonxRerankTaskSettings getTaskSettings() {
-        return (IbmWatsonxRerankTaskSettings) super.getTaskSettings();
+    public IbmWatsonxChatCompletionServiceSettings getServiceSettings() {
+        return (IbmWatsonxChatCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -101,18 +127,16 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM watsonx models.
-     * @param taskSettings     Settings in the request to override the model's defaults
-     * @return the rerank action
+     * @return the completion action
      */
-    @Override
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
+        return visitor.create(this);
     }
 
     public static URI buildUri(String uri, String apiVersion) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(uri)
-            .setPathSegments(ML, V1, TEXT, RERANKS)
+            .setPathSegments(ML, V1, TEXT, COMPLETIONS)
             .setParameter("version", apiVersion)
             .build();
     }

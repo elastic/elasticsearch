@@ -180,7 +180,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is("Failed to send IBM Watsonx embeddings request. Cause: failed"));
+        assertThat(thrownException.getMessage(), is("Failed to send IBM watsonx embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -204,7 +204,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is("Failed to send IBM Watsonx embeddings request. Cause: failed"));
+        assertThat(thrownException.getMessage(), is("Failed to send IBM watsonx embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -218,7 +218,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
     ) {
         var model = createModel(modelName, projectId, uri, apiVersion, apiKey, url);
         var requestManager = new IbmWatsonxEmbeddingsRequestManagerWithoutAuth(model, TruncatorTests.createTruncator(), threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM Watsonx embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM watsonx embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 

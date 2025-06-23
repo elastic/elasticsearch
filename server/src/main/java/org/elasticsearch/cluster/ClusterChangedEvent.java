@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -242,11 +243,16 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    /**
-     * Returns the {@link ProjectsDelta} between the previous cluster state and the new cluster state.
-     */
-    public ProjectsDelta projectDelta() {
-        return projectsDelta;
+    public Set<ProjectId> addedProjects() {
+        return projectsDelta.added();
+    }
+
+    public Set<ProjectId> removedProjects() {
+        return projectsDelta.removed();
+    }
+
+    public Set<ProjectId> commonProjects() {
+        return projectsDelta.common(state);
     }
 
     /**
@@ -354,7 +360,7 @@ public class ClusterChangedEvent {
                 && previousMetadata.hasProject(ProjectId.DEFAULT)
                 && currentMetadata.projects().size() == 1
                 && currentMetadata.hasProject(ProjectId.DEFAULT))) {
-            return ProjectsDelta.NO_CHANGE_DEFAULT_PROJECT;
+            return ProjectsDelta.NO_CHANGE;
         }
 
         final Set<ProjectId> currentProjectIds = currentMetadata.projects().keySet();
@@ -376,7 +382,7 @@ public class ClusterChangedEvent {
         // assert removed.contains(ProjectId.DEFAULT) == false;
 
         if (added.isEmpty() && removed.isEmpty()) {
-            return new ProjectsDelta(Set.of(), Set.of(), currentProjectIds);
+            return ProjectsDelta.NO_CHANGE;
         } else {
             return new ProjectsDelta(
                 Collections.unmodifiableSet(added),
@@ -386,12 +392,30 @@ public class ClusterChangedEvent {
         }
     }
 
-    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed, Set<ProjectId> common) {
+    private record ProjectsDelta(
+        Set<ProjectId> added,
+        Set<ProjectId> removed,
+        @Nullable Set<ProjectId> common // null if all projects are common
+    ) {
 
-        private static final ProjectsDelta NO_CHANGE_DEFAULT_PROJECT = new ProjectsDelta(Set.of(), Set.of(), Set.of(ProjectId.DEFAULT));
+        private static final ProjectsDelta NO_CHANGE = new ProjectsDelta(Set.of(), Set.of(), null);
 
-        public boolean hasNoChange() {
+        private boolean hasNoChange() {
             return added.isEmpty() && removed.isEmpty();
+        }
+
+        @Override
+        public Set<ProjectId> common() {
+            throw new UnsupportedOperationException("Use common(ClusterState state) instead");
+        }
+
+        Set<ProjectId> common(ClusterState state) {
+            if (common == null) {
+                assert hasNoChange() : this;
+                return state.metadata().projects().keySet();
+            } else {
+                return common;
+            }
         }
     }
 }

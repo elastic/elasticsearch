@@ -531,8 +531,9 @@ public class ClusterChangedEventTests extends ESTestCase {
             .metadata(Metadata.builder(state0.metadata()).put(ReservedStateMetadata.builder("test").build()))
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", state1, state0);
-        assertTrue(event.projectDelta().hasNoChange());
-        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
+        assertThat(event.addedProjects(), empty());
+        assertThat(event.removedProjects(), empty());
+        assertThat(event.commonProjects(), equalTo(Set.of(ProjectId.DEFAULT)));
 
         // Add projects
         final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
@@ -542,9 +543,9 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
         final var state2 = ClusterState.builder(state1).metadata(metadataBuilder.build()).build();
         event = new ClusterChangedEvent("test", state2, state1);
-        assertThat(event.projectDelta().added(), containsInAnyOrder(projectIds.toArray()));
-        assertThat(event.projectDelta().removed(), empty());
-        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
+        assertThat(event.addedProjects(), containsInAnyOrder(projectIds.toArray()));
+        assertThat(event.removedProjects(), empty());
+        assertThat(event.commonProjects(), equalTo(Set.of(ProjectId.DEFAULT)));
 
         // Add more projects and delete one
         final var removedProjectIds = randomNonEmptySubsetOf(projectIds);
@@ -562,31 +563,38 @@ public class ClusterChangedEventTests extends ESTestCase {
         final var state3 = ClusterState.builder(state2).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
 
         event = new ClusterChangedEvent("test", state3, state2);
-        assertThat(event.projectDelta().added(), containsInAnyOrder(moreProjectIds.toArray()));
-        assertThat(event.projectDelta().removed(), containsInAnyOrder(removedProjectIds.toArray()));
+        assertThat(event.addedProjects(), containsInAnyOrder(moreProjectIds.toArray()));
+        assertThat(event.removedProjects(), containsInAnyOrder(removedProjectIds.toArray()));
         assertThat(
-            event.projectDelta().common(),
+            event.commonProjects(),
             equalTo(Sets.union(Sets.difference(Set.copyOf(projectIds), Set.copyOf(removedProjectIds)), Set.of(ProjectId.DEFAULT)))
         );
 
+        // An update without project membership changes
+        final var state4 = ClusterState.builder(state3).version(state3.version() + 1).build();
+        event = new ClusterChangedEvent("test", state4, state3);
+        assertThat(event.addedProjects(), empty());
+        assertThat(event.removedProjects(), empty());
+        assertThat(event.commonProjects(), equalTo(state4.metadata().projects().keySet()));
+
         // Remove all projects
-        final List<ProjectId> remainingProjects = state3.metadata()
+        final List<ProjectId> remainingProjects = state4.metadata()
             .projects()
             .keySet()
             .stream()
             .filter(projectId -> ProjectId.DEFAULT.equals(projectId) == false)
             .toList();
-        metadataBuilder = Metadata.builder(state3.metadata());
-        routingTableBuilder = GlobalRoutingTable.builder(state3.globalRoutingTable());
+        metadataBuilder = Metadata.builder(state4.metadata());
+        routingTableBuilder = GlobalRoutingTable.builder(state4.globalRoutingTable());
         for (ProjectId projectId : remainingProjects) {
             metadataBuilder.removeProject(projectId);
             routingTableBuilder.removeProject(projectId);
         }
-        final var state4 = ClusterState.builder(state3).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
-        event = new ClusterChangedEvent("test", state4, state3);
-        assertThat(event.projectDelta().added(), empty());
-        assertThat(event.projectDelta().removed(), containsInAnyOrder(remainingProjects.toArray()));
-        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
+        final var state5 = ClusterState.builder(state4).metadata(metadataBuilder.build()).routingTable(routingTableBuilder.build()).build();
+        event = new ClusterChangedEvent("test", state5, state4);
+        assertThat(event.addedProjects(), empty());
+        assertThat(event.removedProjects(), containsInAnyOrder(remainingProjects.toArray()));
+        assertThat(event.commonProjects(), equalTo(Set.of(ProjectId.DEFAULT)));
     }
 
     private static class CustomClusterMetadata2 extends TestClusterCustomMetadata {

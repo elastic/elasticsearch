@@ -117,7 +117,6 @@ public class ElasticInferenceService extends SenderService {
     static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
     static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
 
-
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
@@ -201,18 +200,18 @@ public class ElasticInferenceService extends SenderService {
                         false,
                         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
                     ),
-                   EmptyTaskSettings.INSTANCE,
+                    EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
-                  ),
-              MinimalServiceSettings.textEmbedding(
+                ),
+                MinimalServiceSettings.textEmbedding(
                     NAME,
                     DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
                     defaultDenseTextEmbeddingsSimilarity(),
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
-              ),
-              
+            ),
+
             DEFAULT_RERANK_MODEL_ID_V1,
             new DefaultModelConfig(
                 new ElasticInferenceServiceRerankModel(

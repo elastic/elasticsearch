@@ -239,10 +239,10 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                                     ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
                                     DenseVectorFieldMapper.ElementType.FLOAT
                                 ),
-                              service
-                              ),
-new InferenceService.DefaultConfigId(
-  ".rerank-v1-elastic",
+                                service
+                            ),
+                            new InferenceService.DefaultConfigId(
+                                ".rerank-v1-elastic",
                                 MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
                                 service
                             )
@@ -312,12 +312,12 @@ new InferenceService.DefaultConfigId(
                                     ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
                                     DenseVectorFieldMapper.ElementType.FLOAT
                                 ),
-                              service
-                              ),
+                                service
+                            ),
                             new InferenceService.DefaultConfigId(
                                 ".rerank-v1-elastic",
                                 MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
-                              service
+                                service
                             )
                         )
                     )

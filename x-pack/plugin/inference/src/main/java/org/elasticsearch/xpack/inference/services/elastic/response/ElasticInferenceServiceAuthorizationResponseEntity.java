@@ -45,7 +45,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         "chat",
         TaskType.CHAT_COMPLETION,
         "embed/text/dense",
-        TaskType.TEXT_EMBEDDING
+        TaskType.TEXT_EMBEDDING,
         "rerank/text/text-similarity",
         TaskType.RERANK
     );

@@ -961,41 +961,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSubquery() {
-        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain [ row a = 1 ]"));
+        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
     }
 
     public void testSubqueryWithPipe() {
-        assertEquals(
-            new Limit(EMPTY, integer(10), new Explain(EMPTY, PROCESSING_CMD_INPUT)),
-            statement("explain [ row a = 1 ] | limit 10")
-        );
-    }
-
-    public void testNestedSubqueries() {
-        assertEquals(
-            new Limit(
-                EMPTY,
-                integer(10),
-                new Explain(EMPTY, new Limit(EMPTY, integer(5), new Explain(EMPTY, new Limit(EMPTY, integer(1), PROCESSING_CMD_INPUT))))
-            ),
-            statement("explain [ explain [ row a = 1 | limit 1 ] | limit 5 ] | limit 10")
-        );
-    }
-
-    public void testSubquerySpacing() {
-        assertEquals(statement("explain [ explain [ from a ] | where b == 1 ]"), statement("explain[explain[from a]|where b==1]"));
+        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
     }
 
     public void testBlockComments() {
-        String query = " explain [ from foo ] | limit 10 ";
+        String query = " explain ( from foo )";
         LogicalPlan expected = statement(query);
 
         int wsIndex = query.indexOf(' ');
 
         do {
-            String queryWithComment = query.substring(0, wsIndex)
-                + "/*explain [ \nfrom bar ] | where a > b*/"
-                + query.substring(wsIndex + 1);
+            String queryWithComment = query.substring(0, wsIndex) + "/*explain ( \nfrom bar ) */" + query.substring(wsIndex + 1);
 
             assertEquals(expected, statement(queryWithComment));
 
@@ -1004,15 +984,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSingleLineComments() {
-        String query = " explain [ from foo ] | limit 10 ";
+        String query = " explain ( from foo ) ";
         LogicalPlan expected = statement(query);
 
         int wsIndex = query.indexOf(' ');
 
         do {
-            String queryWithComment = query.substring(0, wsIndex)
-                + "//explain [ from bar ] | where a > b \n"
-                + query.substring(wsIndex + 1);
+            String queryWithComment = query.substring(0, wsIndex) + "//explain ( from bar ) \n" + query.substring(wsIndex + 1);
 
             assertEquals(expected, statement(queryWithComment));
 
@@ -1039,13 +1017,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("a+b = c", "a+b"),
             Tuple.tuple("a//hi", "a"),
             Tuple.tuple("a/*hi*/", "a"),
-            Tuple.tuple("explain [ frm a ]", "frm")
+            Tuple.tuple("explain ( frm a )", "frm")
         )) {
             expectThrows(
                 ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
-                    containsString("'explain'"),
                     containsString("'from'"),
                     containsString("'row'")
                 ),
@@ -1058,13 +1035,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSuggestAvailableProcessingCommandsOnParsingError() {
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("from a | filter b > 1", "filter"),
-            Tuple.tuple("from a | explain [ row 1 ]", "explain"),
+            Tuple.tuple("from a | explain ( row 1 )", "explain"),
             Tuple.tuple("from a | not-a-thing", "not-a-thing"),
             Tuple.tuple("from a | high5 a", "high5"),
             Tuple.tuple("from a | a+b = c", "a+b"),
             Tuple.tuple("from a | a//hi", "a"),
-            Tuple.tuple("from a | a/*hi*/", "a"),
-            Tuple.tuple("explain [ from a | evl b = c ]", "evl")
+            Tuple.tuple("from a | a/*hi*/", "a")
         )) {
             expectThrows(
                 ParsingException.class,
@@ -1108,7 +1084,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
-        expectError("explain [from foo] metadata _index", "line 1:20: mismatched input 'metadata' expecting {'|', ',', ']', 'metadata'}");
+        expectError("explain ( from foo ) metadata _index", "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
@@ -3378,7 +3354,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+            | KEEP a
+            """;
+
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3389,7 +3373,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | KEEP a
             """;
 
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
@@ -3407,7 +3391,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+
+            | KEEP a
+            """;
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3416,22 +3408,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a = b WITH c )
                ( SAMPLE 0.99 )
+            | KEEP a
+            """;
+        plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
-
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
+
+        expectError("""
+            FROM foo*
+            | FORK (where true) (where true) (where true) (where true)
+                   (where true) (where true) (where true) (where true)
+                   (where true)
+            """, "Fork requires less than 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
@@ -3476,9 +3482,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
         expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
         // test for [
-        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
+        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
         expectError("explain ]", "line 1:9: token recognition error at: ']'");
-        expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
+        expectError("explain ( row x = 1", "line 1:20: missing ')' at '<EOF>'");
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {

@@ -19,7 +19,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/autoscaling.get_autoscaling_policy) | Retrieves a specific autoscaling policy. |
 
 ## Behavioral Analytics
-[View Behavioral Analytics APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-behavioral_analytics)
+[View Behavioral Analytics APIs](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/group/endpoint-analytics)
 
 | API | Description |
 | --- | ----------- |
@@ -50,7 +50,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Update Settings](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.put_settings) | Updates persistent or transient cluster settings. |
 
 ## Cluster - Health
-[View Cluster Health APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-cluster)
+[View Cluster Health APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-health_report)
 
 | API | Description |
 | --- | ----------- |
@@ -85,7 +85,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Delete Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.delete_auto_follow_pattern) | Deletes an auto-follow pattern. |
 
 ## Data Stream
-[View Data Stream APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-data_stream)
+[View Data Stream APIs](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/group/endpoint-data-stream)
 
 | API | Description |
 | --- | ----------- |
@@ -164,7 +164,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Graph Explore](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/graph.explore) | Discovers relationships between indexed terms using relevance-based graph exploration. |
 
 ## Index
-[View Index APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-index)
+[View Index APIs](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/group/endpoint-indices)
 
 | API | Description |
 | --- | ----------- |
@@ -242,7 +242,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Delete Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/logstash.delete_pipeline) | Deletes a Logstash pipeline. |
 
 ## Machine Learning - Anomaly Detection
-[View Anomaly Detection APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-ml)
+[View Anomaly Detection APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-ml-anomaly)
 
 | API | Description |
 | --- | ----------- |
@@ -257,7 +257,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Get Records](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ml.get_records) | Retrieves anomaly records for a job. |
 
 ## Machine Learning - Data Frame Analytics
-[View Data Frame Analytics APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-ml)
+[View Data Frame Analytics APIs](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/group/endpoint-ml-data-frame)
 
 | API | Description |
 | --- | ----------- |
@@ -268,7 +268,7 @@ Elasticsearch exposes REST APIs that are used by the UI components and can be ca
 | [Stop Data Frame Analytics](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ml.stop_data_frame_analytics) | Stops a running data frame analytics job. |
 
 ## Machine Learning - Trained Models
-[View Trained Model APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-ml)
+[View Trained Model APIs](https://www.elastic.co/docs/api/doc/elasticsearch-serverless/group/endpoint-ml-trained-model)
 
 | API | Description |
 | --- | ----------- |

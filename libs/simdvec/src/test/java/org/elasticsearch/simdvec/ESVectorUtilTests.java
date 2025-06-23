@@ -301,10 +301,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             low = high;
             high = tmp;
         }
-        byte[] quantizeExpected = new byte[vectorSize];
-        byte[] quantizeResult = new byte[vectorSize];
-        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, low, high, quantizeExpected, bits);
-        var result = defOrPanamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, low, high, quantizeResult, bits);
+        int[] quantizeExpected = new int[vectorSize];
+        int[] quantizeResult = new int[vectorSize];
+        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeExpected, low, high, bits);
+        var result = defOrPanamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, quantizeResult, low, high, bits);
         assertArrayEquals(quantizeExpected, quantizeResult);
         assertEquals(expected, result, 0f);
     }

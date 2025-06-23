@@ -121,7 +121,7 @@ public record UnifiedCompletionRequest(
      * - Key: {@link #MODEL_FIELD}, Value: modelId
      * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
-    public static Params withMaxCompletionTokensTokens(String modelId, Params params) {
+    public static Params withMaxCompletionTokens(String modelId, Params params) {
         return new DelegatingMapParams(
             Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD)),
             params

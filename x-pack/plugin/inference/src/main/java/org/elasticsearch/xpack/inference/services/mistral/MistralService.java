@@ -54,6 +54,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -98,16 +99,12 @@ public class MistralService extends SenderService {
     ) {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
-        switch (model) {
-            case MistralEmbeddingsModel mistralEmbeddingsModel:
-                mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
-                break;
-            case MistralChatCompletionModel mistralChatCompletionModel:
-                mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
-                break;
-            default:
-                listener.onFailure(createInvalidModelException(model));
-                break;
+        if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
+            mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
+        } else if (model instanceof MistralChatCompletionModel mistralChatCompletionModel) {
+            mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
+        } else {
+            listener.onFailure(createInvalidModelException(model));
         }
     }
 

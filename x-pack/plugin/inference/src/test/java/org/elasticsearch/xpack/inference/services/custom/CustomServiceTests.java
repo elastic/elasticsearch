@@ -147,7 +147,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }
 
-    private static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new CustomService(senderFactory, createWithEmptySettings(threadPool));
     }
@@ -278,7 +278,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 "{\"input\":${input}}",
                 parser,
                 new RateLimitSettings(10_000),
-                batchSize
+                batchSize,
+                InputTypeTranslator.EMPTY_TRANSLATOR
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),

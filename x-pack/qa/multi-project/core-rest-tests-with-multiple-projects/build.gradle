@@ -59,6 +59,7 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
     '^migration/*/*',
+    '^nodes.stats/70_repository_throttling_stats/Repository throttling stats (some repositories exist)',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',
     '^snapshot.delete/*/*',

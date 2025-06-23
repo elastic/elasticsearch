@@ -112,16 +112,11 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(
-            source(),
-            targetFieldName,
-            pattern().createAutomaton(caseInsensitive()),
-            getAutomatonDescription(targetFieldName)
-        );
+        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
-    private String getAutomatonDescription(String targetFieldName) {
-        // we use all the information used the create the automaton to describe the query here
+    private String getAutomatonDescription() {
+        // we use the information used to create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
         return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }

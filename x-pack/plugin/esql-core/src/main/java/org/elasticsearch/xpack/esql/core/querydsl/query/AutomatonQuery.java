@@ -40,7 +40,7 @@ public class AutomatonQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, automaton);
+        return Objects.hash(field, automaton, automatonDescription);
     }
 
     @Override
@@ -54,7 +54,7 @@ public class AutomatonQuery extends Query {
         }
 
         AutomatonQuery other = (AutomatonQuery) obj;
-        return Objects.equals(field, other.field) && Objects.equals(automaton, other.automaton);
+        return Objects.equals(field, other.field) && Objects.equals(automaton, other.automaton) && Objects.equals(automatonDescription, other.automatonDescription);
     }
 
     @Override

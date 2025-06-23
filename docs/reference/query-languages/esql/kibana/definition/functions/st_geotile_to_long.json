@@ -33,5 +33,5 @@
     "ROW geotile = \"4/8/5\"\n| EVAL geotileLong = ST_GEOTILE_TO_LONG(geotile)"
   ],
   "preview" : true,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

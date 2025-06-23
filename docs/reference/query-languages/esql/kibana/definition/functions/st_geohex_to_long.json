@@ -33,5 +33,5 @@
     "ROW geohex = \"841f059ffffffff\"\n| EVAL geohexLong = ST_GEOHEX_TO_LONG(geohex)"
   ],
   "preview" : true,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

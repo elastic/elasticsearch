@@ -42,6 +42,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -165,6 +166,9 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
+        private long requestNextChunkTime;
+        private long totalChunkWaitTimeInNanos = 0L;
+
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
@@ -189,6 +193,7 @@ public class RestBulkAction extends BaseRestHandler {
         public void accept(RestChannel restChannel) {
             this.restChannel = restChannel;
             this.handler = handlerSupplier.get();
+            requestNextChunkTime = System.nanoTime();
             request.contentStream().next();
         }
 
@@ -196,6 +201,12 @@ public class RestBulkAction extends BaseRestHandler {
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             assert handler != null;
             assert channel == restChannel;
+            long now = System.nanoTime();
+            long elapsedTime = now - requestNextChunkTime;
+            if (elapsedTime > 0) {
+                totalChunkWaitTimeInNanos += elapsedTime;
+                requestNextChunkTime = now;
+            }
             if (shortCircuited) {
                 chunk.close();
                 return;
@@ -239,12 +250,18 @@ public class RestBulkAction extends BaseRestHandler {
                     items.clear();
                     handler.lastItems(toPass, () -> Releasables.close(releasables), new RestRefCountedChunkedToXContentListener<>(channel));
                 }
+                handler.updateWaitForChunkMetrics(TimeUnit.NANOSECONDS.toMillis(totalChunkWaitTimeInNanos));
+                totalChunkWaitTimeInNanos = 0L;
             } else if (items.isEmpty() == false) {
                 ArrayList<DocWriteRequest<?>> toPass = new ArrayList<>(items);
                 items.clear();
-                handler.addItems(toPass, () -> Releasables.close(releasables), () -> request.contentStream().next());
+                handler.addItems(toPass, () -> Releasables.close(releasables), () -> {
+                    requestNextChunkTime = System.nanoTime();
+                    request.contentStream().next();
+                });
             } else {
                 Releasables.close(releasables);
+                requestNextChunkTime = System.nanoTime();
                 request.contentStream().next();
             }
         }

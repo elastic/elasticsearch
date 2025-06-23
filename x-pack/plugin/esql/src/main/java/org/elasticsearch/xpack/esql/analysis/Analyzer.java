@@ -788,10 +788,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit Keep even if the outputs align
-                // This is because at the moment the sub plans are executed and optimized separately and the output might change
-                // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
-                if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
+                // We need to add an explicit EsqlProject to align the outputs.
+                if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -801,7 +799,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = new Keep(logicalPlan.source(), logicalPlan, newOutput);
+                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), logicalPlan.output());
                 }
 
                 newSubPlans.add(logicalPlan);

@@ -54,6 +54,7 @@ processingCommand
     | joinCommand
     | changePointCommand
     | completionCommand
+    | sampleCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
@@ -353,6 +354,10 @@ enrichWithClause
 
 changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 //

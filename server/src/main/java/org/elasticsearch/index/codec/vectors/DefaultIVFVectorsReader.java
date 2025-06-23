@@ -182,7 +182,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         final float[] scratch;
-        final byte[] quantizationScratch;
+        final int[] quantizationScratch;
         final byte[] quantizedQueryScratch;
         final OptimizedScalarQuantizer quantizer;
         final float[] correctiveValues = new float[3];
@@ -202,7 +202,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             this.needsScoring = needsScoring;
 
             scratch = new float[target.length];
-            quantizationScratch = new byte[target.length];
+            quantizationScratch = new int[target.length];
             final int discretizedDimensions = discretize(fieldInfo.getVectorDimension(), 64);
             quantizedQueryScratch = new byte[QUERY_BITS * discretizedDimensions / 8];
             quantizedByteLength = discretizedDimensions / 8 + (Float.BYTES * 3) + Short.BYTES;
@@ -344,7 +344,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                     VectorUtil.l2normalize(scratch);
                 }
-                queryCorrections = quantizer.scalarQuantize(scratch, quantizationScratch, (byte) 4, centroid);
+                queryCorrections = quantizer.scalarQuantizeToInts(scratch, quantizationScratch, (byte) 4, centroid);
                 transposeHalfByte(quantizationScratch, quantizedQueryScratch);
                 quantized = true;
             }

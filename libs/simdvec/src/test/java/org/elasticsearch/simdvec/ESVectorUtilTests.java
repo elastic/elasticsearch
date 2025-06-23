@@ -286,6 +286,29 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, deltaEps);
     }
 
+    public void testQuantizeVectorWithIntervals() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] vector = new float[vectorSize];
+
+        byte bits = (byte) randomIntBetween(1, 8);
+        for (int i = 0; i < vectorSize; ++i) {
+            vector[i] = random().nextFloat();
+        }
+        float low = random().nextFloat();
+        float high = random().nextFloat();
+        if (low > high) {
+            float tmp = low;
+            low = high;
+            high = tmp;
+        }
+        byte[] quantizeExpected = new byte[vectorSize];
+        byte[] quantizeResult = new byte[vectorSize];
+        var expected = defaultedProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, low, high, quantizeExpected, bits);
+        var result = defOrPanamaProvider.getVectorUtilSupport().quantizeVectorWithIntervals(vector, low, high, quantizeResult, bits);
+        assertArrayEquals(quantizeExpected, quantizeResult);
+        assertEquals(expected, result, 0f);
+    }
+
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
         int iterations = atLeast(50);
         for (int i = 0; i < iterations; i++) {

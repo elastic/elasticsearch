@@ -141,6 +141,36 @@ public class OptimizedScalarQuantizer {
         );
     }
 
+    public QuantizationResult scalarQuantizeToInts(float[] vector, int[] destination, byte bits, float[] centroid) {
+        assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
+        assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
+        assert vector.length <= destination.length;
+        assert bits > 0 && bits <= 8;
+        int points = 1 << bits;
+        if (similarityFunction == EUCLIDEAN) {
+            ESVectorUtil.centerAndCalculateOSQStatsEuclidean(vector, centroid, vector, statsScratch);
+        } else {
+            ESVectorUtil.centerAndCalculateOSQStatsDp(vector, centroid, vector, statsScratch);
+        }
+        float vecMean = statsScratch[0];
+        float vecVar = statsScratch[1];
+        float norm2 = statsScratch[2];
+        float min = statsScratch[3];
+        float max = statsScratch[4];
+        float vecStd = (float) Math.sqrt(vecVar);
+        // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
+        initInterval(bits, vecStd, vecMean, min, max, intervalScratch);
+        optimizeIntervals(intervalScratch, vector, norm2, points);
+        // Now we have the optimized intervals, quantize the vector
+        int sumQuery = ESVectorUtil.quantizeVectorWithIntervals(vector, destination, intervalScratch[0], intervalScratch[1], bits);
+        return new QuantizationResult(
+            intervalScratch[0],
+            intervalScratch[1],
+            similarityFunction == EUCLIDEAN ? norm2 : statsScratch[5],
+            sumQuery
+        );
+    }
+
     /**
      * Optimize the quantization interval for the given vector. This is done via a coordinate descent trying to minimize the quantization
      * loss. Note, the loss is not always guaranteed to decrease, so we have a maximum number of iterations and will exit early if the

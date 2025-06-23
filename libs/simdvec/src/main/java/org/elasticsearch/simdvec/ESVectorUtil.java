@@ -258,4 +258,25 @@ public class ESVectorUtil {
         }
         return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
     }
+
+    /**
+     * Optimized-scalar quantization of the provided vector to the provided destination array.
+     *
+     * @param vector the vector to quantize
+     * @param destination the array to store the result
+     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
+     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
+     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     *
+     * @return return the sum of all the elements of the resulting quantized vector.
+     */
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+        if (vector.length != destination.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
+        }
+        if (bit <= 0 || bit > Byte.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        }
+        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
+    }
 }

@@ -291,7 +291,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
     static class BinarizedFloatVectorValues {
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final byte[] binarized;
-        private final byte[] initQuantized;
+        private final int[] initQuantized;
         private float[] centroid;
         private final FloatVectorValues values;
         private final OptimizedScalarQuantizer quantizer;
@@ -302,7 +302,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.values = delegate;
             this.quantizer = quantizer;
             this.binarized = new byte[discretize(delegate.dimension(), 64) / 8];
-            this.initQuantized = new byte[delegate.dimension()];
+            this.initQuantized = new int[delegate.dimension()];
         }
 
         public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int ord) {
@@ -323,7 +323,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         }
 
         private void binarize(int ord) throws IOException {
-            corrections = quantizer.scalarQuantize(values.vectorValue(ord), initQuantized, INDEX_BITS, centroid);
+            corrections = quantizer.scalarQuantizeToInts(values.vectorValue(ord), initQuantized, INDEX_BITS, centroid);
             packAsBinary(initQuantized, binarized);
         }
     }

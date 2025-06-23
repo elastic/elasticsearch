@@ -53,9 +53,11 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
         for (byte bit : ALL_BITS) {
             float eps = (1f / (float) (1 << (bit)));
             byte[] destination = new byte[dims];
+            int[] intDestination = new int[dims];
             for (int i = 0; i < numVectors; ++i) {
                 System.arraycopy(vectors[i], 0, scratch, 0, dims);
                 OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(scratch, destination, bit, centroid);
+
                 assertValidResults(result);
                 assertValidQuantizedRange(destination, bit);
 
@@ -71,6 +73,14 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                 }
                 mae /= dims;
                 assertTrue("bits: " + bit + " mae: " + mae + " > eps: " + eps, mae <= eps);
+
+                // check we get the same result from the int version
+                System.arraycopy(vectors[i], 0, scratch, 0, dims);
+                OptimizedScalarQuantizer.QuantizationResult intResults = osq.scalarQuantizeToInts(scratch, intDestination, bit, centroid);
+                assertEquals(result, intResults);
+                for (int h = 0; h < dims; ++h) {
+                    assertEquals(destination[h], (byte) intDestination[h]);
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.VectorUtil;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -139,15 +140,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float soarResidual(float[] v1, float[] centroid, float[] originalResidual) {
+    public float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
         assert v1.length == centroid.length;
         assert v1.length == originalResidual.length;
+        float dsq = VectorUtil.squareDistance(v1, centroid);
         float proj = 0;
         for (int i = 0; i < v1.length; i++) {
             float djk = v1[i] - centroid[i];
             proj = fma(djk, originalResidual[i], proj);
         }
-        return proj;
+        return dsq + soarLambda * proj * proj / rnorm;
     }
 
     public static int ipByteBitImpl(byte[] q, byte[] d) {

@@ -175,7 +175,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
                 if (e instanceof NoSuchFileException == false) {
-                    logger.warn("can't delete stale file [{}]", file, e);
+                    // https://github.com/elastic/elasticsearch/issues/104782
+                    logger.warn("can't delete stale file [" + file + "]", e);
                 }
                 return FileVisitResult.CONTINUE;
             }

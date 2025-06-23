@@ -138,11 +138,7 @@ public abstract class LuceneOperator extends SourceOperator {
     protected abstract Page getCheckedOutput() throws IOException;
 
     @Override
-    public void close() {
-        if (currentScorer != null) {
-            currentScorer.shardContext().decRef();
-        }
-    }
+    public void close() {}
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         while (currentScorer == null || currentScorer.isDone()) {
@@ -165,11 +161,7 @@ public abstract class LuceneOperator extends SourceOperator {
             ) {
                 final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
-                var previousScorer = currentScorer;
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
-                if (previousScorer != null) {
-                    previousScorer.shardContext().decRef();
-                }
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
             currentScorer.maxPosition = partialLeaf.maxDoc();
@@ -196,7 +188,6 @@ public abstract class LuceneOperator extends SourceOperator {
         private Thread executingThread;
 
         LuceneScorer(ShardContext shardContext, Weight weight, List<Object> tags, LeafReaderContext leafReaderContext) {
-            shardContext.incRef();
             this.shardContext = shardContext;
             this.weight = weight;
             this.tags = tags;

@@ -42,7 +42,8 @@ class ResultBuilderForDoc implements ResultBuilder {
         throw new AssertionError("_doc can't be a key");
     }
 
-    void setNextRefCounted(RefCounted nextRefCounted) {
+    @Override
+    public void setNextRefCounted(RefCounted nextRefCounted) {
         this.nextRefCounted = nextRefCounted;
         // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
         this.nextRefCounted.mustIncRef();

@@ -9,9 +9,15 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.RefCounted;
 
 class ValueExtractorForDoc implements ValueExtractor {
     private final DocVector vector;
+
+    @Override
+    public RefCounted getRefCountedForShard(int position) {
+        return vector().shardRefCounted().get(vector().shards().getInt(position));
+    }
 
     ValueExtractorForDoc(TopNEncoder encoder, DocVector vector) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;

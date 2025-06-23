@@ -215,8 +215,9 @@ public class TopNOperator implements Operator, Accountable {
 
         private void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
-                if (e instanceof ValueExtractorForDoc fd) {
-                    destination.setShardRefCountersAndShard(fd.vector().shardRefCounted().get(fd.vector().shards().getInt(position)));
+                var refCounted = e.getRefCountedForShard(position);
+                if (refCounted != null) {
+                    destination.setShardRefCountersAndShard(refCounted);
                 }
                 e.writeValue(destination.values, position);
             }
@@ -486,10 +487,7 @@ public class TopNOperator implements Operator, Accountable {
 
                 BytesRef values = row.values.bytesRefView();
                 for (ResultBuilder builder : builders) {
-                    if (builder instanceof ResultBuilderForDoc fd) {
-                        assert row.shardRefCounter != null : "shardRefCounter must be set for ResultBuilderForDoc";
-                        fd.setNextRefCounted(row.shardRefCounter);
-                    }
+                    builder.setNextRefCounted(row.shardRefCounter);
                     builder.decodeValue(values);
                 }
                 if (values.length != 0) {

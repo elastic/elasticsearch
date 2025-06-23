@@ -12,13 +12,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan {
+public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
+    implements
+        SortAgnostic,
+        GeneratingPlan<InferencePlan<PlanType>> {
 
     private final Expression inferenceId;
 

@@ -15,11 +15,13 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -28,6 +30,7 @@ import java.util.function.Function;
  * the field name for removal from _source.
  */
 public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
+    public static final TimeValue DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10));
     /**
      * Internal index setting to control the format used for semantic text fields.
      * Determines whether to use the legacy format (default: true).
@@ -40,6 +43,12 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex
+    );
+    public static final Setting<TimeValue> SEMANTIC_TEXT_INFERENCE_TIMEOUT = Setting.timeSetting(
+        "index.semantic_text.inference_timeout",
+        DEFAULT_SEMANTIC_TEXT_INFERENCE_TIMEOUT,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
     );
 
     // Check index version SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP because that index version was added in the same serverless promotion

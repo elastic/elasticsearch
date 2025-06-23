@@ -399,6 +399,18 @@ public final class ServiceUtils {
         return requiredField;
     }
 
+    public static String extractOptionalEmptyString(Map<String, Object> map, String settingName, ValidationException validationException) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        return optionalField;
+    }
+
     public static String extractOptionalString(
         Map<String, Object> map,
         String settingName,
@@ -422,6 +434,35 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> extractOptionalList(
+        Map<String, Object> map,
+        String settingName,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField != null) {
+            for (Object o : optionalField) {
+                if (o.getClass().equals(type) == false) {
+                    validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, o, "String"));
+                }
+            }
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return (List<T>) optionalField;
     }
 
     public static Integer extractRequiredPositiveInteger(

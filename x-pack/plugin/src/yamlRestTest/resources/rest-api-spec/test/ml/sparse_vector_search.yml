@@ -905,6 +905,8 @@ teardown:
       indices.create:
         index: test-sparse-vector-pruning-default
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               content_embedding:

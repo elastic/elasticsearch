@@ -200,6 +200,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19 = def(8_841_0_52);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
     public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
 
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
@@ -308,7 +310,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = def(9_102_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
     public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
-    public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_105_0_00);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = def(9_105_0_00);
+    public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_106_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

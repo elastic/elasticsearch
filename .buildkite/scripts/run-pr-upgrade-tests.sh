@@ -29,7 +29,7 @@ steps:
     - group: "pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH"
       steps:
         - label: "pr-upgrade-part-{{matrix.PART}}"
-          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}} -Dtests.jvm.argline="-Des.serverless_transport=true"
+          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}
           timeout_in_minutes: 300
           agents:
             provider: gcp

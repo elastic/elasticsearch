@@ -193,6 +193,10 @@ public class Literal extends LeafExpression {
         return new Literal(source, BytesRefs.toBytesRef(literal), KEYWORD);
     }
 
+    public static Literal keyword(Source source, Collection<String> literal) {
+        return new Literal(source, literal.stream().map(BytesRefs::toBytesRef).toList(), KEYWORD);
+    }
+
     /**
      * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
      * This mapper allows for addition of new and interesting values without (yet) adding to StreamInput/Output.

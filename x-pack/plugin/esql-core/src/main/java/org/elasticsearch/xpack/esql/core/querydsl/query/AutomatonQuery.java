@@ -54,7 +54,9 @@ public class AutomatonQuery extends Query {
         }
 
         AutomatonQuery other = (AutomatonQuery) obj;
-        return Objects.equals(field, other.field) && Objects.equals(automaton, other.automaton) && Objects.equals(automatonDescription, other.automatonDescription);
+        return Objects.equals(field, other.field)
+            && Objects.equals(automaton, other.automaton)
+            && Objects.equals(automatonDescription, other.automatonDescription);
     }
 
     @Override

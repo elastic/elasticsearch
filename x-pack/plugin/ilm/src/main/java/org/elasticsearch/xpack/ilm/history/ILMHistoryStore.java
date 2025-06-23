@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -95,7 +96,11 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    if (clusterService.state().getMetadata().getProject().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    if (clusterService.state()
+                        .getMetadata()
+                        .getProject(ProjectId.DEFAULT)
+                        .templatesV2()
+                        .containsKey(ILM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(
                             () -> format(

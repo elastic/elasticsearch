@@ -36,6 +36,10 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                     {
                       "model_name": "elser-v2",
                       "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "multilingual-embed",
+                      "task_types": ["embed/text/dense"]
                     }
                 ]
             }

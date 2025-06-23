@@ -43,7 +43,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         "embed/text/sparse",
         TaskType.SPARSE_EMBEDDING,
         "chat",
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        "embed/text/dense",
+        TaskType.TEXT_EMBEDDING
     );
 
     @SuppressWarnings("unchecked")

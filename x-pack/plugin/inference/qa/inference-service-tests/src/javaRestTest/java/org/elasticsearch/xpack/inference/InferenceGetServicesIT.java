@@ -64,7 +64,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(15));
+        assertThat(services.size(), equalTo(16));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -79,6 +79,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "azureaistudio",
                 "azureopenai",
                 "cohere",
+                "elastic",
                 "elasticsearch",
                 "googleaistudio",
                 "googlevertexai",

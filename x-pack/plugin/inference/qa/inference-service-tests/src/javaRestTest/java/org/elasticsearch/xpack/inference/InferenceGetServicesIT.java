@@ -120,7 +120,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "test_reranking_service",
                     "voyageai",
                     "hugging_face",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "elastic"
                 ).toArray()
             )
         );

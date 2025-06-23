@@ -201,7 +201,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
     public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
-    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC_8_19 = def(8_841_0_56);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC_8_19 = def(8_841_0_57);
 
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);

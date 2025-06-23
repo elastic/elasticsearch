@@ -577,6 +577,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testAbortingOrRunningMergeTaskHoldsUpBudget
   issue: https://github.com/elastic/elasticsearch/issues/129823
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/129852
 
 # Examples:
 #

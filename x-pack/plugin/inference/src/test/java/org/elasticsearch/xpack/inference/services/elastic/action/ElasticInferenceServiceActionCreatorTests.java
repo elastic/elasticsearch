@@ -302,10 +302,10 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(textEmbeddingResults.embeddings(), hasSize(2));
 
             var firstEmbedding = textEmbeddingResults.embeddings().get(0);
-            assertThat(firstEmbedding.values(), is(new float[]{2.1259406f, 1.7073475f, 0.9020516f}));
+            assertThat(firstEmbedding.values(), is(new float[] { 2.1259406f, 1.7073475f, 0.9020516f }));
 
             var secondEmbedding = textEmbeddingResults.embeddings().get(1);
-            assertThat(secondEmbedding.values(), is(new float[]{1.8342123f, 2.3456789f, 0.7654321f}));
+            assertThat(secondEmbedding.values(), is(new float[] { 1.8342123f, 2.3456789f, 0.7654321f }));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -358,7 +358,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(textEmbeddingResults.embeddings(), hasSize(1));
 
             var embedding = textEmbeddingResults.embeddings().get(0);
-            assertThat(embedding.values(), is(new float[]{0.1234567f, 0.9876543f}));
+            assertThat(embedding.values(), is(new float[] { 0.1234567f, 0.9876543f }));
 
             assertThat(webServer.requests(), hasSize(1));
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -445,11 +445,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of(), null, InputType.UNSPECIFIED),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of(), null, InputType.UNSPECIFIED), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

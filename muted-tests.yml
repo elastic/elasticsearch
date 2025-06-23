@@ -574,9 +574,6 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnRetriever
   issue: https://github.com/elastic/elasticsearch/issues/129818
-- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-  method: testLuceneVersionConstant
-  issue: https://github.com/elastic/elasticsearch/issues/125638
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testAbortingOrRunningMergeTaskHoldsUpBudget
   issue: https://github.com/elastic/elasticsearch/issues/129823

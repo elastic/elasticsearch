@@ -1,5 +1,0 @@
-pr: 129797
-summary: "Revert \"[8.19] Backport ES|QL sample processing command\""
-area: ES|QL
-type: bug
-issues: []

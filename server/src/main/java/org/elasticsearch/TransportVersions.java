@@ -246,6 +246,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
     public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
 
     /*
      * STOP! READ THIS FIRST! No, really,

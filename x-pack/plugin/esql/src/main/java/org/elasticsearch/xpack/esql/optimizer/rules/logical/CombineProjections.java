@@ -27,9 +27,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
+    // don't drop groupings from a local plan, as the layout has already been agreed upon
+    private final boolean local;
 
-    public CombineProjections() {
+    public CombineProjections(boolean local) {
         super(OptimizerRules.TransformDirection.UP);
+        this.local = local;
     }
 
     @Override
@@ -54,33 +57,32 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                 // project can be fully removed
                 if (newAggs != null) {
                     var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
-                    plan = a.with(newGroups, newAggs);
+                    if (local == false || newGroups.size() == a.groupings().size()) {
+                        plan = a.with(newGroups, newAggs);
+                    }
                 }
             }
             return plan;
         }
 
         // Agg with underlying Project (group by on sub-queries)
-        if (plan instanceof Aggregate a) {
-            if (child instanceof Project p) {
-                var groupings = a.groupings();
-                List<NamedExpression> groupingAttrs = new ArrayList<>(a.groupings().size());
-                for (Expression grouping : groupings) {
-                    if (grouping instanceof Attribute attribute) {
-                        groupingAttrs.add(attribute);
-                    } else if (grouping instanceof Alias as && as.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
-                        groupingAttrs.add(as);
-                    } else {
-                        // After applying ReplaceAggregateNestedExpressionWithEval,
-                        // evaluatable groupings can only contain attributes.
-                        throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
-                    }
+        if (plan instanceof Aggregate a && child instanceof Project p) {
+            var groupings = a.groupings();
+            List<NamedExpression> groupingAttrs = new ArrayList<>(a.groupings().size());
+            for (Expression grouping : groupings) {
+                if (grouping instanceof Attribute attribute) {
+                    groupingAttrs.add(attribute);
+                } else if (grouping instanceof Alias as && as.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
+                    groupingAttrs.add(as);
+                } else {
+                    // After applying ReplaceAggregateNestedExpressionWithEval,
+                    // evaluatable groupings can only contain attributes.
+                    throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                 }
-                plan = a.with(
-                    p.child(),
-                    combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
-                    combineProjections(a.aggregates(), p.projections())
-                );
+            }
+            List<Expression> newGroupings = combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections());
+            if (local == false || newGroupings.size() == a.groupings().size()) {
+                plan = a.with(p.child(), newGroupings, combineProjections(a.aggregates(), p.projections()));
             }
         }
 

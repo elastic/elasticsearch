@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -132,7 +133,6 @@ import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -925,12 +925,21 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 "salary"
             )
         );
+        // emp_no
+        assertThat(projections.get(1), instanceOf(ReferenceAttribute.class));
+        // first_name
+        assertThat(projections.get(2), instanceOf(ReferenceAttribute.class));
+
+        // last_name --> first_name
+        var nullAlias = Alias.unwrap(projections.get(8));
+        assertThat(Expressions.name(nullAlias), is("first_name"));
+        // salary --> emp_no
+        nullAlias = Alias.unwrap(projections.get(10));
+        assertThat(Expressions.name(nullAlias), is("emp_no"));
+        // check field extraction is skipped and that evaled fields are not extracted anymore
         var field = as(project.child(), FieldExtractExec.class);
         var fields = field.attributesToExtract();
         assertThat(Expressions.names(fields), contains("_meta_field", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx"));
-        var eval = as(field.child(), EvalExec.class);
-        List<String> nullFields = Expressions.names(eval.fields());
-        assertThat(nullFields, containsInAnyOrder("first_name", "last_name", "emp_no", "salary"));
     }
 
     /*

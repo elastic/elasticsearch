@@ -18,9 +18,9 @@ import software.amazon.awssdk.http.HttpMetric;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
-import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.apache.logging.log4j.LogManager;
@@ -306,6 +306,11 @@ class S3BlobStore implements BlobStore {
     private static class DeletionExceptions {
         Exception exception = null;
         private int count = 0;
+        final boolean ignoreNoSuchKey;
+
+        DeletionExceptions(boolean ignoreNoSuchKey) {
+            this.ignoreNoSuchKey = ignoreNoSuchKey;
+        }
 
         void useOrMaybeSuppress(Exception e) {
             if (count < MAX_DELETE_EXCEPTIONS) {
@@ -315,7 +320,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(OperationPurpose purpose, boolean ignoreNoSuchKey, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -323,7 +328,7 @@ class S3BlobStore implements BlobStore {
         final List<ObjectIdentifier> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final var deletionExceptions = new DeletionExceptions();
+            final var deletionExceptions = new DeletionExceptions(ignoreNoSuchKey);
             blobNames.forEachRemaining(key -> {
                 partition.add(ObjectIdentifier.builder().key(key).build());
                 if (partition.size() == bulkDeletionBatchSize) {
@@ -355,13 +360,9 @@ class S3BlobStore implements BlobStore {
         while (true) {
             try (AmazonS3Reference clientReference = clientReference()) {
                 final var response = clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
-                if (response.hasErrors()) {
-                    final var exception = new ElasticsearchException(buildDeletionErrorMessage(response.errors()));
-                    logger.warn(exception.getMessage(), exception);
-                    deletionExceptions.useOrMaybeSuppress(exception);
-                    return;
+                if (maybeRecordDeleteErrors(response, deletionExceptions) == false) {
+                    s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
                 }
-                s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
                 return;
             } catch (SdkException e) {
                 if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e)) {
@@ -383,23 +384,45 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private String buildDeletionErrorMessage(List<S3Error> errors) {
-        final var sb = new StringBuilder("Failed to delete some blobs ");
-        for (int i = 0; i < errors.size() && i < MAX_DELETE_EXCEPTIONS; i++) {
-            final var err = errors.get(i);
-            sb.append("[").append(err.key()).append("][").append(err.code()).append("][").append(err.message()).append("]");
-            if (i < errors.size() - 1) {
-                sb.append(",");
+    private static boolean maybeRecordDeleteErrors(DeleteObjectsResponse response, DeletionExceptions deletionExceptions) {
+        if (response.hasErrors() == false) {
+            return false;
+        }
+
+        final var errors = response.errors();
+        int errorCount = 0;
+        StringBuilder sb = null;
+
+        for (final var err : errors) {
+            if (deletionExceptions.ignoreNoSuchKey && "NoSuchKey".equals(err.code())) {
+                // The blob does not exist, which is what we wanted, so let's count that as a win
+                continue;
             }
+
+            if (errorCount < MAX_DELETE_EXCEPTIONS) {
+                if (errorCount == 0) {
+                    sb = new StringBuilder("Failed to delete some blobs ");
+                } else {
+                    sb.append(",");
+                }
+                sb.append("[").append(err.key()).append("][").append(err.code()).append("][").append(err.message()).append("]");
+            }
+
+            errorCount += 1;
         }
-        if (errors.size() > MAX_DELETE_EXCEPTIONS) {
-            sb.append("... (")
-                .append(errors.size())
-                .append(" in total, ")
-                .append(errors.size() - MAX_DELETE_EXCEPTIONS)
-                .append(" omitted)");
+
+        if (errorCount == 0) {
+            return false;
         }
-        return sb.toString();
+
+        if (MAX_DELETE_EXCEPTIONS < errorCount) {
+            sb.append("... (").append(errorCount).append(" in total, ").append(errorCount - MAX_DELETE_EXCEPTIONS).append(" omitted)");
+        }
+
+        final var exception = new ElasticsearchException(sb.toString());
+        logger.warn(exception.getMessage(), exception);
+        deletionExceptions.useOrMaybeSuppress(exception);
+        return true;
     }
 
     /**

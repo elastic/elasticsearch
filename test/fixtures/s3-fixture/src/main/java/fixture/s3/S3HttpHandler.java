@@ -28,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -46,9 +45,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -84,6 +86,8 @@ public class S3HttpHandler implements HttpHandler {
      * Requests using these HTTP methods never have a request body (this is checked in the handler).
      */
     private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
+
+    private static final QName MULTI_OBJECT_DELETE_KEY_QNAME = new QName("http://s3.amazonaws.com/doc/2006-03-01/", "Key");
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
@@ -350,22 +354,47 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (request.isMultiObjectDeleteRequest()) {
-                final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
 
-                final StringBuilder deletes = new StringBuilder();
-                deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                deletes.append("<DeleteResult>");
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
-                    Map.Entry<String, BytesReference> blob = iterator.next();
-                    String key = blob.getKey().replace("/" + bucket + "/", "");
-                    if (requestBody.contains("<Key>" + key + "</Key>")) {
-                        deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
-                        iterator.remove();
+                final var resultBuilder = new StringBuilder();
+                resultBuilder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+                resultBuilder.append("<DeleteResult>");
+
+                final var errorBuilder = new StringBuilder();
+
+                try {
+                    final var xmlStreamReader = XMLInputFactory.newDefaultFactory().createXMLStreamReader(exchange.getRequestBody());
+                    try {
+                        for (; xmlStreamReader.getEventType() != XMLStreamConstants.END_DOCUMENT; xmlStreamReader.next()) {
+                            if (xmlStreamReader.getEventType() == XMLStreamConstants.START_ELEMENT) {
+                                if (xmlStreamReader.getName().equals(MULTI_OBJECT_DELETE_KEY_QNAME)) {
+                                    xmlStreamReader.next();
+                                    assertEquals(XMLStreamConstants.CHARACTERS, xmlStreamReader.getEventType());
+                                    final var blobName = xmlStreamReader.getText();
+                                    if (blobs.remove("/" + bucket + "/" + blobName) == null) {
+                                        errorBuilder.append("<Error><Code>NoSuchKey</Code><Key>")
+                                            .append(blobName)
+                                            .append("</Key><Message>")
+                                            .append(blobs.keySet())
+                                            .append("</Message><VersionId>")
+                                            .append(UUIDs.randomBase64UUID())
+                                            .append("</VersionId></Error>");
+                                    } else {
+                                        resultBuilder.append("<Deleted><Key>").append(blobName).append("</Key></Deleted>");
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        xmlStreamReader.close();
                     }
+                } catch (XMLStreamException xmlStreamException) {
+                    logger.error("XML exception in multi-object delete", xmlStreamException);
+                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                    return;
                 }
-                deletes.append("</DeleteResult>");
 
-                byte[] response = deletes.toString().getBytes(StandardCharsets.UTF_8);
+                resultBuilder.append(errorBuilder.toString()).append("</DeleteResult>");
+                byte[] response = resultBuilder.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);

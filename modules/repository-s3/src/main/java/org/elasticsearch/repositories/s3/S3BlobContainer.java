@@ -399,7 +399,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final AtomicLong deletedBytes = new AtomicLong();
         try (var clientReference = blobStore.clientReference()) {
             ListObjectsV2Response prevListing = null;
-            while (true) {
+            while (prevListing == null || prevListing.isTruncated()) {
                 final var listObjectsRequestBuilder = ListObjectsV2Request.builder().bucket(blobStore.bucket()).prefix(keyPath);
                 S3BlobStore.configureRequestForMetrics(listObjectsRequestBuilder, blobStore, Operation.LIST_OBJECTS, purpose);
                 if (prevListing != null) {
@@ -412,13 +412,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                     deletedBytes.addAndGet(s3Object.size());
                     return s3Object.key();
                 });
-                if (listObjectsResponse.isTruncated()) {
-                    blobStore.deleteBlobs(purpose, blobNameIterator);
-                    prevListing = listObjectsResponse;
-                } else {
-                    blobStore.deleteBlobs(purpose, Iterators.concat(blobNameIterator, Iterators.single(keyPath)));
-                    break;
-                }
+                blobStore.deleteBlobs(purpose, false, blobNameIterator);
+                prevListing = listObjectsResponse;
             }
         } catch (final SdkException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
@@ -428,7 +423,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobs(purpose, Iterators.map(blobNames, this::buildKey));
+        blobStore.deleteBlobs(purpose, true, Iterators.map(blobNames, this::buildKey));
     }
 
     @Override

@@ -69,6 +69,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -166,6 +167,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static class Builder extends FieldMapper.Builder {
         private final ModelRegistry modelRegistry;
         private final boolean useLegacyFormat;
+        private final IndexVersion indexVersionCreated;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             INFERENCE_ID_FIELD,
@@ -203,15 +205,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             Objects::toString
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
-        private final Parameter<SemanticTextIndexOptions> indexOptions = new Parameter<>(
-            INDEX_OPTIONS_FIELD,
-            true,
-            () -> null,
-            (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
-            mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
-            XContentBuilder::field,
-            Objects::toString
-        ).acceptsNull();
+        private final Parameter<SemanticTextIndexOptions> indexOptions;
 
         @SuppressWarnings("unchecked")
         private final Parameter<ChunkingSettings> chunkingSettings = new Parameter<>(
@@ -248,6 +242,18 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             super(name);
             this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
+            this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+
+            indexOptions = new Parameter<>(
+                INDEX_OPTIONS_FIELD,
+                true,
+                () -> null,
+                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
+                mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
+                XContentBuilder::field,
+                Objects::toString
+            ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
+
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
                 var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
@@ -261,6 +267,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     indexSettings
                 );
             };
+        }
+
+        private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SemanticTextIndexOptions value) {
+            return includeDefaults || Objects.equals(defaultIndexOptions(indexVersionCreated, modelSettings.get()), value) == false;
         }
 
         public Builder setInferenceId(String id) {
@@ -365,8 +375,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 validateServiceSettings(modelSettings.get(), resolvedModelSettings);
             }
 
-            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && indexOptions.get() != null) {
-                validateIndexOptions(indexOptions.get(), inferenceId.getValue(), resolvedModelSettings);
+            SemanticTextIndexOptions builderIndexOptions = indexOptions.get();
+            if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && builderIndexOptions != null) {
+                validateIndexOptions(builderIndexOptions, inferenceId.getValue(), resolvedModelSettings);
+            }
+            if (builderIndexOptions == null) {
+                // If no index options are set, use the default options based on the model settings
+                builderIndexOptions = defaultIndexOptions(indexVersionCreated, resolvedModelSettings);
             }
 
             final String fullName = context.buildFullName(leafName());
@@ -383,9 +398,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     fullName,
                     inferenceId.getValue(),
                     searchInferenceId.getValue(),
-                    modelSettings.getValue(),
+                    resolvedModelSettings,
                     chunkingSettings.getValue(),
-                    indexOptions.getValue(),
+                    builderIndexOptions,
                     inferenceField,
                     useLegacyFormat,
                     meta.getValue()
@@ -434,7 +449,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-
                 if (modelSettings.taskType() != TEXT_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
@@ -1221,18 +1235,31 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
+    static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
+
+        if (modelSettings == null) {
+            return null;
+        }
+
+        SemanticTextIndexOptions defaultIndexOptions = null;
+        if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
+                indexVersionCreated,
+                modelSettings
+            );
+            defaultIndexOptions = denseVectorIndexOptions == null
+                ? null
+                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);
+        }
+
+        return defaultIndexOptions;
+    }
+
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, rescoreVector);
-    }
-
-    static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
-        return new SemanticTextIndexOptions(
-            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultBbqHnswDenseVectorIndexOptions()
-        );
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

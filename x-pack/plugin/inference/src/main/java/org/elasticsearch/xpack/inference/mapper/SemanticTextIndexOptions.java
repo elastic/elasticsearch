@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents index options for a semantic_text field.
@@ -48,6 +49,18 @@ public class SemanticTextIndexOptions implements ToXContent {
 
     public IndexOptions indexOptions() {
         return indexOptions;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof SemanticTextIndexOptions == false) return false;
+        SemanticTextIndexOptions that = (SemanticTextIndexOptions) o;
+        return type == that.type && Objects.equals(indexOptions, that.indexOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, indexOptions);
     }
 
     public enum SupportedIndexOptions {

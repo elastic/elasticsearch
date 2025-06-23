@@ -39,6 +39,16 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
         result.put(
+            ThreadPool.Names.WRITE_COORDINATION,
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.WRITE_COORDINATION,
+                allocatedProcessors,
+                10000,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
+        );
+        result.put(
             ThreadPool.Names.WRITE,
             new FixedExecutorBuilder(
                 settings,
@@ -182,6 +192,17 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new FixedExecutorBuilder(
                 settings,
                 ThreadPool.Names.SYSTEM_WRITE,
+                halfProcMaxAt5,
+                1000,
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
+            )
+        );
+        result.put(
+            ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 halfProcMaxAt5,
                 1000,
                 new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),

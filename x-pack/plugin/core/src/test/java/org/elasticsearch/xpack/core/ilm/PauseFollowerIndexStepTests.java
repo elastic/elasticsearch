@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -42,7 +41,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
+        ProjectState state = setupClusterStateWithFollowingIndex(indexMetadata);
 
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
@@ -54,7 +53,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -64,7 +63,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
+        ProjectState state = setupClusterStateWithFollowingIndex(indexMetadata);
 
         Mockito.doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -74,7 +73,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertThat(e.getMessage(), is("pause follow request failed to be acknowledged"));
     }
 
@@ -85,7 +84,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
+        ProjectState state = setupClusterStateWithFollowingIndex(indexMetadata);
 
         // Mock pause follow api call:
         Exception error = new RuntimeException();
@@ -98,9 +97,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
+        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
         Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        Mockito.verify(client).projectClient(state.projectId());
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -113,18 +113,15 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .build();
 
         PersistentTasksCustomMetadata.Builder emptyPersistentTasks = PersistentTasksCustomMetadata.builder();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(PersistentTasksCustomMetadata.TYPE, emptyPersistentTasks.build())
-                    .put(indexMetadata, false)
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(PersistentTasksCustomMetadata.TYPE, emptyPersistentTasks.build())
+                .put(indexMetadata, false)
+        );
 
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verifyNoMoreInteractions(client);
     }
@@ -142,17 +139,17 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        final ClusterState clusterState = ClusterState.builder(setupClusterStateWithFollowingIndex(followerIndex))
-            .metadata(Metadata.builder().put(managedIndex, false).build())
-            .build();
+        final var initialState = setupClusterStateWithFollowingIndex(followerIndex);
+        final ProjectState state = initialState.updatedState(builder -> builder.put(managedIndex, false))
+            .projectState(initialState.projectId());
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        performActionAndWait(step, managedIndex, clusterState, null);
+        performActionAndWait(step, managedIndex, state, null);
 
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    private static ClusterState setupClusterStateWithFollowingIndex(IndexMetadata followerIndex) {
+    private static ProjectState setupClusterStateWithFollowingIndex(IndexMetadata followerIndex) {
         PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder()
             .addTask(
                 "1",
@@ -176,11 +173,11 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
                 null
             );
 
-        return ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(
-                Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build()).put(followerIndex, false).build()
-            )
-            .build();
+        return projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
+                .put(followerIndex, false)
+        );
     }
 
 }

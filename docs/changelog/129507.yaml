@@ -1,0 +1,6 @@
+pr: 129507
+summary: Using a temp `IndexService` for template validation
+area: Indices APIs
+type: bug
+issues:
+ - 129473

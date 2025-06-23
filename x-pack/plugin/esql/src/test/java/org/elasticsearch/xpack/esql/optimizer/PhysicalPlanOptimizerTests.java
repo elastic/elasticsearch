@@ -2913,7 +2913,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinLeftSide = plan.transformUp(LookupJoinExec.class, join -> join.replaceChildren(join.right(), join.right()));
 
         var e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinLeftSide));
-        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [language_code"));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,
@@ -8046,7 +8046,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
      */
     public void testSamplePushDown() {
-        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V2.isEnabled());
+        assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var plan = physicalPlan("""
             FROM test

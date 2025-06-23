@@ -1326,12 +1326,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.RefreshResult refresh(String source) {
         verifyNotClosed();
         logger.trace("refresh with source [{}]", source);
-        return getEngine().refresh(source);
+        return withEngine(engine -> engine.refresh(source));
     }
 
     public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
         verifyNotClosed();
-        getEngine().externalRefresh(source, listener);
+        withEngine(engine -> {
+            engine.externalRefresh(source, listener);
+            return null;
+        });
     }
 
     /**
@@ -3504,7 +3507,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
-            case EMPTY_STORE, EXISTING_STORE -> executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
+            case EMPTY_STORE, EXISTING_STORE, RESHARD_SPLIT -> executeRecovery(
+                "from store",
+                recoveryState,
+                recoveryListener,
+                this::recoverFromStore
+            );
             case PEER -> {
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
@@ -4300,9 +4308,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private FieldInfos loadFieldInfos() {
-        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
-        } catch (AlreadyClosedException ignore) {
+        try {
+            return getEngine().shardFieldInfos();
+        } catch (AlreadyClosedException ignored) {
             // engine is closed - no update to FieldInfos is fine
         }
         return FieldInfos.EMPTY;

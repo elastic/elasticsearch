@@ -102,9 +102,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118217
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -532,15 +529,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/129527
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/129528
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/129529
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
   method: testIORateIsAdjustedForAllRunningMergeTasks
   issue: https://github.com/elastic/elasticsearch/issues/129531
@@ -559,21 +547,18 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/129651
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnSearchRescore
-  issue: https://github.com/elastic/elasticsearch/issues/129713
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testSnapshotShutdownProgressTracker
   issue: https://github.com/elastic/elasticsearch/issues/129752
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnQueryRescore
-  issue: https://github.com/elastic/elasticsearch/issues/129809
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnRetriever
-  issue: https://github.com/elastic/elasticsearch/issues/129818
+- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
+  method: testLuceneVersionConstant
+  issue: https://github.com/elastic/elasticsearch/issues/125638
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129819
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testAbortingOrRunningMergeTaskHoldsUpBudget
   issue: https://github.com/elastic/elasticsearch/issues/129823

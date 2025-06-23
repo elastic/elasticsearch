@@ -87,7 +87,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
         .withData("sample_data_ts_nanos.csv")
         .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample_data_ts_nanos_lookup")
+    // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
+    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample__data_ts_nanos_lookup")
         .withSetting("lookup-settings.json");
     private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
     private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING = new TestDataset("partial_mapping_sample_data");

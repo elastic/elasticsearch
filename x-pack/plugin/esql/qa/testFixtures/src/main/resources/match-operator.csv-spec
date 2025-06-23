@@ -756,13 +756,13 @@ testFTFWithLookupJoin
 required_capability: match_operator_colon
 required_capability: join_lookup_v12
 
-FROM sample_*,-sample_data_* METADATA _index
+FROM sample_*,-sample__data_* METADATA _index
 | WHERE message : "Connected to 10.1.0.1"
 | WHERE MATCH_PHRASE(message, "Connected to 10.1.0.1")
 | WHERE KQL("message : Connected*")
 | WHERE QSTR("message : *")
 | RENAME @timestamp AS @timestamp_millis
-| LOOKUP JOIN sample_data_ts_nanos_lookup ON client_ip
+| LOOKUP JOIN sample__data_ts_nanos_lookup ON client_ip
 | KEEP *,_index
 | SORT @timestamp
 ;

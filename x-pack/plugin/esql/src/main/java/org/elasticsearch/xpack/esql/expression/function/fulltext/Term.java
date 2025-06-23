@@ -52,7 +52,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Performs a Term query on the specified field. Returns true if the provided term matches the row.",
         examples = { @Example(file = "term-function", tag = "term-with-field") }
     )

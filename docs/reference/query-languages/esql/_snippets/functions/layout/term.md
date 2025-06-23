@@ -2,7 +2,7 @@
 
 ## `TERM` [esql-term]
 ```{applies_to}
-stack: preview 9.0.0
+stack: preview
 serverless: preview
 ```
 

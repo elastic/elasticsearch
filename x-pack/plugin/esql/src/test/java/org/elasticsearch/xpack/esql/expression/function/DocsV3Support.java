@@ -592,17 +592,6 @@ public abstract class DocsV3Support {
             writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
-        private String makeCallout(String type, String text) {
-            return ":::{" + type + "}\n" + text.trim() + "\n:::\n";
-        }
-
-        private void appendLifeCycleAndVersion(StringBuilder appliesToText, FunctionAppliesTo appliesTo) {
-            appliesToText.append(appliesTo.lifeCycle().name().toLowerCase(Locale.ROOT));
-            if (appliesTo.version().isEmpty() == false) {
-                appliesToText.append(" ").append(appliesTo.version());
-            }
-        }
-
         private String makeAppliesToText(FunctionAppliesTo[] functionAppliesTos, boolean preview) {
             StringBuilder appliesToText = new StringBuilder();
             if (functionAppliesTos.length > 0) {

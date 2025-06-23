@@ -19,7 +19,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .module("gpu")
-        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();
 

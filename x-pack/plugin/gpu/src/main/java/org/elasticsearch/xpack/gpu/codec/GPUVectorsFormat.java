@@ -77,18 +77,19 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     }
 
     /** Tells whether the platform supports cuvs. */
-    public static boolean supported() {
-        try (var resources = CuVSResources.create()) {
-            return true;
+    public static CuVSResources cuVSResourcesOrNull() {
+        try {
+            var resources = CuVSResources.create();
+            return resources;
         } catch (UnsupportedOperationException uoe) {
             var msg = uoe.getMessage() == null ? "" : ": " + uoe.getMessage();
-            LOG.warn("cuvs is not supported on this platform or java version" + msg);
+            LOG.warn("GPU based vector search is not supported on this platform or java version" + msg);
         } catch (Throwable t) {
             if (t instanceof ExceptionInInitializerError ex) {
                 t = ex.getCause();
             }
             LOG.warn("Exception occurred during creation of cuvs resources. " + t);
         }
-        return false;
+        return null;
     }
 }

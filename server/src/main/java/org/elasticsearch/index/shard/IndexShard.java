@@ -4313,9 +4313,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private FieldInfos loadFieldInfos() {
-        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
-        } catch (AlreadyClosedException ignore) {
+        try {
+            return getEngine().shardFieldInfos();
+        } catch (AlreadyClosedException ignored) {
             // engine is closed - no update to FieldInfos is fine
         }
         return FieldInfos.EMPTY;

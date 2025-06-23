@@ -368,14 +368,17 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float soarResidual(float[] v1, float[] centroid, float[] originalResidual) {
+    public float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
         assert v1.length == centroid.length;
         assert v1.length == originalResidual.length;
         float proj = 0;
+        float dsq = 0;
         int i = 0;
         if (v1.length > 2 * FLOAT_SPECIES.length()) {
             FloatVector projVec1 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector projVec2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
             int unrolledLimit = FLOAT_SPECIES.loopBound(v1.length) - FLOAT_SPECIES.length();
             for (; i < unrolledLimit; i += 2 * FLOAT_SPECIES.length()) {
                 // one
@@ -384,6 +387,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 FloatVector originalResidualVec0 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
                 FloatVector djkVec0 = v1Vec0.sub(centroidVec0);
                 projVec1 = fma(djkVec0, originalResidualVec0, projVec1);
+                acc1 = fma(djkVec0, djkVec0, acc1);
 
                 // two
                 FloatVector v1Vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i + FLOAT_SPECIES.length());
@@ -391,6 +395,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 FloatVector originalResidualVec1 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + FLOAT_SPECIES.length());
                 FloatVector djkVec1 = v1Vec1.sub(centroidVec1);
                 projVec2 = fma(djkVec1, originalResidualVec1, projVec2);
+                acc2 = fma(djkVec1, djkVec1, acc2);
             }
             // vector tail
             for (; i < FLOAT_SPECIES.loopBound(v1.length); i += FLOAT_SPECIES.length()) {
@@ -399,15 +404,18 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 FloatVector originalResidualVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
                 FloatVector djkVec = v1Vec.sub(centroidVec);
                 projVec1 = fma(djkVec, originalResidualVec, projVec1);
+                acc1 = fma(djkVec, djkVec, acc1);
             }
             proj += projVec1.add(projVec2).reduceLanes(ADD);
+            dsq += acc1.add(acc2).reduceLanes(ADD);
         }
         // tail
         for (; i < v1.length; i++) {
             float djk = v1[i] - centroid[i];
             proj = fma(djk, originalResidual[i], proj);
+            dsq = fma(djk, djk, dsq);
         }
-        return proj;
+        return dsq + soarLambda * proj * proj / rnorm;
     }
 
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;

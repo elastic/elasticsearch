@@ -93,7 +93,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
 
         String expectedResult = Strings.format(
             """
-            {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
+                {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
             similarity,
             dimensions,
             maxInputTokens,
@@ -101,12 +101,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             rateLimitSettings.requestsPerTimeUnit()
         );
 
-        assertThat(
-            xContentResult,
-            is(
-                expectedResult
-            )
-        );
+        assertThat(xContentResult, is(expectedResult));
     }
 
     public void testToXContent_WritesOnlyNonNullFields() throws IOException {

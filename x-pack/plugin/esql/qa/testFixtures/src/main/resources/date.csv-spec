@@ -200,6 +200,30 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
+convert with zones#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00+0400"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00+0400" | 2025-04-11T01:00:00.000Z
+;
+
+equality with zones
+ROW dt = TO_DATETIME("2025-04-11T01:00:00.000Z")
+| EVAL bool = "2025-04-11T05:00:00+0400" == dt;
+
+dt:datetime              | bool:boolean
+2025-04-11T01:00:00.000Z | true
+;
+
+convert no zone#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+ROW str = "2025-04-11T05:00:00.000"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00.000" | 2025-04-11T05:00:00.000Z
+;
+
 convertFromString#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
 // tag::to_datetime-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
@@ -1141,9 +1165,7 @@ FROM sample_data
 // end::docsNowWhere[]
 ;
 
-// tag::docsNowWhere-result[]
 @timestamp:date   | client_ip:ip | event_duration:long | message:keyword
-// end::docsNowWhere-result[]
 ;
 
 mvSort

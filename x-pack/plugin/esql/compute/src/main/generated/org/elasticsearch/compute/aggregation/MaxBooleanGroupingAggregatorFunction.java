@@ -13,7 +13,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -65,7 +66,12 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
@@ -81,7 +87,12 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
@@ -96,28 +107,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(v)));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, BooleanBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BooleanBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -138,7 +128,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BooleanVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BooleanVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -149,6 +139,62 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
         int groupId = groups.getInt(g);
         state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BooleanBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (values.isNull(groupPosition + positionOffset)) {
+          continue;
+        }
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(v)));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BooleanVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(v)));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
     }
   }
 

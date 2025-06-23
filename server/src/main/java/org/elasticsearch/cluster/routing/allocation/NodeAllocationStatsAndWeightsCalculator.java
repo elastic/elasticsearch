@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeights;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -29,11 +29,7 @@ import java.util.Map;
  */
 public class NodeAllocationStatsAndWeightsCalculator {
     private final WriteLoadForecaster writeLoadForecaster;
-
-    private volatile float indexBalanceFactor;
-    private volatile float shardBalanceFactor;
-    private volatile float writeLoadBalanceFactor;
-    private volatile float diskUsageBalanceFactor;
+    private final BalancingWeightsFactory balancingWeightsFactory;
 
     /**
      * Node shard allocation stats and the total node weight.
@@ -47,18 +43,12 @@ public class NodeAllocationStatsAndWeightsCalculator {
         float currentNodeWeight
     ) {}
 
-    public NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster writeLoadForecaster, ClusterSettings clusterSettings) {
+    public NodeAllocationStatsAndWeightsCalculator(
+        WriteLoadForecaster writeLoadForecaster,
+        BalancingWeightsFactory balancingWeightsFactory
+    ) {
         this.writeLoadForecaster = writeLoadForecaster;
-        clusterSettings.initializeAndWatch(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        clusterSettings.initializeAndWatch(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        clusterSettings.initializeAndWatch(
-            BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
-            value -> this.writeLoadBalanceFactor = value
-        );
-        clusterSettings.initializeAndWatch(
-            BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
-            value -> this.diskUsageBalanceFactor = value
-        );
+        this.balancingWeightsFactory = balancingWeightsFactory;
     }
 
     /**
@@ -68,25 +58,28 @@ public class NodeAllocationStatsAndWeightsCalculator {
         Metadata metadata,
         RoutingNodes routingNodes,
         ClusterInfo clusterInfo,
+        Runnable ensureNotCancelled,
         @Nullable DesiredBalance desiredBalance
     ) {
         if (metadata.hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
-        var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
+        final BalancingWeights balancingWeights = balancingWeightsFactory.create();
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
         var avgDiskUsageInBytesPerNode = WeightFunction.avgDiskUsageInBytesPerNode(clusterInfo, metadata, routingNodes);
 
         var nodeAllocationStatsAndWeights = Maps.<String, NodeAllocationStatsAndWeight>newMapWithExpectedSize(routingNodes.size());
         for (RoutingNode node : routingNodes) {
+            WeightFunction weightFunction = balancingWeights.weightFunctionForNode(node);
             int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
             long forecastedDiskUsage = 0;
             long currentDiskUsage = 0;
             for (ShardRouting shardRouting : node) {
+                ensureNotCancelled.run();
                 if (shardRouting.relocating()) {
                     // Skip the shard if it is moving off this node. The node running recovery will count it.
                     continue;

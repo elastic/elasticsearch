@@ -13,10 +13,18 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 
 import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
@@ -26,7 +34,10 @@ import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
 public class S3HttpFixture extends ExternalResource {
 
+    private static final Logger logger = LogManager.getLogger(S3HttpFixture.class);
+
     private HttpServer server;
+    private ExecutorService executorService;
 
     private final boolean enabled;
     private final String bucket;
@@ -71,9 +82,22 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
+            this.executorService = EsExecutors.newScaling(
+                "s3-http-fixture",
+                1,
+                100,
+                30,
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory("s3-http-fixture"),
+                new ThreadContext(Settings.EMPTY)
+            );
+
             this.server = HttpServer.create(getLocalFixtureAddress(), 0);
             this.server.createContext("/", Objects.requireNonNull(createHandler()));
+            this.server.setExecutor(executorService);
             server.start();
+            logger.info("running S3HttpFixture at " + getAddress());
         }
     }
 
@@ -81,6 +105,7 @@ public class S3HttpFixture extends ExternalResource {
     protected void after() {
         if (enabled) {
             stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

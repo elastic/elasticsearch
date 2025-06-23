@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportResponse;
@@ -18,11 +19,13 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
-    private final List<DriverProfile> profiles;
+    private final DriverCompletionInfo completionInfo;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
     private final TimeValue took;  // overall took time for a specific cluster in a cross-cluster search
@@ -32,12 +35,12 @@ final class ComputeResponse extends TransportResponse {
     public final int failedShards;
     public final List<ShardSearchFailure> failures;
 
-    ComputeResponse(List<DriverProfile> profiles) {
-        this(profiles, null, null, null, null, null, List.of());
+    ComputeResponse(DriverCompletionInfo completionInfo) {
+        this(completionInfo, null, null, null, null, null, List.of());
     }
 
     ComputeResponse(
-        List<DriverProfile> profiles,
+        DriverCompletionInfo completionInfo,
         TimeValue took,
         Integer totalShards,
         Integer successfulShards,
@@ -45,7 +48,7 @@ final class ComputeResponse extends TransportResponse {
         Integer failedShards,
         List<ShardSearchFailure> failures
     ) {
-        this.profiles = profiles;
+        this.completionInfo = completionInfo;
         this.took = took;
         this.totalShards = totalShards == null ? 0 : totalShards.intValue();
         this.successfulShards = successfulShards == null ? 0 : successfulShards.intValue();
@@ -55,14 +58,16 @@ final class ComputeResponse extends TransportResponse {
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            completionInfo = new DriverCompletionInfo(in);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom));
             } else {
-                profiles = null;
+                completionInfo = DriverCompletionInfo.EMPTY;
             }
         } else {
-            profiles = null;
+            completionInfo = DriverCompletionInfo.EMPTY;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.took = in.readOptionalTimeValue();
@@ -87,13 +92,11 @@ final class ComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            if (profiles == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeCollection(profiles);
-            }
+        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            completionInfo.writeTo(out);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeBoolean(true);
+            out.writeCollection(completionInfo.collectedProfiles());
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalTimeValue(took);
@@ -108,8 +111,8 @@ final class ComputeResponse extends TransportResponse {
         }
     }
 
-    public List<DriverProfile> getProfiles() {
-        return profiles;
+    public DriverCompletionInfo getCompletionInfo() {
+        return completionInfo;
     }
 
     public TimeValue getTook() {

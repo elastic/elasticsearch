@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,6 +22,12 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEISAuthServerTest {
+
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
 
     public void testGetDefaultEndpoints() throws IOException {
         var allModels = getAllModels();

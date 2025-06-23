@@ -136,6 +136,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -193,11 +194,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -226,11 +229,14 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -469,6 +475,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (randomBoolean()) {
             builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values()));
+        }
         return builder;
     }
 
@@ -577,7 +586,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 internalCluster().clearDisruptionScheme();
             }
             try {
-                if (cluster() != null) {
+                if (cluster() != null && cluster().size() > 0) {
                     if (currentClusterScope != Scope.TEST) {
                         Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getMetadata();
 
@@ -903,7 +912,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         GetDataStreamAction.Response response = safeGet(
             client().execute(
                 GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+                new GetDataStreamAction.Request(SAFE_AWAIT_TIMEOUT, new String[] { dataStreamName })
             )
         );
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -935,6 +944,49 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
         assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+    }
+
+    /**
+     * Waits for the node {@code viaNode} to see {@code masterNodeName} as the master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     *
+     * @param viaNode the node to check the cluster state one
+     * @param masterNodeName the master node name that we wait for
+     */
+    public void awaitMasterNode(String viaNode, String masterNodeName) {
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterNodeName)).orElse(false),
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
+    }
+
+    /**
+     * Waits for all nodes in the cluster to have a consistent view of which node is currently the master.
+     */
+    public void awaitMasterNode() {
+        // The cluster health API always runs on the master node, and the master only completes cluster state publication when all nodes
+        // in the cluster have accepted the new cluster state. By waiting for all events to have finished on the master node, we ensure
+        // that the whole cluster has a consistent view of which node is the master.
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setTimeout(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
+    }
+
+    /**
+     * Waits for a random node in the cluster to not see a master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     */
+    public void awaitMasterNotFound() {
+        var viaNode = internalCluster().getRandomNodeName();
+        // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
+        // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),
+        // the cluster state version is not incremented.
+        var listener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().clusterService(viaNode),
+            state -> state.nodes().getMasterNode() == null,
+            TEST_REQUEST_TIMEOUT
+        );
+        safeAwait(listener, TEST_REQUEST_TIMEOUT);
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -1171,6 +1223,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * @return A map of the cluster node Ids to their node names.
+     */
+    public static Map<String, String> nodeIdsToNames() {
+        var names = internalCluster().getNodeNames();
+        Map<String, String> nodeIdsToNames = new HashMap<>();
+        for (var name : names) {
+            nodeIdsToNames.put(getNodeId(name), name);
+        }
+        return nodeIdsToNames;
+
+    }
+
+    /**
      * Waits until at least a give number of document is visible for searchers
      *
      * @param numDocs number of documents to wait for
@@ -1305,8 +1370,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
+        // This check has very little value in external test clusters and there is no guaranteed method of obtaining the master cluster
+        // state in those clusters.
+        if (isInternalCluster() == false) {
+            return;
+        }
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
+        final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
             localStates.add(
                 SubscribableListener.newForked(
@@ -1316,7 +1387,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
             SubscribableListener.<ClusterStateResponse>newForked(
-                l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
+                l -> client(masterName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l)
             ).andThenAccept(masterStateResponse -> {
                 byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterStateResponse.getState());
                 // remove local node reference
@@ -1731,6 +1802,29 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return getIndexResponse.getIndices().length > 0;
     }
 
+    public static void awaitIndexExists(String index) {
+        awaitIndexExists(index, client(), SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, TimeValue timeout) {
+        awaitIndexExists(index, client(), timeout);
+    }
+
+    public static void awaitIndexExists(String index, Client client) {
+        awaitIndexExists(index, client, SAFE_AWAIT_TIMEOUT);
+    }
+
+    public static void awaitIndexExists(String index, Client client, TimeValue timeout) {
+        assertThat("wildcards not supported", index, allOf(not(Metadata.ALL), not(containsString("*"))));
+        assertNoTimeout(
+            client.admin()
+                .cluster()
+                .prepareHealth(timeout, index)
+                .setTimeout(timeout)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
+        );
+    }
+
     /**
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
@@ -1823,7 +1917,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) {
-        indexRandom(forceRefresh, dummyDocuments, true, builders);
+        indexRandom(forceRefresh, dummyDocuments, true, true, builders);
     }
 
     /**
@@ -1833,13 +1927,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh   if {@code true} all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
-     *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param maybeFlush     if {@code true} this method may randomly execute full flushes after index operations.
-     * @param builders       the documents to index.
+     * @param forceRefresh    if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments  if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
+     *                        all documents are indexed. This is useful to produce deleted documents on the server side.
+     * @param maybeFlush      if {@code true} this method may randomly execute full flushes after index operations.
+     * @param builders        the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) {
+        indexRandom(forceRefresh, dummyDocuments, maybeFlush, true, builders);
+    }
+
+    /**
+     * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
+     * indexes them in a blocking or async fashion. This is very useful to catch problems that relate to internal document
+     * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
+     * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
+     * layout.
+     *
+     * @param forceRefresh    if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments  if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
+     *                        all documents are indexed. This is useful to produce deleted documents on the server side.
+     * @param maybeFlush      if {@code true} this method may randomly execute full flushes after index operations.
+     * @param maybeForceMerge if {@code true} this method may randomly execute force merges after index operations.
+     * @param builders        the documents to index.
+     */
+    public void indexRandom(
+        boolean forceRefresh,
+        boolean dummyDocuments,
+        boolean maybeFlush,
+        boolean maybeForceMerge,
+        List<IndexRequestBuilder> builders
+    ) {
         Random random = random();
         Set<String> indices = new HashSet<>();
         builders = new ArrayList<>(builders);
@@ -1872,13 +1990,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         new LatchedActionListener<DocWriteResponse>(ActionListener.noop(), newLatch(inFlightAsyncOperations))
                             .delegateResponse((l, e) -> fail(e))
                     );
-                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush, maybeForceMerge);
                 }
             } else {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.get();
-                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush, maybeForceMerge);
                 }
             }
         } else {
@@ -1957,7 +2075,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Maybe refresh, force merge, or flush then always make sure there aren't too many in flight async operations.
      */
-    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush) {
+    private void postIndexAsyncActions(
+        String[] indices,
+        List<CountDownLatch> inFlightAsyncOperations,
+        boolean maybeFlush,
+        boolean maybeForceMerge
+    ) {
         if (rarely()) {
             if (rarely()) {
                 indicesAdmin().prepareRefresh(indices)
@@ -1967,7 +2090,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 indicesAdmin().prepareFlush(indices)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .execute(new LatchedActionListener<>(ActionListener.noop(), newLatch(inFlightAsyncOperations)));
-            } else if (rarely()) {
+            } else if (maybeForceMerge && rarely()) {
                 indicesAdmin().prepareForceMerge(indices)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setMaxNumSegments(between(1, 10))

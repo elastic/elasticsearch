@@ -26,6 +26,11 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     public static MockElasticInferenceServiceAuthorizationServer enabledWithRainbowSprinklesAndElser() {
         var server = new MockElasticInferenceServiceAuthorizationServer();
 
+        server.enqueueAuthorizeAllModelsResponse();
+        return server;
+    }
+
+    public void enqueueAuthorizeAllModelsResponse() {
         String responseJson = """
             {
                 "models": [
@@ -45,21 +50,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
             }
             """;
 
-        server.webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        return server;
-    }
-
-    public static MockElasticInferenceServiceAuthorizationServer disabled() {
-        var server = new MockElasticInferenceServiceAuthorizationServer();
-
-        String responseJson = """
-            {
-                "models": []
-            }
-            """;
-
-        server.webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        return server;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
     }
 
     public String getUrl() {

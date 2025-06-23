@@ -116,6 +116,7 @@ public class TestRestrictedIndices {
                             .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
+                        "fleet",
                         null
                     )
                 )

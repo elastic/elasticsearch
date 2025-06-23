@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithPatch() {
@@ -135,6 +134,7 @@ public class PolicyUtilsTests extends ESTestCase {
 
     public void testNoPatchWithValidationError() {
 
+        // Nonexistent module names
         var policyPatch = """
             versions:
               - 9.0.0
@@ -150,13 +150,15 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testNoPatchWithParsingError() {
 
+        // no <version> or <policy> field
         var policyPatch = """
             entitlement-module-name:
               - load_native_libraries
@@ -168,9 +170,10 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testMergeScopes() {
@@ -215,7 +218,7 @@ public class PolicyUtilsTests extends ESTestCase {
             List.of(
                 FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                 FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
+                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
             )
         );
         var e2 = new FilesEntitlement(
@@ -235,7 +238,7 @@ public class PolicyUtilsTests extends ESTestCase {
                     FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/c/d"), FilesEntitlement.Mode.READ)
                 )
             )
@@ -328,7 +331,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofRelativePath(pathCD, FilesEntitlement.BaseDir.DATA, FilesEntitlement.Mode.READ)
+                                FilesEntitlement.FileData.ofRelativePath(pathCD, PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )
@@ -339,11 +342,7 @@ public class PolicyUtilsTests extends ESTestCase {
                         new FilesEntitlement(
                             List.of(
                                 FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
-                                FilesEntitlement.FileData.ofPathSetting(
-                                    "setting",
-                                    FilesEntitlement.BaseDir.DATA,
-                                    FilesEntitlement.Mode.READ
-                                )
+                                FilesEntitlement.FileData.ofPathSetting("setting", PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
                             )
                         )
                     )

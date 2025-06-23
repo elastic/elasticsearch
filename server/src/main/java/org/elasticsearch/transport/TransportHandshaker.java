@@ -337,7 +337,7 @@ final class TransportHandshaker {
         }
     }
 
-    static final class HandshakeRequest extends TransportRequest {
+    static final class HandshakeRequest extends AbstractTransportRequest {
 
         /**
          * The {@link TransportVersion#current()} of the requesting node.

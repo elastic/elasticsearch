@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.RESCORE_VECTOR_ALLOW_ZERO;
+import static org.elasticsearch.TransportVersions.RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19;
 
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
@@ -57,7 +58,9 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // We don't want to serialize a `0` oversample to a node that doesn't know what to do with it.
-        if (oversample == NO_OVERSAMPLE && out.getTransportVersion().before(RESCORE_VECTOR_ALLOW_ZERO)) {
+        if (oversample == NO_OVERSAMPLE
+            && out.getTransportVersion().before(RESCORE_VECTOR_ALLOW_ZERO)
+            && out.getTransportVersion().isPatchFrom(RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19) == false) {
             throw new ElasticsearchStatusException(
                 "[rescore_vector] does not support a 0 for ["
                     + OVERSAMPLE_FIELD.getPreferredName()

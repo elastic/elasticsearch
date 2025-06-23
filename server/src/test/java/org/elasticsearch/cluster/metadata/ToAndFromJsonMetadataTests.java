@@ -133,7 +133,11 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        Metadata.FORMAT.toXContent(builder, metadata);
+        ChunkedToXContent.wrapAsToXContent(metadata)
+            .toXContent(
+                builder,
+                new ToXContent.MapParams(Map.of("binary", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY))
+            );
         builder.endObject();
 
         Metadata parsedMetadata;
@@ -281,6 +285,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     "index-graveyard" : {
                       "tombstones" : [ ]
                     },
+                    "settings" : { },
                     "reserved_state" : { }
                   }
                 ],

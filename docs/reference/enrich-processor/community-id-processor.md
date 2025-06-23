@@ -9,7 +9,7 @@ mapped_pages:
 
 Computes the Community ID for network flow data as defined in the [Community ID Specification](https://github.com/corelight/community-id-spec). You can use a community ID to correlate network events related to a single flow.
 
-The community ID processor reads network flow data from related [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)) fields by default. If you use the ECS, no configuration is required.
+The community ID processor reads network flow data from related [Elastic Common Schema (ECS)](ecs://reference/index.md) fields by default. If you use the ECS, no configuration is required.
 
 $$$community-id-options$$$
 

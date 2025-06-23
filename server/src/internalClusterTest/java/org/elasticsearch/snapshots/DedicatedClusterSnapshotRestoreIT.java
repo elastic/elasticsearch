@@ -685,6 +685,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testSnapshotWithDateMath() {
+        internalCluster().startMasterOnlyNode();
         final String repo = "repo";
 
         final String snapshotName = "<snapshot-{now/d}>";
@@ -712,6 +713,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testSnapshotTotalAndIncrementalSizes() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String indexName = "test-blocks-1";
         final String repositoryName = "repo-" + indexName;
         final String snapshot0 = "snapshot-0";
@@ -798,6 +801,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testDeduplicateIndexMetadata() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String indexName = "test-blocks-1";
         final String repositoryName = "repo-" + indexName;
         final String snapshot0 = "snapshot-0";
@@ -968,6 +973,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testRetentionLeasesClearedOnRestore() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
         final String repoName = "test-repo-retention-leases";
         createRepository(repoName, "fs");
 

@@ -40,7 +40,7 @@ public class ExtractorTests extends ESTestCase {
             switch (e) {
                 case UNKNOWN -> {
                 }
-                case COMPOSITE -> {
+                case COMPOSITE, AGGREGATE_METRIC_DOUBLE -> {
                     // TODO: add later
                 }
                 case FLOAT -> {

@@ -24,7 +24,7 @@ final class CancellableBulkScorer extends BulkScorer {
 
     // we use the BooleanScorer window size as a base interval in order to make sure that we do not
     // slow down boolean queries
-    private static final int INITIAL_INTERVAL = 1 << 11;
+    private static final int INITIAL_INTERVAL = 1 << 12;
 
     // No point in having intervals that are larger than 1M
     private static final int MAX_INTERVAL = 1 << 20;

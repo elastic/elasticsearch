@@ -223,33 +223,36 @@ class ValuesFloatAggregator {
                         ids[selectedCounts[group]++] = id;
                     }
                 }
-
-                /*
-                 * Insert the ids in order.
-                 */
-                try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
-                    int start = 0;
-                    for (int s = 0; s < selected.getPositionCount(); s++) {
-                        int group = selected.getInt(s);
-                        int end = selectedCounts[group];
-                        int count = end - start;
-                        switch (count) {
-                            case 0 -> builder.appendNull();
-                            case 1 -> append(builder, ids[start]);
-                            default -> {
-                                builder.beginPositionEntry();
-                                for (int i = start; i < end; i++) {
-                                    append(builder, ids[i]);
-                                }
-                                builder.endPositionEntry();
-                            }
-                        }
-                        start = end;
-                    }
-                    return builder.build();
-                }
+                return buildOutputBlock(blockFactory, selected, selectedCounts, ids);
             } finally {
                 blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+            }
+        }
+
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
+            /*
+             * Insert the ids in order.
+             */
+            try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
+                int start = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int end = selectedCounts[group];
+                    int count = end - start;
+                    switch (count) {
+                        case 0 -> builder.appendNull();
+                        case 1 -> append(builder, ids[start]);
+                        default -> {
+                            builder.beginPositionEntry();
+                            for (int i = start; i < end; i++) {
+                                append(builder, ids[i]);
+                            }
+                            builder.endPositionEntry();
+                        }
+                    }
+                    start = end;
+                }
+                return builder.build();
             }
         }
 

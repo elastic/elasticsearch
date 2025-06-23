@@ -22,11 +22,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
@@ -55,7 +53,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -89,6 +86,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -1027,8 +1025,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, Long> testCases = new HashMap<>();
         // Concrete data stream with each selector
         testCases.put("test_ds_patterns_1", 5L);
@@ -1076,8 +1072,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
-        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
-
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());
@@ -1087,8 +1081,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamInvalidPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, String> testCases = new HashMap<>();
         // === Errors
         // Only recognized components can be selected
@@ -1104,7 +1096,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only one selector separator is allowed per expression
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);
@@ -1139,13 +1131,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                                           }
                                         }"""))
                                     .dataStreamOptions(
-                                        ResettableValue.create(
-                                            new DataStreamOptions.Template(
-                                                ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
-                                            )
-                                        )
+                                        new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
                                     )
-                                    .build()
                             )
                             .build()
                     )
@@ -1928,7 +1915,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));

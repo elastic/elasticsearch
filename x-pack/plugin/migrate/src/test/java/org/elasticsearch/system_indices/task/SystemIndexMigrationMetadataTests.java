@@ -124,7 +124,8 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
             mock(Client.class),
             clusterService,
             mock(SystemIndices.class),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            mock(ThreadPool.class)
         );
         new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, systemIndexMigrationExecutor));
 

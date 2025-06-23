@@ -16,33 +16,11 @@ import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.bootstrap.FilePermissionUtils;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.jdk.JarHell;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.lang.reflect.ReflectPermission;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.security.ProtectionDomain;
-import java.security.SecurityPermission;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.PropertyPermission;
 import java.util.Set;
 
 /**
@@ -90,24 +68,8 @@ final class TikaImpl {
      * parses with tika, throwing any exception hit while parsing the document
      */
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
-        // check that its not unprivileged code like a script
-        SpecialPermission.check();
-
         try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<String>) () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit),
-                RESTRICTED_CONTEXT
-            );
-        } catch (PrivilegedActionException e) {
-            // checked exception from tika: unbox it
-            Throwable cause = e.getCause();
-            if (cause instanceof TikaException tikaException) {
-                throw tikaException;
-            } else if (cause instanceof IOException ioException) {
-                throw ioException;
-            } else {
-                throw new AssertionError(cause);
-            }
+            return TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
         } catch (LinkageError e) {
             if (e.getMessage().contains("bouncycastle")) {
                 /*
@@ -117,78 +79,6 @@ final class TikaImpl {
                 throw new RuntimeException("document is encrypted", e);
             }
             throw new RuntimeException(e);
-        }
-    }
-
-    // apply additional containment for parsers, this is intersected with the current permissions
-    // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
-    private static final AccessControlContext RESTRICTED_CONTEXT = isUsingSecurityManager()
-        ? new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) })
-        : null;
-
-    private static boolean isUsingSecurityManager() {
-        return false;
-    }
-
-    // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
-    // the ability to load some resources from JARs, and read sysprops
-    @SuppressForbidden(reason = "adds access to tmp directory")
-    static PermissionCollection getRestrictedPermissions() {
-        Permissions perms = new Permissions();
-
-        // property/env access needed for parsing
-        perms.add(new PropertyPermission("*", "read"));
-        perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));
-
-        try {
-            // add permissions for resource access:
-            // classpath
-            addReadPermissions(perms, JarHell.parseClassPath());
-            // plugin jars
-            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader urlClassLoader) {
-                URL[] urls = urlClassLoader.getURLs();
-                Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
-                if (set.size() != urls.length) {
-                    throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
-                }
-                addReadPermissions(perms, set);
-            }
-            // jvm's java.io.tmpdir (needs read/write)
-            FilePermissionUtils.addDirectoryPath(
-                perms,
-                "java.io.tmpdir",
-                PathUtils.get(System.getProperty("java.io.tmpdir")),
-                "read,readlink,write,delete",
-                false
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        // current hacks needed for POI/PDFbox issues:
-        perms.add(new SecurityPermission("putProviderProperty.BC"));
-        perms.add(new SecurityPermission("insertProvider"));
-        perms.add(new ReflectPermission("suppressAccessChecks"));
-        perms.add(new RuntimePermission("accessClassInPackage.sun.java2d.cmm.kcms"));
-        // xmlbeans, use by POI, needs to get the context classloader
-        perms.add(new RuntimePermission("getClassLoader"));
-        perms.setReadOnly();
-        return perms;
-    }
-
-    // add resources to (what is typically) a jar, but might not be (e.g. in tests/IDE)
-    @SuppressForbidden(reason = "adds access to jar resources")
-    static void addReadPermissions(Permissions perms, Set<URL> resources) throws IOException {
-        try {
-            for (URL url : resources) {
-                Path path = PathUtils.get(url.toURI());
-                if (Files.isDirectory(path)) {
-                    FilePermissionUtils.addDirectoryPath(perms, "class.path", path, "read,readlink", false);
-                } else {
-                    FilePermissionUtils.addSingleFilePath(perms, path, "read,readlink");
-                }
-            }
-        } catch (URISyntaxException bogus) {
-            throw new RuntimeException(bogus);
         }
     }
 }

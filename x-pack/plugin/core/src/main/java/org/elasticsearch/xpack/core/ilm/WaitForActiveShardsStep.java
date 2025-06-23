@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
@@ -48,9 +47,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        Metadata metadata = clusterState.metadata();
-        IndexMetadata originalIndexMeta = metadata.getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata originalIndexMeta = currentState.metadata().index(index);
 
         if (originalIndexMeta == null) {
             String errorMessage = Strings.format(
@@ -74,12 +72,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new SingleMessageFieldInfo(message));
         }
 
-        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            IndexAbstraction dataStreamAbstraction = metadata.getProject().getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction dataStreamAbstraction = currentState.metadata().getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
             // Determine which write index we care about right now:
             final Index rolledIndex;
@@ -91,7 +89,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.getProject().index(rolledIndex);
+            IndexMetadata rolledIndexMeta = currentState.metadata().index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -106,12 +104,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 );
             }
 
-            IndexAbstraction aliasAbstraction = metadata.getProject().getIndicesLookup().get(rolloverAlias);
+            IndexAbstraction aliasAbstraction = currentState.metadata().getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
             Index aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
-                IndexMetadata writeIndexImd = metadata.getProject().index(aliasWriteIndex);
+                IndexMetadata writeIndexImd = currentState.metadata().index(aliasWriteIndex);
                 rolledIndexName = writeIndexImd.getIndex().getName();
                 waitForActiveShardsSettingValue = writeIndexImd.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
@@ -129,7 +127,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                     return getErrorResultOnNullMetadata(getKey(), index);
                 }
                 rolledIndexName = tmpRolledIndex.getName();
-                waitForActiveShardsSettingValue = metadata.getProject()
+                waitForActiveShardsSettingValue = currentState.metadata()
                     .index(rolledIndexName)
                     .getSettings()
                     .get("index.write.wait_for_active_shards");
@@ -138,12 +136,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
         boolean enoughShardsActive = activeShardCount.enoughShardsActive(
-            clusterState.metadata().getProject(),
-            clusterState.routingTable(),
+            currentState.metadata(),
+            currentState.routingTable(),
             rolledIndexName
         );
 
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
+        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             currentActiveShards += indexRoutingTable.shard(i).activeShards().size();

@@ -52,7 +52,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
@@ -172,38 +171,34 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
-        SocketAccess.doPrivilegedVoidIOException(
-            () -> client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
-                .iterateAll()
-                .forEach(blob -> {
-                    assert blob.getName().startsWith(path);
-                    if (blob.isDirectory() == false) {
-                        final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
-                    }
-                })
-        );
+        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
+            .iterateAll()
+            .forEach(blob -> {
+                assert blob.getName().startsWith(path);
+                if (blob.isDirectory() == false) {
+                    final String suffixName = blob.getName().substring(path.length());
+                    mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
+                }
+            });
         return Map.copyOf(mapBuilder);
     }
 
     Map<String, BlobContainer> listChildren(OperationPurpose purpose, BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
         final Map<String, BlobContainer> mapBuilder = new HashMap<>();
-        SocketAccess.doPrivilegedVoidIOException(
-            () -> client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
-                .iterateAll()
-                .forEach(blob -> {
-                    if (blob.isDirectory()) {
-                        assert blob.getName().startsWith(pathStr);
-                        assert blob.getName().endsWith("/");
-                        // Strip path prefix and trailing slash
-                        final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
-                        if (suffixName.isEmpty() == false) {
-                            mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
-                        }
+        client().meteredList(purpose, bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
+            .iterateAll()
+            .forEach(blob -> {
+                if (blob.isDirectory()) {
+                    assert blob.getName().startsWith(pathStr);
+                    assert blob.getName().endsWith("/");
+                    // Strip path prefix and trailing slash
+                    final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
+                    if (suffixName.isEmpty() == false) {
+                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
                     }
-                })
-        );
+                }
+            });
         return Map.copyOf(mapBuilder);
     }
 
@@ -216,7 +211,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().meteredGet(purpose, blobId));
+        final Blob blob = client().meteredGet(purpose, blobId);
         return blob != null;
     }
 
@@ -375,9 +370,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                     private void initResumableStream() throws IOException {
-                        final var writeChannel = SocketAccess.doPrivilegedIOException(
-                            () -> client().meteredWriter(purpose, blobInfo, writeOptions)
-                        );
+                        final var writeChannel = client().meteredWriter(purpose, blobInfo, writeOptions);
                         channelRef.set(writeChannel);
                         resumableStream = new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
                             @Override
@@ -396,7 +389,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 });
                 final WritableByteChannel writeChannel = channelRef.get();
                 if (writeChannel != null) {
-                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                    writeChannel.close();
                 } else {
                     writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 }
@@ -453,15 +446,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         for (int retry = 0; retry < 3; ++retry) {
             try {
-                final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(
-                    () -> client().meteredWriter(purpose, blobInfo, writeOptions)
-                );
+                final WriteChannel writeChannel = client().meteredWriter(purpose, blobInfo, writeOptions);
                 /*
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
                 org.elasticsearch.core.Streams.copy(inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
-                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                writeChannel.close();
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -508,9 +499,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists
                 ? new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() }
                 : new Storage.BlobTargetOption[0];
-            SocketAccess.doPrivilegedVoidIOException(
-                () -> client().meteredCreate(purpose, blobInfo, buffer, offset, blobSize, targetOptions)
-            );
+            client().meteredCreate(purpose, blobInfo, buffer, offset, blobSize, targetOptions);
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -526,32 +515,30 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param pathStr Name of path to delete
      */
     DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> {
-            DeleteResult deleteResult = DeleteResult.ZERO;
-            MeteredStorage.MeteredBlobPage meteredPage = client().meteredList(purpose, bucketName, BlobListOption.prefix(pathStr));
-            do {
-                final AtomicLong blobsDeleted = new AtomicLong(0L);
-                final AtomicLong bytesDeleted = new AtomicLong(0L);
-                var blobs = meteredPage.getValues().iterator();
-                deleteBlobs(purpose, new Iterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return blobs.hasNext();
-                    }
+        DeleteResult deleteResult = DeleteResult.ZERO;
+        MeteredStorage.MeteredBlobPage meteredPage = client().meteredList(purpose, bucketName, BlobListOption.prefix(pathStr));
+        do {
+            final AtomicLong blobsDeleted = new AtomicLong(0L);
+            final AtomicLong bytesDeleted = new AtomicLong(0L);
+            var blobs = meteredPage.getValues().iterator();
+            deleteBlobs(purpose, new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return blobs.hasNext();
+                }
 
-                    @Override
-                    public String next() {
-                        final Blob next = blobs.next();
-                        blobsDeleted.incrementAndGet();
-                        bytesDeleted.addAndGet(next.getSize());
-                        return next.getName();
-                    }
-                });
-                deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
-                meteredPage = meteredPage.getNextPage();
-            } while (meteredPage != null);
-            return deleteResult;
-        });
+                @Override
+                public String next() {
+                    final Blob next = blobs.next();
+                    blobsDeleted.incrementAndGet();
+                    bytesDeleted.addAndGet(next.getSize());
+                    return next.getName();
+                }
+            });
+            deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
+            meteredPage = meteredPage.getNextPage();
+        } while (meteredPage != null);
+        return deleteResult;
     }
 
     /**
@@ -577,45 +564,43 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         };
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         try {
-            SocketAccess.doPrivilegedVoidIOException(() -> {
-                final AtomicReference<StorageException> ioe = new AtomicReference<>();
-                StorageBatch batch = client().batch();
-                int pendingDeletesInBatch = 0;
-                while (blobIdsToDelete.hasNext()) {
-                    BlobId blob = blobIdsToDelete.next();
-                    batch.delete(blob).notify(new BatchResult.Callback<>() {
-                        @Override
-                        public void success(Boolean result) {}
+            final AtomicReference<StorageException> ioe = new AtomicReference<>();
+            StorageBatch batch = client().batch();
+            int pendingDeletesInBatch = 0;
+            while (blobIdsToDelete.hasNext()) {
+                BlobId blob = blobIdsToDelete.next();
+                batch.delete(blob).notify(new BatchResult.Callback<>() {
+                    @Override
+                    public void success(Boolean result) {}
 
-                        @Override
-                        public void error(StorageException exception) {
-                            if (exception.getCode() != HTTP_NOT_FOUND) {
-                                // track up to 10 failed blob deletions for the exception message below
-                                if (failedBlobs.size() < 10) {
-                                    failedBlobs.add(blob);
-                                }
-                                if (ioe.compareAndSet(null, exception) == false) {
-                                    ioe.get().addSuppressed(exception);
-                                }
+                    @Override
+                    public void error(StorageException exception) {
+                        if (exception.getCode() != HTTP_NOT_FOUND) {
+                            // track up to 10 failed blob deletions for the exception message below
+                            if (failedBlobs.size() < 10) {
+                                failedBlobs.add(blob);
+                            }
+                            if (ioe.compareAndSet(null, exception) == false) {
+                                ioe.get().addSuppressed(exception);
                             }
                         }
-                    });
-                    pendingDeletesInBatch++;
-                    if (pendingDeletesInBatch % MAX_DELETES_PER_BATCH == 0) {
-                        batch.submit();
-                        batch = client().batch();
-                        pendingDeletesInBatch = 0;
                     }
-                }
-                if (pendingDeletesInBatch > 0) {
+                });
+                pendingDeletesInBatch++;
+                if (pendingDeletesInBatch % MAX_DELETES_PER_BATCH == 0) {
                     batch.submit();
+                    batch = client().batch();
+                    pendingDeletesInBatch = 0;
                 }
+            }
+            if (pendingDeletesInBatch > 0) {
+                batch.submit();
+            }
 
-                final StorageException exception = ioe.get();
-                if (exception != null) {
-                    throw exception;
-                }
-            });
+            final StorageException exception = ioe.get();
+            if (exception != null) {
+                throw exception;
+            }
         } catch (final Exception e) {
             throw new IOException("Exception when deleting blobs " + failedBlobs, e);
         }
@@ -644,7 +629,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         @Override
         public int write(final ByteBuffer src) throws IOException {
             try {
-                return SocketAccess.doPrivilegedIOException(() -> channel.write(src));
+                return channel.write(src);
             } catch (IOException e) {
                 // BaseStorageWriteChannel#write wraps StorageException in an IOException, but BaseStorageWriteChannel#close
                 // does not, if we unwrap StorageExceptions here, it simplifies our retry-on-gone logic
@@ -669,10 +654,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     OptionalBytesReference getRegister(OperationPurpose purpose, String blobName, String container, String key) throws IOException {
         final var blobId = BlobId.of(bucketName, blobName);
-        try (
-            var meteredReadChannel = SocketAccess.doPrivilegedIOException(() -> client().meteredReader(purpose, blobId));
-            var stream = new PrivilegedReadChannelStream(meteredReadChannel)
-        ) {
+        try (var meteredReadChannel = client().meteredReader(purpose, blobId); var stream = Channels.newInputStream(meteredReadChannel)) {
             return OptionalBytesReference.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
         } catch (Exception e) {
             final var serviceException = unwrapServiceException(e);
@@ -697,7 +679,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BlobContainerUtils.ensureValidRegisterContent(updated);
 
         final var blobId = BlobId.of(bucketName, blobName);
-        final var blob = SocketAccess.doPrivilegedIOException(() -> client().meteredGet(purpose, blobId));
+        final var blob = client().meteredGet(purpose, blobId);
         final long generation;
 
         if (blob == null || blob.getGeneration() == null) {
@@ -708,10 +690,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         } else {
             generation = blob.getGeneration();
             try (
-                var stream = new PrivilegedReadChannelStream(
-                    SocketAccess.doPrivilegedIOException(
-                        () -> client().meteredReader(purpose, blobId, Storage.BlobSourceOption.generationMatch(generation))
-                    )
+                var stream = Channels.newInputStream(
+                    client().meteredReader(purpose, blobId, Storage.BlobSourceOption.generationMatch(generation))
                 )
             ) {
                 final var witness = BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key);
@@ -741,15 +721,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BaseServiceException finalException = null;
         while (true) {
             try {
-                SocketAccess.doPrivilegedVoidIOException(
-                    () -> client().meteredCreate(
-                        purpose,
-                        blobInfo,
-                        bytesRef.bytes,
-                        bytesRef.offset,
-                        bytesRef.length,
-                        Storage.BlobTargetOption.generationMatch()
-                    )
+                client().meteredCreate(
+                    purpose,
+                    blobInfo,
+                    bytesRef.bytes,
+                    bytesRef.offset,
+                    bytesRef.length,
+                    Storage.BlobTargetOption.generationMatch()
                 );
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
@@ -791,34 +769,4 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         return null;
     }
-
-    private static final class PrivilegedReadChannelStream extends InputStream {
-
-        private final InputStream stream;
-
-        PrivilegedReadChannelStream(ReadableByteChannel channel) {
-            stream = Channels.newInputStream(channel);
-        }
-
-        @Override
-        public int read(byte[] b) throws IOException {
-            return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
-        }
-
-        @Override
-        public void close() throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(stream::close);
-        }
-
-        @Override
-        public int read() throws IOException {
-            return SocketAccess.doPrivilegedIOException(stream::read);
-        }
-    }
-
 }

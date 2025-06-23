@@ -9,20 +9,28 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MergeTaskPriorityBlockingQueue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.PriorityBlockingQueueWithBudget;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -42,6 +50,8 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.R
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -55,9 +65,24 @@ import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
-    public void testNewMergeTaskIsAbortedWhenThreadPoolIsShutdown() {
-        TestThreadPool testThreadPool = new TestThreadPool("test");
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+    private NodeEnvironment nodeEnvironment;
+
+    @After
+    public void closeNodeEnv() {
+        if (nodeEnvironment != null) {
+            nodeEnvironment.close();
+            nodeEnvironment = null;
+        }
+    }
+
+    public void testNewMergeTaskIsAbortedWhenThreadPoolIsShutdown() throws IOException {
+        TestThreadPool testThreadPool = new TestThreadPool("test", Settings.EMPTY);
+        nodeEnvironment = newNodeEnvironment(Settings.EMPTY);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+            testThreadPool,
+            Settings.EMPTY,
+            nodeEnvironment
+        );
         // shutdown the thread pool
         testThreadPool.shutdown();
         MergeTask mergeTask = mock(MergeTask.class);
@@ -77,13 +102,24 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
         TestThreadPool testThreadPool = new TestThreadPool("test", settings);
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+            testThreadPool,
+            settings,
+            nodeEnvironment
+        );
+        var countingListener = new CountingMergeEventListener();
+        threadPoolMergeExecutorService.registerMergeEventListener(countingListener);
         assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
         Semaphore runMergeSemaphore = new Semaphore(0);
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
         AtomicInteger doneMergesCount = new AtomicInteger(0);
+        AtomicInteger reEnqueuedBackloggedMergesCount = new AtomicInteger();
+        AtomicInteger abortedMergesCount = new AtomicInteger();
         // submit more merge tasks than there are threads so that some are enqueued
         for (int i = 0; i < mergesToSubmit; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
@@ -95,6 +131,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 if (schedule == BACKLOG) {
                     // reenqueue backlogged merge task
                     new Thread(() -> threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask)).start();
+                    reEnqueuedBackloggedMergesCount.incrementAndGet();
                 }
                 return schedule;
             }).when(mergeTask).schedule();
@@ -114,6 +151,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }
                 runMergeSemaphore.acquireUninterruptibly();
                 doneMergesCount.incrementAndGet();
+                abortedMergesCount.incrementAndGet();
                 return null;
             }).when(mergeTask).abort();
             threadPoolMergeExecutorService.submitMergeTask(mergeTask);
@@ -125,6 +163,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             // with the other merge tasks enqueued
             assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
         });
+        assertBusy(
+            () -> assertThat(
+                countingListener.queued.get(),
+                equalTo(threadPoolExecutor.getActiveCount() + threadPoolExecutor.getQueue().size() + reEnqueuedBackloggedMergesCount.get())
+            )
+        );
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();
         // assert all executors, except the merge one, are terminated
@@ -165,6 +209,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             assertTrue(threadPoolExecutor.isTerminated());
             assertTrue(threadPoolMergeExecutorService.allDone());
         });
+        assertThat(countingListener.aborted.get() + countingListener.completed.get(), equalTo(doneMergesCount.get()));
+        assertThat(countingListener.aborted.get(), equalTo(abortedMergesCount.get()));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
@@ -174,9 +224,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             Semaphore runMergeSemaphore = new Semaphore(0);
             AtomicInteger submittedIOThrottledMergeTasks = new AtomicInteger();
@@ -245,22 +302,34 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
-    public void testIORateIsAdjustedForRunningMergeTasks() throws Exception {
-        int mergeExecutorThreadCount = randomIntBetween(1, 3);
-        int mergesStillToSubmit = randomIntBetween(1, 10);
+    public void testIORateIsAdjustedForAllRunningMergeTasks() throws Exception {
+        int mergeExecutorThreadCount = randomIntBetween(1, 5);
+        int mergesStillToSubmit = randomIntBetween(1, 20);
         int mergesStillToComplete = mergesStillToSubmit;
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
             Set<MergeTask> currentlyRunningMergeTasksSet = ConcurrentCollections.newConcurrentSet();
+            Set<MergeTask> currentlyRunningOrAbortingMergeTasksSet = ConcurrentCollections.newConcurrentSet();
             while (mergesStillToComplete > 0) {
                 if (mergesStillToSubmit > 0 && (currentlyRunningMergeTasksSet.isEmpty() || randomBoolean())) {
                     MergeTask mergeTask = mock(MergeTask.class);
@@ -278,31 +347,37 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }).when(mergeTask).schedule();
                     doAnswer(mock -> {
                         currentlyRunningMergeTasksSet.add(mergeTask);
+                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
+                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         currentlyRunningMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).run();
                     doAnswer(mock -> {
+                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
+                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).abort();
-                    int activeMergeTasksCount = threadPoolExecutor.getActiveCount();
-                    threadPoolMergeExecutorService.submitMergeTask(mergeTask);
-                    long newIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
-                    // all currently running merge tasks must be IO throttled
+                    assertThat(runMergeSemaphore.availablePermits(), is(0));
+                    boolean isAnyExecutorAvailable = currentlyRunningOrAbortingMergeTasksSet.size() < mergeExecutorThreadCount;
+                    boolean mergeTaskSubmitted = threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+                    assertTrue(mergeTaskSubmitted);
+                    if (isAnyExecutorAvailable) {
+                        assertBusy(() -> assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)));
+                    }
+                    long latestIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
+                    // all currently running merge tasks must be IO throttled to the latest IO Rate
                     assertBusy(() -> {
-                        // await new merge to start executing
-                        if (activeMergeTasksCount < mergeExecutorThreadCount) {
-                            assertThat(threadPoolExecutor.getActiveCount(), is(activeMergeTasksCount + 1));
-                        }
-                        // assert IO throttle is set on the running merge tasks
+                        // assert IO throttle is set on ALL the running merge tasks
                         for (MergeTask currentlyRunningMergeTask : currentlyRunningMergeTasksSet) {
-                            var ioRateCaptor = ArgumentCaptor.forClass(Long.class);
+                            verify(currentlyRunningMergeTask).run();
                             // only interested in the last invocation
+                            var ioRateCaptor = ArgumentCaptor.forClass(Long.class);
                             verify(currentlyRunningMergeTask, atLeastOnce()).setIORateLimit(ioRateCaptor.capture());
-                            assertThat(ioRateCaptor.getValue(), is(newIORate));
+                            assertThat(ioRateCaptor.getValue(), is(latestIORate));
                         }
                     });
                     mergesStillToSubmit--;
@@ -310,15 +385,22 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     long completedMerges = threadPoolExecutor.getCompletedTaskCount();
                     runMergeSemaphore.release();
                     // await merge to finish
-                    assertBusy(() -> assertThat(threadPoolExecutor.getCompletedTaskCount(), is(completedMerges + 1)));
+                    assertBusy(() -> {
+                        assertThat(threadPoolExecutor.getCompletedTaskCount(), is(completedMerges + 1));
+                        assertThat(runMergeSemaphore.availablePermits(), is(0));
+                    });
                     mergesStillToComplete--;
                 }
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
-    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() {
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() throws IOException {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(0, 250);
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
@@ -326,7 +408,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
-    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSluggish() {
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSluggish() throws IOException {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(750, 1000);
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
@@ -334,7 +416,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
-    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsOnPar() {
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsOnPar() throws IOException {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(250, 750);
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
@@ -342,14 +424,24 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
-    private void testIORateAdjustedForSubmittedTasks(
-        int totalTasksToSubmit,
-        int submittedVsExecutedRateOutOf1000,
-        int initialTasksToSubmit
-    ) {
+    private void testIORateAdjustedForSubmittedTasks(int totalTasksToSubmit, int submittedVsExecutedRateOutOf1000, int initialTasksToSubmit)
+        throws IOException {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(mergeExecutorThreadPool);
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        if (nodeEnvironment != null) {
+            nodeEnvironment.close();
+            nodeEnvironment = null;
+        }
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+            mergeExecutorThreadPool,
+            settings,
+            nodeEnvironment
+        );
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
         final AtomicReference<MergeTask> lastRunTask = new AtomicReference<>();
@@ -407,9 +499,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             // more merge tasks than max concurrent merges allowed to run concurrently
             int totalMergeTasksCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -450,7 +549,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeExecutorThreadCount));
                     // with the other merge tasks enqueued
                     assertThat(
-                        threadPoolMergeExecutorService.getQueuedMergeTasks().size(),
+                        threadPoolMergeExecutorService.getMergeTasksQueueLength(),
                         is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
                     );
                     // also check thread-pool stats for the same
@@ -470,7 +569,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     // there are fewer available merges than available threads
                     assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergeTasksCount));
                     // no more merges enqueued
-                    assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                    assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
                     // also check thread-pool stats for the same
                     assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergeTasksCount));
                     assertThat(threadPoolExecutor.getQueue().size(), is(0));
@@ -480,6 +579,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testThreadPoolStatsWithBackloggedMergeTasks() throws Exception {
@@ -487,9 +590,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int totalMergeTasksCount = randomIntBetween(1, 10);
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
@@ -518,7 +628,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolExecutor.getActiveCount(), is(backloggedMergeTasksList.size()));
                     assertThat(threadPoolExecutor.getQueue().size(), is(0));
                 }
-                assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), is(0));
             });
             // re-enqueue backlogged merge tasks
             for (MergeTask backloggedMergeTask : backloggedMergeTasksList) {
@@ -532,6 +642,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
@@ -540,9 +654,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // few merge threads, in order to increase contention
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
             .build();
+        nodeEnvironment = newNodeEnvironment(settings);
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+                testThreadPool,
+                settings,
+                nodeEnvironment
+            );
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             // many merge tasks concurrently
             int mergeTaskCount = randomIntBetween(10, 100);
@@ -596,24 +717,37 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
-    public void testMergeTasksExecuteInSizeOrder() {
+    public void testMergeTasksExecuteInSizeOrder() throws IOException {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(mergeExecutorThreadPool);
+        Settings settings = Settings.builder()
+            // disable fs available disk space feature for this test
+            .put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING.getKey(), "0s")
+            .build();
+        nodeEnvironment = newNodeEnvironment(settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(
+            mergeExecutorThreadPool,
+            settings,
+            nodeEnvironment
+        );
         DeterministicTaskQueue reEnqueueBackloggedTaskQueue = new DeterministicTaskQueue();
         int mergeTaskCount = randomIntBetween(10, 100);
         // sort merge tasks available to run by size
         PriorityQueue<MergeTask> mergeTasksAvailableToRun = new PriorityQueue<>(
             mergeTaskCount,
-            Comparator.comparingLong(MergeTask::estimatedMergeSize)
+            Comparator.comparingLong(MergeTask::estimatedRemainingMergeSize)
         );
         for (int i = 0; i < mergeTaskCount; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
             when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
             // merge tasks of various sizes (0 might be a valid value)
-            when(mergeTask.estimatedMergeSize()).thenReturn(randomLongBetween(0, 10));
+            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(0, 10));
             doAnswer(mock -> {
                 // each individual merge task can either "run" or be "backlogged" at any point in time
                 Schedule schedule = randomFrom(Schedule.values());
@@ -635,7 +769,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }
                 if (schedule == RUN && mergeTasksAvailableToRun.isEmpty() == false) {
                     // assert the merge task that's now going to run is the smallest of the ones currently available to run
-                    assertThat(mergeTask.estimatedMergeSize(), lessThanOrEqualTo(mergeTasksAvailableToRun.peek().estimatedMergeSize()));
+                    assertThat(
+                        mergeTask.estimatedRemainingMergeSize(),
+                        lessThanOrEqualTo(mergeTasksAvailableToRun.peek().estimatedRemainingMergeSize())
+                    );
                 }
                 return schedule;
             }).when(mergeTask).schedule();
@@ -660,14 +797,151 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
-    static ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService(ThreadPool threadPool) {
+    public void testMergeTaskQueueAvailableBudgetTracking() throws Exception {
+        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(0L));
+        long availableBudget = randomLongBetween(1, 10);
+        mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        int taskCount = randomIntBetween(5, 15);
+        for (int i = 0; i < taskCount; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            when(mergeTask.estimatedRemainingMergeSize()).thenReturn(randomLongBetween(1, 10));
+            mergeTaskPriorityBlockingQueue.enqueue(mergeTask);
+        }
+        assertThat(mergeTaskPriorityBlockingQueue.queueSize(), is(taskCount));
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        List<PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget> tookElements = new ArrayList<>();
+
+        while (mergeTaskPriorityBlockingQueue.isQueueEmpty() == false) {
+            if (mergeTaskPriorityBlockingQueue.peekQueue().estimatedRemainingMergeSize() <= mergeTaskPriorityBlockingQueue
+                .getAvailableBudget() && randomBoolean()) {
+                // take another element (merge task) from the queue
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                tookElements.add(mergeTaskPriorityBlockingQueue.take());
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, greaterThanOrEqualTo(0L));
+                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+            } else if (tookElements.stream().anyMatch(e -> e.isClosed() == false) && randomBoolean()) {
+                // "closes" a previously took element to simulate it has gone out of scope
+                int index = randomValueOtherThanMany(
+                    i -> tookElements.get(i).isClosed(),
+                    () -> randomIntBetween(0, tookElements.size() - 1)
+                );
+                var elementToClose = tookElements.remove(index);
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                elementToClose.close();
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                // budget hasn't yet changed, the update budget method needs to be invoked before it does
+                assertThat(afterBudget, is(prevBudget));
+            } else if (randomBoolean()) {
+                // update (possibly increment) the available budget
+                long budgetIncrement = randomLongBetween(0, 3);
+                availableBudget += budgetIncrement;
+                mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+                // "closed" took elements should not impact budget computation
+                tookElements.removeIf(PriorityBlockingQueueWithBudget.ElementWithReleasableBudget::isClosed);
+                long expectedBudget = availableBudget - tookElements.stream()
+                    .mapToLong(e -> e.element().estimatedRemainingMergeSize())
+                    .sum();
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, is(expectedBudget));
+            }
+        }
+    }
+
+    public void testMergeTaskQueueBudgetTrackingWhenEstimatedRemainingMergeSizeChanges() throws Exception {
+        MergeTaskPriorityBlockingQueue mergeTaskPriorityBlockingQueue = new MergeTaskPriorityBlockingQueue();
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(0L));
+        // plenty of available budget (this should be fixed for this test)
+        final long availableBudget = randomLongBetween(1000L, 2000L);
+        mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        IdentityHashMap<MergeTask, Long> budgetMap = new IdentityHashMap<>();
+        int taskCount = randomIntBetween(5, 15);
+        for (int i = 0; i < taskCount; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            budgetMap.put(mergeTask, randomLongBetween(1L, 10L));
+            doAnswer(invocation -> budgetMap.get((MergeTask) invocation.getMock())).when(mergeTask).estimatedRemainingMergeSize();
+            mergeTaskPriorityBlockingQueue.enqueue(mergeTask);
+        }
+        assertThat(mergeTaskPriorityBlockingQueue.queueSize(), is(taskCount));
+        assertThat(mergeTaskPriorityBlockingQueue.getAvailableBudget(), is(availableBudget));
+
+        List<PriorityBlockingQueueWithBudget<MergeTask>.ElementWithReleasableBudget> tookElements = new ArrayList<>();
+
+        while (mergeTaskPriorityBlockingQueue.isQueueEmpty() == false) {
+            if (tookElements.stream().allMatch(PriorityBlockingQueueWithBudget.ElementWithReleasableBudget::isClosed) || randomBoolean()) {
+                // take another element (merge task) from the queue
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                tookElements.add(mergeTaskPriorityBlockingQueue.take());
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, greaterThanOrEqualTo(0L));
+                assertThat(prevBudget - afterBudget, is(tookElements.getLast().element().estimatedRemainingMergeSize()));
+            } else if (randomBoolean()) {
+                // "closes" a previously took element to simulate it has gone out of scope
+                int index = randomValueOtherThanMany(
+                    i -> tookElements.get(i).isClosed(),
+                    () -> randomIntBetween(0, tookElements.size() - 1)
+                );
+                var elementToClose = tookElements.remove(index);
+                long prevBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                elementToClose.close();
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                // budget hasn't yet changed, the update budget method needs to be invoked before it does
+                assertThat(afterBudget, is(prevBudget));
+            } else {
+                // update the remaining merge size of a took (but not "closed") merge task
+                int index = randomValueOtherThanMany(
+                    i -> tookElements.get(i).isClosed(),
+                    () -> randomIntBetween(0, tookElements.size() - 1)
+                );
+                var elementToUpdate = tookElements.get(index);
+                long prevElementBudget = elementToUpdate.element().estimatedRemainingMergeSize();
+                long afterElementBudget = randomValueOtherThan(prevElementBudget, () -> randomLongBetween(1L, 10L));
+                budgetMap.put(elementToUpdate.element(), afterElementBudget);
+                assertThat(elementToUpdate.element().estimatedRemainingMergeSize(), is(afterElementBudget));
+                // "closed" took elements should not impact budget computation
+                tookElements.removeIf(PriorityBlockingQueueWithBudget.ElementWithReleasableBudget::isClosed);
+                long expectedBudget = availableBudget - tookElements.stream().mapToLong(e -> budgetMap.get(e.element())).sum();
+                mergeTaskPriorityBlockingQueue.updateBudget(availableBudget);
+                long afterBudget = mergeTaskPriorityBlockingQueue.getAvailableBudget();
+                assertThat(afterBudget, is(expectedBudget));
+            }
+        }
+    }
+
+    private static class CountingMergeEventListener implements MergeEventListener {
+        AtomicInteger queued = new AtomicInteger();
+        AtomicInteger aborted = new AtomicInteger();
+        AtomicInteger completed = new AtomicInteger();
+
+        @Override
+        public void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes) {
+            queued.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeCompleted(OnGoingMerge merge) {
+            completed.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeAborted(OnGoingMerge merge) {
+            aborted.incrementAndGet();
+        }
+    }
+
+    static ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService(
+        ThreadPool threadPool,
+        Settings settings,
+        NodeEnvironment nodeEnvironment
+    ) {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                threadPool,
-                randomBoolean()
-                    ? Settings.EMPTY
-                    : Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-            );
+            .maybeCreateThreadPoolMergeExecutorService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings), nodeEnvironment);
         assertNotNull(threadPoolMergeExecutorService);
         assertTrue(threadPoolMergeExecutorService.allDone());
         return threadPoolMergeExecutorService;

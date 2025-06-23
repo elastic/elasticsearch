@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.completion.AlibabaCloudSearchCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.AlibabaCloudSearchCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.completion.AlibabaCloudSearchCompletionRequest;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.response.AlibabaCloudSearchCompletionResponseEntity;
 
 import java.util.List;
 import java.util.Objects;

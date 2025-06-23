@@ -2031,6 +2031,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 .build(),
                             Map.of(),
                             List.of("test"),
+                            "test",
                             new ExecutorNames(
                                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                                 ThreadPool.Names.SYSTEM_READ,

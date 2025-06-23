@@ -450,6 +450,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 mapperSupplier,
                 removeAlias,
                 failureStore,
+                false,
                 nodeSettings
             );
             ProjectMetadata metadata = metadataBuilder.build();
@@ -476,6 +477,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 mapperSupplier,
                 removeAlias,
                 failureStore,
+                false,
                 nodeSettings
             );
             ProjectMetadata metadata = metadataBuilder.build();

@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -290,18 +289,6 @@ public class JinaAIService extends SenderService {
             var action = jinaaiModel.accept(actionCreator, taskSettings);
             action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
         }
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

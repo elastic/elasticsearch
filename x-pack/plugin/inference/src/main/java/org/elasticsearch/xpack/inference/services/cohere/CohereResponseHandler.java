@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.NewlineDelimitedByteProcessor;
+import org.elasticsearch.xpack.inference.services.cohere.response.CohereErrorResponseEntity;
 
 import java.util.concurrent.Flow;
 

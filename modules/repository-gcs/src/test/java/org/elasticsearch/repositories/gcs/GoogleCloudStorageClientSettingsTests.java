@@ -188,7 +188,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);
             assertNotNull(credentials);
-            assertEquals("proxy_access_token", SocketAccess.doPrivilegedIOException(credentials::refreshAccessToken).getTokenValue());
+            assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
         }
     }
 

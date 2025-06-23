@@ -18,10 +18,13 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -43,6 +46,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -84,6 +88,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FollowingEngineTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private NodeEnvironment nodeEnvironment;
     private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Index index;
     private ShardId shardId;
@@ -98,7 +103,12 @@ public class FollowingEngineTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         threadPool = new TestThreadPool("following-engine-tests", settings);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
@@ -107,7 +117,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        terminate(threadPool);
+        IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
         super.tearDown();
     }
 
@@ -273,7 +283,8 @@ public class FollowingEngineTests extends ESTestCase {
             System::nanoTime,
             null,
             true,
-            mapperService
+            mapperService,
+            new EngineResetLock()
         );
     }
 
@@ -769,9 +780,11 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOGSDB:
                 settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+                settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());

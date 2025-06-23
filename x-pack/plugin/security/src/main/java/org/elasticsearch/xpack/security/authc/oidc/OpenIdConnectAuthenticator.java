@@ -235,7 +235,7 @@ public class OpenIdConnectAuthenticator {
             // Don't wrap in a new ElasticsearchSecurityException
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
+            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response.", e));
         }
     }
 

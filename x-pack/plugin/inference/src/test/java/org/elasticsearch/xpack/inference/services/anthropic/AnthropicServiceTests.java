@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.inference.services.anthropic.completion.Anthropic
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -153,7 +153,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -172,7 +172,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -191,7 +191,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -210,7 +210,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }

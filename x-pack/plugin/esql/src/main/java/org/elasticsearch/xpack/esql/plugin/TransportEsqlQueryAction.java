@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
@@ -94,6 +96,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
@@ -115,15 +118,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
@@ -149,9 +156,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchService,
             exchangeService,
             clusterService,
+            projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceRunner(client)
+            new InferenceRunner(client, threadPool)
         );
 
         this.computeService = new ComputeService(
@@ -246,6 +254,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
+                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
@@ -320,16 +329,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
-            if (c.originalTypes() == null) {
-                originalTypes = null;
-            } else {
+            if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(c.originalTypes());
+                originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
             }
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
-        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
+        EsqlQueryResponse.Profile profile = configuration.profile()
+            ? new EsqlQueryResponse.Profile(result.completionInfo().collectedProfiles())
+            : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
@@ -337,6 +348,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().documentsFound(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -345,7 +358,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.executionInfo()
             );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
+        return new EsqlQueryResponse(
+            columns,
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
+            profile,
+            request.columnar(),
+            request.async(),
+            result.executionInfo()
+        );
     }
 
     /**
@@ -380,13 +402,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.getDescription(),
+            request.query(), // Pass the query as the description
             parentTaskId,
             headers,
             originHeaders,
             asyncExecutionId,
             request.keepAlive()
-        );
+        ) {
+            @Override
+            public Status getStatus() {
+                return new EsqlQueryStatus(asyncExecutionId);
+            }
+        };
     }
 
     @Override
@@ -397,6 +424,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
+            0,
+            0,
             null,
             false,
             asyncExecutionId,

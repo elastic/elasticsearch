@@ -60,7 +60,7 @@ By default, the `percentile` metric will generate a range of percentiles: `[ 1, 
 
 As you can see, the aggregation will return a calculated value for each percentile in the default range. If we assume response times are in milliseconds, it is immediately obvious that the webpage normally loads in 10-720ms, but occasionally spikes to 940-980ms.
 
-Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
+Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
 
 ```console
 GET latency/_search
@@ -175,8 +175,23 @@ GET latency/_search
 
 ## Percentiles are (usually) approximate [search-aggregations-metrics-percentile-aggregation-approximation]
 
-:::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
-:::
+There are many different algorithms to calculate percentiles. The naive implementation simply stores all the values in a sorted array. To find the 50th percentile, you simply find the value that is at `my_array[count(my_array) * 0.5]`.
+
+Clearly, the naive implementation does not scale — the sorted array grows linearly with the number of values in your dataset. To calculate percentiles across potentially billions of values in an Elasticsearch cluster, *approximate* percentiles are calculated.
+
+The algorithm used by the `percentile` metric is called TDigest (introduced by Ted Dunning in [Computing Accurate Quantiles using T-Digests](https://github.com/tdunning/t-digest/blob/master/docs/t-digest-paper/histo.pdf)).
+
+When using this metric, there are a few guidelines to keep in mind:
+
+* Accuracy is proportional to `q(1-q)`. This means that extreme percentiles (e.g. 99%) are more accurate than less extreme percentiles, such as the median
+* For small sets of values, percentiles are highly accurate (and potentially 100% accurate if the data is small enough).
+* As the quantity of values in a bucket grows, the algorithm begins to approximate the percentiles. It is effectively trading accuracy for memory savings. The exact level of inaccuracy is difficult to generalize, since it depends on your data distribution and volume of data being aggregated
+
+The following chart shows the relative error on a uniform distribution depending on the number of collected values and the requested percentile:
+
+![percentiles error](images/percentiles_error.png "")
+
+It shows how precision is better for extreme percentiles. The reason why error diminishes for large number of values is that the law of large numbers makes the distribution of values more and more uniform and the t-digest tree can do a better job at summarizing it. It would not be the case on more skewed distributions.
 
 ::::{warning}
 Percentile aggregations are also [non-deterministic](https://en.wikipedia.org/wiki/Nondeterministic_algorithm). This means you can get slightly different results using the same data.
@@ -207,7 +222,7 @@ GET latency/_search
 1. Compression controls memory usage and approximation error
 
 
-The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
+The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
 
 Therefore, by increasing the compression value, you can increase the accuracy of your percentiles at the cost of more memory. Larger compression values also make the algorithm slower since the underlying tree data structure grows in size, resulting in more expensive operations. The default compression value is `100`.
 

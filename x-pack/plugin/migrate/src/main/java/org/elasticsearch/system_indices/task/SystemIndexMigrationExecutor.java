@@ -20,6 +20,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -37,18 +38,21 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     private final ClusterService clusterService;
     private final SystemIndices systemIndices;
     private final IndexScopedSettings indexScopedSettings;
+    private final ThreadPool threadPool;
 
     public SystemIndexMigrationExecutor(
         Client client,
         ClusterService clusterService,
         SystemIndices systemIndices,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ThreadPool threadPool
     ) {
         super(SYSTEM_INDEX_UPGRADE_TASK_NAME, clusterService.threadPool().generic());
         this.client = client;
         this.clusterService = clusterService;
         this.systemIndices = systemIndices;
         this.indexScopedSettings = indexScopedSettings;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -67,7 +71,18 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new SystemIndexMigrator(client, id, type, action, parentTaskId, headers, clusterService, systemIndices, indexScopedSettings);
+        return new SystemIndexMigrator(
+            client,
+            id,
+            type,
+            action,
+            parentTaskId,
+            headers,
+            clusterService,
+            systemIndices,
+            indexScopedSettings,
+            threadPool
+        );
     }
 
     @Override

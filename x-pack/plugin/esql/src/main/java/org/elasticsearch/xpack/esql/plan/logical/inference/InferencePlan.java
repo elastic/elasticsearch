@@ -12,13 +12,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class InferencePlan extends UnaryPlan {
+public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
+    implements
+        SortAgnostic,
+        GeneratingPlan<InferencePlan<PlanType>> {
 
     private final Expression inferenceId;
 
@@ -29,7 +34,7 @@ public abstract class InferencePlan extends UnaryPlan {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(inferenceId());
     }
@@ -48,7 +53,7 @@ public abstract class InferencePlan extends UnaryPlan {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        InferencePlan other = (InferencePlan) o;
+        InferencePlan<?> other = (InferencePlan<?>) o;
         return Objects.equals(inferenceId(), other.inferenceId());
     }
 
@@ -59,9 +64,9 @@ public abstract class InferencePlan extends UnaryPlan {
 
     public abstract TaskType taskType();
 
-    public abstract InferencePlan withInferenceId(Expression newInferenceId);
+    public abstract PlanType withInferenceId(Expression newInferenceId);
 
-    public InferencePlan withInferenceResolutionError(String inferenceId, String error) {
+    public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
     }
 }

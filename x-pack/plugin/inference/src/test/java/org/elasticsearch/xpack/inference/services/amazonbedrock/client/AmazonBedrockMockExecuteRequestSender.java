@@ -14,9 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 
 import java.util.List;
 import java.util.Queue;

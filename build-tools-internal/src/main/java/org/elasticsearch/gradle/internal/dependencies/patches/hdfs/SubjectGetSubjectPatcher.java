@@ -25,7 +25,7 @@ class SubjectGetSubjectPatcher extends ClassVisitor {
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-        return new ReplaceCallMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, access, descriptor);
+        return new ReplaceCallMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions));
     }
 
     /**
@@ -35,7 +35,7 @@ class SubjectGetSubjectPatcher extends ClassVisitor {
         private static final String SUBJECT_CLASS_INTERNAL_NAME = "javax/security/auth/Subject";
         private static final String METHOD_NAME = "getSubject";
 
-        ReplaceCallMethodVisitor(MethodVisitor methodVisitor, String name, int access, String descriptor) {
+        ReplaceCallMethodVisitor(MethodVisitor methodVisitor) {
             super(ASM9, methodVisitor);
         }
 

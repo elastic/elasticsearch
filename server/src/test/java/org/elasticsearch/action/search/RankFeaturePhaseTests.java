@@ -967,7 +967,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             searchHits[i] = SearchHit.unpooled(scoreDocs[i].doc);
             searchHits[i].shard(shardTarget);
             searchHits[i].score(scoreDocs[i].score);
-            searchHits[i].setDocumentField(DEFAULT_FIELD, new DocumentField(DEFAULT_FIELD, Collections.singletonList(scoreDocs[i].doc)));
+            searchHits[i].setDocumentField(new DocumentField(DEFAULT_FIELD, Collections.singletonList(scoreDocs[i].doc)));
             if (scoreDocs[i].score > maxScore) {
                 maxScore = scoreDocs[i].score;
             }

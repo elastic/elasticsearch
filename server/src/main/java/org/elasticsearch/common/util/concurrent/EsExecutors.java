@@ -17,8 +17,6 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -393,11 +391,9 @@ public class EsExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
-                t.setDaemon(true);
-                return t;
-            });
+            Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
+            t.setDaemon(true);
+            return t;
         }
     }
 

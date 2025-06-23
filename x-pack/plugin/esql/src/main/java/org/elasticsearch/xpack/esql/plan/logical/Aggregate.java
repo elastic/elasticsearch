@@ -22,12 +22,16 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -223,12 +227,27 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             aggregates.forEach(a -> checkRateAggregates(a, 0, failures));
         } else {
             forEachExpression(
-                Rate.class,
-                r -> failures.add(fail(r, "the rate aggregate[{}] can only be used with the TS command", r.sourceText()))
+                TimeSeriesAggregateFunction.class,
+                r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
             );
         }
         checkCategorizeGrouping(failures);
+        checkMultipleScoreAggregations(failures);
+    }
 
+    private void checkMultipleScoreAggregations(Failures failures) {
+        Holder<Boolean> hasScoringAggs = new Holder<>();
+        forEachExpression(FilteredExpression.class, fe -> {
+            if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
+                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
+                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                        if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
+                            failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -370,7 +389,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         if (e instanceof AggregateFunction af) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 // rate aggregate is allowed to be inside another aggregate
-                if (f instanceof Rate == false) {
+                if (f instanceof TimeSeriesAggregateFunction == false) {
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });

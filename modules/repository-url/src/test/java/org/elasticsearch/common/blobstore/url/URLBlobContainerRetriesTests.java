@@ -77,6 +77,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         Integer maxRetries,
         TimeValue readTimeout,
         Boolean disableChunkedEncoding,
+        Integer maxConnections,
         ByteSizeValue bufferSize,
         Integer maxBulkDeletes,
         BlobPath blobContainerPath

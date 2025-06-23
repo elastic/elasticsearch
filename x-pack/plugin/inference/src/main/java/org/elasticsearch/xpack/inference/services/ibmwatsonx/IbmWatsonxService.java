@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxAc
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -235,12 +234,6 @@ public class IbmWatsonxService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_16_0;
-    }
-
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

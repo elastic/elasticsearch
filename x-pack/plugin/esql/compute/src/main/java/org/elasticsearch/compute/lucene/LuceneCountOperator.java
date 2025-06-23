@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -44,12 +43,21 @@ public class LuceneCountOperator extends LuceneOperator {
 
         public Factory(
             List<? extends ShardContext> contexts,
-            Function<ShardContext, Query> queryFunction,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int limit
         ) {
-            super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), dataPartitioning, taskConcurrency, limit, false);
+            super(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                taskConcurrency,
+                limit,
+                false,
+                ScoreMode.COMPLETE_NO_SCORES
+            );
         }
 
         @Override
@@ -112,6 +120,9 @@ public class LuceneCountOperator extends LuceneOperator {
             if (scorer == null) {
                 remainingDocs = 0;
             } else {
+                if (scorer.tags().isEmpty() == false) {
+                    throw new UnsupportedOperationException("tags not supported by " + getClass());
+                }
                 Weight weight = scorer.weight();
                 var leafReaderContext = scorer.leafReaderContext();
                 // see org.apache.lucene.search.TotalHitCountCollector

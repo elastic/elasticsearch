@@ -256,7 +256,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -275,7 +275,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -294,7 +294,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
 
@@ -314,7 +314,7 @@ public class JinaAIServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [jinaai] service"
             );
             service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -806,184 +806,6 @@ public class JinaAIServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                null,
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        SimilarityMeasure.DOT_PRODUCT,
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
-    }
-
-    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = JinaAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                10,
-                1,
-                "jina-clip-v2",
-                SimilarityMeasure.COSINE,
-                JinaAIEmbeddingType.FLOAT
-            );
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-            var result = listener.actionGet(TIMEOUT);
-
-            MatcherAssert.assertThat(
-                result,
-                // the dimension is set to 2 because there are 2 embeddings returned from the mock server
-                is(
-                    JinaAIEmbeddingsModelTests.createModel(
-                        getUrl(webServer),
-                        "secret",
-                        JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                        10,
-                        2,
-                        "jina-clip-v2",
-                        SimilarityMeasure.COSINE,
-                        JinaAIEmbeddingType.FLOAT
-                    )
-                )
-            );
-        }
     }
 
     public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {

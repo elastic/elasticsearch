@@ -48,11 +48,11 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -67,7 +67,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
- * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
+ * An encapsulation of {@link SearchService} operations exposed through
  * transport.
  */
 public class SearchTransportService {
@@ -323,7 +323,7 @@ public class SearchTransportService {
         return new HashMap<>(clientConnections);
     }
 
-    static class ScrollFreeContextRequest extends TransportRequest {
+    static class ScrollFreeContextRequest extends AbstractTransportRequest {
         private final ShardSearchContextId contextId;
 
         ScrollFreeContextRequest(ShardSearchContextId contextId) {
@@ -347,7 +347,7 @@ public class SearchTransportService {
 
     }
 
-    private static class ClearScrollContextsRequest extends TransportRequest {
+    private static class ClearScrollContextsRequest extends AbstractTransportRequest {
         ClearScrollContextsRequest() {}
 
         ClearScrollContextsRequest(StreamInput in) throws IOException {

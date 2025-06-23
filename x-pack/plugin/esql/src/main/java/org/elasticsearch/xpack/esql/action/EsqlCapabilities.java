@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -55,6 +55,11 @@ public class EsqlCapabilities {
          * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
          */
         SPATIAL_SHAPES,
+
+        /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
 
         /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
@@ -215,6 +220,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Support for function {@code SCALB}.
+         */
+        FN_SCALB,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -309,6 +319,11 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
+         * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
+         */
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+
+        /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
         NAMED_POSITIONAL_PARAMETER,
@@ -365,6 +380,11 @@ public class EsqlCapabilities {
         ST_ENVELOPE,
 
         /**
+         * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
+         */
+        SPATIAL_GRID,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -384,6 +404,12 @@ public class EsqlCapabilities {
          * Fix for union-types when aggregating over an inline conversion with casting operator. Done in #110476.
          */
         UNION_TYPES_AGG_CAST,
+
+        /**
+         * When pushing down {@code STATS count(field::type)} for a union type field, we wrongly used a synthetic attribute name in the
+         * query instead of the actual field name. This led to 0 counts instead of the correct result.
+         */
+        FIX_COUNT_PUSHDOWN_FOR_UNION_TYPES,
 
         /**
          * Fix to GROK validation in case of multiple fields with same name and different types
@@ -412,6 +438,23 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
+         * Support for assignment in RENAME, besides the use of `AS` keyword.
+         */
+        RENAME_ALLOW_ASSIGNMENT,
+
+        /**
+         * Support for removing empty attribute in merging output.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126392"> ESQL: EVAL after STATS produces an empty column #126392 </a>
+         */
+        REMOVE_EMPTY_ATTRIBUTE_IN_MERGING_OUTPUT,
+
+        /**
+         * Support for retain aggregate when grouping.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/126026"> ES|QL: columns not projected away despite KEEP #126026 </a>
+         */
+        RETAIN_AGGREGATE_WHEN_GROUPING,
 
         /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
@@ -558,6 +601,12 @@ public class EsqlCapabilities {
          * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
          */
         FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+
+        /**
+         * Support for date nanos in lookup join. Done in #127962
+         */
+        DATE_NANOS_LOOKUP_JOIN,
+
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -616,7 +665,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -843,7 +892,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT(Build.current().isSnapshot()),
+        CHANGE_POINT,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
@@ -856,7 +905,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V7(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -869,14 +918,14 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for FORK command
-         */
-        FORK(Build.current().isSnapshot()),
-
-        /**
          * Support for RERANK command
          */
         RERANK(Build.current().isSnapshot()),
+
+        /**
+         * Support for COMPLETION command
+         */
+        COMPLETION,
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
@@ -898,6 +947,11 @@ public class EsqlCapabilities {
          * Full text functions can be scored when being part of a disjunction
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
@@ -930,9 +984,15 @@ public class EsqlCapabilities {
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
+
+        /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
-        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled()),
+        INDEX_COMPONENT_SELECTORS,
 
         /**
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
@@ -947,7 +1007,215 @@ public class EsqlCapabilities {
         /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
          */
-        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT;
+        FIX_REPLACE_MISSING_FIELD_WITH_NULL_DUPLICATE_NAME_ID_IN_LAYOUT,
+
+        /**
+         * Support for filter in converted null.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/125832"> ESQL: Fix `NULL` handling in `IN` clause #125832 </a>
+         */
+        FILTER_IN_CONVERTED_NULL,
+
+        /**
+         * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off
+         * the ownership of that block - but didn't account for the fact that the caller might close it, leading to double releases
+         * in some union type queries. C.f. https://github.com/elastic/elasticsearch/issues/125850
+         */
+        FIX_DOUBLY_RELEASED_NULL_BLOCKS_IN_VALUESOURCEREADER,
+
+        /**
+         * Listing queries and getting information on a specific query.
+         */
+        QUERY_MONITORING,
+
+        /**
+         * Support max_over_time aggregation that gets evaluated per time-series
+         */
+        MAX_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for FORK out of snapshot
+         */
+        FORK_V9,
+
+        /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
+         * Does the usage information for ESQL contain a histogram of {@code took} values?
+         */
+        USAGE_CONTAINS_TOOK,
+
+        /**
+         * Support avg_over_time aggregation that gets evaluated per time-series
+         */
+        AVG_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support loading of ip fields if they are not indexed.
+         */
+        LOADING_NON_INDEXED_IP_FIELDS,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
+         * https://github.com/elastic/elasticsearch/issues/126419
+         */
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Support for keeping `DROP` attributes when resolving field names.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/126418"> ES|QL: no matches for pattern #126418 </a>
+         */
+        DROP_AGAIN_WITH_WILDCARD_AFTER_EVAL,
+
+        /**
+         * Support last_over_time aggregation that gets evaluated per time-series
+         */
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE_V3,
+
+        /**
+         * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
+         */
+        SUGGESTED_CAST,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
+
+        /**
+         * Support min_over_time aggregation that gets evaluated per time-series
+         */
+        MIN_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support first_over_time aggregation that gets evaluated per time-series
+         */
+        FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support sum_over_time aggregation that gets evaluated per time-series
+         */
+        SUM_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support count_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Resolve groupings before resolving references to groupings in the aggregations.
+         */
+        RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /**
+         * Full text functions in STATS
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE,
+
+        /**
+         * During resolution (pre-analysis) we have to consider that joins can override regex extracted values
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127467"> ES|QL: pruning of JOINs leads to missing fields #127467 </a>
+         */
+        FIX_JOIN_MASKING_REGEX_EXTRACT,
+
+        /**
+         * Avid GROK and DISSECT attributes being removed when resolving fields.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/127468"> ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER] #127468 </a>
+         */
+        KEEP_REGEX_EXTRACT_ATTRIBUTES,
+
+        /**
+         * The {@code ROUND_TO} function.
+         */
+        ROUND_TO,
+
+        /**
+         * Support for the {@code COPY_SIGN} function.
+         */
+        COPY_SIGN,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
+         */
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
+
+        /**
+         * Support parameters for LIMIT command.
+         */
+        PARAMETER_FOR_LIMIT,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Enable support for index aliases in lookup joins
+         */
+        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * Lookup error messages were updated to make them a bit easier to understand.
+         */
+        UPDATE_LOOKUP_JOIN_ERROR_MESSAGES,
+
+        /**
+         * Allows RLIKE to correctly handle the "empty language" flag, `#`.
+         */
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot()),
+
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

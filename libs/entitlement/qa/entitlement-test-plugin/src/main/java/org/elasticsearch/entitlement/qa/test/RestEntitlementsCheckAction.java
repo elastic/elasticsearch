@@ -29,9 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
@@ -49,27 +48,34 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         Integer fromJavaVersion
     ) {}
 
-    private static final Map<String, CheckAction> checkActions = Stream.of(
-        getTestEntries(FileCheckActions.class),
-        getTestEntries(FileStoreActions.class),
-        getTestEntries(JvmActions.class),
-        getTestEntries(LoadNativeLibrariesCheckActions.class),
-        getTestEntries(ManageThreadsActions.class),
-        getTestEntries(NativeActions.class),
-        getTestEntries(NetworkAccessCheckActions.class),
-        getTestEntries(NioChannelsActions.class),
-        getTestEntries(NioFilesActions.class),
-        getTestEntries(NioFileSystemActions.class),
-        getTestEntries(OperatingSystemActions.class),
-        getTestEntries(PathActions.class),
-        getTestEntries(SpiActions.class),
-        getTestEntries(SystemActions.class),
-        getTestEntries(URLConnectionFileActions.class),
-        getTestEntries(URLConnectionNetworkActions.class)
-    )
-        .flatMap(Function.identity())
-        .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
-        .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
+    private static final Map<String, CheckAction> checkActions = collectTests(
+        FileCheckActions.class,
+        FileStoreActions.class,
+        JvmActions.class,
+        LoadNativeLibrariesCheckActions.class,
+        ManageThreadsActions.class,
+        NativeActions.class,
+        NetworkAccessCheckActions.class,
+        NioChannelsActions.class,
+        NioFilesActions.class,
+        NioFileSystemActions.class,
+        OperatingSystemActions.class,
+        PathActions.class,
+        SpiActions.class,
+        SystemActions.class,
+        URLConnectionFileActions.class,
+        URLConnectionNetworkActions.class
+    );
+
+    private static Map<String, CheckAction> collectTests(Class<?>... testClasses) {
+        List<Entry<String, CheckAction>> entries = new ArrayList<>();
+        for (Class<?> testClass : testClasses) {
+            getTestEntries(entries, testClass, a -> a.fromJavaVersion() == null || Runtime.version().feature() >= a.fromJavaVersion());
+        }
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        Entry<String, CheckAction>[] entriesArray = entries.toArray(new Entry[0]);
+        return Map.ofEntries(entriesArray);
+    }
 
     private final Environment environment;
 
@@ -82,8 +88,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         return clazz.getDeclaredMethods();
     }
 
-    private static Stream<Entry<String, CheckAction>> getTestEntries(Class<?> actionsClass) {
-        List<Entry<String, CheckAction>> entries = new ArrayList<>();
+    private static void getTestEntries(List<Entry<String, CheckAction>> entries, Class<?> actionsClass, Predicate<CheckAction> filter) {
         for (var method : getDeclaredMethods(actionsClass)) {
             var testAnnotation = method.getAnnotation(EntitlementTest.class);
             if (testAnnotation == null) {
@@ -91,6 +96,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             }
             if (Modifier.isStatic(method.getModifiers()) == false) {
                 throw new AssertionError("Entitlement test method [" + method + "] must be static");
+            }
+            if (Modifier.isPrivate(method.getModifiers())) {
+                throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
             final CheckedConsumer<Environment, Exception> call = createConsumerForMethod(method);
             CheckedConsumer<Environment, Exception> runnable = env -> {
@@ -107,14 +115,16 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 }
             };
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
-            entries.add(
-                entry(
-                    method.getName(),
-                    new CheckAction(runnable, testAnnotation.expectedAccess(), testAnnotation.expectedExceptionIfDenied(), fromJavaVersion)
-                )
+            var checkAction = new CheckAction(
+                runnable,
+                testAnnotation.expectedAccess(),
+                testAnnotation.expectedExceptionIfDenied(),
+                fromJavaVersion
             );
+            if (filter.test(checkAction)) {
+                entries.add(entry(method.getName(), checkAction));
+            }
         }
-        return entries.stream();
     }
 
     private static CheckedConsumer<Environment, Exception> createConsumerForMethod(Method method) {

@@ -49,8 +49,10 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
 
 /**
@@ -120,9 +122,11 @@ public class S3HttpHandler implements HttpHandler {
                 uploadsList.append("<MaxUploads>10000</MaxUploads>");
                 uploadsList.append("<IsTruncated>false</IsTruncated>");
 
-                for (final var multipartUpload : uploads.values()) {
-                    if (multipartUpload.getPath().startsWith(prefix)) {
-                        multipartUpload.appendXml(uploadsList);
+                synchronized (uploads) {
+                    for (final var multipartUpload : uploads.values()) {
+                        if (multipartUpload.getPath().startsWith(prefix)) {
+                            multipartUpload.appendXml(uploadsList);
+                        }
                     }
                 }
 
@@ -134,9 +138,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isInitiateMultipartUploadRequest()) {
-                final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), request.path().substring(bucket.length() + 2));
-                uploads.put(upload.getUploadId(), upload);
-
+                final var upload = putUpload(request.path().substring(bucket.length() + 2));
                 final var uploadResult = new StringBuilder();
                 uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
                 uploadResult.append("<InitiateMultipartUploadResult>");
@@ -151,60 +153,105 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isUploadPartRequest()) {
-                final var upload = uploads.get(request.getQueryParamOnce("uploadId"));
+                final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                 if (upload == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
-                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    upload.addPart(blob.v1(), blob.v2());
-                    exchange.getResponseHeaders().add("ETag", blob.v1());
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    // CopyPart is UploadPart with an x-amz-copy-source header
+                    final var copySource = copySourceName(exchange);
+                    if (copySource != null) {
+                        var sourceBlob = blobs.get(copySource);
+                        if (sourceBlob == null) {
+                            exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                        } else {
+                            var range = parsePartRange(exchange);
+                            int start = Math.toIntExact(range.start());
+                            int len = Math.toIntExact(range.end() - range.start() + 1);
+                            var part = sourceBlob.slice(start, len);
+                            var etag = UUIDs.randomBase64UUID();
+                            upload.addPart(etag, part);
+                            byte[] response = ("""
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <CopyPartResult>
+                                    <ETag>%s</ETag>
+                                </CopyPartResult>""".formatted(etag)).getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                            exchange.getResponseBody().write(response);
+                        }
+                    } else {
+                        final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        upload.addPart(blob.v1(), blob.v2());
+                        exchange.getResponseHeaders().add("ETag", blob.v1());
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    }
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
-                if (upload == null) {
-                    if (Randomness.get().nextBoolean()) {
+                final byte[] responseBody;
+                synchronized (uploads) {
+                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    if (upload == null) {
+                        if (Randomness.get().nextBoolean()) {
+                            responseBody = null;
+                        } else {
+                            responseBody = """
+                                <?xml version="1.0" encoding="UTF-8"?>
+                                <Error>
+                                <Code>NoSuchUpload</Code>
+                                <Message>No such upload</Message>
+                                <RequestId>test-request-id</RequestId>
+                                <HostId>test-host-id</HostId>
+                                </Error>""".getBytes(StandardCharsets.UTF_8);
+                        }
+                    } else {
+                        final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                        blobs.put(request.path(), blobContents);
+                        responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<CompleteMultipartUploadResult>\n"
+                            + "<Bucket>"
+                            + bucket
+                            + "</Bucket>\n"
+                            + "<Key>"
+                            + request.path()
+                            + "</Key>\n"
+                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    }
+                }
+                if (responseBody == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
+                    exchange.getResponseBody().write(responseBody);
+                }
+            } else if (request.isAbortMultipartUploadRequest()) {
+                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+
+            } else if (request.isPutObjectRequest()) {
+                // a copy request is a put request with an X-amz-copy-source header
+                final var copySource = copySourceName(exchange);
+                if (copySource != null) {
+                    var sourceBlob = blobs.get(copySource);
+                    if (sourceBlob == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
+                        blobs.put(request.path(), sourceBlob);
+
                         byte[] response = ("""
                             <?xml version="1.0" encoding="UTF-8"?>
-                            <Error>
-                            <Code>NoSuchUpload</Code>
-                            <Message>No such upload</Message>
-                            <RequestId>test-request-id</RequestId>
-                            <HostId>test-host-id</HostId>
-                            </Error>""").getBytes(StandardCharsets.UTF_8);
+                            <CopyObjectResult></CopyObjectResult>""").getBytes(StandardCharsets.UTF_8);
                         exchange.getResponseHeaders().add("Content-Type", "application/xml");
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                         exchange.getResponseBody().write(response);
                     }
                 } else {
-                    final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                    blobs.put(request.path(), blobContents);
-
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        + "<CompleteMultipartUploadResult>\n"
-                        + "<Bucket>"
-                        + bucket
-                        + "</Bucket>\n"
-                        + "<Key>"
-                        + request.path()
-                        + "</Key>\n"
-                        + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    blobs.put(request.path(), blob.v2());
+                    exchange.getResponseHeaders().add("ETag", blob.v1());
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
-            } else if (request.isAbortMultipartUploadRequest()) {
-                final var upload = uploads.remove(request.getQueryParamOnce("uploadId"));
-                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
-
-            } else if (request.isPutObjectRequest()) {
-                final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                blobs.put(request.path(), blob.v2());
-                exchange.getResponseHeaders().add("ETag", blob.v1());
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (request.isListObjectsRequest()) {
                 final StringBuilder list = new StringBuilder();
@@ -268,7 +315,7 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
@@ -467,8 +514,50 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
+    @Nullable // if no X-amz-copy-source header present
+    private static String copySourceName(final HttpExchange exchange) {
+        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        if (copySources != null) {
+            if (copySources.size() != 1) {
+                throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
+            }
+            final var copySource = copySources.get(0);
+            // SDKv1 uses format /bucket/path/blob whereas SDKv2 omits the leading / so we must add it back in
+            return copySource.length() > 0 && copySource.charAt(0) == '/' ? copySource : ("/" + copySource);
+        } else {
+            return null;
+        }
+    }
+
+    private static HttpHeaderParser.Range parsePartRange(final HttpExchange exchange) {
+        final var sourceRangeHeaders = exchange.getRequestHeaders().get("X-amz-copy-source-range");
+        if (sourceRangeHeaders == null) {
+            throw new IllegalStateException("missing x-amz-copy-source-range header");
+        }
+        if (sourceRangeHeaders.size() != 1) {
+            throw new IllegalStateException("expected 1 x-amz-copy-source-range header, found " + sourceRangeHeaders.size());
+        }
+        return parseRangeHeader(sourceRangeHeaders.getFirst());
+    }
+
+    MultipartUpload putUpload(String path) {
+        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        synchronized (uploads) {
+            assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
+            return upload;
+        }
+    }
+
     MultipartUpload getUpload(String uploadId) {
-        return uploads.get(uploadId);
+        synchronized (uploads) {
+            return uploads.get(uploadId);
+        }
+    }
+
+    MultipartUpload removeUpload(String uploadId) {
+        synchronized (uploads) {
+            return uploads.remove(uploadId);
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

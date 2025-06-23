@@ -202,7 +202,7 @@ class KMeansLocal {
                     continue;
                 }
                 float[] neighborCentroid = centroids[neighbor];
-                float soar = distanceSoar(diffs, vector, neighborCentroid, vectorCentroidDist);
+                float soar = ESVectorUtil.soarDistance(vector, neighborCentroid, diffs, soarLambda, vectorCentroidDist);
                 if (soar < minSoar) {
                     bestAssignment = neighbor;
                     minSoar = soar;
@@ -213,13 +213,6 @@ class KMeansLocal {
         }
 
         return spilledAssignments;
-    }
-
-    private float distanceSoar(float[] residual, float[] vector, float[] centroid, float rnorm) {
-        // TODO: combine these to be more efficient
-        float dsq = VectorUtil.squareDistance(vector, centroid);
-        float rproj = ESVectorUtil.soarResidual(vector, centroid, residual);
-        return dsq + soarLambda * rproj * rproj / rnorm;
     }
 
     /**

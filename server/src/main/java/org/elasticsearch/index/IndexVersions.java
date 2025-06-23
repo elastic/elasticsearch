@@ -143,6 +143,7 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, Version.LUCENE_9_12_2);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);
@@ -173,6 +174,7 @@ public class IndexVersions {
     public static final IndexVersion SEQ_NO_WITHOUT_POINTS = def(9_027_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE = def(9_028_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED = def(9_029_0_00, Version.LUCENE_10_2_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_2_2 = def(9_030_0_00, Version.LUCENE_10_2_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

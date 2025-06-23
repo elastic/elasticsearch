@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -270,6 +274,36 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 
+    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs, String keyType) {
+        Client client = client(clusterAlias);
+        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.mode", "lookup"))
+                .setMapping(
+                    "lookup_key",
+                    "type=" + keyType,
+                    "lookup_name",
+                    "type=keyword",
+                    "lookup_tag",
+                    "type=keyword",
+                    field_tag,
+                    "type=keyword"
+                )
+        );
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs) {
+        populateLookupIndex(clusterAlias, indexName, numDocs, "long");
+    }
+
     protected void setSkipUnavailable(String clusterAlias, boolean skip) {
         client(LOCAL_CLUSTER).admin()
             .cluster()
@@ -313,5 +347,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
 
     static List<TaskInfo> getDriverTasks(Client client) {
         return client.admin().cluster().prepareListTasks().setActions(DriverTaskRunner.ACTION_NAME).setDetailed(true).get().getTasks();
+    }
+
+    protected static Exception randomFailure() {
+        return randomFrom(
+            new IllegalStateException("driver was closed already"),
+            new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
+            new IOException("broken disk"),
+            new ResourceNotFoundException("exchange sink was not found"),
+            new EsRejectedExecutionException("node is shutting down")
+        );
     }
 }

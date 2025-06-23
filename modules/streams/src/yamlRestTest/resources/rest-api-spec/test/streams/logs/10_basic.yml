@@ -1,0 +1,43 @@
+---
+"Basic toggle of logs state enable to disable and back":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_disable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_false: logs.enabled
+
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+---
+"Check for repeated toggle to same state":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled

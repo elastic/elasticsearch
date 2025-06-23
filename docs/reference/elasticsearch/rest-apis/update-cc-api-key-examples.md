@@ -41,7 +41,7 @@ A successful call returns a JSON structure that provides API key information. Fo
 % TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 % TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
-Information of the API key, including its exact role descriptor can be inspected with the [Get API key API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-security-get-api-key).
+To retrieve key information about the API key, including the exact role descriptor, use the [Get API key API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-security-get-api-key).
 
 ```console
 GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx

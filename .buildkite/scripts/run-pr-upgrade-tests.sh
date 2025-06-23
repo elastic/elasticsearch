@@ -24,22 +24,19 @@ VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-to
 
 echo "Running PR upgrade tests from $BUILDKITE_PULL_REQUEST_BASE_BRANCH [$BASE_COMMIT] to $BUILDKITE_BRANCH [$BUILDKITE_COMMIT]."
 
-cat <<EOF | buildkite-agent pipeline upload
+cat << EOF | buildkite-agent pipeline upload
 steps:
-    - label: pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTest
-      timeout_in_minutes: 300
-      agents:
-        provider: gcp
-        image: family/elasticsearch-ubuntu-2004
-        machineType: n1-standard-32
-        buildDirectory: /dev/shm/bk
-        preemptible: true
-      retry:
-        automatic:
-          - exit_status: "-1"
-            limit: 3
-            signal_reason: none
-          - signal_reason: agent_stop
-            limit: 3
+    - group: "pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH"
+      steps:
+        - label: "pr-upgrade-part-{{matrix.PART}}"
+          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}
+          timeout_in_minutes: 300
+          agents:
+            provider: gcp
+            image: family/elasticsearch-ubuntu-2004
+            machineType: n1-standard-32
+            buildDirectory: /dev/shm/bk
+          matrix:
+            setup:
+              PART: ["1", "2", "3", "4", "5", "6"]
 EOF

@@ -70,46 +70,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         assertThat(serviceSettings.similarity(), is(similarity));
         assertThat(serviceSettings.dimensions(), is(dimensions));
         assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-        assertThat(serviceSettings.dimensionsSetByUser(), is(true)); // dimensions were provided
-    }
-
-    public void testFromMap_Persistent_WithDimensionsSetByUser() {
-        var modelId = "my-dense-model-id";
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 768;
-        var dimensionsSetByUser = true;
-
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    ServiceFields.DIMENSIONS,
-                    dimensions,
-                    ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
-                    dimensionsSetByUser
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.similarity(), is(similarity));
-        assertThat(serviceSettings.dimensions(), is(dimensions));
-        assertThat(serviceSettings.dimensionsSetByUser(), is(dimensionsSetByUser));
-    }
-
-    public void testFromMap_Persistent_WithoutDimensionsSetByUser_DefaultsToFalse() {
-        var modelId = "my-dense-model-id";
-
-        var serviceSettings = ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(serviceSettings.dimensionsSetByUser(), is(false));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
@@ -117,7 +77,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dimensions = 1024;
         var maxInputTokens = 256;
-        var dimensionsSetByUser = true;
         var rateLimitSettings = new RateLimitSettings(5000);
 
         var serviceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
@@ -125,7 +84,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             similarity,
             dimensions,
             maxInputTokens,
-            dimensionsSetByUser,
             rateLimitSettings
         );
 
@@ -138,13 +96,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             is(
                 Strings.format(
                     """
-                        {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d},"dimensions_set_by_user":%s}""",
+                    {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
                     similarity,
                     dimensions,
                     maxInputTokens,
                     modelId,
-                    rateLimitSettings.requestsPerTimeUnit(),
-                    dimensionsSetByUser
+                    rateLimitSettings.requestsPerTimeUnit()
                 )
             )
         );
@@ -159,7 +116,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             null, // similarity
             null, // dimensions
             null, // maxInputTokens
-            false, // dimensionsSetByUser
             rateLimitSettings
         );
 
@@ -172,7 +128,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             is(
                 Strings.format(
                     """
-                        {"model_id":"%s","rate_limit":{"requests_per_minute":%d},"dimensions_set_by_user":false}""",
+                        {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
                     modelId,
                     rateLimitSettings.requestsPerTimeUnit()
                 )
@@ -189,7 +145,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             SimilarityMeasure.COSINE,
             512,
             128,
-            true,
             rateLimitSettings
         );
 
@@ -217,7 +172,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             similarity,
             dimensions,
             maxInputTokens,
-            dimensionsSetByUser,
             rateLimitSettings
         );
     }

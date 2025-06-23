@@ -31,7 +31,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
                 SimilarityMeasure.COSINE,
                 null,
                 null,
-                false,
                 new RateLimitSettings(1000L)
             ),
             EmptyTaskSettings.INSTANCE,

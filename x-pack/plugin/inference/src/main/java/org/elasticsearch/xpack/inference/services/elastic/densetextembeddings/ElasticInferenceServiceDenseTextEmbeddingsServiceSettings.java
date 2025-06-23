@@ -39,7 +39,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         ElasticInferenceServiceRateLimitServiceSettings {
 
     public static final String NAME = "elastic_inference_service_dense_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
@@ -47,7 +46,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
-    private final boolean dimensionsSetByUser;
     private final RateLimitSettings rateLimitSettings;
 
     public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromMap(
@@ -83,14 +81,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        var dimensionsSetByUser = dims != null;
-
         return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
             modelId,
             similarity,
             dims,
             maxInputTokens,
-            dimensionsSetByUser,
             rateLimitSettings
         );
     }
@@ -113,11 +108,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
-
-        if (dimensionsSetByUser == null) {
-            dimensionsSetByUser = Boolean.FALSE;
-        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -128,7 +118,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             similarity,
             dims,
             maxInputTokens,
-            dimensionsSetByUser,
             rateLimitSettings
         );
     }
@@ -138,14 +127,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        boolean dimensionsSetByUser,
         RateLimitSettings rateLimitSettings
     ) {
         this.modelId = modelId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.dimensionsSetByUser = dimensionsSetByUser;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -154,7 +141,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
-        this.dimensionsSetByUser = in.readBoolean();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -180,11 +166,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
-    }
-
-    @Override
-    public Boolean dimensionsSetByUser() {
-        return dimensionsSetByUser;
     }
 
     @Override
@@ -226,7 +207,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         }
 
         toXContentFragmentOfExposedFields(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
@@ -243,7 +223,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeBoolean(dimensionsSetByUser);
         rateLimitSettings.writeTo(out);
     }
 
@@ -252,8 +231,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings that = (ElasticInferenceServiceDenseTextEmbeddingsServiceSettings) o;
-        return dimensionsSetByUser == that.dimensionsSetByUser
-            && Objects.equals(modelId, that.modelId)
+        return Objects.equals(modelId, that.modelId)
             && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
@@ -262,6 +240,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, dimensionsSetByUser, rateLimitSettings);
+        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, rateLimitSettings);
     }
 }

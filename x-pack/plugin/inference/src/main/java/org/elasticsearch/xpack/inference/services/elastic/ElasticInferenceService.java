@@ -197,7 +197,6 @@ public class ElasticInferenceService extends SenderService {
                         defaultDenseTextEmbeddingsSimilarity(),
                         null,
                         null,
-                        false,
                         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
                     ),
                     EmptyTaskSettings.INSTANCE,
@@ -572,14 +571,12 @@ public class ElasticInferenceService extends SenderService {
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? defaultDenseTextEmbeddingsSimilarity() : similarityFromModel;
             var maxInputTokens = serviceSettings.maxInputTokens();
-            var dimensionsSetByUser = serviceSettings.dimensionsSetByUser();
 
             var updateServiceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
                 modelId,
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,
-                dimensionsSetByUser,
                 serviceSettings.rateLimitSettings()
             );
 

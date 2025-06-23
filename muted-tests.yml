@@ -221,6 +221,9 @@ tests:
   - class: org.elasticsearch.discovery.ClusterDisruptionIT
     method: testAckedIndexing
     issue: https://github.com/elastic/elasticsearch/issues/117024
+  - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+    method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
+    issue: https://github.com/elastic/elasticsearch/issues/129845
 
   # Examples:
   #

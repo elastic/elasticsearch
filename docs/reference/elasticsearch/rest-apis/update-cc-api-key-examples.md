@@ -108,9 +108,9 @@ A successful call returns a JSON structure that contains the information of the 
 
 % NOTCONSOLE
 
-<1> Role descriptor corresponding to the specified `access` scope at creation time.
+1. Role descriptor corresponding to the specified `access` scope at creation time.
 In this example, it grants cross cluster search permission for the `logs*` index pattern.
-<2> The `access` corresponds to the value specified at API key creation time.
+2. The `access` corresponds to the value specified at API key creation time.
 
 The following example updates the API key created above, assigning it new access scope and metadata:
 
@@ -195,10 +195,11 @@ The API key's permissions after the update can be inspected again with the [Get 
     }
   ]
 }
+```
 
 % NOTCONSOLE
 
-<1> Role descriptor is updated to be the `access` scope specified at update time.
+1. Role descriptor is updated to be the `access` scope specified at update time.
 In this example, it is updated to grant the cross cluster replication permission
 for the `archive*` index pattern.
-<2> The `access` corresponds to the value specified at API key update time.
+2. The `access` corresponds to the value specified at API key update time.

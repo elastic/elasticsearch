@@ -568,6 +568,18 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnQueryRescore
   issue: https://github.com/elastic/elasticsearch/issues/129809
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnRetriever
+  issue: https://github.com/elastic/elasticsearch/issues/129818
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAbortingOrRunningMergeTaskHoldsUpBudget
+  issue: https://github.com/elastic/elasticsearch/issues/129823
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/129852
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
+  issue: https://github.com/elastic/elasticsearch/issues/129845
 
 # Examples:
 #

@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -365,7 +366,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new CapturingIndexCommitListener(),
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP
         );
     }
 
@@ -443,7 +445,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             false,
             null,
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP
         );
         return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
@@ -521,7 +524,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             false,
             null,
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP
         );
     }
 

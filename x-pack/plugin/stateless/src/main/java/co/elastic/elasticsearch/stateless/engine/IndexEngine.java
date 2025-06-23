@@ -58,6 +58,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -112,7 +113,6 @@ public class IndexEngine extends InternalEngine {
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
-    private final MergeMetrics mergeMetrics;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private final Predicate<ShardId> shouldSkipMerges;
     private volatile long hollowMaxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -205,7 +205,6 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
-        this.mergeMetrics = metrics.mergeMetrics();
     }
 
     @Override
@@ -738,7 +737,8 @@ public class IndexEngine extends InternalEngine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics
     ) {
         if (ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.get(indexSettings.getSettings())) {
             return new ThreadPoolMergeScheduler(
@@ -771,10 +771,11 @@ public class IndexEngine extends InternalEngine {
                     shardId,
                     indexSettings,
                     threadPoolMergeExecutorService,
-                    this::estimateMergeBytes
+                    this::estimateMergeBytes,
+                    mergeMetrics
                 );
             } else {
-                return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+                return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
             }
         }
     }
@@ -800,9 +801,10 @@ public class IndexEngine extends InternalEngine {
             ShardId shardId,
             IndexSettings indexSettings,
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
-            MergeMemoryEstimateProvider mergeMemoryEstimateProvider
+            MergeMemoryEstimateProvider mergeMemoryEstimateProvider,
+            MergeMetrics mergeMetrics
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider, mergeMetrics);
             prewarm = ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings());
         }
 

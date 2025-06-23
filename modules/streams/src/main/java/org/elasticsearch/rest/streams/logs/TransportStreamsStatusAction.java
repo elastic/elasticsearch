@@ -42,7 +42,7 @@ public class TransportStreamsStatusAction extends TransportLocalClusterStateActi
             clusterService,
             transportService,
             actionFilters,
-            localOnly(),
+            null,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }

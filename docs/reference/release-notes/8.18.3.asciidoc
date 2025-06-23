@@ -22,7 +22,7 @@ Codec::
 * Use new source loader when lower `docId` is accessed {es-pull}128320[#128320]
 
 Data streams::
-* [apm-data] fix(8.18): update resource version {es-pull}129547[#129547]
+* Bump APM data resource version {es-pull}129547[#129547]
 
 ES|QL::
 * Fix `FieldAttribute` name usage in `InferNonNullAggConstraint` {es-pull}128910[#128910]

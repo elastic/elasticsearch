@@ -754,6 +754,9 @@ host:keyword | semantic_text_field:text | language_name:keyword | language_code:
 
 testFTFWithLookupJoin
 required_capability: match_operator_colon
+required_capability: match_phrase_function
+required_capability: kql_function
+required_capability: qstr_function
 required_capability: join_lookup_v12
 
 FROM sample_*,-sample__data_* METADATA _index

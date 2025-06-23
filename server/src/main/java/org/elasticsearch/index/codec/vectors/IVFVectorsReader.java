@@ -93,8 +93,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        float[] target,
-        IndexInput clusters
+        float[] target
     ) throws IOException;
 
     abstract CentroidQueryScorer getCentroidScorer(
@@ -102,8 +101,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int numParentCentroids,
         int numCentroids,
         IndexInput centroids,
-        float[] target,
-        IndexInput clusters
+        float[] target
     ) throws IOException;
 
     private static IndexInput openDataInput(
@@ -274,8 +272,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.parentCentroidCount,
             entry.postingListOffsets.length,
             entry.centroidSlice(ivfCentroids),
-            target,
-            ivfClusters
+            target
         );
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
@@ -299,8 +296,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 fieldInfo,
                 entry.parentCentroidCount,
                 entry.centroidSlice(ivfCentroids),
-                target,
-                ivfCentroids
+                target
             );
             final NeighborQueue parentCentroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorerWChildren, nProbe);
 

@@ -93,6 +93,7 @@ toc:
             - file: rest-apis/reindex-indices.md
             - file: rest-apis/retrieve-inner-hits.md
             - file: rest-apis/retrieve-selected-fields.md
+            - file: rest-apis/retrieve-stored-fields.md
             - file: rest-apis/retrievers.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
@@ -103,6 +104,7 @@ toc:
             - file: rest-apis/searching-with-query-rules.md
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/term-vectors-examples.md
+            - file: rest-apis/update-cc-api-key-examples.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

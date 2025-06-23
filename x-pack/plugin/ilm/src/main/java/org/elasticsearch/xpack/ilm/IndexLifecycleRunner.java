@@ -236,8 +236,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            final var metadata = state.cluster().metadata();
-            ((AsyncWaitStep) currentStep).evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
@@ -359,7 +358,7 @@ class IndexLifecycleRunner {
             logger.debug("[{}] running policy with async action step [{}]", index, currentStep.getKey());
             ((AsyncActionStep) currentStep).performAction(
                 indexMetadata,
-                state.cluster(),
+                state,
                 new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()),
                 new ActionListener<>() {
 

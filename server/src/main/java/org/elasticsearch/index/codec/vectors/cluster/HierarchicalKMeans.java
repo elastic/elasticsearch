@@ -128,8 +128,8 @@ public class HierarchicalKMeans {
         }
 
         int effectiveK = 0;
-        for (int i = 0; i < centroidVectorCount.length; i++) {
-            if (centroidVectorCount[i] > 0) {
+        for (int j : centroidVectorCount) {
+            if (j > 0) {
                 effectiveK++;
             }
         }

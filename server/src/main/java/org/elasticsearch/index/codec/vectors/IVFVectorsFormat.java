@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
@@ -110,13 +109,4 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
         return "IVFVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ')';
     }
 
-    static IVFVectorsReader getIVFReader(KnnVectorsReader vectorsReader, String fieldName) {
-        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
-            vectorsReader = candidateReader.getFieldReader(fieldName);
-        }
-        if (vectorsReader instanceof IVFVectorsReader reader) {
-            return reader;
-        }
-        return null;
-    }
 }

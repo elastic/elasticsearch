@@ -29,7 +29,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -553,7 +552,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         Consumer<Exception> failureHandler
     ) {
         // Search in the project specific .geoip_databases
-            // Need to run the search from a different thread, since this is executed from cluster state applier thread:
+        // Need to run the search from a different thread, since this is executed from cluster state applier thread:
         genericExecutor.accept(() -> {
             MessageDigest md = MessageDigests.md5();
             int firstChunk = metadata.firstChunk();

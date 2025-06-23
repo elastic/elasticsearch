@@ -60,7 +60,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -128,9 +127,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void setup() throws IOException {
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
-        projectResolver = multiProject ?
-            TestProjectResolvers.singleProject(projectId) :
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+        projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         projectId = randomProjectIdOrDefault();
         final Path geoIpConfigDir = createTempDir();
         GeoIpCache cache = new GeoIpCache(1000);
@@ -146,12 +143,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
         databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize(
-            "nodeId",
-            resourceWatcherService,
-            ingestService,
-            projectResolver
-        );
+        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService, projectResolver);
     }
 
     @After

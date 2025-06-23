@@ -76,9 +76,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     public void loadDatabaseReaders() throws IOException {
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
-        projectResolver = multiProject ?
-            TestProjectResolvers.singleProject(projectId) :
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+        projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         final Path configDir = createTempDir();
         geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
@@ -90,15 +88,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         geoipTmpDir = createTempDir();
         clusterService = mock(ClusterService.class);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build()).build();
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         when(clusterService.state()).thenReturn(state);
         databaseNodeService = new DatabaseNodeService(geoipTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize(
-            "nodeId",
-            mock(ResourceWatcherService.class),
-            mock(IngestService.class),
-            projectResolver
-        );
+        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class), projectResolver);
     }
 
     @After
@@ -404,11 +398,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             Runnable::run,
             clusterService
         );
-        databaseNodeService.initialize(
-            "nodeId",
-            resourceWatcherService,
-            mock(IngestService.class),
-            projectResolver);
+        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class), projectResolver);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());
@@ -479,12 +469,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             Runnable::run,
             clusterService
         );
-        databaseNodeService.initialize(
-            "nodeId",
-            resourceWatcherService,
-            mock(IngestService.class),
-            projectResolver
-        );
+        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class), projectResolver);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());

@@ -150,8 +150,10 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
     @Nullable
     @FixForMultiProject(description = "Replace ProjectId.DEFAULT")
     static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state.projectState(ProjectId.DEFAULT).metadata(),
-            EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(
+            state.projectState(ProjectId.DEFAULT).metadata(),
+            EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER
+        );
         return (task == null) ? null : (EnterpriseGeoIpTaskState) task.getState();
     }
 

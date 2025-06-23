@@ -51,7 +51,7 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
     public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
 
-    private static final Operator DEFAULT_OPERATOR = Operator.OR;
+    private static final Operator DEFAULT_OPERATOR = Operator.AND;
     private static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQueryOption.NONE;
     private static final boolean DEFAULT_GENERATE_SYNONYMS_PHRASE = true;
 
@@ -320,7 +320,9 @@ public class MultiFieldMatchQueryBuilder extends AbstractQueryBuilder<MultiField
             }
             */
 
-            disMax.add(new CombinedFieldsQueryBuilder(value, group.getValue().toArray(new String[0])));
+            var combinedFields = new CombinedFieldsQueryBuilder(value, group.getValue().toArray(new String[0]));
+            combinedFields = combinedFields.operator(operator);
+            disMax.add(combinedFields);
         }
 
         /*

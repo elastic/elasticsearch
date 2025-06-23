@@ -3,4 +3,5 @@ summary: Avoid dropping aggregate groupings in local plans
 area: ES|QL
 type: bug
 issues:
+ - 129811
  - 128054

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,7 +15,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -322,7 +318,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
     public void testLookupJoinFieldTypes() throws IOException {
         setupClusters(2);
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
-        populateLookupIndexKeyword(REMOTE_CLUSTER_1, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10, "keyword");
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         var ex = expectThrows(
@@ -358,58 +354,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 25);
         return setupData;
-    }
-
-    protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs) {
-        Client client = client(clusterAlias);
-        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
-        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.mode", "lookup"))
-                .setMapping(
-                    "lookup_key",
-                    "type=long",
-                    "lookup_name",
-                    "type=keyword",
-                    "lookup_tag",
-                    "type=keyword",
-                    field_tag,
-                    "type=keyword"
-                )
-        );
-        for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
-        }
-        client.admin().indices().prepareRefresh(indexName).get();
-    }
-
-    protected void populateLookupIndexKeyword(String clusterAlias, String indexName, int numDocs) {
-        Client client = client(clusterAlias);
-        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
-        String field_tag = Strings.isEmpty(clusterAlias) ? "local_tag" : "remote_tag";
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.mode", "lookup"))
-                .setMapping(
-                    "lookup_key",
-                    "type=keyword",
-                    "lookup_name",
-                    "type=keyword",
-                    "lookup_tag",
-                    "type=keyword",
-                    field_tag,
-                    "type=keyword"
-                )
-        );
-        for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
-        }
-        client.admin().indices().prepareRefresh(indexName).get();
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

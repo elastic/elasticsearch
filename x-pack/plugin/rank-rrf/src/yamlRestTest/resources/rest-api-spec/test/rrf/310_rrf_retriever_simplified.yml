@@ -368,3 +368,52 @@ setup:
             rrf: {}
 
   - contains: { error.root_cause.0.reason: "[rrf] must provide [retrievers] or [query]" }
+
+---
+"Expansion to equivalent custom sub-retrievers returns the same results":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2", "sparse_inference", "dense_inference" ]
+              query: "match"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - standard:
+                    query:
+                      multi_match:
+                        query: "match"
+                        fields: [ "text_1", "text_2" ]
+                        type: "most_fields"
+                - rrf:
+                    retrievers:
+                      - standard:
+                          query:
+                            match:
+                              dense_inference:
+                                query: "match"
+                      - standard:
+                          query:
+                            match:
+                              sparse_inference:
+                                query: "match"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }

@@ -43,7 +43,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                       "task_types": ["embed/text/sparse"]
                     },
                     {
-                      "model_name": "multilingual-embed",
+                      "model_name": "multilingual-embed-v1",
                       "task_types": ["embed/text/dense"]
                     }
                 ]

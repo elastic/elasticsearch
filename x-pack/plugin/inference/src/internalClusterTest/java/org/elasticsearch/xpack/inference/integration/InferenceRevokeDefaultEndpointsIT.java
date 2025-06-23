@@ -200,7 +200,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["embed/text/sparse"]
                         },
                         {
-                          "model_name": "multilingual-embed",
+                          "model_name": "multilingual-embed-v1",
                           "task_types": ["embed/text/dense"]
                         }
                     ]
@@ -228,7 +228,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                                 service
                             ),
                             new InferenceService.DefaultConfigId(
-                                ".multilingual-embed-elastic",
+                                ".multilingual-embed-v1-elastic",
                                 MinimalServiceSettings.textEmbedding(
                                     ElasticInferenceService.NAME,
                                     ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
@@ -251,7 +251,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
                 assertThat(
                     listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(),
-                    is(".multilingual-embed-elastic")
+                    is(".multilingual-embed-v1-elastic")
                 );
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
@@ -291,7 +291,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                                 service
                             ),
                             new InferenceService.DefaultConfigId(
-                                ".multilingual-embed-elastic",
+                                ".multilingual-embed-v1-elastic",
                                 MinimalServiceSettings.textEmbedding(
                                     ElasticInferenceService.NAME,
                                     ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,

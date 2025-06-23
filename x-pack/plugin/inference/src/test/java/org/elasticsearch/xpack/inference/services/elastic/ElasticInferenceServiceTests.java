@@ -1266,7 +1266,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                       "task_types": ["embed/text/sparse"]
                     },
                     {
-                      "model_name": "multilingual-embed",
+                      "model_name": "multilingual-embed-v1",
                       "task_types": ["embed/text/dense"]
                     }
                 ]
@@ -1290,7 +1290,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                             service
                         ),
                         new InferenceService.DefaultConfigId(
-                            ".multilingual-embed-elastic",
+                            ".multilingual-embed-v1-elastic",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
                                 ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
@@ -1317,7 +1317,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var models = listener.actionGet(TIMEOUT);
             assertThat(models.size(), is(3));
             assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
-            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-elastic"));
+            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-v1-elastic"));
             assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
         }
     }

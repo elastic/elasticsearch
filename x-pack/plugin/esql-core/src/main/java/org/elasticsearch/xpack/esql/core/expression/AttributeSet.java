@@ -261,5 +261,9 @@ public class AttributeSet implements Set<Attribute> {
         public AttributeSet build() {
             return new AttributeSet(mapBuilder.build());
         }
+
+        public void clear() {
+            mapBuilder.keySet().clear();
+        }
     }
 }

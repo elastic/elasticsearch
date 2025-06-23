@@ -117,10 +117,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
 
     public void testWriteToAndReadFromWithCloudApiKeyAuthentication() throws Exception {
         final Authentication authentication = Authentication.newCloudApiKeyAuthentication(
-            AuthenticationResult.success(
-                new User(randomAlphanumericOfLength(5), "superuser"),
-                Map.of(AuthenticationField.API_KEY_ID_KEY, "test-api-key-id")
-            ),
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
             randomAlphanumericOfLength(10)
         );
 
@@ -137,10 +134,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
 
     public void testWriteToWithCloudApiKeyThrowsOnUnsupportedVersion() {
         final Authentication authentication = Authentication.newCloudApiKeyAuthentication(
-            AuthenticationResult.success(
-                new User(randomAlphanumericOfLength(5), "superuser"),
-                Map.of(AuthenticationField.API_KEY_ID_KEY, "test-api-key-id")
-            ),
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
             randomAlphanumericOfLength(10)
         );
 

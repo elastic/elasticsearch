@@ -266,7 +266,7 @@ public class PushQueriesIT extends ESRestTestCase {
         String luceneQuery = switch (type) {
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
-            case KEYWORD -> "Automaton for test LIKE (\"%value*\", \"abc*\"), caseInsensitive=false";
+            case KEYWORD -> "test:LIKE(\"%value*\", \"abc*\"), caseInsensitive=false";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;

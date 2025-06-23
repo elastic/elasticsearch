@@ -146,7 +146,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
         this.dimensionsSetByUser = dimensionsSetByUser;
-        this.rateLimitSettings = rateLimitSettings;
+        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -239,10 +239,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(modelId);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeBoolean(dimensionsSetByUser);
+        rateLimitSettings.writeTo(out);
     }
 
     @Override
@@ -250,14 +252,16 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings that = (ElasticInferenceServiceDenseTextEmbeddingsServiceSettings) o;
-        return Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
-            && Objects.equals(similarity, that.similarity)
+        return dimensionsSetByUser == that.dimensionsSetByUser
+            && Objects.equals(modelId, that.modelId)
+            && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(similarity, dimensions, maxInputTokens, dimensionsSetByUser);
+        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, dimensionsSetByUser, rateLimitSettings);
     }
 }

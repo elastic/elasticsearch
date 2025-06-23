@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -72,7 +73,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -117,12 +117,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDe
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomValueOtherThanTest;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -2119,7 +2119,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
 
         var lookup = as(limit.child(), Lookup.class);
-        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo("int_number_names"));
+        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo(BytesRefs.toBytesRef("int_number_names")));
         assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(
             lookup.localRelation().output().stream().map(Object::toString).toList(),
@@ -2370,6 +2370,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCasting() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
@@ -2870,7 +2871,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2886,7 +2887,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(qstr.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -2902,7 +2903,7 @@ public class AnalyzerTests extends ESTestCase {
         MapExpression me = as(mm.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, BytesRefs.toBytesRef("minimum_should_match"), DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
@@ -3066,8 +3067,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testBasicFork() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | KEEP emp_no, first_name, last_name
@@ -3089,27 +3088,27 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Keep keep = as(limit.child(), Keep.class);
-        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        Eval eval = as(keep.child(), Eval.class);
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        Eval eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
         Filter filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
 
         filter = as(filter.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
-        EsqlProject project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), EsqlProject.class);
         var esRelation = as(project.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
         filter = as(eval.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
@@ -3123,10 +3122,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
@@ -3142,10 +3141,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 4
         limit = as(subPlans.get(3), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
         orderBy = as(eval.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
@@ -3157,10 +3156,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 5
         limit = as(subPlans.get(4), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
         limit = as(eval.child(), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
@@ -3172,8 +3171,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkBranchesWithDifferentSchemas() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         LogicalPlan plan = analyze("""
             from test
             | WHERE first_name == "Chris"
@@ -3194,11 +3191,11 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 1
         limit = as(subPlans.get(0), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        Keep keep = as(limit.child(), Keep.class);
-        List<String> keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
 
-        Eval eval = as(keep.child(), Eval.class);
+        Eval eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 3);
 
         Set<String> evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
@@ -3216,7 +3213,7 @@ public class AnalyzerTests extends ESTestCase {
         Filter filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
 
-        EsqlProject project = as(filter.child(), EsqlProject.class);
+        project = as(filter.child(), EsqlProject.class);
         filter = as(project.child(), Filter.class);
         assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         var esRelation = as(filter.child(), EsRelation.class);
@@ -3225,10 +3222,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 2
         limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);
         evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
         assertThat(evalFieldNames, equalTo(Set.of("x", "y")));
@@ -3255,10 +3252,10 @@ public class AnalyzerTests extends ESTestCase {
         // fork branch 3
         limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        keep = as(limit.child(), Keep.class);
-        keptColumns = keep.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
-        assertThat(keptColumns, equalTo(expectedOutput));
-        eval = as(keep.child(), Eval.class);
+        project = as(limit.child(), EsqlProject.class);
+        projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
+        assertThat(projectColumns, equalTo(expectedOutput));
+        eval = as(project.child(), Eval.class);
         assertEquals(eval.fields().size(), 2);
         evalFieldNames = eval.fields().stream().map(a -> a.name()).collect(Collectors.toSet());
         assertThat(evalFieldNames, equalTo(Set.of("emp_no", "first_name")));
@@ -3299,8 +3296,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testForkError() {
-        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
-
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no > 1 )
@@ -3377,6 +3372,13 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (EVAL b = 3) (EVAL b = 4)
             """));
         assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | FORK (FORK (WHERE true) (WHERE true))
+                   (WHERE true)
+            """));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
     }
 
     public void testValidRrf() {
@@ -3414,7 +3416,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRrfError() {
-        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.FORK.isEnabled());
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -3462,20 +3464,6 @@ public class AnalyzerTests extends ESTestCase {
             | RRF
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_id]"));
-    }
-
-    public void testRandomSampleProbability() {
-        assumeTrue("requires SAMPLE capability", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
-
-        var e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE 1."));
-        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [1.0]"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE .0"));
-        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [0.0]"));
-
-        double p = randomValueOtherThanTest(d -> 0 < d && d < 1, () -> randomDoubleBetween(0, Double.MAX_VALUE, false));
-        e = expectThrows(VerificationException.class, () -> analyze("FROM test | SAMPLE " + p));
-        assertThat(e.getMessage(), containsString("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
@@ -3557,7 +3545,7 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             LogicalPlan plan = analyze(
-                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `reranking-inference-id`",
+                "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`reranking-inference-id`",
                 "mapping-books.json"
             );
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
@@ -3568,7 +3556,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `completion-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`completion-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3586,7 +3574,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH `error-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`error-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3598,7 +3586,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH `unknown-inference-id`",
+                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`unknown-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3617,7 +3605,7 @@ public class AnalyzerTests extends ESTestCase {
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | KEEP description, title, year, _score
                 | DROP description
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3641,7 +3629,8 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"food"
-                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year
+                  WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3679,7 +3668,7 @@ public class AnalyzerTests extends ESTestCase {
                 LogicalPlan plan = analyze("""
                     FROM books METADATA _score
                     | WHERE title:"food"
-                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH `reranking-inference-id`
+                    | RERANK "food" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH inferenceId=`reranking-inference-id`
                     """, "mapping-books.json");
             } catch (ParsingException ex) {
                 assertThat(
@@ -3693,7 +3682,7 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH `reranking-inference-id`",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH inferenceId=`reranking-inference-id`",
                     "mapping-books.json"
                 )
 
@@ -3710,7 +3699,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3728,7 +3717,7 @@ public class AnalyzerTests extends ESTestCase {
             LogicalPlan plan = analyze("""
                 FROM books
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | RERANK "italian food recipe" ON title WITH `reranking-inference-id`
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`
                 """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
@@ -3739,6 +3728,42 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(relation.output().stream().noneMatch(attr -> attr.name().equals(MetadataAttribute.SCORE)), is(true));
             assertThat(rerank.scoreAttribute(), equalTo(MetadataAttribute.create(EMPTY, MetadataAttribute.SCORE)));
             assertThat(rerank.output(), hasItem(rerank.scoreAttribute()));
+        }
+
+        {
+            // When using a custom fields that does not exist
+            LogicalPlan plan = analyze("""
+                FROM books METADATA _score
+                | WHERE title:"italian food recipe" OR description:"italian food recipe"
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`, scoreColumn=rerank_score
+                """, "mapping-books.json");
+
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+
+            Attribute scoreAttribute = rerank.scoreAttribute();
+            assertThat(scoreAttribute.name(), equalTo("rerank_score"));
+            assertThat(scoreAttribute.dataType(), equalTo(DOUBLE));
+            assertThat(rerank.output(), hasItem(scoreAttribute));
+        }
+
+        {
+            // When using a custom fields that already exists
+            LogicalPlan plan = analyze("""
+                FROM books METADATA _score
+                | WHERE title:"italian food recipe" OR description:"italian food recipe"
+                | EVAL rerank_score = _score
+                | RERANK "italian food recipe" ON title WITH inferenceId=`reranking-inference-id`, scoreColumn=rerank_score
+                """, "mapping-books.json");
+
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+
+            Attribute scoreAttribute = rerank.scoreAttribute();
+            assertThat(scoreAttribute.name(), equalTo("rerank_score"));
+            assertThat(scoreAttribute.dataType(), equalTo(DOUBLE));
+            assertThat(rerank.output(), hasItem(scoreAttribute));
+            assertThat(rerank.child().output().stream().anyMatch(scoreAttribute::equals), is(true));
         }
     }
 
@@ -4125,7 +4150,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return new Literal(EMPTY, BytesRefs.toBytesRef(value), DataType.KEYWORD);
     }
 
     static Literal literal(int value) {

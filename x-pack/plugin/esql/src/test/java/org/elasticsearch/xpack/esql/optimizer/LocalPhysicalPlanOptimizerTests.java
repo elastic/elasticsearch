@@ -1350,6 +1350,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
@@ -2085,7 +2088,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         protected FullTextFunctionTestCase(Class<? extends FullTextFunction> fullTextFunction) {
-            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(1, 10));
+            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(5, 10));
         }
 
         public Class<? extends FullTextFunction> fullTextFunction() {

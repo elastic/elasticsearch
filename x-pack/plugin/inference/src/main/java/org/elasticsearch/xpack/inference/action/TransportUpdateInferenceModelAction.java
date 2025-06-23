@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -75,6 +76,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateInferenceModelAction(
@@ -85,7 +87,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateInferenceModelAction.NAME,
@@ -101,6 +104,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -345,7 +349,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
     @Override
     protected ClusterBlockException checkBlock(UpdateInferenceModelAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

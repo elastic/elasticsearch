@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
-import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.EsqlAutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -112,7 +112,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
+        return new EsqlAutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
     private String getAutomatonDescription() {

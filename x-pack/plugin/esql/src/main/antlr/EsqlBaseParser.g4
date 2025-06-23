@@ -306,23 +306,10 @@ rrfCommand
    : DEV_RRF
    ;
 
-inferenceCommandOptions
-    : inferenceCommandOption (COMMA inferenceCommandOption)*
-    ;
-
-inferenceCommandOption
-    : identifier ASSIGN inferenceCommandOptionValue
-    ;
-
-inferenceCommandOptionValue
-    : constant
-    | identifier
-    ;
-
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    : DEV_RERANK queryText=constant ON rerankFields (INTO targetField=qualifiedName)? (OPTIONS options=mapExpression)?
     ;
 
 completionCommand
-    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    : COMPLETION prompt=primaryExpression (INTO targetField=qualifiedName)? (OPTIONS options=mapExpression)?
     ;

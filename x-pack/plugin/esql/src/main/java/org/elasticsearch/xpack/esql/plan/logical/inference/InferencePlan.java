@@ -25,6 +25,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>> {
 
+    public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
     private final Expression inferenceId;
 
     protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
@@ -68,5 +69,22 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+    }
+
+    public static class Builder<PlanType extends InferencePlan<PlanType>> {
+        private PlanType plan;
+
+        public Builder(PlanType plan) {
+            this.plan = plan;
+        }
+
+        public PlanType build() {
+            return plan;
+        }
+
+        public Builder<PlanType> withInferenceId(Expression inferenceId) {
+            this.plan = this.plan.withInferenceId(inferenceId);
+            return this;
+        }
     }
 }

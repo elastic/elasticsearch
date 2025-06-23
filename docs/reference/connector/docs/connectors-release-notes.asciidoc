@@ -13,7 +13,12 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 [[es-connectors-release-notes-8-18-3]]
 === 8.18.3
 
-No notable changes in this release.
+[discrete]
+[[es-connectors-release-notes-8-18-3-enhancements]]
+==== Enhancements
+
+Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning.
+See https://github.com/elastic/connectors/pull/3459[*PR 3459*].
 
 [discrete]
 [[es-connectors-release-notes-8-18-2]]

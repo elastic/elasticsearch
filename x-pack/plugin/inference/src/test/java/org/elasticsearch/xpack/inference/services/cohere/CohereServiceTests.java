@@ -266,11 +266,7 @@ public class CohereServiceTests extends ESTestCase {
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
             serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
 
-            var config = getRequestConfigMap(
-                serviceSettings,
-                getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
-            );
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret"));
             config.put("extra_key", "value");
 
             var failureListener = getModelListenerForException(
@@ -323,11 +319,7 @@ public class CohereServiceTests extends ESTestCase {
 
             var serviceSettings = CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, null, null);
             serviceSettings.put(CohereServiceSettings.MODEL_ID, "foo");
-            var config = getRequestConfigMap(
-                serviceSettings,
-                getTaskSettingsMapEmpty(),
-                secretSettingsMap
-            );
+            var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), secretSettingsMap);
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
@@ -353,11 +345,7 @@ public class CohereServiceTests extends ESTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    serviceSettings,
-                    getTaskSettingsMapEmpty(),
-                    getSecretSettingsMap("secret")
-                ),
+                getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("secret")),
                 modelListener
             );
 

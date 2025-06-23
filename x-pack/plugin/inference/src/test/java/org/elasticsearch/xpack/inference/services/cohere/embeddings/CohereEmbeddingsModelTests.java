@@ -146,8 +146,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer dimensions,
         String model,
         @Nullable CohereEmbeddingType embeddingType
-    )
-    {
+    ) {
         return createModel(
             url,
             apiKey,
@@ -173,15 +172,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(
-                    url,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dimensions,
-                    tokenLimit,
-                    model,
-                    null,
-                    apiVersion
-                ),
+                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null, apiVersion),
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,

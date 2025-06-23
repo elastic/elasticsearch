@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -531,6 +532,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", state1, state0);
         assertTrue(event.projectDelta().hasNoChange());
+        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
 
         // Add projects
         final List<ProjectId> projectIds = randomList(1, 5, ESTestCase::randomUniqueProjectId);
@@ -542,6 +544,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("test", state2, state1);
         assertThat(event.projectDelta().added(), containsInAnyOrder(projectIds.toArray()));
         assertThat(event.projectDelta().removed(), empty());
+        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
 
         // Add more projects and delete one
         final var removedProjectIds = randomNonEmptySubsetOf(projectIds);
@@ -561,6 +564,10 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("test", state3, state2);
         assertThat(event.projectDelta().added(), containsInAnyOrder(moreProjectIds.toArray()));
         assertThat(event.projectDelta().removed(), containsInAnyOrder(removedProjectIds.toArray()));
+        assertThat(
+            event.projectDelta().common(),
+            equalTo(Sets.union(Sets.difference(Set.copyOf(projectIds), Set.copyOf(removedProjectIds)), Set.of(ProjectId.DEFAULT)))
+        );
 
         // Remove all projects
         final List<ProjectId> remainingProjects = state3.metadata()
@@ -579,6 +586,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("test", state4, state3);
         assertThat(event.projectDelta().added(), empty());
         assertThat(event.projectDelta().removed(), containsInAnyOrder(remainingProjects.toArray()));
+        assertThat(event.projectDelta().common(), equalTo(Set.of(ProjectId.DEFAULT)));
     }
 
     private static class CustomClusterMetadata2 extends TestClusterCustomMetadata {

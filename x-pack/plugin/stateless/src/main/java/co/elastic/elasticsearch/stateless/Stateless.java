@@ -1542,7 +1542,6 @@ public class Stateless extends Plugin
                     new StatelessCommitRef(
                         shardId,
                         indexCommitRef,
-                        getIndexCommitFileNames(indexCommitRef.getIndexCommit()),
                         additionalFiles,
                         primaryTerm,
                         translogRecoveryStartFile,
@@ -1763,15 +1762,6 @@ public class Stateless extends Plugin
             bccUploadMaxSize.getStringRep(),
             virtualBccUploadMaxAge.getStringRep()
         );
-    }
-
-    private static Collection<String> getIndexCommitFileNames(IndexCommit commit) {
-        try {
-            return commit.getFileNames();
-        } catch (IOException e) {
-            assert false : e; // should never happen, none of the Lucene implementations throw this.
-            throw new UncheckedIOException(e);
-        }
     }
 
     private boolean isInitializingNoSearchShards(IndexShard shard) {

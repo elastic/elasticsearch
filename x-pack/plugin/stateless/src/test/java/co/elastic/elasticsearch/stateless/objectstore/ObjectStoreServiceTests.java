@@ -275,7 +275,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         new StatelessCommitRef(
                             testHarness.shardId,
                             new Engine.IndexCommitRef(indexCommit, commitCloseLatch::countDown),
-                            commitFiles,
                             additionalFiles,
                             1,
                             0,

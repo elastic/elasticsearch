@@ -606,7 +606,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     new StatelessCommitRef(
                         shardId,
                         indexCommitRef,
-                        indexCommitRef.getIndexCommit().getFileNames(),
                         additionalFiles,
                         primaryTerm,
                         0,   // not used, stubbing value for translogRecoveryStartFile

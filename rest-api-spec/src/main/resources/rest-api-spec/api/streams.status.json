@@ -1,0 +1,28 @@
+{
+  "streams.status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-status.html",
+      "description": "Return the current status of the streams feature for each streams type"
+    },
+    "stability": "stable",
+    "visibility": "feature_flag",
+    "feature_flag": "logs_stream",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/status",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+    }
+  }
+}

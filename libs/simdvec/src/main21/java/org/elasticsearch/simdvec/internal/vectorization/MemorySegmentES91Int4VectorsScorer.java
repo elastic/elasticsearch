@@ -61,9 +61,9 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
             i += BYTE_SPECIES_128.loopBound(dimensions);
             res += int4DotProductBody128(q, i);
         }
-
+        in.readBytes(scratch, i, dimensions - i);
         while (i < dimensions) {
-            res += in.readByte() * q[i++];
+            res += scratch[i] * q[i++];
         }
         return res;
     }

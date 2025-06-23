@@ -23,17 +23,20 @@ public class ES91Int4VectorsScorer {
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
     protected final int dimensions;
+    protected byte[] scratch;
 
     /** Sole constructor, called by sub-classes. */
     public ES91Int4VectorsScorer(IndexInput in, int dimensions) {
         this.in = in;
         this.dimensions = dimensions;
+        scratch = new byte[dimensions];
     }
 
     public long int4DotProduct(byte[] b) throws IOException {
+        in.readBytes(scratch, 0, dimensions);
         int total = 0;
         for (int i = 0; i < dimensions; i++) {
-            total += in.readByte() * b[i];
+            total += scratch[i] * b[i];
         }
         return total;
     }

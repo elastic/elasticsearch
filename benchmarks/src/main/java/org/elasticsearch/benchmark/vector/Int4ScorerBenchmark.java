@@ -52,7 +52,7 @@ public class Int4ScorerBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "1024" })
+    @Param({ "384", "702", "1024" })
     int dims;
 
     int numVectors = 200;

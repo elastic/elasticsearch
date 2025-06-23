@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.MergeTracking;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;

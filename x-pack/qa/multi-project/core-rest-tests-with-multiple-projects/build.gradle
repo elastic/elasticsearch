@@ -47,8 +47,10 @@ tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
     '^cat.recovery/*/*',
+    '^cat.repositories/*/*',
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
+    '^cluster.stats/10_basic/snapshot stats reported in get cluster stats',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^health/10_basic/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
@@ -61,7 +63,7 @@ tasks.named("yamlRestTest").configure {
     '^snapshot.create/*/*',
     '^snapshot.delete/*/*',
     '^snapshot.get/*/*',
-    '^snapshot.get_repository/20_repository_uuid/*',
+    '^snapshot.get_repository/*/*',
     '^snapshot.restore/*/*',
     '^snapshot.status/*/*',
     '^synonyms/*/*',

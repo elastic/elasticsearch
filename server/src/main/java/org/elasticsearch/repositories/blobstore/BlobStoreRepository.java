@@ -2407,7 +2407,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
-        final var project = currentState.metadata().getDefaultProject();
+        final var project = currentState.metadata().getProject(getProjectId());
         return ClusterState.builder(currentState)
             .putProjectMetadata(
                 ProjectMetadata.builder(project)

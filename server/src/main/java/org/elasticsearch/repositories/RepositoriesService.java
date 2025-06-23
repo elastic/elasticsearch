@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -229,6 +230,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                         .<List<DiscoveryNode>>newForked(verifyRepositoryStep -> {
                             if (taskResult.ackResponse.isAcknowledged() && taskResult.changed) {
+                                final ThreadContext threadContext = threadPool.getThreadContext();
                                 verifyRepository(projectId, request.name(), verifyRepositoryStep);
                             } else {
                                 verifyRepositoryStep.onResponse(null);

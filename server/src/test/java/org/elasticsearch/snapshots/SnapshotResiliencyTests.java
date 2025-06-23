@@ -2520,7 +2520,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         threadPool,
                         clusterService,
-                        repositoriesService
+                        repositoriesService,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
                     )
                 );
                 actions.put(

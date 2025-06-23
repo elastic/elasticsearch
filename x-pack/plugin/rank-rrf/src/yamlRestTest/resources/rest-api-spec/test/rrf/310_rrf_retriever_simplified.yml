@@ -1,8 +1,8 @@
 setup:
   - requires:
-      cluster_features: [ "linear_retriever.multi_fields_query_format_support" ]
-      reason: "Linear retriever multi-fields query format support"
-      test_runner_features: [ "close_to", "headers", "contains" ]
+      cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
+      reason: "RRF retriever multi-fields query format support"
+      test_runner_features: [ "contains" ]
 
   - do:
       inference.put:
@@ -114,176 +114,111 @@ setup:
 ---
 "Query all fields using the simplified format":
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               query: "match"
-              normalizer: "minmax"
 
-  - match: { hits.total.value: 3 }
-  - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "3" }
-  - lte: { hits.hits.0._score: 2.0 }
-  - match: { hits.hits.1._id: "2" }
-  - lte: { hits.hits.1._score: 2.0 }
-  - match: { hits.hits.2._id: "1" }
-  - lte: { hits.hits.2._score: 2.0 }
-
----
-"Lexical match per-field boosting using the simplified format":
-  - do:
-      headers:
-        Content-Type: application/json
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              fields: [ "text_1", "text_2" ]
-              query: "foo 1 z"
-              normalizer: "minmax"
-
-  # Lexical-only match, so max score is 1
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - match: { hits.hits.1._id: "3" }
-  - lt: { hits.hits.1._score: 1.0 }
-
-  - do:
-      headers:
-        Content-Type: application/json
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              fields: ["text_1", "text_2^3"]
-              query: "foo 1 z"
-              normalizer: "minmax"
-
-  # Lexical-only match, so max score is 1
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "3" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - match: { hits.hits.1._id: "1" }
-  - lt: { hits.hits.1._score: 1.0 }
-
----
-"Semantic match per-field boosting using the simplified format":
-  # The mock inference services generate synthetic vectors that don't accurately represent similarity to non-identical
-  # input, so it's hard to create a test that produces intuitive results. Instead, we rely on the fact that the inference
-  # services generate consistent vectors (i.e. same input -> same output) to demonstrate that per-field boosting on
-  # a semantic_text field can change the result order.
-  - do:
-      headers:
-        Content-Type: application/json
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              fields: [ "dense_inference", "sparse_inference" ]
-              query: "distributed, RESTful, search engine"
-              normalizer: "minmax"
-
-  # Semantic-only match, so max score is 1
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - match: { hits.hits.1._id: "3" }
-  - lt: { hits.hits.1._score: 1.0 }
-  - match: { hits.hits.2._id: "1" }
-  - lt: { hits.hits.2._score: 1.0 }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
 
+---
+"Per-field boosting is not supported":
   - do:
-      headers:
-        Content-Type: application/json
+      catch: bad_request
       search:
         index: test-index
         body:
           retriever:
-            linear:
-              fields: [ "dense_inference^3", "sparse_inference" ]
-              query: "distributed, RESTful, search engine"
-              normalizer: "minmax"
+            rrf:
+              fields: [ "text_1", "text_2^3" ]
+              query: "foo"
 
-  # Semantic-only match, so max score is 1
+  - match: { error.root_cause.0.reason: "[rrf] does not support per-field weights in [fields]" }
+
+---
+"Can query text fields":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2" ]
+              query: "foo z"
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+
+---
+"Can query semantic text fields":
+  # Result order is not correlated with relevance because we generate synthetic embeddings
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "sparse_inference", "dense_inference" ]
+              query: "elasticsearch"
+
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "3" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
-  - match: { hits.hits.1._id: "2" }
-  - lt: { hits.hits.1._score: 1.0 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "1" }
-  - lt: { hits.hits.2._score: 1.0 }
 
 ---
 "Can query keyword fields":
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "keyword" ]
               query: "keyword match 1"
-              normalizer: "minmax"
 
-  # Lexical-only match, so max score is 1
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
 
 ---
 "Can query date fields":
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "timestamp" ]
               query: "2010-02-08"
-              normalizer: "minmax"
 
-  # Lexical-only match, so max score is 1
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
 
 ---
 "Can query sparse vector fields":
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "sparse_vector" ]
               query: "foo"
-              normalizer: "minmax"
 
-  # Lexical-only match, so max score is 1
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
 
 ---
 "Cannot query dense vector fields":
@@ -293,26 +228,22 @@ setup:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "dense_vector" ]
               query: "foo"
-              normalizer: "minmax"
 
-  - contains: { error.root_cause.0.reason: "[linear] search failed - retrievers '[standard]' returned errors" }
+  - contains: { error.root_cause.0.reason: "[rrf] search failed - retrievers '[standard]' returned errors" }
   - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [dense_vector] of type [dense_vector] does not support match queries" }
 
 ---
 "Filters are propagated":
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               query: "match"
-              normalizer: "minmax"
               filter:
                 - term:
                     keyword: "keyword match 1"
@@ -320,7 +251,6 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }
-  - close_to: { hits.hits.0._score: { value: 2.0, error: 0.0001 } }
 
 ---
 "Wildcard index patterns that do not resolve to any index are handled gracefully":
@@ -329,9 +259,8 @@ setup:
         index: wildcard-*
         body:
           retriever:
-            linear:
+            rrf:
               query: "match"
-              normalizer: "minmax"
 
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
@@ -348,11 +277,10 @@ setup:
         index: [ test-index, test-index-2 ]
         body:
           retriever:
-            linear:
+            rrf:
               query: "match"
-              normalizer: "minmax"
 
-  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
+  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
 
   - do:
       indices.put_alias:
@@ -369,11 +297,10 @@ setup:
         index: test-alias
         body:
           retriever:
-            linear:
+            rrf:
               query: "match"
-              normalizer: "minmax"
 
-  - match: { error.root_cause.0.reason: "[linear] cannot specify [query] when querying multiple indices" }
+  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
 
 ---
 "Wildcard field patterns that do not resolve to any field are handled gracefully":
@@ -382,10 +309,9 @@ setup:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "wildcard-*" ]
               query: "match"
-              normalizer: "minmax"
 
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
@@ -398,36 +324,15 @@ setup:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               query: "foo"
-              normalizer: "minmax"
               retrievers:
-                - retriever:
-                    standard:
-                      query:
-                        match:
-                          keyword: "bar"
+                - standard:
+                    query:
+                      match:
+                        keyword: "bar"
 
-  - contains: { error.root_cause.0.reason: "[linear] cannot combine [retrievers] and [query]" }
-
----
-"Cannot set top-level normalizer when using custom sub-retrievers":
-  - do:
-      catch: bad_request
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              normalizer: "minmax"
-              retrievers:
-                - retriever:
-                    standard:
-                      query:
-                        match:
-                          keyword: "bar"
-
-  - contains: { error.root_cause.0.reason: "[linear] [normalizer] cannot be provided when [retrievers] is specified" }
+  - contains: { error.root_cause.0.reason: "[rrf] cannot combine [retrievers] and [query]" }
 
 ---
 "Missing required params":
@@ -437,21 +342,10 @@ setup:
         index: test-index
         body:
           retriever:
-            linear:
-              query: "foo"
+            rrf:
+              fields: [ "text_1", "text_2" ]
 
-  - contains: { error.root_cause.0.reason: "[linear] [normalizer] must be provided when [query] is specified" }
-
-  - do:
-      catch: bad_request
-      search:
-        index: test-index
-        body:
-          retriever:
-            linear:
-              fields: ["text_1", "text_2"]
-
-  - contains: { error.root_cause.0.reason: "[linear] [query] must be provided when [fields] is specified" }
+  - contains: { error.root_cause.0.reason: "[rrf] [query] must be provided when [fields] is specified" }
 
   - do:
       catch: bad_request
@@ -459,11 +353,11 @@ setup:
         index: test-index
         body:
           retriever:
-            linear:
+            rrf:
               fields: [ "text_1", "text_2" ]
               query: ""
 
-  - contains: { error.root_cause.0.reason: "[linear] [query] cannot be empty" }
+  - contains: { error.root_cause.0.reason: "[rrf] [query] cannot be empty" }
 
   - do:
       catch: bad_request
@@ -471,6 +365,55 @@ setup:
         index: test-index
         body:
           retriever:
-            linear: {}
+            rrf: {}
 
-  - contains: { error.root_cause.0.reason: "[linear] must provide [retrievers] or [query]" }
+  - contains: { error.root_cause.0.reason: "[rrf] must provide [retrievers] or [query]" }
+
+---
+"Expansion to equivalent custom sub-retrievers returns the same results":
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2", "sparse_inference", "dense_inference" ]
+              query: "match"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - standard:
+                    query:
+                      multi_match:
+                        query: "match"
+                        fields: [ "text_1", "text_2" ]
+                        type: "most_fields"
+                - rrf:
+                    retrievers:
+                      - standard:
+                          query:
+                            match:
+                              dense_inference:
+                                query: "match"
+                      - standard:
+                          query:
+                            match:
+                              sparse_inference:
+                                query: "match"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }

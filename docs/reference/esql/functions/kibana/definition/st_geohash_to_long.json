@@ -33,5 +33,5 @@
     "ROW geohash = \"u3bu\"\n| EVAL geohashLong = ST_GEOHASH_TO_LONG(geohash)"
   ],
   "preview" : false,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

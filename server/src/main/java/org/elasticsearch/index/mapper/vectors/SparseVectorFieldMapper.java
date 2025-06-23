@@ -143,8 +143,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         private IndexOptions getDefaultIndexOptions(IndexVersion indexVersion) {
             return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X))
-                    ? IndexOptions.DEFAULT_PRUNING_INDEX_OPTIONS
-                    : null;
+                ? IndexOptions.DEFAULT_PRUNING_INDEX_OPTIONS
+                : null;
         }
 
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, IndexOptions value) {

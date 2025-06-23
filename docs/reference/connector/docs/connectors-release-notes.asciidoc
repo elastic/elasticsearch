@@ -10,6 +10,12 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-17-8]]
+=== 8.17.8
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-17-7]]
 === 8.17.7
 

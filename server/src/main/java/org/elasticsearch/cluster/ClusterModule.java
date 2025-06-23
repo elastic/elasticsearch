@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.project.ProjectsStateRegistry;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -293,7 +293,7 @@ public class ClusterModule extends AbstractModule {
             RegisteredPolicySnapshots::new,
             RegisteredPolicySnapshots.RegisteredSnapshotsDiff::new
         );
-        registerClusterCustom(entries, ProjectsStateRegistry.TYPE, ProjectsStateRegistry::new, ProjectsStateRegistry::readDiffFrom);
+        registerClusterCustom(entries, ProjectStateRegistry.TYPE, ProjectStateRegistry::new, ProjectStateRegistry::readDiffFrom);
         // Secrets
         registerClusterCustom(entries, ClusterSecrets.TYPE, ClusterSecrets::new, ClusterSecrets::readDiffFrom);
         registerProjectCustom(entries, ProjectSecrets.TYPE, ProjectSecrets::new, ProjectSecrets::readDiffFrom);

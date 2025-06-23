@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectsStateRegistry;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -921,8 +921,8 @@ public class ClusterStateTests extends ESTestCase {
             .nodes(discoveryNodes.build())
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .putCustom(
-                ProjectsStateRegistry.TYPE,
-                ProjectsStateRegistry.builder()
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder()
                     .putProjectSettings(
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
@@ -2225,8 +2225,8 @@ public class ClusterStateTests extends ESTestCase {
                     chunkCount += 2 + snapshotDeletionsInProgress.getEntries().size();
                 } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
                     chunkCount += 2 + snapshotsInProgress.asStream().count();
-                } else if (custom instanceof ProjectsStateRegistry projectsStateRegistry) {
-                    chunkCount += 2 + projectsStateRegistry.size();
+                } else if (custom instanceof ProjectStateRegistry projectStateRegistry) {
+                    chunkCount += 2 + projectStateRegistry.size();
                 } else {
                     // could be anything, we have to just try it
                     chunkCount += Iterables.size(

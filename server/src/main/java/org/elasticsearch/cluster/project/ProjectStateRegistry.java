@@ -27,22 +27,33 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-public class ProjectsStateRegistry extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+/**
+ * Represents a registry for managing and retrieving project-specific state in the cluster state.
+ */
+public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
     public static final String TYPE = "projects_registry";
-    public static final ProjectsStateRegistry EMPTY = new ProjectsStateRegistry(Collections.emptyMap());
+    public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap());
 
     private final Map<ProjectId, Settings> projectsSettings;
 
-    public ProjectsStateRegistry(StreamInput in) throws IOException {
+    public ProjectStateRegistry(StreamInput in) throws IOException {
         projectsSettings = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
     }
 
-    public ProjectsStateRegistry(Map<ProjectId, Settings> projectsSettings) {
+    private ProjectStateRegistry(Map<ProjectId, Settings> projectsSettings) {
         this.projectsSettings = projectsSettings;
     }
 
+    /**
+     * Retrieves the settings for a specific project based on its project ID from the specified cluster state without creating a new object.
+     * If you need a full state of the project rather than just its setting, please use {@link ClusterState#projectState(ProjectId)}
+     *
+     * @param projectId id of the project
+     * @param clusterState cluster state
+     * @return the settings for the specified project, or an empty settings object if no settings are found
+     */
     public static Settings getProjectSettings(ProjectId projectId, ClusterState clusterState) {
-        ProjectsStateRegistry registry = clusterState.custom(TYPE, EMPTY);
+        ProjectStateRegistry registry = clusterState.custom(TYPE, EMPTY);
         return registry.projectsSettings.getOrDefault(projectId, Settings.EMPTY);
     }
 
@@ -90,19 +101,12 @@ public class ProjectsStateRegistry extends AbstractNamedDiffable<ClusterState.Cu
         return projectsSettings.size();
     }
 
-    /**
-     * Returns a new instance of ProjectsStateRegistry containing all projects from the cluster state and settings for the specified project
-     */
-    public static ProjectsStateRegistry setProjectSettings(ClusterState clusterState, ProjectId projectId, Settings settings) {
-        return ProjectsStateRegistry.builder(clusterState).putProjectSettings(projectId, settings).build();
-    }
-
     public static Builder builder(ClusterState original) {
-        ProjectsStateRegistry projectRegistry = original.custom(TYPE, EMPTY);
+        ProjectStateRegistry projectRegistry = original.custom(TYPE, EMPTY);
         return builder(projectRegistry);
     }
 
-    public static Builder builder(ProjectsStateRegistry projectRegistry) {
+    public static Builder builder(ProjectStateRegistry projectRegistry) {
         return new Builder(projectRegistry);
     }
 
@@ -117,7 +121,7 @@ public class ProjectsStateRegistry extends AbstractNamedDiffable<ClusterState.Cu
             this.projectsSettings = ImmutableOpenMap.builder();
         }
 
-        private Builder(ProjectsStateRegistry original) {
+        private Builder(ProjectStateRegistry original) {
             this.projectsSettings = ImmutableOpenMap.builder(original.projectsSettings);
         }
 
@@ -126,9 +130,8 @@ public class ProjectsStateRegistry extends AbstractNamedDiffable<ClusterState.Cu
             return this;
         }
 
-        public ProjectsStateRegistry build() {
-            return new ProjectsStateRegistry(projectsSettings.build());
+        public ProjectStateRegistry build() {
+            return new ProjectStateRegistry(projectsSettings.build());
         }
     }
-
 }

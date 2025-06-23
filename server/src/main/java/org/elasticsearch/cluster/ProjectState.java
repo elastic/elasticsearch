@@ -12,7 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.ProjectsStateRegistry;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ public final class ProjectState {
         this.cluster = clusterState;
         this.project = projectId;
         this.projectMetadata = clusterState.metadata().getProject(projectId);
-        this.projectSettings = ProjectsStateRegistry.getProjectSettings(projectId, clusterState);
+        this.projectSettings = ProjectStateRegistry.getProjectSettings(projectId, clusterState);
         this.routingTable = clusterState.routingTable(projectId);
     }
 

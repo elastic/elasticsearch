@@ -43,12 +43,11 @@ testMultiMatchWithOptionsMinimumShouldMatch
 required_capability: multi_match_unified_function
 
 from books 
-| where match(title, description, "here back again", {"minimum_should_match": 2, "operator": "OR"})
+| where match(title, description, "there back again", {"minimum_should_match": 2, "operator": "AND"})
 | sort book_no
 | keep title;
 
 title:text                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-My First 100 Words in Spanish/English (My First 100 Words Pull-Tab Book)
 The Hobbit or There and Back Again                                                                                           
 ;
 

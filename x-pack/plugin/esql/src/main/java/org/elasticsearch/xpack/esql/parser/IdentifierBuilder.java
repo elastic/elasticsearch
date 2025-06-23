@@ -132,7 +132,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     /**
      * Takes the parsed constituent strings and validates them.
      * @param clusterString Name of the remote cluster. Can be null.
-     * @param indexPattern Name of the index or pattern; can also have multiple patterns in case of quoting, e.g. {@code FROM """index*,-index1"""}.
+     * @param indexPattern Name of the index or pattern; can also have multiple patterns in case of quoting,
+     *                     e.g. {@code FROM """index*,-index1"""}.
      * @param selectorString Selector string, i.e. "::data" or "::failures". Can be null.
      * @param ctx Index Pattern Context for generating error messages with offsets.
      * @param hasSeenStar If we've seen an asterisk so far.
@@ -158,7 +159,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String[] patterns;
         if (clusterString == null && selectorString == null) {
             // Pattern could be quoted or is singular like "index_name".
-            patterns = indexPattern.split(",");
+            patterns = indexPattern.split(",", -1);
         } else {
             // Either of cluster string or selector string is present. Pattern is unquoted.
             patterns = new String[] { indexPattern };
@@ -169,11 +170,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             throwInvalidIndexNameException(indexPattern, BLANK_INDEX_ERROR_MESSAGE, ctx);
         }
 
-        // Edge case: happens when all the index names in a pattern are empty.
+        // Edge case: happens when all the index names in a pattern are empty like "FROM ",,,,,"".
         if (patterns.length == 0) {
             throwInvalidIndexNameException(indexPattern, BLANK_INDEX_ERROR_MESSAGE, ctx);
         } else if (patterns.length == 1) {
-            // Pattern is an unquoted string.
+            // Pattern is either an unquoted string or a quoted string with a single index (no comma sep).
             validateSingleIndexPattern(clusterString, patterns[0], selectorString, ctx, hasSeenStar);
         } else {
             /*

@@ -3180,6 +3180,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(randomFrom(sourceCommands) + " \",,, \"", indexIsBlank);
         expectError(randomFrom(sourceCommands) + " \", , ,,\"", indexIsBlank);
         expectError(randomFrom(sourceCommands) + " \",,,\",*", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"*,,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,,,,\"", indexIsBlank);
+        expectError(randomFrom(sourceCommands) + " \"index1,index2,,\"", indexIsBlank);
         expectError(randomFrom(sourceCommands) + " \"index1,<-+^,index2\",*", "must not contain the following characters");
         expectError(randomFrom(sourceCommands) + " \"\",*", indexIsBlank);
         expectError(randomFrom(sourceCommands) + " \"*: ,*,\"", indexIsBlank);

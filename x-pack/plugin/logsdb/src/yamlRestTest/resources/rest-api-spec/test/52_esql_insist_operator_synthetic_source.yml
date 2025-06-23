@@ -44,46 +44,51 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | LIMIT 1'
+          query: 'FROM my-index | SORT @timestamp | LIMIT 1'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
-  - match: {columns.6.name: "message"}
-  - match: {columns.6.type: "text"}
+  - match: {columns.1.name: "message"}
+  - match: {columns.1.type: "text"}
 
-  - match: {values.0.0: "2024-02-12T10:31:00.000Z"}
-  - match: {values.0.1: "Do. Or do not. There is no try."}
+  - match: {values.0.0: "2024-02-12T10:30:00.000Z"}
+  - match: {values.0.1: "No, I am your father."}
 
 ---
 "FROM with INSIST_🐔and LIMIT 1":
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | INSIST_🐔 host.name, agent_id, http_method | KEEP host.name, agent_id, http_method | LIMIT 1'
+          query: 'FROM my-index | INSIST_🐔 host.name, agent_id, http_method | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
 
   - match: {columns.0.name: "host.name"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.0.name: "agent_id"}
-  - match: {columns.0.type: "keyword"}
-  - match: {columns.0.name: "http_method"}
-  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "agent_id"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "http_method"}
+  - match: {columns.2.type: "keyword"}
 
-  - match: {values.0.0: "bar"}
-  - match: {values.0.1: "yoda"}
-  - match: {values.0.2: "PUT"}
+  - match: {values.0.0: "foo"}
+  - match: {values.0.1: "darth-vader"}
+  - match: {values.0.2: "GET"}
 
 ---
 "FROM with INSIST_🐔":
+  - requires:
+      test_runner_features: allowed_warnings_regex
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | INSIST_🐔 agent_id | KEEP host.name'
+          query: 'FROM my-index | INSIST_🐔 agent_id | SORT @timestamp | KEEP agent_id'
 
   - match: {columns.0.name: "agent_id"}
   - match: {columns.0.type: "keyword"}
 
-  - match: {values.0.0: "yoda"}
-  - match: {values.1.0: "darth-vader"}
-  - match: {values.3.0: "yoda"}
-  - match: {values.4.0: "darth-vader"}
+  - match: {values.0.0: "darth-vader"}
+  - match: {values.1.0: "yoda"}
+  - match: {values.2.0: "obi-wan"}
+  - match: {values.3.0: "darth-vader"}
+  - match: {values.4.0: "yoda"}
   - match: {values.5.0: "obi-wan"}

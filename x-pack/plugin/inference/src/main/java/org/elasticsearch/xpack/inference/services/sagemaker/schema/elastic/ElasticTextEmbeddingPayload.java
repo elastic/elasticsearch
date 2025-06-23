@@ -236,7 +236,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
 
         ApiServiceSettings(StreamInput in) throws IOException {
             this(
-                in.readOptionalInt(),
+                in.readOptionalVInt(),
                 in.readBoolean(),
                 in.readOptionalEnum(SimilarityMeasure.class),
                 in.readEnum(DenseVectorFieldMapper.ElementType.class)
@@ -255,7 +255,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalInt(dimensions);
+            out.writeOptionalVInt(dimensions);
             out.writeBoolean(dimensionsSetByUser);
             out.writeOptionalEnum(similarity);
             out.writeEnum(elementType);

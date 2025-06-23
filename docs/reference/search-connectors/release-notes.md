@@ -14,7 +14,10 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 :::
 
 ## 9.0.3 [connectors-9.0.3-release-notes]
-No changes since 9.0.2
+
+### Features and enhancements [connectors-9.0.3-features-enhancements]
+
+Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning. See [#3459](https://github.com/elastic/connectors/pull/3459).
 
 ## 9.0.2 [connectors-9.0.2-release-notes]
 No changes since 9.0.1

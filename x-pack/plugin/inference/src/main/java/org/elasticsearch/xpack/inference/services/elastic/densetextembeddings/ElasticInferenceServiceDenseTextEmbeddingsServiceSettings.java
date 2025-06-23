@@ -81,13 +81,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-            modelId,
-            similarity,
-            dims,
-            maxInputTokens,
-            rateLimitSettings
-        );
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, rateLimitSettings);
     }
 
     private static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings fromPersistentMap(
@@ -113,13 +107,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-            modelId,
-            similarity,
-            dims,
-            maxInputTokens,
-            rateLimitSettings
-        );
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, rateLimitSettings);
     }
 
     public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(

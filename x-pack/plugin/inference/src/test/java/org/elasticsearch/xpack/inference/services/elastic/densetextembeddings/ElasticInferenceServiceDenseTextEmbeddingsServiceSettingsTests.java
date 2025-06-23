@@ -96,7 +96,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             is(
                 Strings.format(
                     """
-                    {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
+                        {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
                     similarity,
                     dimensions,
                     maxInputTokens,
@@ -123,17 +123,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(
-            xContentResult,
-            is(
-                Strings.format(
-                    """
-                        {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
-                    modelId,
-                    rateLimitSettings.requestsPerTimeUnit()
-                )
-            )
-        );
+        assertThat(xContentResult, is(Strings.format("""
+            {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""", modelId, rateLimitSettings.requestsPerTimeUnit())));
     }
 
     public void testToXContentFragmentOfExposedFields() throws IOException {

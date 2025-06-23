@@ -22,12 +22,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
@@ -253,6 +255,213 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("query"), equalTo(query));
 
             assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            2.1259406,
+                            1.7073475,
+                            0.9020516
+                        ],
+                        [
+                            1.8342123,
+                            2.3456789,
+                            0.7654321
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of("hello world", "second text"), null, InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
+            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(2));
+
+            var firstEmbedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(firstEmbedding.values(), is(new float[]{2.1259406f, 1.7073475f, 0.9020516f}));
+
+            var secondEmbedding = textEmbeddingResults.embeddings().get(1);
+            assertThat(secondEmbedding.values(), is(new float[]{1.8342123f, 2.3456789f, 0.7654321f}));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world", "second text"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_WithUsageContext() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            0.1234567,
+                            0.9876543
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of("search query"), null, InputType.SEARCH),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
+            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(1));
+
+            var embedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(embedding.values(), is(new float[]{0.1234567f, 0.9876543f}));
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("search query"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+            assertThat(requestMap.get("usage_context"), is("search"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSend_FailsFromInvalidResponseFormat_ForDenseTextEmbeddingsAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            // This will fail because the expected output is {"data": [[...]]}
+            String responseJson = """
+                {
+                    "data": {
+                        "embedding": [2.1259406, 1.7073475]
+                    }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), null, InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_EmptyEmbeddings() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "data": []
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of(), null, InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(TextEmbeddingFloatResults.class));
+            var textEmbeddingResults = (TextEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(0));
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, hasSize(0));
         }
     }
 

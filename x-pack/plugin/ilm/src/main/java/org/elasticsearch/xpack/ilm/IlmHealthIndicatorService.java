@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -210,7 +213,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        final var projectMetadata = clusterService.state().metadata().getProject();
+        final var projectMetadata = getDefaultILMProject(clusterService.state());
         var ilmMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         final var currentMode = currentILMMode(projectMetadata);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
@@ -341,14 +344,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
          * @return A list containing the ILM managed indices that are stagnated in any ILM action/step.
          */
         public List<IndexMetadata> find() {
-            var metadata = clusterService.state().metadata();
+            final var project = getDefaultILMProject(clusterService.state());
             var now = nowSupplier.getAsLong();
 
-            return metadata.getProject()
-                .indices()
+            return project.indices()
                 .values()
                 .stream()
-                .filter(metadata.getProject()::isIndexManagedByILM)
+                .filter(project::isIndexManagedByILM)
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }
@@ -495,5 +497,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     && maxTimeOn.compareTo(RuleConfig.getElapsedTime(now, indexMetadata.getLifecycleExecutionState().stepTime())) < 0
                     || (maxRetries != null && failedStepRetryCount != null && failedStepRetryCount > maxRetries));
         }
+    }
+
+    /**
+     * This method solely exists because we are not making ILM properly project-aware and it's not worth the investment of altering this
+     * health indicator to be project-aware.
+     */
+    private static ProjectMetadata getDefaultILMProject(ClusterState state) {
+        return state.metadata().getProject(ProjectId.DEFAULT);
     }
 }

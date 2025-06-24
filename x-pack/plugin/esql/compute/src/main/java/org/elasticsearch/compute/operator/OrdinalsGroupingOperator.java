@@ -375,6 +375,8 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (success == false) {
                     if (bitArray != null) Releasables.close(bitArray);
                     if (groupingAggregators != null) Releasables.close(groupingAggregators);
+                    // There is no danger of double decRef here, since this decRef is called only if the constructor throws, so it would be
+                    // impossible to call close on the instance.
                     shardRefCounted.decRef();
                 }
             }

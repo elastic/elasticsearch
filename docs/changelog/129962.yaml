@@ -1,5 +1,5 @@
 pr: 129962
 summary: Simplified Linear & RRF Retrievers - Return error on empty fields param
-area: Relevance
+area: Search
 type: bug
 issues: []

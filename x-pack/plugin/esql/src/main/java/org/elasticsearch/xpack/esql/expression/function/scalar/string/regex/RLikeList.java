@@ -34,7 +34,7 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
     );
 
     /**
-     * The documentation for this function is in RLike, and shown to the users `RLIKE` in the docs.
+     * The documentation for this function is in RLike, and shown to the users as `RLIKE` in the docs.
      */
     public RLikeList(
         Source source,
@@ -85,14 +85,12 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
     }
 
-
     /**
      * Returns a {@link Query} that matches the field against the provided patterns.
      * For now, we only support a single pattern in the list for pushdown.
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        //throw new RuntimeException("As query called");
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));

@@ -22,7 +22,6 @@ public class RLikePatternList extends AbstractStringPattern implements Writeable
     private final List<RLikePattern> patternList;
 
     public RLikePatternList(List<RLikePattern> patternList) {
-
         this.patternList = patternList;
     }
 
@@ -69,11 +68,9 @@ public class RLikePatternList extends AbstractStringPattern implements Writeable
         if (this == obj) {
             return true;
         }
-
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
         RLikePatternList other = (RLikePatternList) obj;
         return patternList.equals(other.patternList);
     }

@@ -39,6 +39,9 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
     final Map<String, Integer> hostToRate = new HashMap<>();
     final Map<String, Integer> hostToCpu = new HashMap<>();
 
+    static final float DEVIATION_LIMIT = 0.2f;
+    static final int LIMIT = 5;
+
     @Before
     public void populateIndex() {
         // this can be expensive, do one
@@ -72,16 +75,17 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
         docs.clear();
 
         for (int i = 0; i < numDocs; i++) {
-            List<String> hosts = randomSubsetOf(between(hostToClusters.size() - 1, hostToClusters.size()), hostToClusters.keySet());
             final var tsChange = between(1, 10);
-            timestamp +=  tsChange * 1000L;
-            for (String host : hosts) {
+            timestamp += tsChange * 1000L;
+            // List<String> hosts = randomSubsetOf(between(1, hostToClusters.size()), hostToClusters.keySet());
+            // for (String host : hosts) {
+            for (String host : hostToClusters.keySet()) {
                 var requestCount = requestCounts.compute(host, (k, curr) -> {
-                    // 20% chance of reset
-                    if (randomInt(100) <= 20) {
-                        return hostToRate.get(k) * tsChange;
+                    // 10% chance of reset
+                    if (randomInt(100) <= 10) { // todo change 0 to 10
+                        return Math.toIntExact(Math.round(hostToRate.get(k) * tsChange));
                     } else {
-                        return curr == null ? 0 : curr + hostToRate.get(k) * tsChange;
+                        return Math.toIntExact(Math.round((curr == null ? 0 : curr) + hostToRate.get(k) * tsChange));
                     }
                 });
                 docs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, hostToCpu.get(host)));
@@ -105,16 +109,26 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
                 .get();
         }
         client().admin().indices().prepareRefresh("hosts").get();
+
     }
 
     private String hostTable() {
         StringBuilder sb = new StringBuilder();
         for (String host : hostToClusters.keySet()) {
-            sb.append(host).append(" -> ").append(hostToClusters.get(host)).append(", rate=").append(hostToRate.get(host)).append(", cpu=").append(hostToCpu.get(host)).append("\n");
+            sb.append(host)
+                .append(" -> ")
+                .append(hostToClusters.get(host))
+                .append(", rate=")
+                .append(hostToRate.get(host))
+                .append(", cpu=")
+                .append(hostToCpu.get(host))
+                .append("\n");
         }
         // Now we add total rate and total CPU used:
         sb.append("Total rate: ").append(hostToRate.values().stream().mapToInt(a -> a).sum()).append("\n");
+        sb.append("Average rate: ").append(hostToRate.values().stream().mapToInt(a -> a).average().orElseThrow()).append("\n");
         sb.append("Total CPU: ").append(hostToCpu.values().stream().mapToInt(a -> a).sum()).append("\n");
+        sb.append("Average CPU: ").append(hostToCpu.values().stream().mapToInt(a -> a).average().orElseThrow()).append("\n");
         return sb.toString();
     }
 
@@ -126,26 +140,28 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
         return sb.toString();
     }
 
-    public void testRateWithTimeBucket() {
-        var limit = 5;
-        try (var resp = run("TS hosts | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT " + limit)) {
+    public void testRateWithTimeBucketSumByMin() {
+        try (var resp = run("TS hosts | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute) | SORT ts | LIMIT " + LIMIT)) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             try {
                 assertThat(
                     resp.columns(),
                     equalTo(List.of(new ColumnInfoImpl("sum(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
                 );
-                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
-                assertThat(values, hasSize(limit));
-                for (int i = 0; i < limit; i++) {
+                assertThat(values, hasSize(LIMIT));
+                for (int i = 0; i < LIMIT; i++) {
                     List<Object> row = values.get(i);
                     assertThat(row, hasSize(2));
-                    Double bucketValues = hostToRate.values().stream().mapToDouble(a -> a + 0.0).sum();
-                    assertThat((double) row.get(0), equalTo(bucketValues));
+                    var totalRate = hostToRate.values().stream().mapToDouble(a -> a + 0.0).sum();
+                    assertThat((double) row.get(0), closeTo(totalRate, DEVIATION_LIMIT * totalRate));
                 }
             } catch (AssertionError e) {
-                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+                throw new AssertionError("Values:\n" + valuesTable(values) + "\n Hosts:\n" + hostTable(), e);
             }
         }
+    }
+
+    public void testRateWithTimeBucketAvgByMin() {
         try (var resp = run("TS hosts | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute) | SORT ts | LIMIT 5")) {
             assertThat(
                 resp.columns(),
@@ -156,32 +172,240 @@ public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
             for (int i = 0; i < 5; i++) {
                 List<Object> row = values.get(i);
                 assertThat(row, hasSize(2));
-                Double bucketValues = hostToRate.values().stream().mapToDouble(a -> a + 0.0).sum() / hostToRate.size();
-                assertThat((double) row.get(0), equalTo(bucketValues));
+                var expectedRate = hostToRate.values().stream().mapToDouble(a -> a + 0.0).sum() / hostToRate.size();
+                assertThat((double) row.get(0), closeTo(expectedRate, DEVIATION_LIMIT * expectedRate));
             }
         }
+    }
+
+    public void testRateWithTimeBucketSumByMinAndLimitAsParam() {
         try (var resp = run("""
             TS hosts
             | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute)
             | SORT ts
-            | LIMIT """ + limit)) {
+            | LIMIT""" + " " + LIMIT)) {
+            try {
+                assertThat(
+                    resp.columns(),
+                    equalTo(List.of(new ColumnInfoImpl("avg(rate(request_count))", "double", null), new ColumnInfoImpl("ts", "date", null)))
+                );
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                assertThat(values, hasSize(LIMIT));
+                for (int i = 0; i < LIMIT; i++) {
+                    List<Object> row = values.get(i);
+                    assertThat(row, hasSize(2));
+                    double expectedAvg = hostToRate.values().stream().mapToDouble(d -> d).sum() / hostToRate.size();
+                    assertThat((double) row.get(0), closeTo(expectedAvg, DEVIATION_LIMIT * expectedAvg));
+                }
+            } catch (AssertionError e) {
+                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+            }
+        }
+    }
+
+    public void testRateWithTimeBucketAndClusterSumByMin() {
+        try (var resp = run("""
+            TS hosts
+            | STATS sum(rate(request_count)) BY ts=bucket(@timestamp, 1 minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
+            try {
+                assertThat(
+                    resp.columns(),
+                    equalTo(
+                        List.of(
+                            new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("cluster", "keyword", null)
+                        )
+                    )
+                );
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                // we have 2 clusters, so we expect 2 * limit rows
+                for (List<Object> row : values) {
+                    assertThat(row, hasSize(3));
+                    String cluster = (String) row.get(2);
+                    var expectedRate = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .sum();
+                    assertThat((double) row.get(0), closeTo(expectedRate, DEVIATION_LIMIT * expectedRate));
+                }
+            } catch (AssertionError e) {
+                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+            }
+        }
+    }
+
+    public void testRateWithTimeBucketAndClusterAvgByMin() {
+        try (var resp = run("""
+            TS hosts
+            | STATS avg(rate(request_count)) BY ts=bucket(@timestamp, 1minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
             try {
                 assertThat(
                     resp.columns(),
                     equalTo(
                         List.of(
                             new ColumnInfoImpl("avg(rate(request_count))", "double", null),
-                            new ColumnInfoImpl("ts", "date", null)
+                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("cluster", "keyword", null)
                         )
                     )
                 );
                 List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
-                assertThat(values, hasSize(limit));
-                for (int i = 0; i < limit; i++) {
-                    List<Object> row = values.get(i);
+                for (List<Object> row : values) {
                     assertThat(row, hasSize(3));
-                    double avg = hostToRate.values().stream().mapToDouble(d -> d).sum() / hostToRate.size();
-                    assertThat((double) row.get(0), closeTo(avg, 0.1));
+                    String cluster = (String) row.get(2);
+                    var expectedAvg = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .average()
+                        .orElseThrow();
+                    assertThat((double) row.get(0), closeTo(expectedAvg, DEVIATION_LIMIT * expectedAvg));
+                }
+            } catch (AssertionError e) {
+                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+            }
+        }
+    }
+
+    public void testRateWithTimeBucketAndClusterMultipleStatsByMin() {
+        try (var resp = run("""
+            TS hosts
+            | STATS
+                    s = sum(rate(request_count)),
+                    c = count(rate(request_count)),
+                    max(rate(request_count)),
+                    avg(rate(request_count))
+            BY ts=bucket(@timestamp, 1minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5
+            | EVAL avg_rate= s/c
+            | KEEP avg_rate, `max(rate(request_count))`, `avg(rate(request_count))`, ts, cluster
+            """)) {
+            try {
+                assertThat(
+                    resp.columns(),
+                    equalTo(
+                        List.of(
+                            new ColumnInfoImpl("avg_rate", "double", null),
+                            new ColumnInfoImpl("max(rate(request_count))", "double", null),
+                            new ColumnInfoImpl("avg(rate(request_count))", "double", null),
+                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("cluster", "keyword", null)
+                        )
+                    )
+                );
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                for (List<Object> row : values) {
+                    assertThat(row, hasSize(5));
+                    String cluster = (String) row.get(4);
+                    var expectedAvg = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .average()
+                        .orElseThrow();
+                    var expectedMax = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .max()
+                        .orElseThrow();
+                    assertThat((double) row.get(0), closeTo(expectedAvg, DEVIATION_LIMIT * expectedAvg));
+                    assertThat((double) row.get(2), closeTo(expectedAvg, DEVIATION_LIMIT * expectedAvg));
+                    assertThat(
+                        (double) row.get(1),
+                        closeTo(hostToRate.values().stream().mapToDouble(d -> d).max().orElseThrow(), DEVIATION_LIMIT * expectedMax)
+                    );
+                }
+            } catch (AssertionError e) {
+                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+            }
+        }
+    }
+
+    public void testRateWithTimeBucketAndClusterMultipleMetricsByMin() {
+        try (var resp = run("""
+            TS hosts
+            | STATS sum(rate(request_count)), max(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
+            try {
+                assertThat(
+                    resp.columns(),
+                    equalTo(
+                        List.of(
+                            new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                            new ColumnInfoImpl("max(cpu)", "double", null),
+                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("cluster", "keyword", null)
+                        )
+                    )
+                );
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                for (List<Object> row : values) {
+                    assertThat(row, hasSize(4));
+                    String cluster = (String) row.get(3);
+                    var expectedRate = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .sum();
+                    assertThat((double) row.get(0), closeTo(expectedRate, DEVIATION_LIMIT * expectedRate));
+                    var expectedCpu = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToCpu.get(e.getKey()) + 0.0)
+                        .max()
+                        .orElseThrow();
+                    assertThat((double) row.get(1), closeTo(expectedCpu, DEVIATION_LIMIT * expectedCpu));
+                }
+            } catch (AssertionError e) {
+                throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);
+            }
+        }
+    }
+
+    public void testRateWithTimeBucketAndClusterMultipleMetricsAvgByMin() {
+        try (var resp = run("""
+            TS hosts
+            | STATS sum(rate(request_count)), avg(cpu) BY ts=bucket(@timestamp, 1 minute), cluster
+            | SORT ts, cluster
+            | LIMIT 5""")) {
+            try {
+                assertThat(
+                    resp.columns(),
+                    equalTo(
+                        List.of(
+                            new ColumnInfoImpl("sum(rate(request_count))", "double", null),
+                            new ColumnInfoImpl("avg(cpu)", "double", null),
+                            new ColumnInfoImpl("ts", "date", null),
+                            new ColumnInfoImpl("cluster", "keyword", null)
+                        )
+                    )
+                );
+                List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+                for (List<Object> row : values) {
+                    assertThat(row, hasSize(4));
+                    String cluster = (String) row.get(3);
+                    var expectedRate = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToRate.get(e.getKey()) + 0.0)
+                        .sum();
+                    assertThat((double) row.get(0), closeTo(expectedRate, DEVIATION_LIMIT * expectedRate));
+                    var expectedCpu = hostToClusters.entrySet()
+                        .stream()
+                        .filter(e -> e.getValue().equals(cluster))
+                        .mapToDouble(e -> hostToCpu.get(e.getKey()) + 0.0)
+                        .average()
+                        .orElseThrow();
+                    assertThat((double) row.get(1), closeTo(expectedCpu, DEVIATION_LIMIT * expectedCpu));
                 }
             } catch (AssertionError e) {
                 throw new AssertionError("Values:\n" + valuesTable(EsqlTestUtils.getValuesList(resp)) + "\n Hosts:\n" + hostTable(), e);

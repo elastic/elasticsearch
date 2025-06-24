@@ -353,21 +353,21 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        if(model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel){
-          var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel) {
+            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
 
-          List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-              inputs.getInputs(),
-              DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
-              denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
-          ).batchRequestsWithListeners(listener);
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                inputs.getInputs(),
+                DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
 
-          for (var request : batchedRequests) {
-              var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-              action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
-          }
-          
-          return;
+            for (var request : batchedRequests) {
+                var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            }
+
+            return;
         }
 
         if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseTextEmbeddingsModel) {
@@ -423,8 +423,7 @@ public class ElasticInferenceService extends SenderService {
                 serviceSettingsMap,
                 elasticInferenceServiceComponents,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST,
-                chunkingSettings
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -461,8 +460,7 @@ public class ElasticInferenceService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         String failureMessage,
-        ConfigurationParseContext context,
-        ChunkingSettings chunkingSettings
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(
@@ -534,8 +532,7 @@ public class ElasticInferenceService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            chunkingSettings
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
@@ -556,8 +553,7 @@ public class ElasticInferenceService extends SenderService {
             taskSettingsMap,
             chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            chunkingSettings
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
@@ -573,8 +569,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
-        ChunkingSettings chunkingSettings
+        String failureMessage
     ) {
         return createModel(
             inferenceEntityId,
@@ -585,8 +580,7 @@ public class ElasticInferenceService extends SenderService {
             secretSettings,
             elasticInferenceServiceComponents,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT,
-            chunkingSettings
+            ConfigurationParseContext.PERSISTENT
         );
     }
 

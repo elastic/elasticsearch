@@ -296,6 +296,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         List<CentroidPartition> centroidPartitions = new ArrayList<>();
 
+        // TODO: make this configurable
         if (centroids.length > DEFAULT_VECTORS_PER_CLUSTER) {
             // TODO: sort by global centroids as well
             // TODO: have this take a function instead of just an int[] for sorting

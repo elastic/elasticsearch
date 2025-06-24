@@ -89,8 +89,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract ParentCentroidQueryScorer getParentCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
-        throws IOException;
+    abstract CentroidWChildrenQueryScorer getParentCentroidScorer(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] target
+    ) throws IOException;
 
     abstract CentroidQueryScorer getCentroidScorer(
         FieldInfo fieldInfo,
@@ -272,7 +276,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long expectedDocs = 0;
         long actualDocs = 0;
 
-        ParentCentroidQueryScorer parentCentroidQueryScorer = getParentCentroidScorer(
+        CentroidWChildrenQueryScorer parentCentroidQueryScorer = getParentCentroidScorer(
             fieldInfo,
             entry.parentCentroidCount,
             entry.centroidSlice(ivfCentroids),
@@ -300,9 +304,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 childCentroidCount = parentCentroidQueryScorer.getChildCount(parentCentroidOrdinal);
             }
 
-            // FIXME: create a start / end aware scorePostingLists
-            NeighborQueue centroidQueue = new NeighborQueue(childCentroidCount, true);
-            centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
+            NeighborQueue centroidQueue = scorePostingLists(
+                fieldInfo,
+                knnCollector,
+                centroidQueryScorer,
+                nProbe,
+                childCentroidOrdinal,
+                childCentroidCount
+            );
 
             PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
             // initially we visit only the "centroids to search"
@@ -349,6 +358,15 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldInfo fieldInfo,
         KnnCollector knnCollector,
         CentroidQueryScorer centroidQueryScorer,
+        int nProbe,
+        int start,
+        int end
+    ) throws IOException;
+
+    abstract NeighborQueue scorePostingLists(
+        FieldInfo fieldInfo,
+        KnnCollector knnCollector,
+        CentroidQueryScorer centroidQueryScorer,
         int nProbe
     ) throws IOException;
 
@@ -375,7 +393,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
         throws IOException;
 
-    interface ParentCentroidQueryScorer extends CentroidQueryScorer {
+    interface CentroidWChildrenQueryScorer extends CentroidQueryScorer {
         int getChildCentroidStart(int centroidOrdinal) throws IOException;
 
         int getChildCount(int centroidOrdinal) throws IOException;

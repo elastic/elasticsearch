@@ -68,6 +68,7 @@ public class HierarchicalKMeans {
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, 0);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
+            // TODO: are we oversampling here??
             float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
             int localSampleSize = (int) (f * vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);

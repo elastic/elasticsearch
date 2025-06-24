@@ -106,7 +106,11 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(PatternedTextFieldType.CONTENT_TYPE, PatternedTextFieldMapper.PARSER);
+        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()) {
+            return singletonMap(PatternedTextFieldType.CONTENT_TYPE, PatternedTextFieldMapper.PARSER);
+        } else {
+            return Map.of();
+        }
     }
 
     protected XPackLicenseState getLicenseState() {

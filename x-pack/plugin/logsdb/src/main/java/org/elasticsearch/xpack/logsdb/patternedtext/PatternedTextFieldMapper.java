@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -29,6 +30,8 @@ import java.util.Map;
  * A {@link FieldMapper} that assigns every document the same value.
  */
 public class PatternedTextFieldMapper extends FieldMapper {
+
+    public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;

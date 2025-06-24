@@ -61,7 +61,6 @@ setup:
                 type: hnsw
                 m: 32
                 ef_construction: 200
-                early_termination: false
 
 ---
 "Not indexed vector":

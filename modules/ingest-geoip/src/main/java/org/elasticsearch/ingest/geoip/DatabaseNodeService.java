@@ -197,8 +197,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
     @Override
     public Boolean isValid(ProjectId projectId, String databaseFile) {
-        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
-        assert projectMetadata != null;
+        ClusterState currentState = clusterService.state();
+        ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
 
         GeoIpTaskState state = getGeoIpTaskState(projectMetadata, getTaskId(projectId, projectResolver.supportsMultipleProjects()));
         if (state == null) {
@@ -211,7 +211,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return true;
         }
 
-        boolean valid = metadata.isNewEnough(clusterService.state().metadata().settings());
+        boolean valid = metadata.isNewEnough(currentState.metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",

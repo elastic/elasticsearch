@@ -45,7 +45,7 @@ public record ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
         builder.field(MODEL_FIELD, modelId);
 
         // optional field
-        if ((usageContext == ElasticInferenceServiceUsageContext.UNSPECIFIED) == false) {
+        if (Objects.nonNull(usageContext) && usageContext != ElasticInferenceServiceUsageContext.UNSPECIFIED) {
             builder.field(USAGE_CONTEXT, usageContext);
         }
 

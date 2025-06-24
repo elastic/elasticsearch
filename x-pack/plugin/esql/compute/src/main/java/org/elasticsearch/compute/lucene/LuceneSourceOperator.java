@@ -49,7 +49,6 @@ import static org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStra
  */
 public class LuceneSourceOperator extends LuceneOperator {
     private static final Logger log = LogManager.getLogger(LuceneSourceOperator.class);
-    private final List<? extends RefCounted> shardContextCounters;
 
     private int currentPagePos = 0;
     private int remainingDocs;
@@ -227,8 +226,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
-        this.shardContextCounters = shardContextCounters;
+        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue);
         shardContextCounters.forEach(RefCounted::mustIncRef);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
@@ -330,12 +328,14 @@ public class LuceneSourceOperator extends LuceneOperator {
                 Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
                 try {
-                    shard = blockFactory.newConstantIntVector(scorer.shardContext().index(), currentPagePos);
+                    int shardId = scorer.shardContext().index();
+                    shard = blockFactory.newConstantIntVector(shardId, currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    blocks[b++] = new DocVector(ShardRefCounted.fromList(shardContextCounters), shard, leaf, docs, true).asBlock();
+                    ShardRefCounted refCounted = ShardRefCounted.single(shardId, shardContextCounters.get(shardId));
+                    blocks[b++] = new DocVector(refCounted, shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;
@@ -393,12 +393,8 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public void close() {
-        Releasables.close(
-            docsBuilder,
-            scoreBuilder,
-            Releasables.wrap(shardContextCounters.stream().map(Releasables::fromRefCounted).toList())
-        );
+    public void additionalClose() {
+        Releasables.close(docsBuilder, scoreBuilder);
     }
 
     @Override

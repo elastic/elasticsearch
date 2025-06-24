@@ -132,9 +132,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         boolean needsScore
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(contexts, blockFactory, maxPageSize, sliceQueue);
         this.contexts = contexts;
-        contexts.forEach(ShardContext::mustIncRef);
         this.sorts = sorts;
         this.limit = limit;
         this.needsScore = needsScore;
@@ -369,11 +368,5 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         l.add(SortField.FIELD_SCORE);
         sort = new Sort(l.toArray(SortField[]::new));
         return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
-    }
-
-    @Override
-    public void close() {
-        super.close();
-        contexts.forEach(ShardContext::decRef);
     }
 }

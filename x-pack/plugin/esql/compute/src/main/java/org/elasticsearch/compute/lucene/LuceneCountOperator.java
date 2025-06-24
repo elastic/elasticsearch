@@ -35,7 +35,6 @@ public class LuceneCountOperator extends LuceneOperator {
 
     private static final int PAGE_SIZE = 1;
 
-    private final List<? extends RefCounted> shardRefCounters;
     private int totalHits = 0;
     private int remainingDocs;
 
@@ -81,9 +80,7 @@ public class LuceneCountOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit
     ) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
-        this.shardRefCounters = shardRefCounters;
-        shardRefCounters.forEach(RefCounted::mustIncRef);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override
@@ -181,10 +178,5 @@ public class LuceneCountOperator extends LuceneOperator {
     @Override
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs=").append(remainingDocs);
-    }
-
-    @Override
-    public void close() {
-        shardRefCounters.forEach(RefCounted::decRef);
     }
 }

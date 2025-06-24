@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class TimeSeriesSourceOperator extends LuceneOperator {
-    private final List<? extends ShardContext> contexts;
     private final int maxPageSize;
     private final BlockFactory blockFactory;
     private final LuceneSliceQueue sliceQueue;
@@ -64,9 +63,8 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         int maxPageSize,
         int limit
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(contexts, blockFactory, maxPageSize, sliceQueue);
         contexts.forEach(RefCounted::mustIncRef);
-        this.contexts = contexts;
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.remainingDocs = limit;
@@ -110,7 +108,7 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
                     throw new UnsupportedOperationException("tags not supported by " + getClass());
                 }
                 iterator = new SegmentsIterator(slice);
-                docCollector = new DocIdCollector(contexts, blockFactory, slice.shardContext());
+                docCollector = new DocIdCollector(blockFactory, slice.shardContext());
             }
             iterator.readDocsForNextPage();
             if (currentPagePos > 0) {
@@ -141,13 +139,8 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public void close() {
-        Releasables.closeExpectNoException(
-            timestampsBuilder,
-            tsHashesBuilder,
-            docCollector,
-            Releasables.wrap(contexts.stream().map(Releasables::fromRefCounted).toList())
-        );
+    public void additionalClose() {
+        Releasables.closeExpectNoException(timestampsBuilder, tsHashesBuilder, docCollector);
     }
 
     class SegmentsIterator {
@@ -365,14 +358,12 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
     }
 
     static final class DocIdCollector implements Releasable {
-        private final List<? extends ShardContext> contexts;
         private final BlockFactory blockFactory;
         private final ShardContext shardContext;
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
 
-        DocIdCollector(List<? extends ShardContext> contexts, BlockFactory blockFactory, ShardContext shardContext) {
-            this.contexts = contexts;
+        DocIdCollector(BlockFactory blockFactory, ShardContext shardContext) {
             this.blockFactory = blockFactory;
             this.shardContext = shardContext;
         }

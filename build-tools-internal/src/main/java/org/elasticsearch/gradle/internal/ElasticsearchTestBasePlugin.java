@@ -298,10 +298,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             // Agent
             if (agentFiles.isEmpty() == false) {
-                var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
                 test.getInputs().files(agentFiles);
-                systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
+                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                test.systemProperty("jdk.attach.allowAttachSelf", true);
             }
 
             // Bridge

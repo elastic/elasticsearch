@@ -86,4 +86,47 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
             }
         };
     }
+    public class ScorerAndIterator {
+        private final Scorer scorer;
+        private final DocIdSetIterator approximation;
+        private final TwoPhaseIterator twoPhase;
+        public ScorerAndIterator(Scorer scorer, DocIdSetIterator approximation, TwoPhaseIterator twoPhase) {
+            this.scorer = scorer;
+            this.approximation = approximation;
+            this.twoPhase = twoPhase;
+        }
+        public Scorer getScorer() {
+            return scorer;
+        }
+        public DocIdSetIterator getApproximation() {
+            return approximation;
+        }
+        public TwoPhaseIterator getTwoPhase() {
+            return twoPhase;
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ScorerAndIterator that = (ScorerAndIterator) o;
+            if (!scorer.equals(that.scorer)) return false;
+            if (!approximation.equals(that.approximation)) return false;
+            return twoPhase.equals(that.twoPhase);
+        }
+        @Override
+        public int hashCode() {
+            int result = scorer.hashCode();
+            result = 31 * result + approximation.hashCode();
+            result = 31 * result + twoPhase.hashCode();
+            return result;
+        }
+        @Override
+        public String toString() {
+            return "ScorerAndIterator{" +
+                "scorer=" + scorer +
+                ", approximation=" + approximation +
+                ", twoPhase=" + twoPhase +
+                '}';
+        }
+    }
 }

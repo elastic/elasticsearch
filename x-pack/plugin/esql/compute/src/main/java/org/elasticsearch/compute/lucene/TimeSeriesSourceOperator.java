@@ -30,7 +30,6 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,7 +63,6 @@ public final class TimeSeriesSourceOperator extends LuceneOperator {
         int limit
     ) {
         super(contexts, blockFactory, maxPageSize, sliceQueue);
-        contexts.forEach(RefCounted::mustIncRef);
         this.maxPageSize = maxPageSize;
         this.blockFactory = blockFactory;
         this.remainingDocs = limit;

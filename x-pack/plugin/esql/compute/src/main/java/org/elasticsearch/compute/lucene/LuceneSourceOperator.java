@@ -227,7 +227,6 @@ public class LuceneSourceOperator extends LuceneOperator {
         boolean needsScore
     ) {
         super(shardContextCounters, blockFactory, maxPageSize, sliceQueue);
-        shardContextCounters.forEach(RefCounted::mustIncRef);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

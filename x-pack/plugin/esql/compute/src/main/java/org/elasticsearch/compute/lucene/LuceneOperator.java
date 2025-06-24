@@ -86,7 +86,7 @@ public abstract class LuceneOperator extends SourceOperator {
         LuceneSliceQueue sliceQueue
     ) {
         this.shardContextCounters = shardContextCounters;
-        shardContextCounters.forEach(RefCounted::incRef);
+        shardContextCounters.forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;

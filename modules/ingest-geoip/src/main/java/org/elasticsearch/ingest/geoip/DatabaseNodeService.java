@@ -181,7 +181,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             public FileVisitResult visitFileFailed(Path file, IOException e) {
                 if (e instanceof NoSuchFileException == false) {
                     // parameterized log fails logger check, see https://github.com/elastic/elasticsearch/issues/104782
-                    logger.warn("can't delete stale file [{}]", file, e);
+                    logger.warn("can't delete stale file [" + file + "]", e);
                 }
                 return FileVisitResult.CONTINUE;
             }

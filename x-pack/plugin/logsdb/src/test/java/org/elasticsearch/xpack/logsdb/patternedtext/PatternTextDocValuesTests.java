@@ -12,9 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -118,9 +116,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         private int currDoc = -1;
 
         SimpleSortedSetDocValues(String... docIdToValue) {
-            ordToValues = Arrays.stream(docIdToValue).filter(Objects::nonNull)
-                .collect(Collectors.toSet())
-                .stream().sorted().toList();
+            ordToValues = Arrays.stream(docIdToValue).filter(Objects::nonNull).collect(Collectors.toSet()).stream().sorted().toList();
             docToOrds = Arrays.stream(docIdToValue).map(v -> v == null ? null : ordToValues.indexOf(v)).toList();
         }
 

@@ -104,6 +104,6 @@
   "examples" : [
     "ROW str1 = \"2147483648\", str2 = \"2147483648.2\", str3 = \"foo\"\n| EVAL long1 = TO_UNSIGNED_LONG(str1), long2 = TO_ULONG(str2), long3 = TO_UL(str3)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

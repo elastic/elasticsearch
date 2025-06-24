@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -62,11 +66,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -82,6 +89,9 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -155,6 +165,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
+            new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new DateMillisToNanosInEsRelation()
@@ -301,7 +312,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold(FoldContext.small() /* TODO remove me */);
+            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -379,6 +390,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveInference extends ParameterizedAnalyzerRule<InferencePlan<?>, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
+            assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
+
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+            ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
+
+            if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
+                return plan;
+            } else if (resolvedInference != null) {
+                String error = "cannot use inference endpoint ["
+                    + inferenceId
+                    + "] with task type ["
+                    + resolvedInference.taskType()
+                    + "] within a "
+                    + plan.nodeName()
+                    + " command. Only inference endpoints with the task type ["
+                    + plan.taskType()
+                    + "] are supported.";
+                return plan.withInferenceResolutionError(inferenceId, error);
+            } else {
+                String error = context.inferenceResolution().getError(inferenceId);
+                return plan.withInferenceResolutionError(inferenceId, error);
+            }
+        }
+    }
+
     private static class ResolveLookupTables extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
 
         @Override
@@ -386,7 +425,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // the parser passes the string wrapped in a literal
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
-            String tableName = lookup.tableName().toString();
+            String tableName = BytesRefs.toString(tableNameExpression.fold(FoldContext.small() /* TODO remove me */));
             Map<String, Map<String, Column>> tables = context.configuration().tables();
             LocalRelation localRelation = null;
 
@@ -446,6 +485,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveAggregate(aggregate, childrenOutput);
             }
 
+            if (plan instanceof Completion c) {
+                return resolveCompletion(c, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -476,6 +519,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof LookupJoin j) {
                 return resolveLookupJoin(j);
+            }
+
+            if (plan instanceof Rerank r) {
+                return resolveRerank(r, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -546,6 +593,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return aggregate;
+        }
+
+        private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
+            Attribute targetField = p.targetField();
+            Expression prompt = p.prompt();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), KEYWORD);
+            }
+
+            if (prompt.resolved() == false) {
+                prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -667,6 +729,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
             return join;
+        }
+
+        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
+            List<Alias> newFields = new ArrayList<>();
+            boolean changed = false;
+
+            // First resolving fields used in expression
+            for (Alias field : rerank.rerankFields()) {
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+                newFields.add(result);
+                changed |= result != field;
+            }
+
+            if (changed) {
+                rerank = rerank.withRerankFields(newFields);
+            }
+
+            // Ensure the score attribute is present in the output.
+            if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = resolveAttribute(ua, childrenOutput);
+                if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
+                    if (ua.name().equals(MetadataAttribute.SCORE)) {
+                        resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                    } else {
+                        resolved = new ReferenceAttribute(resolved.source(), resolved.name(), DOUBLE);
+                    }
+                }
+                rerank = rerank.withScoreAttribute(resolved);
+            }
+
+            return rerank;
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
@@ -1108,6 +1201,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
             }
+            if (f instanceof VectorFunction vectorFunction) {
+                return processVectorFunction(f);
+            }
             return f;
         }
 
@@ -1271,18 +1367,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
-            String message = format(
+            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
+            String message = LoggerMessageFormat.format(
+                null,
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(FoldContext.small() /* TODO remove me */),
+                name,
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(value.source(), name, message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold(FoldContext.small() /* TODO remove me */).toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(
+                    BytesRefs.toString(from.fold(FoldContext.small() /* TODO remove me */)).strip()
+                );
                 if (result == null) {
                     return from;
                 }
@@ -1307,6 +1407,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unresolvedAttribute(from, target.toString(), e);
             }
         }
+
+        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+            List<Expression> args = vectorFunction.arguments();
+            List<Expression> newArgs = new ArrayList<>();
+            for (Expression arg : args) {
+                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
+                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
+                    if (folded instanceof List) {
+                        Literal denseVector = new Literal(arg.source(), folded, DataType.DENSE_VECTOR);
+                        newArgs.add(denseVector);
+                        continue;
+                    }
+                }
+                newArgs.add(arg);
+            }
+
+            return vectorFunction.replaceChildren(newArgs);
+        }
+
     }
 
     /**
@@ -1343,10 +1462,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int alreadyAddedUnionFieldAttributes = unionFieldAttributes.size();
             // See if the eval function has an unresolved MultiTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
-            plan = plan.transformExpressionsOnly(
-                AbstractConvertFunction.class,
-                convert -> resolveConvertFunction(convert, unionFieldAttributes)
-            );
+            plan = plan.transformExpressionsOnly(e -> {
+                if (e instanceof ConvertFunction convert) {
+                    return resolveConvertFunction(convert, unionFieldAttributes);
+                }
+                return e;
+            });
             // If no union fields were generated, return the plan as is
             if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes) {
                 return plan;
@@ -1377,7 +1498,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+            Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
@@ -1410,7 +1532,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
-                    if (convert.dataType() == mtf.getDataType()) {
+                    if (((Expression) convert).dataType() == mtf.getDataType()) {
                         return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
                     }
 
@@ -1424,21 +1546,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             String indexName = entry.getKey();
                             AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
                             Expression originalField = originalConversionFunction.field();
-                            Expression newConvertFunction = convert.replaceChildren(Collections.singletonList(originalField));
+                            Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.fieldName(),
-                            convert.dataType(),
+                            fa.fieldName().string(),
+                            convertExpression.dataType(),
                             false,
                             indexToConversionExpressions
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                    return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+                    return convertExpression.replaceChildren(
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                    );
                 }
-            return convert;
+            return convertExpression;
         }
 
         private Expression createIfDoesNotAlreadyExist(
@@ -1487,12 +1611,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
-        private static Expression typeSpecificConvert(
-            AbstractConvertFunction convert,
-            Source source,
-            DataType type,
-            InvalidMappedField mtf
-        ) {
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -1504,7 +1623,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 originalFieldAttr.id(),
                 true
             );
-            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+            Expression e = ((Expression) convert).replaceChildren(Collections.singletonList(resolvedAttr));
+            /*
+             * Resolve surrogates immediately because these type specific conversions are serialized
+             * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
+             * TO_IP is expected to be resolved there.
+             */
+            return SubstituteSurrogateExpressions.rule(e);
         }
     }
 
@@ -1589,7 +1714,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static void typeResolutions(
         FieldAttribute fieldAttribute,
-        AbstractConvertFunction convert,
+        ConvertFunction convert,
         DataType type,
         InvalidMappedField imf,
         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions

@@ -27,13 +27,23 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
 
 /**
  * Attribute for an ES field.
- * To differentiate between the different type of fields this class offers:
- * - name - the fully qualified name (foo.bar.tar)
- * - path - the path pointing to the field name (foo.bar)
- * - parent - the immediate parent of the field; useful for figuring out the type of field (nested vs object)
- * - nestedParent - if nested, what's the parent (which might not be the immediate one)
+ * This class offers:
+ * - name - the name of the attribute, but not necessarily of the field.
+ * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
+ * - parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
+ *
+ * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
+ * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
+ * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
+ * which still refer to the same underlying index field.
  */
 public class FieldAttribute extends TypedAttribute {
+
+    /**
+     * A field name, as found in the mapping. Includes the whole path from the root of the document.
+     * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
+     */
+    public record FieldName(String string) {};
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -43,6 +53,7 @@ public class FieldAttribute extends TypedAttribute {
 
     private final String parentName;
     private final EsField field;
+    protected FieldName lazyFieldName;
 
     public FieldAttribute(Source source, String name, EsField field) {
         this(source, null, name, field);
@@ -184,15 +195,29 @@ public class FieldAttribute extends TypedAttribute {
     /**
      * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
      */
-    public String fieldName() {
-        // Before 8.15, the field name was the same as the attribute's name.
-        // On later versions, the attribute can be renamed when creating synthetic attributes.
-        // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by their
-        // name starting with `$$`.
-        if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
-            return name();
+    public FieldName fieldName() {
+        if (lazyFieldName == null) {
+            // Before 8.15, the field name was the same as the attribute's name.
+            // On later versions, the attribute can be renamed when creating synthetic attributes.
+            // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by
+            // their
+            // name starting with `$$`.
+            if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
+                lazyFieldName = new FieldName(name());
+            } else {
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
+            }
         }
-        return Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName();
+        return lazyFieldName;
+    }
+
+    /**
+     * The name of the attribute. Can deviate from the field name e.g. in case of union types. For the physical field name, use
+     * {@link FieldAttribute#fieldName()}.
+     */
+    @Override
+    public String name() {
+        return super.name();
     }
 
     public EsField.Exact getExactInfo() {
@@ -208,7 +233,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), name(), name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
     }
 
     @Override

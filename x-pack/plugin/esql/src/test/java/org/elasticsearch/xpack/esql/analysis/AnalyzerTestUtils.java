@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -27,12 +30,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 
 public final class AnalyzerTestUtils {
 
@@ -61,7 +67,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 defaultLookupResolution(),
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
             ),
             verifier
         );
@@ -74,7 +81,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 lookupResolution,
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
             ),
             verifier
         );
@@ -82,7 +90,14 @@ public final class AnalyzerTestUtils {
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
+            new AnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultLookupResolution(),
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
+            ),
             verifier
         );
     }
@@ -94,7 +109,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
                 defaultLookupResolution(),
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                defaultInferenceResolution()
             ),
             verifier
         );
@@ -145,7 +161,12 @@ public final class AnalyzerTestUtils {
     }
 
     public static Map<String, IndexResolution> defaultLookupResolution() {
-        return Map.of("languages_lookup", loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP));
+        return Map.of(
+            "languages_lookup",
+            loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP),
+            "test_lookup",
+            loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP)
+        );
     }
 
     public static EnrichResolution defaultEnrichResolution() {
@@ -164,6 +185,14 @@ public final class AnalyzerTestUtils {
             "mapping-airport_city_boundaries.json"
         );
         return enrichResolution;
+    }
+
+    public static InferenceResolution defaultInferenceResolution() {
+        return InferenceResolution.builder()
+            .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
+            .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))
+            .withError("error-inference-id", "error with inference resolution")
+            .build();
     }
 
     public static void loadEnrichPolicyResolution(
@@ -211,5 +240,14 @@ public final class AnalyzerTestUtils {
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD)
         );
         return IndexResolution.valid(index);
+    }
+
+    public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {
+        while (true) {
+            E value = supplier.get();
+            if (exclude.test(value) == false) {
+                return value;
+            }
+        }
     }
 }

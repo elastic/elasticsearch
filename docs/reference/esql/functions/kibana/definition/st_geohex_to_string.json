@@ -33,5 +33,5 @@
     "ROW geohex = 595020895127339007\n| EVAL geohexString = ST_GEOHEX_TO_STRING(geohex)"
   ],
   "preview" : false,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

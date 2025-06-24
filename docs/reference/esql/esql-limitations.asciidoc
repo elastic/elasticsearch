@@ -99,15 +99,11 @@ unless they're <<esql-multi-index-union-types, explicitly converted to a single 
 {esql} does not support configurations where the
 <<mapping-source-field,_source field>> is <<disable-source-field,disabled>>.
 
-experimental:[] {esql}'s support for <<synthetic-source,synthetic `_source`>>
-is currently experimental.
-
 [discrete]
 [[esql-limitations-full-text-search]]
 === Full-text search
 
-experimental:[] {esql}'s support for <<esql-search-functions,full-text search>>
-is currently in Technical Preview. One limitation of full-text search is that
+One limitation of <<esql-search-functions,full-text search>> is that
 it is necessary to use the search function, like <<esql-match>>, in a <<esql-where>> command
 directly after the <<esql-from>> source command, or close enough to it.
 Otherwise, the query will fail with a validation error.

@@ -37,7 +37,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 19 }
+  - length: { esql.features: 22 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -57,6 +57,9 @@ setup:
   - set: {esql.features.lookup: lookup_counter}
   - set: {esql.features.change_point: change_point_counter}
   - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.completion: completion_counter}
+  - set: {esql.features.sample: sample_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -89,6 +92,9 @@ setup:
   - match: {esql.features.lookup: $lookup_counter}
   - match: {esql.features.change_point: $change_point_counter}
   - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: {esql.features.rerank: $rerank_counter}
+  - match: {esql.features.completion: $completion_counter}
+  - match: {esql.features.sample: $sample_counter}
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -101,7 +107,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   # Testing for the entire function set isn't feasible, so we just check that we return the correct count as an approximation.
-  - length: {esql.functions: 145} # check the "sister" test below for a likely update to the same esql.functions length check
+  - length: {esql.functions: 148} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -117,7 +123,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 19 }
+  - length: { esql.features: 22 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -137,6 +143,7 @@ setup:
   - set: {esql.features.lookup: lookup_counter}
   - set: {esql.features.change_point: change_point_counter}
   - set: {esql.features.inlinestats: inlinestats_counter}
+  - set: {esql.features.sample: sample_counter}
   - length: { esql.queries: 3 }
   - set: {esql.queries.rest.total: rest_total_counter}
   - set: {esql.queries.rest.failed: rest_failed_counter}
@@ -149,6 +156,8 @@ setup:
   - set: {esql.functions.cos: functions_cos}
   - set: {esql.functions.to_long: functions_to_long}
   - set: {esql.functions.coalesce: functions_coalesce}
+  - set: {esql.features.rerank: rerank_counter}
+  - set: {esql.features.completion: completion_counter}
 
   - do:
       esql.query:
@@ -169,6 +178,8 @@ setup:
   - match: {esql.features.lookup: $lookup_counter}
   - match: {esql.features.change_point: $change_point_counter}
   - match: {esql.features.inlinestats: $inlinestats_counter}
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.completion: $completion_counter }
   - gt: {esql.queries.rest.total: $rest_total_counter}
   - match: {esql.queries.rest.failed: $rest_failed_counter}
   - match: {esql.queries.kibana.total: $kibana_total_counter}
@@ -180,4 +191,4 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 142} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 144} # check the "sister" test above for a likely update to the same esql.functions length check

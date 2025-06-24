@@ -64,8 +64,6 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIME_ZONE_FI
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -110,7 +108,6 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
         examples = {
@@ -353,30 +350,14 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         return matchOptions;
     }
 
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), SECOND);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                queryStringOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
-        }
-        return TypeResolution.TYPE_RESOLVED;
+    @Override
+    protected Map<String, Object> resolvedOptions() {
+        return queryStringOptions();
     }
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveOptions());
+        return resolveQuery().and(resolveOptions(options(), SECOND));
     }
 
     @Override

@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -28,6 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.ArrayList;
@@ -45,9 +51,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rlike;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.mockito.Mockito.mock;
 
 public class PushDownAndCombineFiltersTests extends ESTestCase {
 
@@ -243,6 +252,97 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
             aggregateCondition
         );
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
+    }
+
+    // from ... | where a > 1 | COMPLETION completion="some prompt" WITH inferenceId | where b < 2 and match(completion, some text)
+    // => ... | where a > 1 AND b < 2| COMPLETION completion="some prompt" WITH inferenceId | where match(completion, some text)
+    public void testPushDownFilterPastCompletion() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(a, b));
+
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        Filter filterA = new Filter(EMPTY, relation, conditionA);
+
+        Completion completion = completion(filterA);
+
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        Match conditionCompletion = new Match(
+            EMPTY,
+            completion.targetField(),
+            randomLiteral(DataType.TEXT),
+            mock(Expression.class),
+            mock(QueryBuilder.class)
+        );
+        Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
+
+        LogicalPlan expectedOptimizedPlan = new Filter(
+            EMPTY,
+            new Completion(
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField()
+            ),
+            conditionCompletion
+        );
+
+        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
+    }
+
+    // from ... | where a > 1 | RERANK "query" ON title WITH inferenceId | where b < 2 and _score > 1
+    // => ... | where a > 1 AND b < 2| RERANK "query" ON title WITH inferenceId | where _score > 1
+    public void testPushDownFilterPastRerank() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation(List.of(a, b));
+
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        Filter filterA = new Filter(EMPTY, relation, conditionA);
+
+        Rerank rerank = rerank(filterA);
+
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThan scoreCondition = greaterThanOf(rerank.scoreAttribute(), ONE);
+
+        Filter filterB = new Filter(EMPTY, rerank, new And(EMPTY, conditionB, scoreCondition));
+
+        LogicalPlan expectedOptimizedPlan = new Filter(
+            EMPTY,
+            new Rerank(
+                EMPTY,
+                new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+                rerank.inferenceId(),
+                rerank.queryText(),
+                rerank.rerankFields(),
+                rerank.scoreAttribute()
+            ),
+            scoreCondition
+        );
+
+        assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
+    }
+
+    private static Completion completion(LogicalPlan child) {
+        return new Completion(
+            EMPTY,
+            child,
+            randomLiteral(DataType.KEYWORD),
+            randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
+            referenceAttribute(randomIdentifier(), DataType.KEYWORD)
+        );
+    }
+
+    private static Rerank rerank(LogicalPlan child) {
+        return new Rerank(
+            EMPTY,
+            child,
+            randomLiteral(DataType.KEYWORD),
+            randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
+            randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(DataType.KEYWORD))),
+            referenceAttribute(randomBoolean() ? MetadataAttribute.SCORE : randomIdentifier(), DataType.DOUBLE)
+        );
     }
 
     private static EsRelation relation() {

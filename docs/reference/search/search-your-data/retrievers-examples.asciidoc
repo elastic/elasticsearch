@@ -1478,7 +1478,6 @@ GET /retrievers_example/_search
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
 ==== Example: Chaining multiple semantic rerankers
-
 Full composability means we can chain together multiple retrievers of the same type. For instance,
 imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
@@ -1523,3 +1522,33 @@ Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
+
+[discrete]
+[[retrievers-examples-pinned-retriever]]
+==== Example: Using the pinned retriever
+
+Pinned Retriever example using `docs`
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "1" },
+        { "_id": "2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "text": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----

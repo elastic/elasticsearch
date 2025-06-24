@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -34,7 +36,42 @@ import java.io.IOException;
 public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Negatable<UnaryScalarFunction>, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IsNull", IsNull::new);
 
-    public IsNull(Source source, Expression field) {
+    @FunctionInfo(
+        description = "Returns `true` if the value is `NULL`, `false` otherwise.",
+        note = "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
+        operator = "IS NULL",
+        returnType = {
+            "double",
+            "integer",
+            "long",
+            "date_nanos",
+            "date_period",
+            "datetime",
+            "time_duration",
+            "unsigned_long",
+            "counter_long",
+            "counter_integer",
+            "counter_double" }
+    )
+    public IsNull(
+        Source source,
+        @Param(
+            name = "field",
+            description = "Value to check. It can be a single- or multi-valued column or an expression.",
+            type = {
+                "double",
+                "integer",
+                "long",
+                "date_nanos",
+                "date_period",
+                "datetime",
+                "time_duration",
+                "unsigned_long",
+                "counter_long",
+                "counter_integer",
+                "counter_double" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 

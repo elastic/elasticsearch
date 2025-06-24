@@ -661,11 +661,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             final ClusterState previousState = event.previousState();
 
             for (var projectId : event.projectDelta().removed()) { // removed projects
-                applyProjectState(state.version(), null, previousState.projectState(projectId));
+                applyProjectStateForRemovedProject(state.version(), previousState.projectState(projectId));
             }
 
             for (var projectId : event.projectDelta().added()) { // added projects
-                applyProjectState(state.version(), state.projectState(projectId), null);
+                applyProjectStateForAddedOrExistingProject(state.version(), state.projectState(projectId), null);
             }
 
             // existing projects
@@ -673,7 +673,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 ? state.metadata().projects().keySet()
                 : Sets.difference(state.metadata().projects().keySet(), event.projectDelta().added());
             for (var projectId : common) {
-                applyProjectState(state.version(), state.projectState(projectId), previousState.projectState(projectId));
+                applyProjectStateForAddedOrExistingProject(
+                    state.version(),
+                    state.projectState(projectId),
+                    previousState.projectState(projectId)
+                );
             }
         } catch (Exception ex) {
             assert false : new AssertionError(ex);
@@ -682,30 +686,41 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
-     * Apply changes for one project. The project can be either newly added, removed or an existing one.
+     * Apply changes for one removed project.
      *
      * @param version The cluster state version of the change.
-     * @param state The current project state, or {@code null} if the project was removed.
-     * @param previousState the previous project state, or {@code null} if the project was newly added.
+     * @param previousState The previous project state for the removed project.
      */
-    private void applyProjectState(long version, @Nullable ProjectState state, @Nullable ProjectState previousState) {
-        assert state != null || previousState != null : "state and previousState cannot both be null";
-        assert state == null || assertReadonlyRepositoriesNotInUseForWrites(state);
+    private void applyProjectStateForRemovedProject(long version, ProjectState previousState) {
+        final var projectId = previousState.projectId();
+        assert ProjectId.DEFAULT.equals(projectId) == false : "default project cannot be removed";
+        final var survivors = closeRemovedRepositories(version, projectId, getProjectRepositories(projectId), RepositoriesMetadata.EMPTY);
+        assert survivors.isEmpty() : "expect no repositories for removed project [" + projectId + "], but got " + survivors.keySet();
+        repositories.remove(projectId);
+    }
 
-        final var projectId = state != null ? state.projectId() : previousState.projectId();
-        assert ProjectId.DEFAULT.equals(projectId) == false || (state != null && previousState != null)
-            : "default project cannot be added or removed";
+    /**
+     * Apply changes for one project. The project can be either newly added or an existing one.
+     *
+     * @param version The cluster state version of the change.
+     * @param state The current project state
+     * @param previousState The previous project state, or {@code null} if the project was newly added.
+     */
+    private void applyProjectStateForAddedOrExistingProject(long version, ProjectState state, @Nullable ProjectState previousState) {
+        assert assertReadonlyRepositoriesNotInUseForWrites(state);
+        final var projectId = state.projectId();
+        assert ProjectId.DEFAULT.equals(projectId) == false || previousState != null : "default project cannot be added";
         assert previousState == null || projectId.equals(previousState.projectId())
             : "current and previous states must refer to the same project, but got " + projectId + " != " + previousState.projectId();
 
-        final RepositoriesMetadata newMetadata = state == null ? RepositoriesMetadata.EMPTY : RepositoriesMetadata.get(state.metadata());
+        final RepositoriesMetadata newMetadata = RepositoriesMetadata.get(state.metadata());
         final RepositoriesMetadata oldMetadata = previousState == null
             ? RepositoriesMetadata.EMPTY
             : RepositoriesMetadata.get(previousState.metadata());
 
         final Map<String, Repository> projectRepositories = getProjectRepositories(projectId);
         // Check if repositories got changed
-        if (state != null && oldMetadata.equalsIgnoreGenerations(newMetadata)) {
+        if (oldMetadata.equalsIgnoreGenerations(newMetadata)) {
             for (Repository repo : projectRepositories.values()) {
                 repo.updateState(state.cluster());
             }
@@ -714,24 +729,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         logger.trace("processing new index repositories for project [{}] and state version [{}]", projectId, version);
 
-        Map<String, Repository> survivors = new HashMap<>();
         // First, remove repositories that are no longer there
-        for (Map.Entry<String, Repository> entry : projectRepositories.entrySet()) {
-            if (newMetadata.repository(entry.getKey()) == null) {
-                logger.debug("unregistering repository {}", projectRepoString(projectId, entry.getKey()));
-                Repository repository = entry.getValue();
-                closeRepository(repository);
-                archiveRepositoryStats(repository, version);
-            } else {
-                survivors.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        if (state == null) { // removed project
-            assert survivors.isEmpty() : "expect no repositories for removed project [" + projectId + "], but got " + survivors.keySet();
-            repositories.remove(projectId);
-            return;
-        }
+        final var survivors = closeRemovedRepositories(version, projectId, projectRepositories, newMetadata);
 
         Map<String, Repository> builder = new HashMap<>();
 
@@ -785,6 +784,26 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         } else {
             repositories.remove(projectId);
         }
+    }
+
+    private Map<String, Repository> closeRemovedRepositories(
+        long version,
+        ProjectId projectId,
+        Map<String, Repository> projectRepositories,
+        RepositoriesMetadata newMetadata
+    ) {
+        Map<String, Repository> survivors = new HashMap<>();
+        for (Map.Entry<String, Repository> entry : projectRepositories.entrySet()) {
+            if (newMetadata.repository(entry.getKey()) == null) {
+                logger.debug("unregistering repository {}", projectRepoString(projectId, entry.getKey()));
+                Repository repository = entry.getValue();
+                closeRepository(repository);
+                archiveRepositoryStats(repository, version);
+            } else {
+                survivors.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return survivors;
     }
 
     private static boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
@@ -1118,6 +1137,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * Test-only check for the invariant that read-only repositories never have any write activities.
      */
     private static boolean assertReadonlyRepositoriesNotInUseForWrites(ProjectState projectState) {
+        assert projectState != null;
         for (final var repositoryMetadata : RepositoriesMetadata.get(projectState.metadata()).repositories()) {
             if (isReadOnly(repositoryMetadata.settings())) {
                 try {

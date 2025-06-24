@@ -26,7 +26,7 @@ PUT my-index
 
 ## Token pruning
 ```{applies_to}
-stack: preview 9.1
+stack: preview 8.19
 ```
 
 With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
@@ -63,23 +63,23 @@ The following parameters are accepted by `sparse_vector` fields:
     * Exclude the field from [_source](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering).
     * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
-index_options {applies_to}`stack: preview 9.1`
+index_options {applies_to}`stack: preview 8.19`
 :   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
 
 Parameters for `index_options` are:
 
-`prune` {applies_to}`stack: preview 9.1`
+`prune` {applies_to}`stack: preview 8.19`
 :   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
 
-`pruning_config` {applies_to}`stack: preview 9.1`
+`pruning_config` {applies_to}`stack: preview 8.19`
 :   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false but `pruning_config` is specified, an exception will occur.
 
     Parameters for `pruning_config` include:
 
-    `tokens_freq_ratio_threshold` {applies_to}`stack: preview 9.1`
+    `tokens_freq_ratio_threshold` {applies_to}`stack: preview 8.19`
     :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
 
-    `tokens_weight_threshold` {applies_to}`stack: preview 9.1`
+    `tokens_weight_threshold` {applies_to}`stack: preview 8.19`
     :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
 
     ::::{note}

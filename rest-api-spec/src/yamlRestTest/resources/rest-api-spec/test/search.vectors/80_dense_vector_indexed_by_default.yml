@@ -48,19 +48,13 @@ setup:
       indices.get_mapping:
         index: test
 
-  - match:
-      test:
-        mappings:
-          properties:
-            vector:
-              type: dense_vector
-              dims: 5
-              index: true
-              similarity: dot_product
-              index_options:
-                type: hnsw
-                m: 32
-                ef_construction: 200
+  - match: { test.mappings.properties.vector.type: dense_vector }
+  - match: { test.mappings.properties.vector.dims: 5 }
+  - match: { test.mappings.properties.vector.index: true }
+  - match: { test.mappings.properties.vector.similarity: dot_product }
+  - match: { test.mappings.properties.vector.index_options.type: hnsw }
+  - match: { test.mappings.properties.vector.index_options.m: 32 }
+  - match: { test.mappings.properties.vector.index_options.ef_construction: 200 }
 
 ---
 "Not indexed vector":

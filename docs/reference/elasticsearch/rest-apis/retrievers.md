@@ -199,6 +199,10 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
     Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
 
+`min_score`
+:   (Optional, `float`)
+
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 `rescore_vector`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
@@ -259,7 +263,7 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 #### Parameters [linear-retriever-parameters]
 
 `retrievers`
-:   (Required, array of objects)
+:   (Optional, array of objects)
 
     A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
 
@@ -272,12 +276,12 @@ Each entry specifies the following parameters:
     Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
 
 `weight`
-:   (Optional, float)
+:   (Required, float)
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
 `normalizer`
-:   (Optional, String)
+:   (Required, String)
 
     - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
 
@@ -293,7 +297,7 @@ Each entry specifies the following parameters:
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
 `rank_window_size`
-:   (Optional, integer)
+:   (Required, integer)
 
     This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
 
@@ -303,6 +307,10 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
+`min_score`
+:   (Optional, `float`)
+
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 
 ## RRF Retriever [rrf-retriever]
@@ -335,7 +343,10 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 
     Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
+`min_score`
+:   (Optional, `float`)
 
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 ### Example: Hybrid search [rrf-retriever-example-hybrid]
 
@@ -472,7 +483,10 @@ When using the `rescorer`, an error is returned if the following conditions are 
 
     Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
 
+`min_score`
+:   (Optional, `float`)
 
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 ### Example [rescorer-retriever-example]
 
@@ -607,7 +621,7 @@ score = ln(score), if score < 0
 
 
 `field`
-:   (Required, `string`)
+:   (Optional, `string`)
 
     The document field to be used for text similarity comparisons. This field should contain the text that will be evaluated against the `inferenceText`.
 
@@ -619,7 +633,7 @@ score = ln(score), if score < 0
 
 
 `inference_text`
-:   (Required, `string`)
+:   (Optional, `string`)
 
     The text snippet used as the basis for similarity comparison.
 
@@ -839,6 +853,16 @@ To use the `rule` retriever you must first create one or more query rulesets usi
 
     The number of top documents to return from the `rule` retriever. Defaults to `10`.
 
+`min_score`
+:   (Optional, `float`)
+
+    Sets a minimum threshold score for including documents in the results. Documents with similarity scores below this threshold will be excluded.
+
+
+`filter`
+:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
+
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 
 ### Example: Rule retriever [rule-retriever-example]
@@ -945,9 +969,24 @@ A `pinned` retriever returns top documents by always placing specific documents 
     A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
 
 `retriever`
-:   (Optional, retriever object)
+:   (Required, retriever object)
 
     A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+`rank_window_size`
+:   (Required, `int`)
+
+    The number of top documents to return from the `rule` retriever. Defaults to `10`.
+
+`min_score`
+:   (Optional, `float`)
+
+    Sets a minimum threshold score for including documents in the results. Documents with similarity scores below this threshold will be excluded.
+
+`filter`
+:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
+
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 Either `ids` or `docs` must be specified.
 

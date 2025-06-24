@@ -8,7 +8,6 @@ dependencies {
   testImplementation project(':test:yaml-rest-runner')
   testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
-  restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
 }

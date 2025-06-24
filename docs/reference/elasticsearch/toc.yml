@@ -87,6 +87,7 @@ toc:
             - file: rest-apis/highlighting.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
+            - file: rest-apis/query-api-keys.md
             - file: rest-apis/reciprocal-rank-fusion.md
             - file: rest-apis/refresh-parameter.md
             - file: rest-apis/reindex-data-stream.md
@@ -106,6 +107,7 @@ toc:
             - file: rest-apis/term-vectors-examples.md
             - file: rest-apis/update-document.md
             - file: rest-apis/update-cc-api-key-examples.md
+            - file: rest-apis/vector-tile-search.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

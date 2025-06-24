@@ -16,6 +16,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -54,6 +56,8 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -81,14 +85,18 @@ public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
-    public static final int SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 512;
+    public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
+    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 512;
 
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.CHAT_COMPLETION,
-        TaskType.RERANK
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING
     );
     private static final String SERVICE_NAME = "Elastic";
+
+    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 32;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
@@ -98,10 +106,22 @@ public class ElasticInferenceService extends SenderService {
     static final String DEFAULT_ELSER_MODEL_ID_V2 = "elser-v2";
     static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_MODEL_ID_V2);
 
+    // multilingual-text-embed
+    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
+    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = defaultEndpointId(DEFAULT_MULTILINGUAL_EMBED_MODEL_ID);
+
+    // rerank-v1
+    static final String DEFAULT_RERANK_MODEL_ID_V1 = "rerank-v1";
+    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_RERANK_MODEL_ID_V1);
+
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
-    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.RERANK);
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING
+    );
 
     public static String defaultEndpointId(String modelId) {
         return Strings.format(".%s-elastic", modelId);
@@ -163,6 +183,45 @@ public class ElasticInferenceService extends SenderService {
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 MinimalServiceSettings.sparseEmbedding(NAME)
+            ),
+            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                    DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+                    TaskType.TEXT_EMBEDDING,
+                    NAME,
+                    new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                        DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                        defaultDenseTextEmbeddingsSimilarity(),
+                        null,
+                        null,
+                        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                    ),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                MinimalServiceSettings.textEmbedding(
+                    NAME,
+                    DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                    defaultDenseTextEmbeddingsSimilarity(),
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            ),
+
+            DEFAULT_RERANK_MODEL_ID_V1,
+            new DefaultModelConfig(
+                new ElasticInferenceServiceRerankModel(
+                    DEFAULT_RERANK_ENDPOINT_ID_V1,
+                    TaskType.RERANK,
+                    NAME,
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    elasticInferenceServiceComponents
+                ),
+                MinimalServiceSettings.rerank(NAME)
             )
         );
     }
@@ -290,6 +349,23 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel) {
+            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
+
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+                inputs.getInputs(),
+                DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
+
+            for (var request : batchedRequests) {
+                var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            }
+
+            return;
+        }
+
         if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseTextEmbeddingsModel) {
             var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
 
@@ -328,7 +404,7 @@ public class ElasticInferenceService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
+            if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -339,11 +415,11 @@ public class ElasticInferenceService extends SenderService {
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
+                chunkingSettings,
                 serviceSettingsMap,
                 elasticInferenceServiceComponents,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST,
-                chunkingSettings
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -376,11 +452,11 @@ public class ElasticInferenceService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         String failureMessage,
-        ConfigurationParseContext context,
-        ChunkingSettings chunkingSettings
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceSparseEmbeddingsModel(
@@ -414,6 +490,17 @@ public class ElasticInferenceService extends SenderService {
                 elasticInferenceServiceComponents,
                 context
             );
+            case TEXT_EMBEDDING -> new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                elasticInferenceServiceComponents,
+                context,
+                chunkingSettings
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -430,7 +517,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -439,9 +526,9 @@ public class ElasticInferenceService extends SenderService {
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            chunkingSettings
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
@@ -451,7 +538,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -460,9 +547,9 @@ public class ElasticInferenceService extends SenderService {
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
+            chunkingSettings,
             null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
-            chunkingSettings
+            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
     }
 
@@ -476,21 +563,49 @@ public class ElasticInferenceService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
-        ChunkingSettings chunkingSettings
+        String failureMessage
     ) {
         return createModel(
             inferenceEntityId,
             taskType,
             serviceSettings,
             taskSettings,
+            chunkingSettings,
             secretSettings,
             elasticInferenceServiceComponents,
             failureMessage,
-            ConfigurationParseContext.PERSISTENT,
-            chunkingSettings
+            ConfigurationParseContext.PERSISTENT
         );
+    }
+
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var modelId = serviceSettings.modelId();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultDenseTextEmbeddingsSimilarity() : similarityFromModel;
+            var maxInputTokens = serviceSettings.maxInputTokens();
+
+            var updateServiceSettings = new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                modelId,
+                similarityToUse,
+                embeddingSize,
+                maxInputTokens,
+                serviceSettings.rateLimitSettings()
+            );
+
+            return new ElasticInferenceServiceDenseTextEmbeddingsModel(embeddingsModel, updateServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
+    }
+
+    public static SimilarityMeasure defaultDenseTextEmbeddingsSimilarity() {
+        // TODO: double-check
+        return SimilarityMeasure.COSINE;
     }
 
     private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
@@ -521,8 +636,9 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK))
-                        .setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(
+                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
+                    ).setDescription("The name of the model to use for the inference task.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -533,7 +649,7 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING)).setDescription(
                         "Allows you to specify the maximum number of tokens per input."
                     )
                         .setLabel("Maximum Input Tokens")
@@ -546,7 +662,7 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfiguration(
-                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK)
+                        EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.RERANK, TaskType.TEXT_EMBEDDING)
                     )
                 );
 

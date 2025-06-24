@@ -181,15 +181,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return builder.build();
     }
 
-    @Override
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
-    public void testRequestStats() throws Exception {
-        super.testRequestStats();
-    }
-
     public void testAbortRequestStats() throws Exception {
         final String repository = createRepository(randomRepositoryName(), false);
 
@@ -233,10 +224,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);

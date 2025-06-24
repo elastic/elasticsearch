@@ -565,9 +565,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/129888
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testExistsQueryMinimalMapping
-  issue: https://github.com/elastic/elasticsearch/issues/129911
 
 # Examples:
 #

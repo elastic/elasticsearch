@@ -11,6 +11,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticCompletionPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticRerankPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticSparseEmbeddingPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticTextEmbeddingPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
@@ -43,7 +47,13 @@ public class SageMakerSchemasTests extends ESTestCase {
     public void testSupportedTaskTypes() {
         assertThat(
             schemas.supportedTaskTypes(),
-            containsInAnyOrder(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+            containsInAnyOrder(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.COMPLETION,
+                TaskType.CHAT_COMPLETION,
+                TaskType.SPARSE_EMBEDDING,
+                TaskType.RERANK
+            )
         );
     }
 
@@ -111,7 +121,11 @@ public class SageMakerSchemasTests extends ESTestCase {
     public void testNamedWriteables() {
         var namedWriteables = Stream.of(
             new OpenAiTextEmbeddingPayload().namedWriteables(),
-            new OpenAiCompletionPayload().namedWriteables()
+            new OpenAiCompletionPayload().namedWriteables(),
+            new ElasticCompletionPayload().namedWriteables(),
+            new ElasticSparseEmbeddingPayload().namedWriteables(),
+            new ElasticTextEmbeddingPayload().namedWriteables(),
+            new ElasticRerankPayload().namedWriteables()
         );
 
         var expectedNamedWriteables = Stream.concat(

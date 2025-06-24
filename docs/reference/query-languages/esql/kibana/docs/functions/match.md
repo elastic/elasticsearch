@@ -4,17 +4,6 @@
 Use `MATCH` to perform a [match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query) on the specified field.
 Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
-Match can be used on fields from the text family like [text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/text) and [semantic_text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/semantic-text),
-as well as other field types like keyword, boolean, dates, and numeric types.
-When Match is used on a [semantic_text](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/semantic-text) field, it will perform a semantic query on the field.
-
-Match can use [function named parameters](https://www.elastic.co/docs/reference/query-languages/esql/esql-syntax#esql-function-named-params) to specify additional options for the match query.
-All [match query parameters](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query#match-field-params) are supported.
-
-For a simplified syntax, you can use the [match operator](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/operators#esql-match-operator) `:` operator instead of `MATCH`.
-
-`MATCH` returns true if the provided query matches the row.
-
 ```esql
 FROM books
 | WHERE MATCH(author, description, "Faulkner")

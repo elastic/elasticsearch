@@ -12,8 +12,10 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -26,6 +28,7 @@ public final class ProjectState {
     private final ClusterState cluster;
     private final ProjectId project;
     private final ProjectMetadata projectMetadata;
+    private final Settings projectSettings;
     private final RoutingTable routingTable;
 
     ProjectState(ClusterState clusterState, ProjectId projectId) {
@@ -34,6 +37,7 @@ public final class ProjectState {
         this.cluster = clusterState;
         this.project = projectId;
         this.projectMetadata = clusterState.metadata().getProject(projectId);
+        this.projectSettings = ProjectStateRegistry.getProjectSettings(projectId, clusterState);
         this.routingTable = clusterState.routingTable(projectId);
     }
 
@@ -55,6 +59,10 @@ public final class ProjectState {
 
     public ClusterBlocks blocks() {
         return cluster().blocks();
+    }
+
+    public Settings settings() {
+        return projectSettings;
     }
 
     @Override

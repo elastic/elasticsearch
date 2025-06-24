@@ -6899,6 +6899,27 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(clusterValues.field()).name(), equalTo("cluster"));
     }
 
+    public void testTranslateSumOfTwoRates() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            TS k8s
+            | STATS max(rate(network.total_bytes_in) + rate(network.total_bytes_out)) BY pod, bucket(@timestamp, 5 minute), cluster
+            | SORT cluster
+            | LIMIT 10
+            """;
+        var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+        TopN topN = as(plan, TopN.class);
+        Aggregate finalAgg = as(topN.child(), Aggregate.class);
+        Eval eval = as(finalAgg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Add sum = as(Alias.unwrap(eval.fields().get(0)), Add.class);
+        assertThat(Expressions.name(sum.left()), equalTo("RATE_$1"));
+        assertThat(Expressions.name(sum.right()), equalTo("RATE_$2"));
+        TimeSeriesAggregate aggsByTsid = as(eval.child(), TimeSeriesAggregate.class);
+        assertThat(Expressions.name(aggsByTsid.aggregates().get(0)), equalTo("RATE_$1"));
+        assertThat(Expressions.name(aggsByTsid.aggregates().get(1)), equalTo("RATE_$2"));
+    }
+
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """

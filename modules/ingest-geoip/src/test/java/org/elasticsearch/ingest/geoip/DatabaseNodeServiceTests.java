@@ -142,8 +142,17 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         ingestService = mock(IngestService.class);
         clusterService = mock(ClusterService.class);
         geoIpTmpDir = createTempDir();
-        databaseNodeService = new DatabaseNodeService(geoIpTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize("nodeId", resourceWatcherService, ingestService, projectResolver);
+        databaseNodeService = new DatabaseNodeService(
+            geoIpTmpDir,
+            client,
+            cache,
+            configDatabases,
+            Runnable::run,
+            clusterService,
+            ingestService,
+            projectResolver
+        );
+        databaseNodeService.initialize("nodeId", resourceWatcherService);
     }
 
     @After

@@ -91,8 +91,17 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
         when(clusterService.state()).thenReturn(state);
-        databaseNodeService = new DatabaseNodeService(geoipTmpDir, client, cache, configDatabases, Runnable::run, clusterService);
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class), projectResolver);
+        databaseNodeService = new DatabaseNodeService(
+            geoipTmpDir,
+            client,
+            cache,
+            configDatabases,
+            Runnable::run,
+            clusterService,
+            mock(IngestService.class),
+            projectResolver
+        );
+        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class));
     }
 
     @After
@@ -396,9 +405,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             cache,
             configDatabases,
             Runnable::run,
-            clusterService
+            clusterService,
+            mock(IngestService.class),
+            projectResolver
         );
-        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class), projectResolver);
+        databaseNodeService.initialize("nodeId", resourceWatcherService);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());
@@ -467,9 +478,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             cache,
             configDatabases,
             Runnable::run,
-            clusterService
+            clusterService,
+            mock(IngestService.class),
+            projectResolver
         );
-        databaseNodeService.initialize("nodeId", resourceWatcherService, mock(IngestService.class), projectResolver);
+        databaseNodeService.initialize("nodeId", resourceWatcherService);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         for (DatabaseReaderLazyLoader lazyLoader : configDatabases.getConfigDatabases().values()) {
             assertNull(lazyLoader.databaseReader.get());

@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -108,8 +107,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     private final ConfigDatabases configDatabases;
     private final Consumer<Runnable> genericExecutor;
     private final ClusterService clusterService;
-    private IngestService ingestService;
-    private ProjectResolver projectResolver;
+    private final IngestService ingestService;
+    private final ProjectResolver projectResolver;
 
     private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
 
@@ -118,7 +117,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         Client client,
         GeoIpCache cache,
         Consumer<Runnable> genericExecutor,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IngestService ingestService,
+        ProjectResolver projectResolver
     ) {
         this(
             environment.tmpDir(),
@@ -126,7 +127,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             cache,
             new ConfigDatabases(environment, cache),
             genericExecutor,
-            clusterService
+            clusterService,
+            ingestService,
+            projectResolver
         );
     }
 
@@ -136,7 +139,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         GeoIpCache cache,
         ConfigDatabases configDatabases,
         Consumer<Runnable> genericExecutor,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IngestService ingestService,
+        ProjectResolver projectResolver
     ) {
         this.client = client;
         this.cache = cache;
@@ -144,13 +149,13 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         this.configDatabases = configDatabases;
         this.genericExecutor = genericExecutor;
         this.clusterService = clusterService;
+        this.ingestService = ingestService;
+        this.projectResolver = projectResolver;
     }
 
     public void initialize(
         String nodeId,
-        ResourceWatcherService resourceWatcher,
-        IngestService ingestServiceArg,
-        ProjectResolver projectResolver
+        ResourceWatcherService resourceWatcher
     ) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
@@ -175,8 +180,8 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
                 if (e instanceof NoSuchFileException == false) {
-                    // https://github.com/elastic/elasticsearch/issues/104782
-                    logger.warn("can't delete stale file [" + file + "]", e);
+                    // parameterized log fails logger check, see https://github.com/elastic/elasticsearch/issues/104782
+                    logger.warn("can't delete stale file [{}]", file, e);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -190,17 +195,15 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             Files.createDirectories(geoipTmpDirectory);
         }
         logger.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
-        this.ingestService = ingestServiceArg;
         clusterService.addListener(event -> checkDatabases(event.state()));
-        this.projectResolver = projectResolver;
     }
 
     @Override
     public Boolean isValid(ProjectId projectId, String databaseFile) {
-        ProjectState projectState = clusterService.state().projectState(projectId);
-        assert projectState != null;
+        ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        assert projectMetadata != null;
 
-        GeoIpTaskState state = getGeoIpTaskState(projectState.metadata(), getTaskId(projectId, projectResolver.supportsMultipleProjects()));
+        GeoIpTaskState state = getGeoIpTaskState(projectMetadata, getTaskId(projectId, projectResolver.supportsMultipleProjects()));
         if (state == null) {
             return true;
         }
@@ -211,7 +214,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return true;
         }
 
-        boolean valid = metadata.isNewEnough(projectState.cluster().metadata().settings());
+        boolean valid = metadata.isNewEnough(projectMetadata.settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",
@@ -288,11 +291,10 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         }
 
         // Optimization: only load the .geoip_databases for projects that are allocated to this node
-        for (ProjectMetadata projectMetadata : state.getMetadata().projects().values()) {
+        for (ProjectMetadata projectMetadata : state.metadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
 
-            PersistentTasksCustomMetadata persistentTasks = state.metadata()
-                .getProject(projectId)
+            PersistentTasksCustomMetadata persistentTasks = projectMetadata
                 .custom(PersistentTasksCustomMetadata.TYPE);
             if (persistentTasks == null) {
                 logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -570,7 +572,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                     // At most once a day a few searches may be executed to fetch the new files,
                     // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
                     // This makes the code easier to understand and maintain.
-                    // TODO: Revisit if blocking the generic thread pool is acceptable in multi-project
+                    // Probably revisit if blocking the generic thread pool is acceptable in multi-project if we see performance issue
                     SearchResponse searchResponse = client.projectClient(projectId).search(searchRequest).actionGet();
                     try {
                         SearchHit[] hits = searchResponse.getHits().getHits();

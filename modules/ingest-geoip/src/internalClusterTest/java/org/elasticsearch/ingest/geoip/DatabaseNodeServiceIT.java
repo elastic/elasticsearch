@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -42,12 +42,9 @@ import java.util.zip.GZIPOutputStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
-    private ProjectId projectId;
 
-    @Before
-    private void setup() {
-        projectId = ProjectId.DEFAULT;
-    }
+    @FixForMultiProject(description = "Use random project ID after ESIntegTestCase is MP enabled")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     /*
      * This test makes sure that if we index an ordinary mmdb file into the .geoip_databases index, it is correctly handled upon retrieval.

@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -315,7 +316,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         assert projectResolver.supportsMultipleProjects();
         assert projectObjectStoreExceptions != null;
         for (var projectId : event.projectDelta().added()) {
-            final var projectSettings = event.state().metadata().getProject(projectId).settings();
+            final var projectSettings = ProjectStateRegistry.getProjectSettings(projectId, event.state());
             try {
                 final RepositoryMetadata repositoryMetadata = getRepositoryMetadata(projectSettings);
                 final var repository = repositoriesService.createRepository(projectId, repositoryMetadata);

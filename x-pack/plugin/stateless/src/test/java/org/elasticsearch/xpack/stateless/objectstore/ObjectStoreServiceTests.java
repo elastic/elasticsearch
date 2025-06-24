@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -569,10 +570,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     projectSettingsBuilder.put("stateless.object_store.type", "fs");
                 }
 
+                ClusterState state = testHarness.clusterService.state();
                 ClusterServiceUtils.setState(
                     testHarness.clusterService,
-                    ClusterState.builder(testHarness.clusterService.state())
-                        .putProjectMetadata(ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()))
+                    ClusterState.builder(state)
+                        .putCustom(
+                            ProjectStateRegistry.TYPE,
+                            ProjectStateRegistry.builder(state).putProjectSettings(projectId, projectSettingsBuilder.build()).build()
+                        )
+                        .putProjectMetadata(ProjectMetadata.builder(projectId))
                         .build()
                 );
                 // We should always have the default project object store (i.e., 1)
@@ -651,10 +657,16 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 projectSettingsBuilder.put("stateless.object_store.type", "fs");
             }
 
+            ClusterState state = testHarness.clusterService.state();
+            Settings settings = projectSettingsBuilder.build();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
-                ClusterState.builder(testHarness.clusterService.state())
-                    .putProjectMetadata(ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()))
+                ClusterState.builder(state)
+                    .putCustom(
+                        ProjectStateRegistry.TYPE,
+                        ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
+                    )
+                    .putProjectMetadata(ProjectMetadata.builder(projectId))
                     .build()
             );
 
@@ -666,7 +678,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(e.getCause(), is(expectedException));
 
             // Delete the project
-            final ClusterState state = testHarness.clusterService.state();
+            state = testHarness.clusterService.state();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
                 ClusterState.builder(state)
@@ -834,12 +846,16 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                 )
                 .build();
+            ClusterState state = testHarness.clusterService.state();
+            Settings settings = projectSettingsBuilder.build();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
-                ClusterState.builder(testHarness.clusterService.state())
-                    .putProjectMetadata(
-                        ProjectMetadata.builder(projectId).settings(projectSettingsBuilder.build()).put(indexMetadata, false)
+                ClusterState.builder(state)
+                    .putCustom(
+                        ProjectStateRegistry.TYPE,
+                        ProjectStateRegistry.builder(state).putProjectSettings(projectId, settings).build()
                     )
+                    .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
                     .build()
             );
             final BlobStoreRepository projectObjectStore = objectStoreService.getProjectObjectStore(projectId);
@@ -871,7 +887,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             );
 
             // Delete the project
-            final ClusterState state = testHarness.clusterService.state();
+            state = testHarness.clusterService.state();
             ClusterServiceUtils.setState(
                 testHarness.clusterService,
                 ClusterState.builder(state)

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -243,16 +242,11 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    public Set<ProjectId> addedProjects() {
-        return projectsDelta.added();
-    }
-
-    public Set<ProjectId> removedProjects() {
-        return projectsDelta.removed();
-    }
-
-    public Set<ProjectId> commonProjects() {
-        return projectsDelta.common(state);
+    /**
+     * Returns the {@link ProjectsDelta} between the previous cluster state and the new cluster state.
+     */
+    public ProjectsDelta projectDelta() {
+        return projectsDelta;
     }
 
     /**
@@ -360,62 +354,26 @@ public class ClusterChangedEvent {
                 && previousMetadata.hasProject(ProjectId.DEFAULT)
                 && currentMetadata.projects().size() == 1
                 && currentMetadata.hasProject(ProjectId.DEFAULT))) {
-            return ProjectsDelta.NO_CHANGE;
+            return ProjectsDelta.EMPTY;
         }
 
-        final Set<ProjectId> currentProjectIds = currentMetadata.projects().keySet();
-        final Set<ProjectId> previousProjectIds = previousMetadata.projects().keySet();
-
-        final var added = new HashSet<ProjectId>();
-        final var common = new HashSet<ProjectId>();
-        for (var projectId : currentProjectIds) {
-            if (previousProjectIds.contains(projectId)) {
-                common.add(projectId);
-            } else {
-                added.add(projectId);
-            }
-        }
-
-        final Set<ProjectId> removed = Sets.difference(previousProjectIds, currentProjectIds);
+        final Set<ProjectId> added = Collections.unmodifiableSet(
+            Sets.difference(currentMetadata.projects().keySet(), previousMetadata.projects().keySet())
+        );
+        final Set<ProjectId> removed = Collections.unmodifiableSet(
+            Sets.difference(previousMetadata.projects().keySet(), currentMetadata.projects().keySet())
+        );
         // TODO: Enable the following assertions once tests no longer add or remove default projects
         // assert added.contains(ProjectId.DEFAULT) == false;
         // assert removed.contains(ProjectId.DEFAULT) == false;
-
-        if (added.isEmpty() && removed.isEmpty()) {
-            return ProjectsDelta.NO_CHANGE;
-        } else {
-            return new ProjectsDelta(
-                Collections.unmodifiableSet(added),
-                Collections.unmodifiableSet(removed),
-                Collections.unmodifiableSet(common)
-            );
-        }
+        return new ProjectsDelta(added, removed);
     }
 
-    private record ProjectsDelta(
-        Set<ProjectId> added,
-        Set<ProjectId> removed,
-        @Nullable Set<ProjectId> common // null if all projects are common
-    ) {
+    public record ProjectsDelta(Set<ProjectId> added, Set<ProjectId> removed) {
+        private static final ProjectsDelta EMPTY = new ProjectsDelta(Set.of(), Set.of());
 
-        private static final ProjectsDelta NO_CHANGE = new ProjectsDelta(Set.of(), Set.of(), null);
-
-        private boolean hasNoChange() {
+        public boolean isEmpty() {
             return added.isEmpty() && removed.isEmpty();
-        }
-
-        @Override
-        public Set<ProjectId> common() {
-            throw new UnsupportedOperationException("Use common(ClusterState state) instead");
-        }
-
-        Set<ProjectId> common(ClusterState state) {
-            if (common == null) {
-                assert hasNoChange() : this;
-                return state.metadata().projects().keySet();
-            } else {
-                return common;
-            }
         }
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -659,15 +660,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             final ClusterState state = event.state();
             final ClusterState previousState = event.previousState();
 
-            for (var projectId : event.removedProjects()) { // removed projects
+            for (var projectId : event.projectDelta().removed()) { // removed projects
                 applyProjectState(state.version(), null, previousState.projectState(projectId));
             }
 
-            for (var projectId : event.addedProjects()) { // added projects
+            for (var projectId : event.projectDelta().added()) { // added projects
                 applyProjectState(state.version(), state.projectState(projectId), null);
             }
 
-            for (var projectId : event.commonProjects()) { // existing projects
+            // existing projects
+            final var common = event.projectDelta().added().isEmpty()
+                ? state.metadata().projects().keySet()
+                : Sets.difference(state.metadata().projects().keySet(), event.projectDelta().added());
+            for (var projectId : common) {
                 applyProjectState(state.version(), state.projectState(projectId), previousState.projectState(projectId));
             }
         } catch (Exception ex) {

@@ -271,7 +271,7 @@ public class ESVectorUtil {
      * @return return the sum of all the elements of the resulting quantized vector.
      */
     public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
-        if (vector.length != destination.length) {
+        if (vector.length > destination.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
         }
         if (bit <= 0 || bit > Byte.SIZE) {

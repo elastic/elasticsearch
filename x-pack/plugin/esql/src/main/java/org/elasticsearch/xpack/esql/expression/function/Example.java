@@ -35,6 +35,11 @@ public @interface Example {
     String tag();
 
     /**
+     * If the example is applicable to only a capability available in a specific version
+     */
+    String applies_to() default "";
+
+    /**
      * The explanation that will appear after the example.
      */
     String explanation() default "";

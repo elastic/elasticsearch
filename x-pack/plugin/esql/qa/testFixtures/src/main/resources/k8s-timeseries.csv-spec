@@ -336,3 +336,17 @@ distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:dateti
 2              |2              | staging         | 2024-05-10T00:18:00.000Z
 
 ;
+
+
+two_rates
+required_capability: metrics_command
+
+TS k8s | STATS cost_per_mb=max(rate(network.total_bytes_in) / 1024 * 1024 * rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp,5minute) | SORT cost_per_mb DESC, cluster, time_bucket DESC | LIMIT 5;
+
+cost_per_mb:double | cluster:keyword | time_bucket:datetime
+5.119502189662629  | qa              | 2024-05-10T00:15:00.000Z
+4.1135056380088795 | qa              | 2024-05-10T00:05:00.000Z
+2.0974277092655393 | qa              | 2024-05-10T00:10:00.000Z
+2.071474095190272  | prod            | 2024-05-10T00:15:00.000Z
+1.59556462585034   | staging         | 2024-05-10T00:10:00.000Z
+;

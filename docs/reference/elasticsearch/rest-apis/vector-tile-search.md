@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/search-vector-tile-api.html#search-vector-tile-api-api-example
 applies_to:
   stack: all
-navigation_title: Vector tile search
+navigation_title: Vector tile search API
 ---
 
 # Vector tile search API examples

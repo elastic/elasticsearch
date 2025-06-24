@@ -46,7 +46,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         return new FetchSubPhaseProcessor() {
 
-            final Map<String, Bits> matchingIterators = new HashMap<>();
+            final Map<String, ScorerAndIterator> matchingIterators = new HashMap<>();
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
@@ -54,19 +54,32 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                 for (Map.Entry<String, Weight> entry : weights.entrySet()) {
                     ScorerSupplier ss = entry.getValue().scorerSupplier(readerContext);
                     if (ss != null) {
-                        Bits matchingBits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), ss);
-                        matchingIterators.put(entry.getKey(), matchingBits);
+                        Scorer scorer = ss.get(0L);
+                        if (scorer != null) {
+                            final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+                            final DocIdSetIterator iterator;
+                            if (twoPhase == null) {
+                                iterator = scorer.iterator();
+                            } else {
+                                iterator = twoPhase.approximation();
+                            }
+                            matchingIterators.put(entry.getKey(), new ScorerAndIterator(scorer, iterator, twoPhase));
+                        }
                     }
                 }
             }
 
             @Override
-            public void process(HitContext hitContext) {
+            public void process(HitContext hitContext) throws IOException{
                 List<String> matches = new ArrayList<>();
                 int doc = hitContext.docId();
-                for (Map.Entry<String, Bits> iterator : matchingIterators.entrySet()) {
-                    if (iterator.getValue().get(doc)) {
-                        matches.add(iterator.getKey());
+                for (Map.Entry<String, ScorerAndIterator> entry : matchingIterators.entrySet()) {
+                    ScorerAndIterator query = entry.getValue();
+                    if (query.approximation.docID() < doc) {
+                        query.approximation.advance(doc);
+                    }
+                    if (query.approximation.docID() == doc && (query.twoPhase == null || query.twoPhase.matches())) {
+                        matches.add(entry.getKey());
                     }
                 }
                 hitContext.hit().matchedQueries(matches.toArray(new String[0]));

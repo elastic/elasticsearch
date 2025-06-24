@@ -823,7 +823,6 @@ public final class Authentication implements ToXContentObject {
             apiKeyField.put("managed_by", CredentialManagedBy.CLOUD.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
-        // TODO cloud API key fields such as managed_by
     }
 
     public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {

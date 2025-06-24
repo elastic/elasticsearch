@@ -205,7 +205,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED;
+        return TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19;
     }
 
     @Override

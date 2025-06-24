@@ -14,8 +14,8 @@ The following examples show common use cases, such as incrementing a counter and
 
 - [Update part of a document](#update-part-document)
 - [Detect noop updates](#detect-noop-updates)
-- [Upsert](#upsert)
-- [Doc as upsert](#scripted-upsert)
+- [Insert or update documents with upsert](#upsert)
+- [Simplify upsert with doc_as_upsert](#doc-as-upsert)
 
 First, let's index a simple doc:
 

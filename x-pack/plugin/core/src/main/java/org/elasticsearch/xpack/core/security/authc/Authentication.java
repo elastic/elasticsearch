@@ -659,16 +659,6 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
-        if (effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY
-            && out.getTransportVersion().before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
-            throw new IllegalArgumentException(
-                "versions of Elasticsearch before ["
-                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
-                    + "] can't handle cloud API key authentication and attempted to send to ["
-                    + out.getTransportVersion().toReleaseVersion()
-                    + "]"
-            );
-        }
         final boolean isRunAs = authenticatingSubject != effectiveSubject;
         if (isRunAs) {
             final User outerUser = effectiveSubject.getUser();

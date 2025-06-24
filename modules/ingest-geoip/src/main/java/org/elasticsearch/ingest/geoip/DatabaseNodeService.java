@@ -153,10 +153,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         this.projectResolver = projectResolver;
     }
 
-    public void initialize(
-        String nodeId,
-        ResourceWatcherService resourceWatcher
-    ) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         // delete all stale files in the geoip tmp directory
@@ -294,8 +291,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         for (ProjectMetadata projectMetadata : state.metadata().projects().values()) {
             ProjectId projectId = projectMetadata.id();
 
-            PersistentTasksCustomMetadata persistentTasks = projectMetadata
-                .custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
             if (persistentTasks == null) {
                 logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
                 continue;

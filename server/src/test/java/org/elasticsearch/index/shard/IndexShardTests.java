@@ -1882,6 +1882,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.numSegments(), equalTo(0));
         assertThat(stats.totalFields(), equalTo(0));
         assertThat(stats.fieldUsages(), equalTo(0L));
+        assertThat(stats.postingsInMemoryBytes(), equalTo(0L));
         // index some documents
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
@@ -1901,6 +1902,9 @@ public class IndexShardTests extends IndexShardTestCase {
         // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
         // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv),
         assertThat(stats.fieldUsages(), equalTo(13L));
+        // _id: 8, f1: 3, f1.keyword: 3, f2: 3, f2.keyword: 3
+        // (8 + 3 + 3 + 3 + 3) * 2 = 40
+        assertThat(stats.postingsInMemoryBytes(), equalTo(40L));
         // don't re-compute on refresh without change
         if (randomBoolean()) {
             shard.refresh("test");
@@ -1948,6 +1952,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.totalFields(), equalTo(21));
         // first segment: 13, second segment: 13 + f3(postings,norms) + f3.keyword(term,dv), and __soft_deletes to previous segment
         assertThat(stats.fieldUsages(), equalTo(31L));
+        // segment 1: 40 (see above)
+        // segment 2: _id: 8, f1: 3, f1.keyword: 3, f2: 3, f2.keyword: 3, f3: 6, f3.keyword: 6
+        // (8 + 3 + 3 + 3 + 3 + 6 + 6) * 2 q= 64
+        // 40 + 64 = 104
+        assertThat(stats.postingsInMemoryBytes(), equalTo(104L));
         shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(1));
@@ -1955,6 +1964,8 @@ public class IndexShardTests extends IndexShardTestCase {
         // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
         // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv), f3(postings,norms), f3.keyword(term,dv), __soft_deletes
         assertThat(stats.fieldUsages(), equalTo(18L));
+        // max(segment1: 40, segment2: 64) = 64
+        assertThat(stats.postingsInMemoryBytes(), equalTo(64L));
         closeShards(shard);
     }
 

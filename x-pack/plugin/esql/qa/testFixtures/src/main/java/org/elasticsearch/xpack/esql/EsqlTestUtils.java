@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -226,7 +228,11 @@ public final class EsqlTestUtils {
         if (value instanceof Literal) {
             return (Literal) value;
         }
-        return new Literal(source, value, DataType.fromJava(value));
+        var dataType = DataType.fromJava(value);
+        if (value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
+        }
+        return new Literal(source, value, dataType);
     }
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
@@ -248,22 +254,22 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         @Override
-        public boolean exists(String field) {
+        public boolean exists(FieldName field) {
             return true;
         }
 
         @Override
-        public boolean isIndexed(String field) {
+        public boolean isIndexed(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasDocValues(String field) {
+        public boolean hasDocValues(FieldName field) {
             return exists(field);
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
+        public boolean hasExactSubfield(FieldName field) {
             return exists(field);
         }
 
@@ -273,32 +279,32 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public long count(String field) {
+        public long count(FieldName field) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public long count(String field, BytesRef value) {
+        public long count(FieldName field, BytesRef value) {
             return exists(field) ? -1 : 0;
         }
 
         @Override
-        public byte[] min(String field, DataType dataType) {
+        public byte[] min(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public byte[] max(String field, DataType dataType) {
+        public byte[] max(FieldName field, DataType dataType) {
             return null;
         }
 
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldName field) {
             return false;
         }
 
         @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(String name, String value) {
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
         }
     }
@@ -349,23 +355,23 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean exists(String field) {
-            return isConfigationSet(Config.EXISTS, field);
+        public boolean exists(FieldName field) {
+            return isConfigationSet(Config.EXISTS, field.string());
         }
 
         @Override
-        public boolean isIndexed(String field) {
-            return isConfigationSet(Config.INDEXED, field);
+        public boolean isIndexed(FieldName field) {
+            return isConfigationSet(Config.INDEXED, field.string());
         }
 
         @Override
-        public boolean hasDocValues(String field) {
-            return isConfigationSet(Config.DOC_VALUES, field);
+        public boolean hasDocValues(FieldName field) {
+            return isConfigationSet(Config.DOC_VALUES, field.string());
         }
 
         @Override
-        public boolean hasExactSubfield(String field) {
-            return isConfigationSet(Config.EXACT_SUBFIELD, field);
+        public boolean hasExactSubfield(FieldName field) {
+            return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
         }
 
         @Override
@@ -500,8 +506,8 @@ public final class EsqlTestUtils {
             private final Set<String> fields = Set.of(names);
 
             @Override
-            public boolean exists(String field) {
-                return fields.contains(field) == exists;
+            public boolean exists(FieldName field) {
+                return fields.contains(field.string()) == exists;
             }
         };
     }

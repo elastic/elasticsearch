@@ -105,7 +105,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     "es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current",
                     "the actual number of allocations",
                     "",
-                    () -> observeLong(AdaptiveAllocationsScaler::getNumberOfAllocations)
+                    this::observeAllocationCount
                 )
             );
             metrics.add(
@@ -178,6 +178,19 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 }
             }
             return observations;
+        }
+
+        Collection<LongWithAttributes> observeAllocationCount() {
+            return scalers.values().stream().map(scaler -> {
+                var value = scaler.getNumberOfAllocations();
+                var min = scaler.getMinNumberOfAllocations();
+                var scalesToZero = min == null || min == 0;
+
+                return new LongWithAttributes(
+                    value,
+                    Map.ofEntries(Map.entry("deployment_id", scaler.getDeploymentId()), Map.entry("scales_to_zero", scalesToZero))
+                );
+            }).toList();
         }
     }
 

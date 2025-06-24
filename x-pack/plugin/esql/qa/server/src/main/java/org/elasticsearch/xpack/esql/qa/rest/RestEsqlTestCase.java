@@ -794,7 +794,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sample', 'sort'"));
         }
     }
 
@@ -1022,7 +1022,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(21, columns.size());
+            assertEquals(22, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }

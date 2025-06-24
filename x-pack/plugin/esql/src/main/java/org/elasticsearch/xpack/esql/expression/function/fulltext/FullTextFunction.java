@@ -148,7 +148,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryBuilder);
+        return Objects.hash(super.hashCode(), query, queryBuilder);
     }
 
     @Override
@@ -157,7 +157,7 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder);
+        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
     }
 
     @Override
@@ -396,6 +396,8 @@ public abstract class FullTextFunction extends Function
         return Map.of();
     }
 
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
     public static String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
         if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {

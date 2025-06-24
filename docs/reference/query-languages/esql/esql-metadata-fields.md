@@ -34,7 +34,7 @@ The following metadata fields are available in {{esql}}:
 - The `_source` field is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
-- Fields are dropped after aggregations unless used for grouping ([example](#group-results-by-metadata-fields))
+- Fields are dropped after aggregations unless used for grouping ([example](#metadata-fields-and-aggregations))
 
 ## Examples
 

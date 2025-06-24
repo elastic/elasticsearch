@@ -10,6 +10,12 @@ ROW message = "foo ( bar"
 ```
 
 
+```esql
+ROW message = "foobar"
+| WHERE message RLIKE ("foo.*", "bar.")
+```
+
+
 To reduce the overhead of escaping, we suggest using triple quotes strings `"""`
 
 ```esql

@@ -567,7 +567,7 @@ rlikeListDocExample
 required_capability: rlike_with_list_of_patterns
 // tag::rlikeListDocExample[]
 ROW message = "foobar" 
-| WHERE message rlike ("foo.*", "bar.")
+| WHERE message RLIKE ("foo.*", "bar.")
 // end::rlikeListDocExample[]
 ;
 

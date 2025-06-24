@@ -173,8 +173,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
@@ -565,9 +563,6 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testExistsQueryMinimalMapping
   issue: https://github.com/elastic/elasticsearch/issues/129911
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testDenseVectorDynamicMapping
-  issue: https://github.com/elastic/elasticsearch/issues/129928
 
 # Examples:
 #

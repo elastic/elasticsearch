@@ -634,15 +634,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return p -> {
-            boolean[] hasRemotes = { false };
-            p.forEachUp(UnresolvedRelation.class, r -> {
-                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
-                        hasRemotes[0] = true;
-                    }
+            boolean hasRemotes = p.anyMatch(node -> {
+                if (node instanceof UnresolvedRelation r) {
+                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
+                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
+                } else {
+                    return false;
                 }
             });
-            return new LookupJoin(source, p, right, joinFields).setRemote(hasRemotes[0]);
+            return new LookupJoin(source, p, right, joinFields, hasRemotes);
         };
     }
 

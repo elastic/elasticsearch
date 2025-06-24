@@ -86,8 +86,13 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private transient boolean isRemote = false;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
+        this(source, left, right, config, false);
+    }
+
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
         super(source, left, right);
         this.config = config;
+        this.isRemote = isRemote;
     }
 
     public Join(
@@ -235,17 +240,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config);
+        return new Join(source(), left(), right(), config, isRemote);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config);
+        return new Join(source(), left, right, config, isRemote);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right());
+        return Objects.hash(config, left(), right(), isRemote);
     }
 
     @Override
@@ -302,10 +307,5 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     public boolean isRemote() {
         return isRemote;
-    }
-
-    public Join setRemote(boolean remote) {
-        isRemote = remote;
-        return this;
     }
 }

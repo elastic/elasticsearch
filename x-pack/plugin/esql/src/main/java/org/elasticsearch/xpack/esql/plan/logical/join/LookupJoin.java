@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields, boolean isRemote) {
+        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), isRemote);
     }
 
     public LookupJoin(
@@ -43,13 +43,14 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         JoinType type,
         List<Attribute> joinFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        boolean isRemote
     ) {
-        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields));
+        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), isRemote);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
-        super(source, left, right, joinConfig);
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
+        super(source, left, right, joinConfig, isRemote);
     }
 
     /**
@@ -58,12 +59,12 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public LogicalPlan surrogate() {
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config()).setRemote(isRemote());
+        return new Join(source(), left(), right(), config(), isRemote());
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new LookupJoin(source(), left, right, config());
+        return new LookupJoin(source(), left, right, config(), isRemote());
     }
 
     @Override
@@ -76,7 +77,8 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             config().type(),
             config().matchFields(),
             config().leftFields(),
-            config().rightFields()
+            config().rightFields(),
+            isRemote()
         );
     }
 

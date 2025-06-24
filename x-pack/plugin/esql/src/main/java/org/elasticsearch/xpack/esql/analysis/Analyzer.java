@@ -742,7 +742,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
 
                 config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
                 // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run

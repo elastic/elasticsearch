@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIP;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -206,7 +209,9 @@ public class ExpressionWritables {
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
         entries.add(ToGeoPoint.ENTRY);
-        entries.add(ToIP.ENTRY);
+        entries.add(ToIpLeadingZerosDecimal.ENTRY);
+        entries.add(ToIpLeadingZerosOctal.ENTRY);
+        entries.add(ToIpLeadingZerosRejected.ENTRY);
         entries.add(ToInteger.ENTRY);
         entries.add(ToLong.ENTRY);
         entries.add(ToRadians.ENTRY);
@@ -215,6 +220,7 @@ public class ExpressionWritables {
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);
         entries.add(WildcardLike.ENTRY);
+        entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());

@@ -54,6 +54,7 @@ processingCommand
     | joinCommand
     | changePointCommand
     | completionCommand
+    | sampleCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
@@ -76,8 +77,9 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? kind=LIKE pattern=string
-    | valueExpression (NOT)? kind=RLIKE pattern=string
+    : valueExpression (NOT)? LIKE string                               #likeExpression
+    | valueExpression (NOT)? RLIKE string                              #rlikeExpression
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
     ;
 
 matchBooleanExpression
@@ -149,18 +151,21 @@ fromCommand
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
-    | indexString (CAST_OP selectorString)?
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
     ;
 
 selectorString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -351,6 +356,10 @@ changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
+sampleCommand
+    : SAMPLE probability=constant
+    ;
+
 //
 // In development
 //
@@ -378,8 +387,21 @@ joinPredicate
     : valueExpression
     ;
 
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceId=identifierOrParameter)?
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
     ;
 
 completionCommand

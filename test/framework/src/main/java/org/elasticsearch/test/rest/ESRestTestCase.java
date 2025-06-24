@@ -2116,9 +2116,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns a list of the data stream's backing index names.
      */
-    @SuppressWarnings("unchecked")
     protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
-        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        return getDataStreamBackingIndexNames(client(), dataStreamName);
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(RestClient client, String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client, "/_data_stream/" + dataStreamName);
         List<?> dataStreams = (List<?>) response.get("data_streams");
         assertThat(dataStreams.size(), equalTo(1));
         Map<?, ?> dataStream = (Map<?, ?>) dataStreams.get(0);

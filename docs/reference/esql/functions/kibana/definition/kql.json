@@ -32,6 +32,6 @@
   "examples" : [
     "FROM books \n| WHERE KQL(\"author: Faulkner\")\n| KEEP book_no, author \n| SORT book_no "
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

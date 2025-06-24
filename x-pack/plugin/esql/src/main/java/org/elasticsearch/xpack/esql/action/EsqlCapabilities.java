@@ -248,7 +248,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -502,6 +502,11 @@ public class EsqlCapabilities {
         BUCKET_INCLUSIVE_UPPER_BOUND,
 
         /**
+         * Enhanced DATE_TRUNC with arbitrary month and year intervals. (#120302)
+         */
+        DATE_TRUNC_WITH_ARBITRARY_INTERVALS,
+
+        /**
          * Changed error messages for fields with conflicting types in different indices.
          */
         SHORT_ERROR_MESSAGES_FOR_UNSUPPORTED_FIELDS,
@@ -529,7 +534,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -883,6 +888,11 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Support for the {@code leading_zeros} named parameter.
+         */
+        TO_IP_LEADING_ZEROS,
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -928,7 +938,7 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -955,7 +965,35 @@ public class EsqlCapabilities {
         /**
          * MATCH PHRASE function
          */
-        MATCH_PHRASE_FUNCTION;
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support for LIKE operator with a list of patterns
+         */
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE_V3,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
+        /*
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

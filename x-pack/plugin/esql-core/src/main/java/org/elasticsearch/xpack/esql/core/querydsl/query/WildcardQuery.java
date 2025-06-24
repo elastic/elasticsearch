@@ -6,13 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -22,8 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
 public class WildcardQuery extends Query {
 

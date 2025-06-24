@@ -999,7 +999,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         }
 
-        protected void initIndexWriter(RandomIndexWriter indexWriter) {}
+        protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {}
     }
 
     public static class NullIndexReaderManager extends IndexReaderManager {

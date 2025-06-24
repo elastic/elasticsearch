@@ -961,14 +961,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSubquery() {
-        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
-    }
-
-    public void testSubqueryWithPipe() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
     }
 
     public void testBlockComments() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";
         LogicalPlan expected = statement(query);
 
@@ -984,6 +982,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSingleLineComments() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo ) ";
         LogicalPlan expected = statement(query);
 
@@ -1009,16 +1008,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSuggestAvailableSourceCommandsOnParsingError() {
-        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
-            Tuple.tuple("frm foo", "frm"),
-            Tuple.tuple("expln[from bar]", "expln"),
-            Tuple.tuple("not-a-thing logs", "not-a-thing"),
-            Tuple.tuple("high5 a", "high5"),
-            Tuple.tuple("a+b = c", "a+b"),
-            Tuple.tuple("a//hi", "a"),
-            Tuple.tuple("a/*hi*/", "a"),
-            Tuple.tuple("explain ( frm a )", "frm")
-        )) {
+        var cases = new ArrayList<Tuple<String, String>>();
+        cases.add(Tuple.tuple("frm foo", "frm"));
+        cases.add(Tuple.tuple("expln[from bar]", "expln"));
+        cases.add(Tuple.tuple("not-a-thing logs", "not-a-thing"));
+        cases.add(Tuple.tuple("high5 a", "high5"));
+        cases.add(Tuple.tuple("a+b = c", "a+b"));
+        cases.add(Tuple.tuple("a//hi", "a"));
+        cases.add(Tuple.tuple("a/*hi*/", "a"));
+        if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+            cases.add(Tuple.tuple("explain ( frm a )", "frm"));
+        }
+
+        for (Tuple<String, String> queryWithUnexpectedCmd : cases) {
             expectThrows(
                 ParsingException.class,
                 allOf(
@@ -1084,7 +1086,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
-        expectError("explain ( from foo ) metadata _index", "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}");
+        if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+            expectError(
+                "explain ( from foo ) metadata _index",
+                "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}"
+            );
+        }
     }
 
     public void testMetadataFieldMultipleDeclarations() {

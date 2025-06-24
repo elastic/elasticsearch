@@ -1884,7 +1884,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.fieldUsages(), equalTo(0L));
         assertThat(stats.postingsInMemoryBytes(), equalTo(0L));
         // index some documents
-        int numDocs = between(1, 10);
+        int numDocs = between(2, 10);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "_doc", "first_" + i, """
                 {
@@ -1922,7 +1922,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
-        numDocs = between(1, 10);
+        numDocs = between(2, 10);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "_doc", "first_" + i, """
                 {

@@ -104,7 +104,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-            "https://ela.st/es-deprecation-9-transform-destination-index",
+            "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and requires action before upgrading to "
@@ -132,7 +132,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-            "https://ela.st/es-deprecation-9-transform-destination-index",
+            "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and requires action before upgrading to "
@@ -164,7 +164,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
                         + "] and requires action before upgrading to "
@@ -181,7 +181,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
                         + "] and requires action before upgrading to "
@@ -340,7 +340,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-            "https://ela.st/es-deprecation-9-transform-destination-index",
+            "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and will be supported as a read-only index in "
@@ -368,7 +368,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-            "https://ela.st/es-deprecation-9-transform-destination-index",
+            "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and will be supported as a read-only index in "
@@ -400,7 +400,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
                         + "] and will be supported as a read-only index in "
@@ -417,7 +417,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
                         + "] and will be supported as a read-only index in "

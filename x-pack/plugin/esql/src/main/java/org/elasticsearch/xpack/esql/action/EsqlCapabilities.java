@@ -382,7 +382,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -665,7 +665,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -918,11 +918,6 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for FORK command
-         */
-        FORK(Build.current().isSnapshot()),
-
-        /**
          * Support for RERANK command
          */
         RERANK(Build.current().isSnapshot()),
@@ -1038,9 +1033,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support streaming of sub plan results
+         * Support for FORK out of snapshot
          */
-        FORK_V9(Build.current().isSnapshot()),
+        FORK_V9,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1082,7 +1077,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE_V3(Build.current().isSnapshot()),
+        SAMPLE_V3,
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1207,7 +1202,7 @@ public class EsqlCapabilities {
         /**
          * Support parameters for SAMPLE command.
          */
-        PARAMETER_FOR_SAMPLE(Build.current().isSnapshot()),
+        PARAMETER_FOR_SAMPLE,
 
         /**
          * From now, Literal only accepts strings as BytesRefs.
@@ -1215,7 +1210,12 @@ public class EsqlCapabilities {
          *
          * https://github.com/elastic/elasticsearch/issues/129322
          */
-        NO_PLAIN_STRINGS_IN_LITERALS;
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

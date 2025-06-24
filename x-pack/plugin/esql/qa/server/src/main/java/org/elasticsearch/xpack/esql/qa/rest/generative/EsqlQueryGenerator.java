@@ -184,7 +184,7 @@ public class EsqlQueryGenerator {
             };
         }
         // all types
-        name = randomName(previousOutput);
+        name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
         if (name == null) {
             return "count(*)";
         }

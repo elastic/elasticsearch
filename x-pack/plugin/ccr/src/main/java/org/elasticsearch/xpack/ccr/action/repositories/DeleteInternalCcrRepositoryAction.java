@@ -47,7 +47,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
 
         @Override
         protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
-            @FixForMultiProject
+            @FixForMultiProject(description = "resolve the actual projectId, ES-12139")
             final var projectId = ProjectId.DEFAULT;
             repositoriesService.unregisterInternalRepository(projectId, request.getName());
             listener.onResponse(ActionResponse.Empty.INSTANCE);

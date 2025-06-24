@@ -602,7 +602,7 @@ public final class RestoreService implements ClusterStateApplier {
                 return;
             }
 
-            @FixForMultiProject
+            @FixForMultiProject(description = "resolve the actual projectId, ES-10228")
             final var projectId = ProjectId.DEFAULT;
             for (Repository repository : repositoriesService.getProjectRepositories(projectId).values()) {
                 // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we

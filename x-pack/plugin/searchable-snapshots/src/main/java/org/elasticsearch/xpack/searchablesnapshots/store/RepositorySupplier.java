@@ -48,7 +48,7 @@ public class RepositorySupplier implements Supplier<BlobStoreRepository> {
     }
 
     private Repository getRepository() {
-        @FixForMultiProject
+        @FixForMultiProject(description = "resolve the actual projectId, ES-12138")
         final var projectId = ProjectId.DEFAULT;
         if (repositoryUuid == null) {
             // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name

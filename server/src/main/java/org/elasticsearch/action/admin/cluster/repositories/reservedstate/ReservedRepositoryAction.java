@@ -62,7 +62,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
             RepositoriesService.validateRepositoryName(repositoryRequest.name());
-            @FixForMultiProject
+            @FixForMultiProject(description = "resolve the actual projectId, ES-10479")
             final var projectId = ProjectId.DEFAULT;
             repositoriesService.validateRepositoryCanBeCreated(projectId, repositoryRequest);
         }
@@ -76,7 +76,7 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         ClusterState state = prevState.state();
 
-        @FixForMultiProject
+        @FixForMultiProject(description = "resolve the actual projectId, ES-10479")
         final var projectId = ProjectId.DEFAULT;
         for (var request : requests) {
             RepositoriesService.RegisterRepositoryTask task = new RepositoriesService.RegisterRepositoryTask(

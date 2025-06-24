@@ -42,7 +42,6 @@ public interface RepositoryOperation {
      * @param projectId The project that the repository belongs to
      * @param name Name of the repository
      */
-    @FixForMultiProject(description = "move it to its own file")
     record ProjectRepo(ProjectId projectId, String name) implements Writeable {
 
         public ProjectRepo(StreamInput in) throws IOException {

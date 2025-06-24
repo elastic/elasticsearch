@@ -47,7 +47,7 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
 
         @Override
         protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
-            @FixForMultiProject
+            @FixForMultiProject(description = "resolve the actual projectId, ES-12139")
             final var projectId = ProjectId.DEFAULT;
             repositoriesService.registerInternalRepository(projectId, request.getName(), request.getType());
             listener.onResponse(ActionResponse.Empty.INSTANCE);

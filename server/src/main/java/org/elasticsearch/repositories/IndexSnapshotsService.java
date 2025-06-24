@@ -137,7 +137,7 @@ public class IndexSnapshotsService {
     }
 
     private Repository getRepository(String repositoryName) {
-        @FixForMultiProject
+        @FixForMultiProject(description = "resolve the actual projectId, ES-12176")
         final var projectId = ProjectId.DEFAULT;
         return repositoriesService.repositoryOrNull(projectId, repositoryName);
     }

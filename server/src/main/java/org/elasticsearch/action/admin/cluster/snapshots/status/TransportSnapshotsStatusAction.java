@@ -299,7 +299,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     ) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        @FixForMultiProject
+        @FixForMultiProject(description = "resolve the actual projectId, ES-10166")
         final var projectId = ProjectId.DEFAULT;
         repositoriesService.getRepositoryData(projectId, repositoryName, repositoryDataListener);
         final Collection<SnapshotId> snapshotIdsToLoad = new ArrayList<>();

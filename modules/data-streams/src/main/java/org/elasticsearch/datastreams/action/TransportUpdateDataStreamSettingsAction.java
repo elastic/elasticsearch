@@ -131,7 +131,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                             dataStreamName,
                             false,
-                            e.getMessage() != null ? e.getMessage() : e.toString(),
+                            Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
                             EMPTY,
                             EMPTY,
                             UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY

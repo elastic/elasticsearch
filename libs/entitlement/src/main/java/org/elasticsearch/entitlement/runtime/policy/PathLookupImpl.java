@@ -67,11 +67,6 @@ public record PathLookupImpl(
     }
 
     @Override
-    public Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath) {
-        return getBaseDirPaths(baseDir).map(path -> path.resolve(relativePath));
-    }
-
-    @Override
     public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
         List<Path> relativePaths = settingResolver.apply(settingName)
             .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)

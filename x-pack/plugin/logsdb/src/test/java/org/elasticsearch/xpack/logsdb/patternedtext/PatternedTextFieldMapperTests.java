@@ -273,6 +273,11 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testSyntheticSourceKeepArrays() {
+        // This mapper does not allow arrays
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }

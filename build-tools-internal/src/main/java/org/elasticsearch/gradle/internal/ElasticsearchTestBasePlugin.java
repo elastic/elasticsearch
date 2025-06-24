@@ -299,7 +299,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // Agent
             if (agentFiles.isEmpty() == false) {
                 var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-                test.dependsOn(agentFiles);
+                test.getInputs().files(agentFiles);
                 systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
                 systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
             }
@@ -307,7 +307,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // Bridge
             if (bridgeFiles.isEmpty() == false) {
                 String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                test.dependsOn(bridgeFiles);
+                test.getInputs().files(bridgeFiles);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"

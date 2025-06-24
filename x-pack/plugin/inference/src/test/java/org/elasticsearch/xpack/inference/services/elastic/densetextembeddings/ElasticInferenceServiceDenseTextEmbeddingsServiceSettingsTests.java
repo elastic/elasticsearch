@@ -152,7 +152,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = randomBoolean() ? randomIntBetween(1, 1024) : null;
         var maxInputTokens = randomBoolean() ? randomIntBetween(128, 256) : null;
-        var dimensionsSetByUser = randomBoolean();
         var rateLimitSettings = randomBoolean() ? new RateLimitSettings(randomIntBetween(1, 10000)) : null;
 
         return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(

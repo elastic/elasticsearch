@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
@@ -79,15 +80,13 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
         assertThat(services.size(), equalTo(18));
 
-        var providers = providers(services);
-
         assertThat(
             providersFor(TaskType.TEXT_EMBEDDING),
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
                     "amazonbedrock",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
@@ -102,7 +101,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openai",
                     "text_embedding_test_service",
                     "voyageai",
-                    "watsonxai",
+                    "watsonxai"
                 ).toArray()
             )
         );

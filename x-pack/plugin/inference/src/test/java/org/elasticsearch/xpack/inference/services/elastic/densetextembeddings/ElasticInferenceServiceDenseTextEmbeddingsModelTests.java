@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -17,11 +16,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
 
-    public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(
-        String url,
-        String modelId,
-        ChunkingSettings chunkingSettings
-    ) {
+    public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(String url, String modelId) {
         return new ElasticInferenceServiceDenseTextEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,

@@ -152,7 +152,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestTests extends ESTe
         List<String> inputs,
         InputType inputType
     ) {
-        var embeddingsModel = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(url, modelId, null);
+        var embeddingsModel = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(url, modelId);
 
         return new ElasticInferenceServiceDenseTextEmbeddingsRequest(
             embeddingsModel,

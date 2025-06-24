@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
@@ -89,7 +88,6 @@ import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -748,7 +746,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
 
             String productUseCase = "test-product-use-case";
             threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
@@ -788,22 +786,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testChunkedInfer_BatchesCallsChunkingSettingsSet() throws IOException {
-        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(
-            getUrl(webServer),
-            "my-dense-model-id",
-            createRandomChunkingSettings()
-        );
+        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
 
-        testChunkedInfer_BatchesCalls(model);
-    }
-
-    public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id", null);
-
-        testChunkedInfer_BatchesCalls(model);
-    }
-
-    private void testChunkedInfer_BatchesCalls(ElasticInferenceServiceDenseTextEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = createService(senderFactory, getUrl(webServer))) {
@@ -871,12 +855,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 assertArrayEquals(new float[] { 0.987f, -0.654f, 0.321f }, embedding.values(), 0.0f);
             }
 
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(

@@ -65,7 +65,6 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             return plan;
         }
 
-        // Agg with underlying Project (group by on sub-queries)
         if (plan instanceof Aggregate a && child instanceof Project p) {
             var groupings = a.groupings();
 

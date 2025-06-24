@@ -1194,6 +1194,9 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)
         );
+        registerQuery(
+            new QuerySpec<>(MultiFieldMatchQueryBuilder.NAME, MultiFieldMatchQueryBuilder::new, MultiFieldMatchQueryBuilder::fromXContent)
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }

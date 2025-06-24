@@ -1222,7 +1222,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var fieldExtract = as(project.child(), FieldExtractExec.class);
                 var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue));
+                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, expectedValueProvider.apply(queryValue)).lenient(true);
                 assertThat("Unexpected match query for data type " + fieldDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
             } catch (ParsingException e) {
                 fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
@@ -1288,7 +1288,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .boost(2.1f)
             .minimumShouldMatch("2")
             .operator(Operator.AND)
-            .prefixLength(3);
+            .prefixLength(3)
+            .lenient(true);
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
@@ -1952,7 +1953,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
         var stats = as(exchange.child(), EsStatsQueryExec.class);
-        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith");
+        var expected = new MatchQueryBuilder("last_name", "Smith");
+        expected = expected.lenient(true);
         assertThat(stats.query().toString(), equalTo(expected.toString()));
     }
 
@@ -1972,7 +1974,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertTrue(filter.condition() instanceof GreaterThan);
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
-        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith");
+        var expected = new MatchQueryBuilder("last_name", "Smith");
+        expected = expected.lenient(true);
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
@@ -2122,7 +2125,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new MatchQueryBuilder(fieldName(), queryString());
+            return new MatchQueryBuilder(fieldName(), queryString()).lenient(true);
         }
 
         @Override
@@ -2138,7 +2141,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new MatchQueryBuilder(fieldName(), queryString());
+            return new MatchQueryBuilder(fieldName(), queryString()).lenient(true);
         }
 
         @Override

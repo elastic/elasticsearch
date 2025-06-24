@@ -6,7 +6,7 @@ applies_to:
 navigation_title: Vector tile search
 ---
 
-# Vector tile search examples
+# Vector tile search API examples
 
 This page shows how to create an index with geospatial data and retrieve vector tile results using the [vector tile search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-mvt-1). 
 

@@ -80,6 +80,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
+                // For Fleet sync integrations feature
+                "manage_ccr",
                 // For connectors telemetry
                 "monitor_connector",
                 // For the endpoint package that ships a transform

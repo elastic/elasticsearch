@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MultiFieldMatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
@@ -1189,6 +1190,9 @@ public class SearchModule {
         }));
         registerQuery(
             new QuerySpec<>(RandomSamplingQueryBuilder.NAME, RandomSamplingQueryBuilder::new, RandomSamplingQueryBuilder::fromXContent)
+        );
+        registerQuery(
+            new QuerySpec<>(MultiFieldMatchQueryBuilder.NAME, MultiFieldMatchQueryBuilder::new, MultiFieldMatchQueryBuilder::fromXContent)
         );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);

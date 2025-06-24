@@ -200,7 +200,7 @@ POST test/_update/1
 }
 ```
 
-## Upsert [upsert]
+## Insert or update documents with upsert [upsert]
 
 An upsert operation lets you update an existing document or insert a new one if it doesn't exist, in a single request.
 
@@ -218,7 +218,7 @@ POST /test/_update/1
 }
 ```
 
-## Scripted upsert [scripted-upsert]
+## Run a scripted upsert [scripted-upsert]
 
 To run the script whether or not the document exists, set `scripted_upsert` to
 `true`:
@@ -243,7 +243,7 @@ POST test/_update/1
 }
 ```
 
-## Doc as upsert [scripted-upsert]
+## Simplify upsert with doc_as_upsert [doc-as-upsert]
 
 Instead of sending a partial `doc` plus an `upsert` doc, you can set
 `doc_as_upsert` to `true` to use the contents of `doc` as the `upsert`

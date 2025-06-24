@@ -99,15 +99,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             throw validationException;
         }
 
-        return new CohereServiceSettings(
-            uri,
-            similarity,
-            dims,
-            maxInputTokens,
-            resolvedModelId,
-            rateLimitSettings,
-            apiVersion
-        );
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, resolvedModelId, rateLimitSettings, apiVersion);
     }
 
     public static CohereApiVersion apiVersionFromMap(

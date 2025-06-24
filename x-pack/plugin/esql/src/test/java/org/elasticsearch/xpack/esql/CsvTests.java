@@ -40,7 +40,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

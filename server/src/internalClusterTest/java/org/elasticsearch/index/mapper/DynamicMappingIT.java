@@ -920,9 +920,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         client().index(
             new IndexRequest("test").source("vector_int8", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD - 1, 0.0, 5.0).toArray())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).get();
         client().index(
             new IndexRequest("test").source("vector_bbq", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).get();
 
         assertBusy(() -> {
@@ -960,8 +962,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertTrue(new WriteField("properties.vector", () -> mappings).exists());
         assertFalse(new WriteField("properties.vector.index_options.type", () -> mappings).exists());
 
-        client().index(new IndexRequest("test").source("vector", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray()))
-            .get();
+        client().index(
+            new IndexRequest("test").source("vector", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray())
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).get();
 
         assertBusy(() -> {
             Map<String, Object> updatedMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")

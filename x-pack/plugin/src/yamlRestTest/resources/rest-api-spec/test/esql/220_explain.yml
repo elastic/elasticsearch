@@ -1,0 +1,101 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [explain]
+      reason: "new EXPLAIN command"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              color:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+              description:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red", "description": "The color Red" }
+          - { "index": { } }
+          - { "color": "blue", "description": "The color Blue" }
+          - { "index": { } }
+          - { "color": "green", "description": "The color Green" }
+
+---
+explainRow:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'EXPLAIN (row a = 1)'
+
+  - length: { columns: 3 }
+  - match: {columns.0.name: "role"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "type"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "plan"}
+  - match: {columns.2.type: "keyword"}
+  - length: { values: 3 }
+  - match: { values.0.0: "coordinator" }
+  - match: { values.0.1: "parsedPlan" }
+  - match: { values.1.0: "coordinator" }
+  - match: { values.1.1: "optimizedLogicalPlan" }
+  - match: { values.2.0: "coordinator" }
+  - match: { values.2.1: "optimizedPhysicalPlan" }
+
+
+---
+explainQuery:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'EXPLAIN (from test | where color == "red" | eval b = 20)'
+
+  - length: { columns: 3 }
+  - match: {columns.0.name: "role"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "type"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "plan"}
+  - match: {columns.2.type: "keyword"}
+  - length: { values: 3 }
+  - match: { values.0.0: "coordinator" }
+  - match: { values.0.1: "parsedPlan" }
+  - match: { values.1.0: "coordinator" }
+  - match: { values.1.1: "optimizedLogicalPlan" }
+  - match: { values.2.0: "coordinator" }
+  - match: { values.2.1: "optimizedPhysicalPlan" }
+
+
+---
+explainDownstream:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'EXPLAIN (row a = 1) | eval b = 2'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "EXPLAIN does not support downstream commands" }

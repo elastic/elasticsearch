@@ -6,10 +6,21 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
@@ -44,7 +55,24 @@ public class WildcardQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        WildcardQueryBuilder wb = wildcardQuery(field, query);
+        WildcardQueryBuilder wb = new WildcardQueryBuilder(field, query) {
+            @Override
+            protected QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+                if (fieldType instanceof IndexFieldMapper.IndexFieldType) {
+                    String value = value();
+                    String indexName = context.getFullyQualifiedIndex().getName();
+                    if (WildcardQuery.this.caseInsensitive) {
+                        value = value.toLowerCase(Locale.ROOT);
+                        indexName = indexName.toLowerCase(Locale.ROOT);
+                    }
+                    if (Regex.simpleMatch(value, indexName)) {
+                        return new MatchAllQueryBuilder();
+                    }
+                    return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+                }
+                return super.maybeRewriteBasedOnConstantFields(fieldType, context);
+            }
+        };
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? wb : wb.caseInsensitive(caseInsensitive);
     }

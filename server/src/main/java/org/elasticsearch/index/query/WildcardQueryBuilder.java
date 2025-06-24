@@ -213,7 +213,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return maybeRewriteBasedOnConstantFields(fieldType, coordinatorRewriteContext);
     }
 
-    private QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+    protected QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
         if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important

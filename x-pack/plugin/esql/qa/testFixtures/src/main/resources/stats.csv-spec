@@ -3300,6 +3300,7 @@ VARIANCE_POPULATION(languages):double
 variancePopulationGroupedDoublesOnly
 required_capability: std_dev_variations
 FROM employees
+| WHERE languages > 0
 | STATS VARIANCE_POPULATION(height) BY languages
 | SORT languages asc
 ;
@@ -3310,7 +3311,6 @@ VARIANCE_POPULATION(height):double | languages:integer
 0.03569480968858131                | 3
 0.02148024691358024                | 4
 0.03144897959183674                | 5
-0.061829                           | null
 ;
 
 variancePopulationGroupedAllTypes
@@ -3354,6 +3354,7 @@ VARIANCE_POPULATION(salary_change):double
 variancePopulationFilter
 required_capability: std_dev_variations
 FROM employees
+| WHERE gender == "M" OR gender == "F"
 | STATS greater_than = VARIANCE_POPULATION(salary_change) WHERE languages > 3
 , less_than = VARIANCE_POPULATION(salary_change) WHERE languages <= 3
 , salary = VARIANCE_POPULATION(salary * 2)
@@ -3364,7 +3365,6 @@ FROM employees
 greater_than:double | less_than:double  | salary:double       | count:long | gender:keyword
 41.6583330898466    | 57.42408172635445 | 8.436567936382E8    | 33         | F
 48.65386611177169   | 43.62347650520595 | 6.849385720504771E8 | 57         | M
-48.291479289940824  | 50.7974           | 7.795945674E8       | 10         | null
 ;
 
 variancePopulationRow
@@ -3494,6 +3494,7 @@ VARIANCE_SAMPLE(salary_change):double
 varianceSampleFilter
 required_capability: std_dev_variations
 FROM employees
+| WHERE gender == "M" OR gender == "F"
 | STATS greater_than = VARIANCE_SAMPLE(salary_change) WHERE languages > 3
 , less_than = VARIANCE_SAMPLE(salary_change) WHERE languages <= 3
 , salary = VARIANCE_SAMPLE(salary * 2)
@@ -3504,7 +3505,6 @@ FROM employees
 greater_than:double | less_than:double  | salary:double       | count:long | gender:keyword
 42.815509009009006  | 59.21858428030303 | 8.700210684393938E8 | 33         | F
 50.391504187192105  | 44.5718129509713  | 6.9716961797995E8   | 57         | M
-52.31576923076923   | 57.147075         | 8.66216186E8        | 10         | null
 ;
 
 varianceSampleRow

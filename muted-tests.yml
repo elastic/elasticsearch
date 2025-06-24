@@ -568,6 +568,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testExistsQueryMinimalMapping
   issue: https://github.com/elastic/elasticsearch/issues/129911
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDenseVectorDynamicMapping
+  issue: https://github.com/elastic/elasticsearch/issues/129928
 
 # Examples:
 #

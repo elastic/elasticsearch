@@ -258,7 +258,8 @@ public class InternalEngine extends Engine {
             mergeScheduler = createMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPoolMergeExecutorService()
+                engineConfig.getThreadPoolMergeExecutorService(),
+                engineConfig.getMergeMetrics()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle(pauseIndexingOnThrottle);
@@ -2909,10 +2910,11 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics
     ) {
         if (threadPoolMergeExecutorService != null) {
-            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
@@ -2922,9 +2924,10 @@ public class InternalEngine extends Engine {
         EngineThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMetrics mergeMetrics
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, mergeMetrics);
         }
 
         @Override

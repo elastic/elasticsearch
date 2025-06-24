@@ -111,13 +111,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     // TODO: think how to handle this better
-    public static final Set<String> LOOKUP_JOIN_AFTER_STATS_TESTS = Set.of(
+    public static final Set<String> NO_REMOTE_LOOKUP_JOIN_TESTS = Set.of(
+        // Lookup join after STATS is not supported in CCS yet
         "StatsAndLookupIPAndMessageFromIndex",
         "JoinMaskingRegex",
         "StatsAndLookupIPFromIndex",
         "StatsAndLookupMessageFromIndex",
         "MvJoinKeyOnTheLookupIndexAfterStats",
-        "MvJoinKeyOnFromAfterStats"
+        "MvJoinKeyOnFromAfterStats",
+        // Lookup join after SORT is not supported in CCS yet
+        "SortBeforeAndAfterJoin",
+        "SortEvalBeforeLookup",
+        "NullifiedJoinKeyToPurgeTheJoin",
+        "SortBeforeAndAfterMultipleJoinAndMvExpand"
     );
 
     @Override
@@ -149,9 +155,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("FORK not yet supported in CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(
-            "LOOKUP JOIN after stats not yet supported in CCS",
-            LOOKUP_JOIN_AFTER_STATS_TESTS.stream().anyMatch(testName::contains)
+            "This syntax is not supported with remote LOOKUP JOIN",
+            NO_REMOTE_LOOKUP_JOIN_TESTS.stream().anyMatch(testName::contains)
         );
+        // Tests that do SORT before LOOKUP JOIN - not supported in CCS
+        assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
+
     }
 
     @Override

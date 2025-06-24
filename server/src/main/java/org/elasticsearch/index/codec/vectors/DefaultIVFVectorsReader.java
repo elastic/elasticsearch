@@ -151,6 +151,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         };
     }
 
+    // FIXME: clean up duplicative code between the scorers
     @Override
     CentroidQueryScorerWChildren getCentroidScorerWChildren(
         FieldInfo fieldInfo,
@@ -173,8 +174,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new CentroidQueryScorerWChildren() {
             int currentCentroid = -1;
-            private final byte[] quantizedCentroid = new byte[fieldInfo.getVectorDimension()];
-            private final float[] centroid = new float[fieldInfo.getVectorDimension()];
             private final float[] centroidCorrectiveValues = new float[3];
             private final long quantizedVectorByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
             private final long parentNodeByteSize = quantizedVectorByteSize + 2 * Integer.BYTES;
@@ -234,12 +233,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             private float score() throws IOException {
                 final float qcDist = scorer.int4DotProduct(quantized);
                 centroids.readFloats(centroidCorrectiveValues, 0, 3);
+                final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
 
                 // FIXME: move these now? to a different place in the file?
+                // TODO: cache these at this point when scoring since we'll likely read many of them?
                 centroids.readInt(); // child partition start
                 centroids.readInt(); // child partition count
 
-                final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
                 return int4QuantizedScore(
                     qcDist,
                     queryParams,

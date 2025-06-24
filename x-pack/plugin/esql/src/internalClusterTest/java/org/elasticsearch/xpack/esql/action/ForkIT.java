@@ -1007,7 +1007,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                ( WHERE content:"fox" )
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork requires at least two branches"));
+        assertTrue(e.getMessage().contains("Fork requires at least 2 branches"));
     }
 
     public void testForkWithinFork() {
@@ -1045,6 +1045,17 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
             );
         }
+    }
+
+    public void testWithTooManySubqueries() {
+        var query = """
+            FROM test
+            | FORK (WHERE true) (WHERE true) (WHERE true) (WHERE true) (WHERE true)
+                   (WHERE true) (WHERE true) (WHERE true) (WHERE true)
+            """;
+        var e = expectThrows(ParsingException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Fork requires less than 8 branches"));
+
     }
 
     private void createAndPopulateIndices() {

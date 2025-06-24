@@ -36,13 +36,19 @@ import java.util.stream.Collectors;
 public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
+    public static final int MAX_BRANCHES = 8;
+    public static final int MIN_BRANCHES = 2;
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() < 2) {
-            throw new IllegalArgumentException("requires more than two subqueries, got:" + children.size());
+        if (children.size() < MIN_BRANCHES) {
+            throw new IllegalArgumentException("FORK requires more than " + MIN_BRANCHES + " branches, got: " + children.size());
         }
+        if (children.size() > MAX_BRANCHES) {
+            throw new IllegalArgumentException("FORK requires less than " + MAX_BRANCHES + " subqueries, got: " + children.size());
+        }
+
         this.output = output;
     }
 

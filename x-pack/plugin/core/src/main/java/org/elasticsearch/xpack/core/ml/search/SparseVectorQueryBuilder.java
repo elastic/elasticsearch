@@ -128,8 +128,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         super(in);
         this.fieldName = in.readString();
 
-        if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)) {
+        if (in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -184,8 +183,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         out.writeString(fieldName);
 
-        if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)) {
+        if (out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
             out.writeBoolean(shouldPruneTokens);

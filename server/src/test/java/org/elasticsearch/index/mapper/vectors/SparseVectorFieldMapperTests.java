@@ -55,8 +55,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
-import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_9_12_2;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X;
@@ -266,7 +266,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testDefaultsWithAndWithoutIncludeDefaultsOlderIndexVersion() throws Exception {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            UPGRADE_TO_LUCENE_9_12_2,
+            NEW_SPARSE_VECTOR,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X)
         );
 
@@ -761,7 +761,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testTypeQueryFinalizationDefaultsPreviousVersion() throws Exception {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
-            UPGRADE_TO_LUCENE_9_12_2,
+            NEW_SPARSE_VECTOR,
             IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
         );
         MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
@@ -908,7 +908,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         return usePreviousIndex
             ? IndexVersionUtils.randomVersionBetween(
                 random(),
-                UPGRADE_TO_LUCENE_9_12_2,
+                NEW_SPARSE_VECTOR,
                 IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X)
             )
             : IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersion.current());

@@ -398,7 +398,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     private static boolean indexVersionSupportsDefaultPruningConfig(IndexVersion indexVersion) {
-        // default pruning for 9.1.0+ or 8.19.0+ is true for this index
         return indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X);
     }
 

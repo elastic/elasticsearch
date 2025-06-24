@@ -56,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
-import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X;
@@ -762,7 +761,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
             NEW_SPARSE_VECTOR,
-            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X)
+            IndexVersionUtils.getPreviousVersion(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X)
         );
         MapperService mapperService = createMapperService(version, fieldMapping(this::minimalMapping));
 

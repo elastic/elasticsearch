@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -407,10 +408,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                thrownException.getMessage(),
-                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
-            );
+            assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

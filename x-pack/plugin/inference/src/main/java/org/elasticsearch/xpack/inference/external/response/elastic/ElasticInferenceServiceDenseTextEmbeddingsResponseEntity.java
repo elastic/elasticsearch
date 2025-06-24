@@ -73,17 +73,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsResponseEntity {
 
         static {
             // Custom field declaration to handle array of arrays format
-            PARSER.declareField(
-                constructorArg(),
-                (parser, context) -> {
-                    return XContentParserUtils.parseList(parser, (p, index) -> {
-                        List<Float> embedding = XContentParserUtils.parseList(p, (innerParser, innerIndex) -> innerParser.floatValue());
-                        return EmbeddingFloatResultEntry.fromFloatArray(embedding);
-                    });
-                },
-                new ParseField("data"),
-                org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_ARRAY
-            );
+            PARSER.declareField(constructorArg(), (parser, context) -> {
+                return XContentParserUtils.parseList(parser, (p, index) -> {
+                    List<Float> embedding = XContentParserUtils.parseList(p, (innerParser, innerIndex) -> innerParser.floatValue());
+                    return EmbeddingFloatResultEntry.fromFloatArray(embedding);
+                });
+            }, new ParseField("data"), org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT_ARRAY);
         }
 
         public TextEmbeddingFloatResults toTextEmbeddingFloatResults() {

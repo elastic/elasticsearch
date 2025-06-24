@@ -41,6 +41,10 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                     {
                       "model_name": "elser-v2",
                       "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "rerank-v1",
+                      "task_types": ["rerank/text/text-similarity"]
                     }
                 ]
             }

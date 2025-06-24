@@ -371,9 +371,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
         }
         if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {

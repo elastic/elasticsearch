@@ -104,7 +104,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             similarity,
             dims,
             maxInputTokens,
-            modelId(oldModelId, modelId),
+            resolvedModelId,
             rateLimitSettings,
             apiVersion
         );

@@ -54,8 +54,8 @@ _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/
 ## Data management
 
 * [Data management](docs-content://manage-data/lifecycle.md)
-* [Downsampling](docs-content://manage-data/lifecycle)
-* [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore)
+* [Downsampling](docs-content://manage-data/lifecycle.md)
+* [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md)
 
 ## APIs and developer docs
 

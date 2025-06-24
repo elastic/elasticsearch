@@ -531,6 +531,6 @@
   "examples" : [
     "FROM books \n| WHERE MATCH(author, \"Faulkner\")"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

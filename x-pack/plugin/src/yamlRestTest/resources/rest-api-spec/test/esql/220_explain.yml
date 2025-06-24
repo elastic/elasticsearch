@@ -97,5 +97,5 @@ explainDownstream:
           query: 'EXPLAIN (row a = 1) | eval b = 2'
       catch: "bad_request"
 
-  - match: { error.type: "verification_exception" }
+  - match: { error.type: "parsing_exception" }
   - contains: { error.reason: "EXPLAIN does not support downstream commands" }

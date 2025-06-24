@@ -278,18 +278,18 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
         Project agent = project.findProject(":libs:entitlement:agent");
         if (agent != null) {
-            agentJarConfig.defaultDependencies(deps -> {
-                deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent", "configuration", "default")));
-            });
+            agentJarConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent"))); }
+            );
         }
         FileCollection agentFiles = agentJarConfig;
 
         Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
         Project bridge = project.findProject(":libs:entitlement:bridge");
         if (bridge != null) {
-            bridgeJarConfig.defaultDependencies(deps -> {
-                deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge", "configuration", "default")));
-            });
+            bridgeJarConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
+            );
         }
         FileCollection bridgeFiles = bridgeJarConfig;
 

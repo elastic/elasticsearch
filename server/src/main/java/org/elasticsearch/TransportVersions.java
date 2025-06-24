@@ -319,7 +319,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = def(9_106_0_00);
     public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = def(9_107_0_00);
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
-    public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_109_0_00);  
+    public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_109_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -7,25 +7,35 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.elasticsearch.common.CheckedSupplier;
+import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
+public record CohereAccount(URI baseUri, SecureString apiKey) {
 
-public record CohereAccount(URI uri, SecureString apiKey) {
-
-    public static CohereAccount of(CohereModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        var uri = buildUri(model.uri(), "Cohere", uriBuilder);
-
-        return new CohereAccount(uri, model.apiKey());
+    public static CohereAccount of(CohereModel model) {
+        try {
+            var uri = model.baseUri() != null ? model.baseUri() : new URIBuilder().setScheme("https").setHost(CohereUtils.HOST).build();
+            return new CohereAccount(uri, model.apiKey());
+        } catch (URISyntaxException e) {
+            // using bad request here so that potentially sensitive URL information does not get logged
+            throw new ElasticsearchStatusException(
+                Strings.format("Failed to construct %s URL", CohereService.NAME),
+                RestStatus.BAD_REQUEST,
+                e
+            );
+        }
     }
 
     public CohereAccount {
-        Objects.requireNonNull(uri);
+        Objects.requireNonNull(baseUri);
         Objects.requireNonNull(apiKey);
     }
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
@@ -130,6 +131,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         final String value = context.parser().textOrNull();
         if (value == null) {
             return;
+        }
+
+        var existingValue = context.doc().getField(fieldType().name());
+        if (existingValue != null) {
+            throw new IllegalArgumentException("Multiple values are not allowed for field [" + fieldType().name() + "].");
         }
 
         // Parse template and args.

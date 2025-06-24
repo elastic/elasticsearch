@@ -308,5 +308,26 @@ tsdb:
         "dimension" : "a"
         foo: "Apache Lucene powers Elasticsearch"
 
+---
+Multiple values:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: patterned_text
+  - do:
+      catch: bad_request
+      index:
+        index: test1
+        id: "1"
+        body: {
+          "foo": [
+            "Found 5 errors for service [cheddar1]",
+            "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]"
+          ]
+        }
 
 

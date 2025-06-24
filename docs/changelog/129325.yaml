@@ -1,0 +1,6 @@
+pr: 129325
+summary: Check for model deployment in inference endpoints before stopping
+area: Machine Learning
+type: bug
+issues:
+ - 128549

@@ -2,9 +2,6 @@ tests:
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: org.elasticsearch.smoketest.WatcherYamlRestIT
-  method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
-  issue: https://github.com/elastic/elasticsearch/issues/112189
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -105,9 +102,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/118217
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -448,9 +442,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
-- class: org.elasticsearch.xpack.esql.action.ForkIT
-  method: testProfile
-  issue: https://github.com/elastic/elasticsearch/issues/128377
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
   method: testTimestampFilterFromQuery
   issue: https://github.com/elastic/elasticsearch/issues/127332
@@ -472,15 +463,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test040JavaUsesTheOsProvidedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/128230
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128799
-- class: org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormatTests
-  method: testSimpleOffHeapSizeFSDir
-  issue: https://github.com/elastic/elasticsearch/issues/128800
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIOUsed
-  issue: https://github.com/elastic/elasticsearch/issues/128829
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test150MachineDependentHeap
   issue: https://github.com/elastic/elasticsearch/issues/128120
@@ -514,24 +496,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.MultipleBatches*
   issue: https://github.com/elastic/elasticsearch/issues/129210
-- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
-  method: testScaleDuringSplitOrClone
-  issue: https://github.com/elastic/elasticsearch/issues/129335
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsMixedCaseAccess
   issue: https://github.com/elastic/elasticsearch/issues/129167
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testWindowsAbsolutPathAccess
   issue: https://github.com/elastic/elasticsearch/issues/129168
-- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
-  method: testCaseInsensitiveEquality {KEYWORD}
-  issue: https://github.com/elastic/elasticsearch/issues/129422
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129447
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/129453
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
@@ -550,18 +523,51 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToRolloverStep
-  issue: https://github.com/elastic/elasticsearch/issues/129489
-- class: org.elasticsearch.xpack.ilm.TimeseriesMoveToStepIT
-  method: testMoveToAllocateStep
-  issue: https://github.com/elastic/elasticsearch/issues/129490
-- class: org.elasticsearch.xpack.ilm.actions.ShrinkActionIT
-  method: testShrinkDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/129491
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
   issue: https://github.com/elastic/elasticsearch/issues/129481
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {knn-function.KnnSearchWithKOption SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/129512
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
+  method: testIORateIsAdjustedForAllRunningMergeTasks
+  issue: https://github.com/elastic/elasticsearch/issues/129531
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/129533
+- class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
+  method: testSnapshotUpgrader
+  issue: https://github.com/elastic/elasticsearch/issues/98560
+- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
+  method: testBuiltInRolesSyncedOnClusterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/129534
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/129517
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/129651
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/129752
+- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
+  method: testUpdatingFileBasedRoleAffectsAllProjects
+  issue: https://github.com/elastic/elasticsearch/issues/129775
+- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
+  method: testLuceneVersionConstant
+  issue: https://github.com/elastic/elasticsearch/issues/125638
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/129819
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testAbortingOrRunningMergeTaskHoldsUpBudget
+  issue: https://github.com/elastic/elasticsearch/issues/129823
+- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
+  method: testPreload
+  issue: https://github.com/elastic/elasticsearch/issues/129852
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
+  issue: https://github.com/elastic/elasticsearch/issues/129845
 
 # Examples:
 #

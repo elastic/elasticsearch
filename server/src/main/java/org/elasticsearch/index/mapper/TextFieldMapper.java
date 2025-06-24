@@ -311,7 +311,7 @@ public final class TextFieldMapper extends FieldMapper {
             // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
             this.withinMultiField = withinMultiField;
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)) {
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                     return isSyntheticSourceEnabled
                         && this.withinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -327,6 +327,14 @@ public final class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+        }
+
+        public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
+                || indexCreatedVersion.between(
+                    IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                );
         }
 
         public Builder index(boolean index) {

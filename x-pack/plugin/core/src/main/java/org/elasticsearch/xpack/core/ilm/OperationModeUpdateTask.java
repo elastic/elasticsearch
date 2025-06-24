@@ -87,10 +87,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        ProjectMetadata newProject = currentState.metadata().getProject(projectId);
-        newProject = updateILMState(newProject);
+        ProjectMetadata oldProject = currentState.metadata().getProject(projectId);
+        ProjectMetadata newProject = updateILMState(oldProject);
         newProject = updateSLMState(newProject);
-        if (newProject == currentState.metadata().getProject(projectId)) {
+        if (newProject == oldProject) {
             return currentState;
         }
         return ClusterState.builder(currentState).putProjectMetadata(newProject).build();

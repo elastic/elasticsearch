@@ -60,8 +60,7 @@ public class BQSpaceUtils {
 
     /**
      * Same as {@link #transposeHalfByte(byte[], byte[])} but the input vector is provided as
-     * an array of integers.This is useful when using {@link OptimizedScalarQuantizer#scalarQuantizeToInts(float[], int[], byte, float[])}
-     * which performs better than the byte version.
+     * an array of integers.
      *
      * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
      * @param quantQueryByte the byte array to store the transposed query vector

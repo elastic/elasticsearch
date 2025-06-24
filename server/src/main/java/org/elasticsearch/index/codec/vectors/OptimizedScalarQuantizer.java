@@ -57,7 +57,7 @@ public class OptimizedScalarQuantizer {
 
     public record QuantizationResult(float lowerInterval, float upperInterval, float additionalCorrection, int quantizedComponentSum) {}
 
-    public QuantizationResult[] multiScalarQuantize(float[] vector, byte[][] destinations, byte[] bits, float[] centroid) {
+    public QuantizationResult[] multiScalarQuantize(float[] vector, int[][] destinations, byte[] bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert bits.length == destinations.length;
@@ -79,18 +79,14 @@ public class OptimizedScalarQuantizer {
             // Linearly scale the interval to the standard deviation of the vector, ensuring we are within the min/max bounds
             initInterval(bits[i], vecStd, vecMean, min, max, intervalScratch);
             optimizeIntervals(intervalScratch, vector, norm2, points);
-            float nSteps = ((1 << bits[i]) - 1);
-            float a = intervalScratch[0];
-            float b = intervalScratch[1];
-            float step = (b - a) / nSteps;
-            int sumQuery = 0;
             // Now we have the optimized intervals, quantize the vector
-            for (int h = 0; h < vector.length; h++) {
-                float xi = (float) clamp(vector[h], a, b);
-                int assignment = Math.round((xi - a) / step);
-                sumQuery += assignment;
-                destinations[i][h] = (byte) assignment;
-            }
+            int sumQuery = ESVectorUtil.quantizeVectorWithIntervals(
+                vector,
+                destinations[i],
+                intervalScratch[0],
+                intervalScratch[1],
+                bits[i]
+            );
             results[i] = new QuantizationResult(
                 intervalScratch[0],
                 intervalScratch[1],
@@ -101,7 +97,7 @@ public class OptimizedScalarQuantizer {
         return results;
     }
 
-    public QuantizationResult scalarQuantize(float[] vector, byte[] destination, byte bits, float[] centroid) {
+    public QuantizationResult legacyScalarQuantize(float[] vector, byte[] destination, byte bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;
@@ -141,7 +137,7 @@ public class OptimizedScalarQuantizer {
         );
     }
 
-    public QuantizationResult scalarQuantizeToInts(float[] vector, int[] destination, byte bits, float[] centroid) {
+    public QuantizationResult scalarQuantize(float[] vector, int[] destination, byte bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);
         assert vector.length <= destination.length;

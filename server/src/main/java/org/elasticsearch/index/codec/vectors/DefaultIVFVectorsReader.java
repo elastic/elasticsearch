@@ -52,13 +52,17 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final byte[] quantized = new byte[targetQuery.length];
+        final int[] scratch = new int[targetQuery.length];
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
             ArrayUtil.copyArray(targetQuery),
-            quantized,
+            scratch,
             (byte) 4,
             fieldEntry.globalCentroid()
         );
+        final byte[] quantized = new byte[targetQuery.length];
+        for (int i = 0; i < quantized.length; i++) {
+            quantized[i] = (byte) scratch[i];
+        }
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
@@ -344,7 +348,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                     VectorUtil.l2normalize(scratch);
                 }
-                queryCorrections = quantizer.scalarQuantizeToInts(scratch, quantizationScratch, (byte) 4, centroid);
+                queryCorrections = quantizer.scalarQuantize(scratch, quantizationScratch, (byte) 4, centroid);
                 transposeHalfByte(quantizationScratch, quantizedQueryScratch);
                 quantized = true;
             }

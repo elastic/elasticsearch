@@ -234,6 +234,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
         });
         configureImmutableCollectionsPatch(project);
+        configureEntitlements(project);
     }
 
     private void configureImmutableCollectionsPatch(Project project) {
@@ -273,4 +274,48 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 );
         });
     }
+
+    private static void configureEntitlements(Project project) {
+        Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
+        Project agent = project.findProject(":libs:entitlement:agent");
+        if (agent != null) {
+            agentJarConfig.defaultDependencies(deps -> {
+                deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent", "configuration", "default")));
+            });
+        }
+        FileCollection agentFiles = agentJarConfig;
+
+        Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
+        Project bridge = project.findProject(":libs:entitlement:bridge");
+        if (bridge != null) {
+            bridgeJarConfig.defaultDependencies(deps -> {
+                deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge", "configuration", "default")));
+            });
+        }
+        FileCollection bridgeFiles = bridgeJarConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+
+            // Agent
+            if (agentFiles.isEmpty() == false) {
+                var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
+                test.dependsOn(agentFiles);
+                systemProperties.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                systemProperties.systemProperty("jdk.attach.allowAttachSelf", true);
+            }
+
+            // Bridge
+            if (bridgeFiles.isEmpty() == false) {
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                test.dependsOn(bridgeFiles);
+                // Tests may not be modular, but the JDK still is
+                test.jvmArgs(
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
+                );
+            }
+        });
+    }
+
 }

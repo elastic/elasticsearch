@@ -38,7 +38,6 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -227,8 +226,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-                    FileCollection mainRuntime = requireNonNull(mainSourceSet).getRuntimeClasspath();
-                    FileCollection testRuntime = requireNonNull(testSourceSet).getRuntimeClasspath();
+                    FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                    FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });

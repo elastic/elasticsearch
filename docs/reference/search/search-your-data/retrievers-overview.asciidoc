@@ -27,8 +27,8 @@ Returns top documents from a <<search-api-knn,knn search>>, in the context of a 
 Combines the top results from multiple sub-retrievers using a weighted sum of their scores. Allows to specify different
 weights for each retriever, as well as independently normalize the scores from each result set.
 
-  [discrete]
-  [[retrievers-overview-linear-retriever-parameters]]
+[discrete]
+[[retrievers-overview-linear-retriever-parameters]]
 ==== Linear Retriever Parameters
 
 `retrievers`
@@ -69,9 +69,9 @@ Applies <<query-rules,query rules>> to the query before returning results.
 * <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>.
 Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
-* <<pinned-retriever,*Pinned Retriever*>>.
+* <<retrievers-overview-pinned-retriever-parameters,*Pinned Retriever*>>.
 Returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever.
-[[pinned-retriever]]
+
 [discrete]
 [[retrievers-overview-pinned-retriever-parameters]]
 ==== Pinned Retriever Parameters

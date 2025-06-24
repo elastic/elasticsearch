@@ -50,10 +50,8 @@ configure(childProjects.values()) {
   // Omit oddball libraries that aren't in server.
   def nonServerLibs = Set.of('plugin-scanner')
   if (false == nonServerLibs.contains(project.name)) {
-    project.getTasks().withType(Test.class).configureEach(test -> {
-      if (List.of('test').contains(test.getName())) {
-        test.systemProperty('es.entitlement.enableForTests', 'true')
-      }
+    project.getTasks().withType(Test.class).matching(test -> List.of('test').contains(test.getName())).configureEach(test -> {
+      test.systemProperty('es.entitlement.enableForTests', 'true')
     })
   }
 

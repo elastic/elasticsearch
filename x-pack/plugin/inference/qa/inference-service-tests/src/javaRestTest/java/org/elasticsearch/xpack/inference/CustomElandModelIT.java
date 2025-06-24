@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CustomElandModelIT extends InferenceBaseRestTest {
 
@@ -90,6 +93,47 @@ public class CustomElandModelIT extends InferenceBaseRestTest {
         var results = infer(inferenceId, List.of("washing", "machine"));
         deleteModel(inferenceId);
         assertNotNull(results.get("sparse_embedding"));
+    }
+
+    public void testCannotStopDeployment() throws IOException {
+        String modelId = "custom-model-that-cannot-be-stopped";
+
+        createTextExpansionModel(modelId, client());
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE, client());
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId,
+            client()
+        );
+
+        var inferenceConfig = """
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "model_id": "custom-model-that-cannot-be-stopped",
+                "num_allocations": 1,
+                "num_threads": 1
+              }
+            }
+            """;
+
+        var inferenceId = "sparse-inf";
+        putModel(inferenceId, inferenceConfig, TaskType.SPARSE_EMBEDDING);
+        infer(inferenceId, List.of("washing", "machine"));
+
+        // Stopping the deployment using the ML trained models API should fail
+        // because the deployment was created by the inference endpoint API
+        String stopEndpoint = org.elasticsearch.common.Strings.format("_ml/trained_models/%s/deployment/_stop?error_trace", inferenceId);
+        Request stopRequest = new Request("POST", stopEndpoint);
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(stopRequest));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot stop deployment [sparse-inf] as it was created by inference endpoint [sparse-inf]")
+        );
+
+        // Force stop works
+        String forceStopEndpoint = org.elasticsearch.common.Strings.format("_ml/trained_models/%s/deployment/_stop?force", inferenceId);
+        assertStatusOkOrCreated(client().performRequest(new Request("POST", forceStopEndpoint)));
     }
 
     static void createTextExpansionModel(String modelId, RestClient client) throws IOException {

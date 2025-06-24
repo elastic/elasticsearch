@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.internal.hppc.IntIntHashMap;
-
 import java.util.Arrays;
 
 /**
@@ -20,9 +18,7 @@ public class KMeansResult {
     private float[][] centroids;
     private final int[] assignments;
     private int[] soarAssignments;
-
-    // FIXME: clean this up
-    public int[] layer1;
+    private int[] parentLayer;
 
     KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
         assert centroids != null;
@@ -31,10 +27,8 @@ public class KMeansResult {
         this.centroids = centroids;
         this.assignments = assignments;
         this.soarAssignments = soarAssignments;
-
-        // FIXME: clean this up
-        this.layer1 = new int[centroids.length];
-        Arrays.fill(this.layer1, -1);
+        this.parentLayer = new int[centroids.length];
+        Arrays.fill(this.parentLayer, -1);
     }
 
     public float[][] centroids() {
@@ -55,5 +49,13 @@ public class KMeansResult {
 
     public int[] soarAssignments() {
         return soarAssignments;
+    }
+
+    void setParentLayer(int[] centroids) {
+        this.parentLayer = centroids;
+    }
+
+    public int[] parentLayer() {
+        return parentLayer;
     }
 }

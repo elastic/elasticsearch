@@ -278,51 +278,31 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             globalCentroid[j] /= centroids.length;
         }
 
-        // FIXME: can we sort while constructing the hkmeans structure?
-        // FIXME: clean up and can we not have a centroidOrds?
+        // TODO: sort while constructing the hkmeans structure
+        // we do this so we don't have to sort the assignments which is much more expensive
         int[] centroidOrds = new int[centroids.length];
         for(int i = 0; i < centroidOrds.length; i++) {
             centroidOrds[i] = i;
         }
 
-//        int[] distanceApprox = new int[centroidOrds.length];
-//        for(int i = 0; i < centroidOrds.length; i++) {
-//            distanceApprox[i] = (int) VectorUtil.squareDistance(globalCentroid, centroids[i]);
-//        }
-
-//        int[] randomOrdering = new int[centroids.length];
-//        Random random = new Random();
-//        for(int i = 0; i < centroidOrds.length; i++) {
-//            randomOrdering[i] = random.nextInt();
-//            randomOrdering[i] = centroidOrds.length - i;
-//        }
-
-        // sort so we can write centroids together in their partitions and subsequently read up chunks of centroids
-//        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, randomOrdering);
-        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, kMeansResult.layer1);
-//        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, distanceApprox);
+        // TODO: sort by global centroids as well
+        // TODO: have this take a function instead of just an int[] for sorting
+        AssignmentArraySorter sorter = new AssignmentArraySorter(centroids, centroidOrds, kMeansResult.parentLayer());
         sorter.sort(0, centroids.length);
 
-        // FIXME: compute and write out the top level centroids as well before each of the groups of centroids
-
-        // FIXME: since the layer1 has been sorted should be able to act on groups of these when computing the parent centroids
-        // the -1 centroids (that have no further partitioning) are their own centroids
-        // and we'll essentially compare them the same on search
-        // the non -1 centroids have structure and we'll respect that by computing a parent
-        // partition centroid and writing it out for comparison prior to comparing any other centroids
         List<CentroidPartition> centroidPartitions = new ArrayList<>();
-        for(int i = 0; i < kMeansResult.layer1.length;) {
-            // for any layer that was not partitioned we treat it as both a parent and a child node subsequently
-            if(kMeansResult.layer1[i] == -1) {
+        for(int i = 0; i < kMeansResult.parentLayer().length;) {
+            // for any layer that was not partitioned we treat it duplicatively as a parent and child
+            if(kMeansResult.parentLayer()[i] == -1) {
                 centroidPartitions.add(new CentroidPartition(centroids[i], i, 1));
                 i++;
             } else {
-                int label = kMeansResult.layer1[i];
+                int label = kMeansResult.parentLayer()[i];
                 int totalCentroids = 0;
                 float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
                 int j = i;
-                for (; j < kMeansResult.layer1.length; j++) {
-                    if(kMeansResult.layer1[j] != label) {
+                for (; j < kMeansResult.parentLayer().length; j++) {
+                    if(kMeansResult.parentLayer()[j] != label) {
                         break;
                     }
                     for (int k = 0; k < parentPartitionCentroid.length; k++) {
@@ -339,54 +319,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
-        // FIXME: write out parent partition centroids as well as where the child centroids begin and the total number of them
-
-        // FIXME: write this as one file structured like this:
-        // node(type[parent/child]), quantized_value, partition offset, partition size)
-
-        // node_meta_pointer, quantized vectors,
-
-        // currently it's:
-        // all quantized vectors, all float vectors
-        // we want to transition to something that can be read in bulk without seeking around a lot
-
-        // move to:
-        // each quantized vector, each float vector
-
-        // in addition to this we will now also need to know if something is a leaf or not
-        // all centroids exist as a leaf
-        // some centroids have parent nodes
-        // all entries will now need to know if they are parents or children
-        // additionally all parent nodes will need a pointer to the batch of children (ordinal of centroid and total number of centroids)
-
-        // pnode(quantized_vector_values, partition_offset, partition_size) for every parent node every child that doesn't have a parent
-        // if partition size == -1 then it's a child and partition offset points to it's single float vector
-
-        // pnodes, float_vectors
-
-        // p0(pq0, 0, 5), p1(q1, 6, 1), q0, q1, q2, q3, q4, q5, f0, f1, f2, f3, f4, f5
-        // FIXME: the downside of this is it duplicates q1
-        // is it possible to encode this structure without duplicating q1
-
-        //sort p by distance to global centroid
-
-        // meta: num_parent_centroids?
-        // p0(0, 2), p1(2, 3), p2(5, 1), p3(6, 2), pq0, pq1, pq3, q0, q1, q2, q3, q4, q5, q6, q7, f0, f1, f2, f3, f4, f5, f6, f7
-        // pnodes, pquants, cquants, fvecs
-        // pnodes.len = num_parent_centroids + num_orphans
-        // pquants.len = num_parent_centroids
-        // cquants.len = num_centroids
-        // fvecs.len = num_centroids
-        // is duplicating q2 to pq2 worthwhile ... well we can make that decision once we can do bulk reads and add a FIXME for this
-        // in the future we could consider then also combining pnodes
-        // and pquants if we duplicate the cquants up to the pquants for orphans, this would remove a seek operation
-
-        // this is the right first pass:
-        // p0(pq0, 0, 5), p1(q1, 6, 1), q0, q1, q2, q3, q4, q5, f0, f1, f2, f3, f4, f5
-        // document that this is the first pass we are going to take and the alternative for future consideration
-
-        // FIXME: subseuqently sort these partition nodes by global centroid as well
-
         writeCentroidsAndPartitions(centroidPartitions, centroids, fieldInfo, globalCentroid, centroidOutput);
 
         if (logger.isDebugEnabled()) {
@@ -401,7 +333,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 if(assignments[j] == -1) {
                     continue;
                 }
-                // FIXME: could abstract this to an assignment supplier so it's not so error prone
                 if (assignments[j] == centroidOrds[c]) {
                     cluster.add(j);
                 }

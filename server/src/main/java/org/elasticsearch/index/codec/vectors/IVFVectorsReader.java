@@ -279,9 +279,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         // FIXME: clean up duplicative code
         if( centroidQueryScorer.size() > DEFAULT_VECTORS_PER_CLUSTER) {
-            // FIXME: only do this over a certain size otherwise just loop through all the centroids
-            // FIXME: impl reader updates here
-            // FIXME: should be an int not a long
             CentroidQueryScorerWChildren centroidQueryScorerWChildren = getCentroidScorerWChildren(
                 fieldInfo,
                 entry.parentCentroidCount,
@@ -290,8 +287,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             );
             final NeighborQueue parentCentroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorerWChildren, nProbe);
 
-            // FIXME: use the parent centroids first and cap them at a certain value like don't use them if num centroids < 384
-            // FIXME: account for the fact that the centroids are in sorted order when reading
             while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
 
                 int parentCentroidOrdinal = parentCentroidQueue.pop();
@@ -299,8 +294,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 int childCentroidOrdinal = centroidQueryScorerWChildren.getChildCentroidStart(parentCentroidOrdinal);
                 int childCentroidCount = centroidQueryScorerWChildren.getChildCount(parentCentroidOrdinal);
 
+                // FIXME: create a start / end aware scorePostingLists?
                 NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-                // TODO Off heap scoring for quantized centroids?
                 centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
 
                 PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
@@ -318,7 +313,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     actualDocs += scorer.visit(knnCollector);
                 }
 
-                // FIXME: move this out of this while loop?
                 if (acceptDocs != null) {
                     float unfilteredRatioVisited = (float) expectedDocs / numVectors;
                     int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
@@ -347,7 +341,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 actualDocs += scorer.visit(knnCollector);
             }
 
-            // FIXME: move this out of this while loop?
             if (acceptDocs != null) {
                 float unfilteredRatioVisited = (float) expectedDocs / numVectors;
                 int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);

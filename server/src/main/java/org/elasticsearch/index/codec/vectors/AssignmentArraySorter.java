@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.util.TimSorter;
 
-// FIXME: write tests
 class AssignmentArraySorter extends TimSorter {
 
   private final float[][] centroids;

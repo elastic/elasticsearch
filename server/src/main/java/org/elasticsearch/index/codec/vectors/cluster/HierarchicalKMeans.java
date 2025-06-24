@@ -24,6 +24,7 @@ public class HierarchicalKMeans {
     static final int MAX_ITERATIONS_DEFAULT = 6;
     static final int SAMPLES_PER_CLUSTER_DEFAULT = 256;
     static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    static final int TARGET_MARGIN = 134;  // 34% great target size is used to try to prevent oversplitting
 
     final int dimension;
     final int maxIterations;
@@ -143,8 +144,7 @@ public class HierarchicalKMeans {
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
-            // FIXME: pull this magic constant out
-            if (100 * centroidVectorCount[c] > 134 * targetSize) {
+            if (100 * centroidVectorCount[c] > TARGET_MARGIN * targetSize) {
                 FloatVectorValues sample = createClusterSlice(centroidVectorCount[c], c, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
@@ -187,19 +187,16 @@ public class HierarchicalKMeans {
             // append the remainder
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
 
-            // FIXME: clean this up
-            // FIXME: do more than just layer 1
-            // FIXME: copy the prior labels here just like everything else
+            // create a top "parent" layer for faster query
             if(depth == 0) {
-                int[] newLayer1 = new int[newCentroids.length];
-                System.arraycopy(current.layer1, 0, newLayer1, 0, current.layer1.length);
-                current.layer1 = newLayer1;
-                current.layer1[cluster] = cluster;
+                int[] newParentLayer = new int[newCentroids.length];
+                System.arraycopy(current.parentLayer(), 0, newParentLayer, 0, current.parentLayer().length);
+                current.setParentLayer(newParentLayer);
+                current.parentLayer()[cluster] = cluster;
                 for(int i = current.centroids().length; i < newCentroids.length; i++) {
-                    current.layer1[i] = cluster;
+                    current.parentLayer()[i] = cluster;
                 }
             }
-            ////////////////
 
             current.setCentroids(newCentroids);
 

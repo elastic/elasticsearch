@@ -80,8 +80,8 @@ public class OptimizedScalarQuantizerBenchmark {
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public byte[] vectorToInt() {
+    public int[] vectorToInt() {
         osq.scalarQuantizeToInts(vector, intDestination, bits, centroid);
-        return destination;
+        return intDestination;
     }
 }

@@ -72,8 +72,8 @@ Requires first creating a `rerank` task using the <<put-inference-api,{es} Infer
 * <<pinned-retriever,*Pinned Retriever*>>.
 Returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever.
 [[pinned-retriever]]
-  [discrete]
-  [[retrievers-overview-pinned-retriever-parameters]]
+[discrete]
+[[retrievers-overview-pinned-retriever-parameters]]
 ==== Pinned Retriever Parameters
 
 `ids`::

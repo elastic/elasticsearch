@@ -1,0 +1,5 @@
+pr: 129292
+summary: Simple version of `patterned_text` with a single doc value for arguments
+area: Mapping
+type: feature
+issues: []

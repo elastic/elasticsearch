@@ -8,7 +8,7 @@ navigation_title: Slow log
 
 The slow log records database searching and indexing events that have execution durations above specified thresholds. You can use these logs to investigate analyze or troubleshoot your cluster’s historical search and indexing performance.
 
-Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md). For more information, see [Reading and Writing models](https://www.elastic.co/docs/deploy-manage/distributed-architecture/reading-and-writing-documents).
+Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md). For more information about the higher-level operations affecting response times, refer to [Reading and writing documents](docs-content://deploy-manage/distributed-architecture/reading-and-writing-documents.md).
 
 Events that meet the specified threshold are emitted into [{{es}} logging](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md) under the `fileset.name` of `slowlog`. These logs can be viewed in the following locations:
 

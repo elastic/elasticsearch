@@ -1180,19 +1180,8 @@ public class MetadataIndexStateService {
                 final Settings indexSettings = indexMetadata.getSettings();
                 final boolean hasBlockSetting = block.setting().get(indexSettings);
 
-                boolean hasAnyBlock = hasBlockSetting;
-
-                final Set<ClusterBlock> clusterBlocks = projectState.blocks().indices(projectState.projectId()).get(index.getName());
-                if (clusterBlocks != null) {
-                    for (ClusterBlock clusterBlock : clusterBlocks) {
-                        if (clusterBlock.id() == block.block.id()) {
-                            hasAnyBlock = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (hasAnyBlock == false) {
+                final boolean hasBlock = projectState.blocks().hasIndexBlock(projectState.projectId(), index.getName(), block.block);
+                if (hasBlockSetting == false && hasBlock == false) {
                     results.put(index.getName(), new RemoveBlockResult(index));
                     continue;
                 }

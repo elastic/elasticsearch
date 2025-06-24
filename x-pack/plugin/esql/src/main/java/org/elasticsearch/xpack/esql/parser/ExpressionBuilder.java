@@ -789,7 +789,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.valueExpression());
         List<RLikePattern> rLikePatterns = ctx.string()
             .stream()
-            .map(x -> new RLikePattern(visitString(x).fold(FoldContext.small()).toString()))
+            .map(x -> new RLikePattern(BytesRefs.toString(visitString(x).fold(FoldContext.small()))))
             .toList();
         // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
         Expression e = rLikePatterns.size() == 1

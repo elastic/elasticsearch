@@ -68,16 +68,16 @@ public class PatternedTextDocValues extends BinaryDocValues {
     @Override
     public int nextDoc() throws IOException {
         int templateNext = templateDocValues.nextDoc();
-        int argsNext = argsDocValues.nextDoc();
-        assert templateNext == argsNext;
+        var argsAdvance = argsDocValues.advance(templateNext);
+        assert argsAdvance >= templateNext;
         return templateNext;
     }
 
     @Override
     public int advance(int i) throws IOException {
         int templateAdvance = templateDocValues.advance(i);
-        int argAdvance = argsDocValues.advance(i);
-        assert templateAdvance == argAdvance;
+        var argsAdvance = argsDocValues.advance(templateAdvance);
+        assert argsAdvance >= templateAdvance;
         return templateAdvance;
     }
 

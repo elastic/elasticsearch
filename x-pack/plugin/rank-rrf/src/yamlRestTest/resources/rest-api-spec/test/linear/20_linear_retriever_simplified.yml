@@ -471,6 +471,18 @@ setup:
         index: test-index
         body:
           retriever:
+            linear:
+              fields: [ ]
+              query: "foo"
+
+  - contains: { error.root_cause.0.reason: "[linear] [fields] cannot be empty" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
             linear: {}
 
   - contains: { error.root_cause.0.reason: "[linear] must provide [retrievers] or [query]" }

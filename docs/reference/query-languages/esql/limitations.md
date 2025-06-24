@@ -100,9 +100,6 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 {{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
-[preview] {{esql}}'s support for [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is currently experimental.
-
-
 ## Full-text search [esql-limitations-full-text-search]
 
 [preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is currently in Technical Preview.

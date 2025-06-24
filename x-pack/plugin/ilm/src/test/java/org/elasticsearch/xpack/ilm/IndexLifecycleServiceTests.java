@@ -524,7 +524,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         }
     }
 
-    public void testIndicesOnShuttingDownNodesInDangerousStep() {
+    public void testHasIndicesInDangerousStepForNodeShutdown() {
         for (SingleNodeShutdownMetadata.Type type : List.of(
             SingleNodeShutdownMetadata.Type.REMOVE,
             SingleNodeShutdownMetadata.Type.SIGTERM,
@@ -532,8 +532,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         )) {
             final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(true));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "regular_node"), equalTo(true));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "shutdown_node"), equalTo(true));
 
             IndexMetadata nonDangerousIndex = IndexMetadata.builder("no_danger")
                 .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
@@ -603,8 +603,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
 
             // No danger yet, because no node is shutting down
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(true));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "regular_node"), equalTo(true));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "shutdown_node"), equalTo(true));
 
             state = ClusterState.builder(state)
                 .metadata(
@@ -628,11 +628,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 )
                 .build();
 
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"), equalTo(true));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "regular_node"), equalTo(true));
             // No danger, because this is a "RESTART" type shutdown
             assertThat(
                 "restart type shutdowns are not considered dangerous",
-                IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+                IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "shutdown_node"),
                 equalTo(true)
             );
 
@@ -663,7 +663,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                 .build();
 
             // The dangerous index should be calculated as being in danger now
-            assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"), equalTo(false));
+            assertThat(IndexLifecycleService.hasIndicesInDangerousStepForNodeShutdown(state, "shutdown_node"), equalTo(false));
         }
     }
 }

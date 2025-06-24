@@ -590,7 +590,7 @@ public class IndexLifecycleService
         return policyRegistry;
     }
 
-    static boolean indicesOnShuttingDownNodesInDangerousStep(ClusterState state, String nodeId) {
+    static boolean hasIndicesInDangerousStepForNodeShutdown(ClusterState state, String nodeId) {
         final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(
             state,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -649,7 +649,7 @@ public class IndexLifecycleService
             case REPLACE:
             case REMOVE:
             case SIGTERM:
-                return indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
+                return hasIndicesInDangerousStepForNodeShutdown(clusterService.state(), nodeId);
             default:
                 throw new IllegalArgumentException("unknown shutdown type: " + shutdownType);
         }

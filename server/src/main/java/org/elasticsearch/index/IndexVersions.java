@@ -135,6 +135,7 @@ public class IndexVersions {
     public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, Version.LUCENE_9_12_2);
+    public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X = def(8_535_0_00, Version.LUCENE_9_12_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

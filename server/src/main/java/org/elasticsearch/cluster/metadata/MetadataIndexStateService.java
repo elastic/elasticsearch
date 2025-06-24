@@ -1180,34 +1180,36 @@ public class MetadataIndexStateService {
                 final Settings indexSettings = indexMetadata.getSettings();
                 final boolean hasBlockSetting = block.setting().get(indexSettings);
 
-                // Check for both setting-based blocks and UUID-based temporary blocks
                 boolean hasAnyBlock = hasBlockSetting;
-                boolean hasUUIDBlock = false;
 
-                // Check for UUID-based blocks (temporary blocks created during add operation)
                 final Set<ClusterBlock> clusterBlocks = projectState.blocks().indices(projectState.projectId()).get(index.getName());
                 if (clusterBlocks != null) {
                     for (ClusterBlock clusterBlock : clusterBlocks) {
                         if (clusterBlock.id() == block.block.id()) {
                             hasAnyBlock = true;
-                            if (clusterBlock.uuid() != null) {
-                                hasUUIDBlock = true;
-                            }
                             break;
                         }
                     }
                 }
 
                 if (hasAnyBlock == false) {
-                    // No block found (neither setting-based nor UUID-based)
                     results.put(index.getName(), new RemoveBlockResult(index));
                     continue;
                 }
+
+                // Remove all blocks with the same ID
+                blocks.removeIndexBlock(projectState.projectId(), index.getName(), block.block);
 
                 // Remove the block setting if it exists
                 if (hasBlockSetting) {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexSettings);
                     updatedSettings.remove(block.settingName());
+
+                    if (block.block.contains(ClusterBlockLevel.WRITE)) {
+                        if (blocks.hasIndexBlockLevel(projectState.projectId(), index.getName(), ClusterBlockLevel.WRITE) == false) {
+                            updatedSettings.remove(VERIFIED_READ_ONLY_SETTING.getKey());
+                        }
+                    }
 
                     final IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
                         .settings(updatedSettings)
@@ -1215,13 +1217,6 @@ public class MetadataIndexStateService {
                         .build();
 
                     projectBuilder.put(updatedMetadata, true);
-                }
-
-                // Remove all blocks with the same ID (including UUID-based temporary blocks)
-                if (hasUUIDBlock) {
-                    blocks.removeIndexBlockWithId(projectState.projectId(), index.getName(), block.block.id());
-                } else {
-                    blocks.removeIndexBlock(projectState.projectId(), index.getName(), block.block);
                 }
 
                 effectivelyUnblockedIndices.add(index.getName());

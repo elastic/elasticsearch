@@ -698,6 +698,50 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
+    public void testRemoveWriteBlockAlsoRemovesVerifiedReadOnlySetting() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        try {
+            // Add write block
+            AddIndexBlockResponse addResponse = indicesAdmin().prepareAddBlock(APIBlock.WRITE, indexName).get();
+            assertTrue("Add write block not acknowledged: " + addResponse, addResponse.isAcknowledged());
+            assertIndexHasBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is set
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            IndexMetadata indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be true",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(true)
+            );
+
+            // Remove write block
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                APIBlock.WRITE,
+                indexName
+            ).get();
+            assertTrue("Remove write block not acknowledged: " + removeResponse, removeResponse.isAcknowledged());
+            assertIndexDoesNotHaveBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is also removed
+            state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be false after removing write block",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(false)
+            );
+
+        } finally {
+            disableIndexBlock(indexName, APIBlock.WRITE);
+        }
+    }
+
     /**
      * The read-only-allow-delete block cannot be added via the add index block API; this method chooses randomly from the values that
      * the add index block API does support.

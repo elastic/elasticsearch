@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -39,17 +40,18 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ChunkingSettings chunkingSettings
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
             ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            // TODO: we probably want dense embeddings task settings
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            elasticInferenceServiceComponents
+            elasticInferenceServiceComponents,
+            chunkingSettings
         );
     }
 
@@ -58,13 +60,13 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         TaskType taskType,
         String service,
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings,
-        // TODO: we probably want dense embeddings task settings
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents

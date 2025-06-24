@@ -26,36 +26,36 @@ _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/
 
 * [Set up Elasticsearch](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md)
 * [Secure the Elastic Stack](docs-content://deploy-manage/security.md)
-* [Upgrade Elasticsearch](https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster)
-* [Set up a cluster for high availability](https://www.elastic.co/docs/deploy-manage/tools)
-* [Monitor a cluster](https://www.elastic.co/docs/deploy-manage/monitor/cloud-health-perf)
-* [Troubleshooting](https://www.elastic.co/docs/troubleshoot/elasticsearch)
-* [Optimizations](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance)
+* [Upgrade Elasticsearch](docs-content://deploy-manage/upgrade/deployment-or-cluster.md)
+* [Set up a cluster for high availability](docs-content://deploy-manage/tools.md)
+* [Monitor a cluster](docs-content://deploy-manage/monitor/cloud-health-perf.md)
+* [Troubleshooting](docs-content://troubleshoot/elasticsearch.md)
+* [Optimizations](docs-content://deploy-manage/production-guidance/optimize-performance.md)
 
 ## Ingest data
 
-* [Adding data to Elasticsearch](https://www.elastic.co/docs/manage-data/ingest)
+* [Adding data to Elasticsearch](docs-content://manage-data/ingest.md)
 * [Connectors](https://www.elastic.co/docs/reference/search-connectors)
 * [Web crawler](https://www.elastic.co/search-labs/blog/elastic-open-crawler-release)
-* [Data streams](https://www.elastic.co/docs/manage-data/data-store/data-streams)
-* [Ingest pipelines](https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines)
-* [Mapping](https://www.elastic.co/docs/manage-data/data-store/mapping)
+* [Data streams](docs-content://manage-data/data-store/data-streams.md)
+* [Ingest pipelines](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md)
+* [Mapping](docs-content://manage-data/data-store/mapping.md)
 
 ## Search and analyze
 
-* [Search your data](https://www.elastic.co/docs/solutions/search/querying-for-search)
-* Query data with [the Query DSL](https://www.elastic.co/docs/explore-analyze/query-filter/languages/querydsl), [ES|QL](https://www.elastic.co/docs/explore-analyze/query-filter/languages/esql), [EQL](https://www.elastic.co/docs/explore-analyze/query-filter/languages/eql), or [SQL](https://www.elastic.co/docs/explore-analyze/query-filter/languages/sql)
-* [Search applications](https://www.elastic.co/docs/solutions/search/search-applications)
-* [Aggregations](https://www.elastic.co/docs/explore-analyze/query-filter/aggregations)
-* [Geospatial analysis](https://www.elastic.co/docs/explore-analyze/geospatial-analysis)
-* [Machine Learning](https://www.elastic.co/docs/explore-analyze/machine-learning)
-* [Alerting](https://www.elastic.co/docs/explore-analyze/alerts-cases)
+* [Search your data](docs-content://solutions/search/querying-for-search.md)
+* Query data with [the Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md), [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md), [EQL](docs-content://explore-analyze/query-filter/languages/eql.md), or [SQL](docs-content://explore-analyze/query-filter/languages/sql.md)
+* [Search applications](docs-content://solutions/search/search-applications.md)
+* [Aggregations](docs-content://explore-analyze/query-filter/aggregations.md)
+* [Geospatial analysis](docs-content://explore-analyze/geospatial-analysis.md)
+* [Machine Learning](docs-content://explore-analyze/machine-learning.md)
+* [Alerting](docs-content://explore-analyze/alerts-cases.md)
 
 ## Data management
 
-* [Data management](https://www.elastic.co/docs/manage-data/lifecycle)
-* [Downsampling](https://www.elastic.co/docs/manage-data/lifecycle)
-* [Snapshot and restore](https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore)
+* [Data management](docs-content://manage-data/lifecycle.md)
+* [Downsampling](docs-content://manage-data/lifecycle)
+* [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore)
 
 ## APIs and developer docs
 

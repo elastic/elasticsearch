@@ -133,9 +133,9 @@ public class TransportHandshakerTests extends ESTestCase {
                     Strings.format(
                         """
                             Negotiating transport handshake with remote node with version [%s/%s] received on [*] which appears to be from \
-                            a chronologically-older release with a numerically-newer version compared to this node's version [%s/%s]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. Falling back to \
-                            transport protocol version [%s].""",
+                            a chronologically-newer release with a numerically-older version compared to this node's version [%s/%s]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [%s].""",
                         handshakeRequest.transportVersion.toReleaseVersion(),
                         handshakeRequest.transportVersion,
                         Build.current().version(),
@@ -222,9 +222,9 @@ public class TransportHandshakerTests extends ESTestCase {
                     Strings.format(
                         """
                             Negotiating transport handshake with remote node with version [%s/%s] received on [*] which appears to be from \
-                            a chronologically-older release with a numerically-newer version compared to this node's version [%s/%s]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. Falling back to \
-                            transport protocol version [%s].""",
+                            a chronologically-newer release with a numerically-older version compared to this node's version [%s/%s]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [%s].""",
                         handshakeResponse.getReleaseVersion(),
                         handshakeResponse.getTransportVersion(),
                         Build.current().version(),

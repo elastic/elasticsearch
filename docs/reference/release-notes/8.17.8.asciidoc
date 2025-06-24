@@ -1,8 +1,6 @@
 [[release-notes-8.17.8]]
 == {es} version 8.17.8
 
-coming[8.17.8]
-
 Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
 
 [[bug-8.17.8]]

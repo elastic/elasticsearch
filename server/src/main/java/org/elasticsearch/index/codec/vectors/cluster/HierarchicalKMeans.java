@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -78,9 +77,7 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors,
-                                       final int targetSize,
-                                       final int depth) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize, final int depth) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -150,8 +147,7 @@ public class HierarchicalKMeans {
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate,
-                        c, clusterAndSplit(sample, targetSize, depth+1), depth);
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, c, clusterAndSplit(sample, targetSize, depth + 1), depth);
             }
         }
 
@@ -188,12 +184,12 @@ public class HierarchicalKMeans {
             System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
 
             // create a top "parent" layer for faster query
-            if(depth == 0) {
+            if (depth == 0) {
                 int[] newParentLayer = new int[newCentroids.length];
                 System.arraycopy(current.parentLayer(), 0, newParentLayer, 0, current.parentLayer().length);
                 current.setParentLayer(newParentLayer);
                 current.parentLayer()[cluster] = cluster;
-                for(int i = current.centroids().length; i < newCentroids.length; i++) {
+                for (int i = current.centroids().length; i < newCentroids.length; i++) {
                     current.parentLayer()[i] = cluster;
                 }
             }

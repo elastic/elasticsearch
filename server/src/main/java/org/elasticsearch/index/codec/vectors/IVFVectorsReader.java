@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
 
 /**
@@ -90,12 +89,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorerWChildren getCentroidScorerWChildren(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] target
-    ) throws IOException;
+    abstract ParentCentroidQueryScorer getParentCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+        throws IOException;
 
     abstract CentroidQueryScorer getCentroidScorer(
         FieldInfo fieldInfo,
@@ -277,55 +272,38 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long expectedDocs = 0;
         long actualDocs = 0;
 
-        // FIXME: clean up duplicative code
-        if( centroidQueryScorer.size() > DEFAULT_VECTORS_PER_CLUSTER) {
-            CentroidQueryScorerWChildren centroidQueryScorerWChildren = getCentroidScorerWChildren(
-                fieldInfo,
-                entry.parentCentroidCount,
-                entry.centroidSlice(ivfCentroids),
-                target
-            );
-            final NeighborQueue parentCentroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorerWChildren, nProbe);
-
-            while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
-
-                int parentCentroidOrdinal = parentCentroidQueue.pop();
-
-                int childCentroidOrdinal = centroidQueryScorerWChildren.getChildCentroidStart(parentCentroidOrdinal);
-                int childCentroidCount = centroidQueryScorerWChildren.getChildCount(parentCentroidOrdinal);
-
-                // FIXME: create a start / end aware scorePostingLists?
-                NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-                centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
-
-                PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
-                // initially we visit only the "centroids to search"
-                // Note, numCollected is doing the bare minimum here.
-                // TODO do we need to handle nested doc counts similarly to how we handle
-                // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-                while (centroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
-                    ++centroidsVisited;
-                    // todo do we actually need to know the score???
-                    int centroidOrdinal = centroidQueue.pop();
-                    // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-                    // is enough?
-                    expectedDocs += scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
-                    actualDocs += scorer.visit(knnCollector);
-                }
-
-                if (acceptDocs != null) {
-                    float unfilteredRatioVisited = (float) expectedDocs / numVectors;
-                    int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
-                    float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-                    while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                        int centroidOrdinal = centroidQueue.pop();
-                        scorer.resetPostingsScorer(centroidOrdinal, centroidQueryScorer.centroid(centroidOrdinal));
-                        actualDocs += scorer.visit(knnCollector);
-                    }
-                }
-            }
+        ParentCentroidQueryScorer parentCentroidQueryScorer = getParentCentroidScorer(
+            fieldInfo,
+            entry.parentCentroidCount,
+            entry.centroidSlice(ivfCentroids),
+            target
+        );
+        NeighborQueue parentCentroidQueue;
+        if (parentCentroidQueryScorer.size() > 0) {
+            parentCentroidQueue = scorePostingLists(fieldInfo, knnCollector, parentCentroidQueryScorer, nProbe);
         } else {
-            final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
+            parentCentroidQueue = new NeighborQueue(1, true);
+            parentCentroidQueue.add(-1, 0.f);
+        }
+
+        while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
+            int parentCentroidOrdinal = parentCentroidQueue.pop();
+
+            int childCentroidOrdinal;
+            int childCentroidCount;
+            if (parentCentroidOrdinal == -1) {
+                // score all centroids
+                childCentroidOrdinal = 0;
+                childCentroidCount = centroidQueryScorer.size();
+            } else {
+                childCentroidOrdinal = parentCentroidQueryScorer.getChildCentroidStart(parentCentroidOrdinal);
+                childCentroidCount = parentCentroidQueryScorer.getChildCount(parentCentroidOrdinal);
+            }
+
+            // FIXME: create a start / end aware scorePostingLists
+            NeighborQueue centroidQueue = new NeighborQueue(childCentroidCount, true);
+            centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
+
             PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
             // initially we visit only the "centroids to search"
             // Note, numCollected is doing the bare minimum here.
@@ -397,8 +375,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
         throws IOException;
 
-    interface CentroidQueryScorerWChildren extends CentroidQueryScorer {
+    interface ParentCentroidQueryScorer extends CentroidQueryScorer {
         int getChildCentroidStart(int centroidOrdinal) throws IOException;
+
         int getChildCount(int centroidOrdinal) throws IOException;
     }
 

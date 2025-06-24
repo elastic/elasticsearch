@@ -177,12 +177,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 centroidAssignments.assignmentsByCluster()
             );
             // write posting lists
-            writeMeta(fieldWriter.fieldInfo,
+            writeMeta(
+                fieldWriter.fieldInfo,
                 centroidAssignments.numParentCentroids(),
                 centroidOffset,
                 centroidLength,
                 offsets,
-                globalCentroid);
+                globalCentroid
+            );
         }
     }
 
@@ -430,13 +432,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return numVectors;
     }
 
-    private void writeMeta(FieldInfo field,
-                           int parentCentroidCount,
-                           long centroidOffset,
-                           long centroidLength,
-                           long[] offsets,
-                           float[] globalCentroid)
-        throws IOException {
+    private void writeMeta(
+        FieldInfo field,
+        int parentCentroidCount,
+        long centroidOffset,
+        long centroidLength,
+        long[] offsets,
+        float[] globalCentroid
+    ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));

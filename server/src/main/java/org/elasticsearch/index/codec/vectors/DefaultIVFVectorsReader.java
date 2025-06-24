@@ -47,9 +47,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numParentCentroids,
-                                          int numCentroids, IndexInput centroids, float[] targetQuery)
-        throws IOException {
+    CentroidQueryScorer getCentroidScorer(
+        FieldInfo fieldInfo,
+        int numParentCentroids,
+        int numCentroids,
+        IndexInput centroids,
+        float[] targetQuery
+    ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -153,12 +157,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
     // FIXME: clean up duplicative code between the scorers
     @Override
-    CentroidQueryScorerWChildren getCentroidScorerWChildren(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] targetQuery
-    ) throws IOException {
+    ParentCentroidQueryScorer getParentCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+        throws IOException {
         FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float[] globalCentroid = fieldEntry.globalCentroid();
         float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -172,7 +172,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             globalCentroid
         );
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        return new CentroidQueryScorerWChildren() {
+        return new ParentCentroidQueryScorer() {
             int currentCentroid = -1;
             private final float[] centroidCorrectiveValues = new float[3];
             private final long quantizedVectorByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;

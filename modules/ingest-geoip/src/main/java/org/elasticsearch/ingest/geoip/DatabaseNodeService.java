@@ -211,7 +211,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             return true;
         }
 
-        boolean valid = metadata.isNewEnough(projectMetadata.settings());
+        boolean valid = metadata.isNewEnough(clusterService.state().metadata().settings());
         if (valid && metadata.isCloseToExpiration()) {
             HeaderWarning.addWarning(
                 "database [{}] was not updated for over 25 days, geoip processor will stop working if there is no update for 30 days",

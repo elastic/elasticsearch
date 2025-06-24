@@ -152,9 +152,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test140CgroupOsStatsAreAvailable
   issue: https://github.com/elastic/elasticsearch/issues/120914
-- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
-  method: testReservedStatePersistsOnRestart
-  issue: https://github.com/elastic/elasticsearch/issues/120923
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/120910
@@ -167,9 +164,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
-  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
-  issue: https://github.com/elastic/elasticsearch/issues/120964
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   issue: https://github.com/elastic/elasticsearch/issues/121165
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
@@ -179,8 +173,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
@@ -568,6 +560,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
   issue: https://github.com/elastic/elasticsearch/issues/129845
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
+  method: testExistsQueryMinimalMapping
+  issue: https://github.com/elastic/elasticsearch/issues/129911
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/129888

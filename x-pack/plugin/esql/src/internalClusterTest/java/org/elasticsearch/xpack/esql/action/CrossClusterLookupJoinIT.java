@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -15,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -346,7 +351,6 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(keyColumn.get().type(), equalTo(DataType.UNSUPPORTED));
             assertThat(keyColumn.get().originalTypes(), hasItems("keyword", "long"));
         }
-
     }
 
     protected Map<String, Object> setupClustersAndLookups() throws IOException {
@@ -354,6 +358,23 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 25);
         return setupData;
+    }
+
+    public void setupHostsEnrich() {
+        // the hosts policy are identical on every node
+        Map<String, String> allHosts = Map.of("192.168.1.2", "Windows");
+        Client client = client(LOCAL_CLUSTER);
+        client.admin().indices().prepareCreate("hosts").setMapping("ip", "type=ip", "os", "type=keyword").get();
+        for (Map.Entry<String, String> h : allHosts.entrySet()) {
+            client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
+        }
+        client.admin().indices().prepareRefresh("hosts").get();
+        EnrichPolicy hostPolicy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
+        client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", hostPolicy))
+            .actionGet();
+        client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
+            .actionGet();
+        assertAcked(client.admin().indices().prepareDelete("hosts"));
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

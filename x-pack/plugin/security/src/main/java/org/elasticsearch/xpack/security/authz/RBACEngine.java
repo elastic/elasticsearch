@@ -998,6 +998,9 @@ public class RBACEngine implements AuthorizationEngine {
                 } // we don't support granting access to a backing index with a failure selector via the parent data stream
             }
             return predicate.test(indexAbstraction, selector);
+        }, name -> {
+            // just some bogus predicate that lets us differentiate between roles
+            return Arrays.asList(role.names()).contains("remote_searcher");
         });
     }
 
@@ -1125,15 +1128,18 @@ public class RBACEngine implements AuthorizationEngine {
         private final CachedSupplier<Set<String>> authorizedAndAvailableDataResources;
         private final CachedSupplier<Set<String>> authorizedAndAvailableFailuresResources;
         private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
+        private final Predicate<String> projectPredicate;
 
         AuthorizedIndices(
             Supplier<Set<String>> authorizedAndAvailableDataResources,
             Supplier<Set<String>> authorizedAndAvailableFailuresResources,
-            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate
+            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate,
+            Predicate<String> projectPredicate
         ) {
             this.authorizedAndAvailableDataResources = CachedSupplier.wrap(authorizedAndAvailableDataResources);
             this.authorizedAndAvailableFailuresResources = CachedSupplier.wrap(authorizedAndAvailableFailuresResources);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
+            this.projectPredicate = projectPredicate;
         }
 
         @Override
@@ -1148,6 +1154,12 @@ public class RBACEngine implements AuthorizationEngine {
         public boolean check(String name, IndexComponentSelector selector) {
             Objects.requireNonNull(selector, "must specify a selector for authorization check");
             return isAuthorizedPredicate.test(name, selector);
+        }
+
+        @Override
+        public boolean checkProject(String name) {
+            Objects.requireNonNull(name, "must specify a project name for authorization check");
+            return projectPredicate.test(name);
         }
     }
 }

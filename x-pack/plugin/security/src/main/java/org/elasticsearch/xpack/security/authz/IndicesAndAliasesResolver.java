@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.FlatIndicesRequest;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -55,6 +58,8 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 class IndicesAndAliasesResolver {
 
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
+
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
@@ -103,7 +108,6 @@ class IndicesAndAliasesResolver {
      * resolving wildcards.
      * </p>
      */
-
     ResolvedIndices resolve(
         String action,
         TransportRequest request,
@@ -124,7 +128,50 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
+
+        if (request instanceof FlatIndicesRequest flatIndicesRequest) {
+            rewrite(flatIndicesRequest, authorizedIndices);
+        }
+
         return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
+    }
+
+    void rewrite(FlatIndicesRequest request, AuthorizationEngine.AuthorizedIndices authorizedIndices) {
+        var clusters = remoteClusterResolver.clusters();
+        logger.info("Clusters available for remote indices: {}", clusters);
+        // no remotes, nothing to rewrite...
+        if (clusters.isEmpty()) {
+            logger.info("Skipping...");
+            return;
+        }
+
+        var indices = request.indices();
+        // empty indices actually means search everything so would need to also rewrite that
+
+        var authorizedClusters = new HashSet<String>();
+        for (var cluster : clusters) {
+            if (authorizedIndices.checkProject(cluster)) {
+                logger.info("Remote cluster [{}] authorized", cluster);
+                authorizedClusters.add(cluster);
+            }
+        }
+
+        // TODO do not rewrite twice
+        List<String> rewrittenIndices = new ArrayList<>(indices.length);
+        ResolvedIndices resolved = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
+        for (var local : resolved.getLocal()) {
+            String rewritten = local;
+            for (var cluster : authorizedClusters) {
+                rewritten += "," + RemoteClusterAware.buildRemoteIndexName(cluster, local);
+                rewrittenIndices.add(rewritten);
+            }
+            logger.info("Rewrote [{}] to [{}]", local, rewritten);
+        }
+        if (resolved.getRemote().isEmpty() == false) {
+            rewrittenIndices.addAll(resolved.getRemote());
+        }
+        request.indices(rewrittenIndices);
+        // skipping mixed expressions, _local expressions and all that jazz
     }
 
     /**
@@ -568,6 +615,10 @@ class IndicesAndAliasesResolver {
                 .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))
                 .toList();
             return new ResolvedIndices(local == null ? List.of() : local, remote);
+        }
+
+        Set<String> clusters() {
+            return Collections.unmodifiableSet(clusters);
         }
     }
 }

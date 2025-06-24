@@ -30,6 +30,10 @@
           "type": "long",
           "time_series_metric": "counter"
         },
+        "total_bytes_out": {
+          "type": "long",
+          "time_series_metric": "counter"
+        },
         "cost": {
           "type": "double"
         },

@@ -2713,9 +2713,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().elementType.parseDimensionCount(context);
-            IndexVersion indexVersionCreated = context.indexSettings().getIndexVersionCreated();
-            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
-            final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+            ;
+            final boolean defaultInt8Hnsw = indexCreatedVersion.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+            final boolean defaultBBQ8Hnsw = indexCreatedVersion.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             DenseVectorIndexOptions denseVectorIndexOptions = fieldType().indexOptions;
             if (denseVectorIndexOptions == null && fieldType().getElementType() == ElementType.FLOAT && fieldType().isIndexed()) {
                 if (defaultBBQ8Hnsw && dims >= BBQ_DIMS_DEFAULT_THRESHOLD) {
@@ -2733,7 +2733,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             }
-            ;
             if (denseVectorIndexOptions != null) {
                 denseVectorIndexOptions.validateDimension(dims);
             }

@@ -201,6 +201,7 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
         }
 
         final Rounding.Builder rounding;
+        boolean tryPrepareWithMinMax = true;
         if (period.getDays() == 1) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.DAY_OF_MONTH);
         } else if (period.getDays() == 7) {
@@ -209,6 +210,7 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
         } else if (period.getDays() > 1) {
             rounding = new Rounding.Builder(new TimeValue(period.getDays(), TimeUnit.DAYS));
+            tryPrepareWithMinMax = false;
         } else if (period.getMonths() == 3) {
             // java.time.Period does not have a QUARTERLY period, so a period of 3 months
             // returns a quarterly rounding
@@ -217,16 +219,18 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTH_OF_YEAR);
         } else if (period.getMonths() > 0) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR, period.getMonths());
+            tryPrepareWithMinMax = false;
         } else if (period.getYears() == 1) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
         } else if (period.getYears() > 0) {
             rounding = new Rounding.Builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY, period.getYears());
+            tryPrepareWithMinMax = false;
         } else {
             throw new IllegalArgumentException("Time interval is not supported");
         }
 
         rounding.timeZone(timeZone);
-        if (min != null && max != null && period.getMonths() <= 1 && period.getYears() <= 1) {
+        if (min != null && max != null && tryPrepareWithMinMax) {
             // Multiple quantities of month, quarter or year is not supported by PreparedRounding.maybeUseArray, which is called by
             // prepare(min, max), as it may hit an assert in it.
             return rounding.build().prepare(min, max);

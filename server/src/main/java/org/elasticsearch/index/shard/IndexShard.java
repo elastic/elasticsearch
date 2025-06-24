@@ -91,6 +91,7 @@ import org.elasticsearch.index.engine.Engine.GetResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -269,6 +270,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
+    private final MergeMetrics mergeMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -343,7 +345,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.IndexCommitListener indexCommitListener,
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
-        final SearchStatsSettings searchStatsSettings
+        final SearchStatsSettings searchStatsSettings,
+        final MergeMetrics mergeMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -432,6 +435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
+        this.mergeMetrics = mergeMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -3755,7 +3759,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),
             mapperService(),
-            engineResetLock
+            engineResetLock,
+            mergeMetrics
         );
     }
 
@@ -4308,9 +4313,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private FieldInfos loadFieldInfos() {
-        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
-        } catch (AlreadyClosedException ignore) {
+        try {
+            return getEngine().shardFieldInfos();
+        } catch (AlreadyClosedException ignored) {
             // engine is closed - no update to FieldInfos is fine
         }
         return FieldInfos.EMPTY;

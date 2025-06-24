@@ -107,7 +107,8 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
         // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
         obsoleteGenerations.set(
-            SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
+            SnapshotsInProgress.get(updatedState)
+                .obsoleteGenerations(snapshotInfo.projectId(), snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
         return updatedState;
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -176,10 +177,10 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
             if (deleteHasStarted.get() == false) {
-                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(ProjectId.DEFAULT, repositoryName));
                 return false;
             } else {
-                return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+                return deletionsInProgress.hasExecutingDeletion(ProjectId.DEFAULT, repositoryName) == false;
             }
         });
     }

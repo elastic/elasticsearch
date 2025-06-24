@@ -25,12 +25,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.injection.guice.Inject;
@@ -76,6 +76,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private final RepositoriesService repositoriesService;
 
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportSnapshotsStatusAction(
@@ -84,7 +85,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         NodeClient client,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -99,11 +101,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         );
         this.repositoriesService = repositoriesService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -117,13 +120,24 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        final ProjectId projectId = projectResolver.getProjectId();
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
+            projectId,
             request.repository(),
             Arrays.asList(request.snapshots())
         );
         if (currentSnapshots.isEmpty()) {
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, state.getMinTransportVersion(), cancellableTask, listener);
+            buildResponse(
+                snapshotsInProgress,
+                projectId,
+                request,
+                currentSnapshots,
+                null,
+                state.getMinTransportVersion(),
+                cancellableTask,
+                listener
+            );
             return;
         }
 
@@ -153,6 +167,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     listener.delegateFailureAndWrap(
                         (l, nodeSnapshotStatuses) -> buildResponse(
                             snapshotsInProgress,
+                            projectId,
                             request,
                             currentSnapshots,
                             nodeSnapshotStatuses,
@@ -165,7 +180,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             );
         } else {
             // We don't have any in-progress shards, just return current stats
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, state.getMinTransportVersion(), cancellableTask, listener);
+            buildResponse(
+                snapshotsInProgress,
+                projectId,
+                request,
+                currentSnapshots,
+                null,
+                state.getMinTransportVersion(),
+                cancellableTask,
+                listener
+            );
         }
 
     }
@@ -173,6 +197,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     // Package access for testing.
     void buildResponse(
         SnapshotsInProgress snapshotsInProgress,
+        ProjectId projectId,
         SnapshotsStatusRequest request,
         List<SnapshotsInProgress.Entry> currentSnapshotEntries,
         TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
@@ -282,7 +307,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
-            loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, task, listener);
+            loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, projectId, repositoryName, task, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
@@ -293,14 +318,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         SnapshotsStatusRequest request,
         List<SnapshotStatus> builder,
         Set<String> currentSnapshotNames,
+        ProjectId projectId,
         String repositoryName,
         CancellableTask task,
         ActionListener<SnapshotsStatusResponse> listener
     ) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        @FixForMultiProject(description = "resolve the actual projectId, ES-10166")
-        final var projectId = ProjectId.DEFAULT;
         repositoriesService.getRepositoryData(projectId, repositoryName, repositoryDataListener);
         final Collection<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
         repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
@@ -329,7 +353,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
                 }
-                if (snapshotsInProgress.snapshot(new Snapshot(repositoryName, snapshotId)) == null) {
+                if (snapshotsInProgress.snapshot(new Snapshot(projectId, repositoryName, snapshotId)) == null) {
                     snapshotIdsToLoad.add(snapshotId);
                 }
             }
@@ -338,38 +362,39 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 delegate.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
             } else {
                 final List<SnapshotStatus> threadSafeBuilder = Collections.synchronizedList(builder);
-                repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotIdsToLoad, true, task::isCancelled, snapshotInfo -> {
-                    List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                    final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatuses;
-                    shardStatuses = snapshotShards(repositoryName, repositoryData, task, snapshotInfo);
-                    // an exception here stops further fetches of snapshotInfo since context is fail-fast
-                    for (final var shardStatus : shardStatuses.entrySet()) {
-                        IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
-                        shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
-                    }
-                    final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
-                        case FAILED -> SnapshotsInProgress.State.FAILED;
-                        case SUCCESS, PARTIAL ->
-                            // Both of these means the snapshot has completed.
-                            SnapshotsInProgress.State.SUCCESS;
-                        default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
-                    };
-                    final long startTime = snapshotInfo.startTime();
-                    final long endTime = snapshotInfo.endTime();
-                    assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
-                        : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
-                    threadSafeBuilder.add(
-                        new SnapshotStatus(
-                            new Snapshot(repositoryName, snapshotInfo.snapshotId()),
-                            state,
-                            Collections.unmodifiableList(shardStatusBuilder),
-                            snapshotInfo.includeGlobalState(),
-                            startTime,
-                            // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
-                            (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
-                        )
-                    );
-                }, delegate.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder))));
+                repositoriesService.repository(projectId, repositoryName)
+                    .getSnapshotInfo(snapshotIdsToLoad, true, task::isCancelled, snapshotInfo -> {
+                        List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
+                        final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatuses;
+                        shardStatuses = snapshotShards(projectId, repositoryName, repositoryData, task, snapshotInfo);
+                        // an exception here stops further fetches of snapshotInfo since context is fail-fast
+                        for (final var shardStatus : shardStatuses.entrySet()) {
+                            IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
+                            shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
+                        }
+                        final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
+                            case FAILED -> SnapshotsInProgress.State.FAILED;
+                            case SUCCESS, PARTIAL ->
+                                // Both of these means the snapshot has completed.
+                                SnapshotsInProgress.State.SUCCESS;
+                            default -> throw new IllegalArgumentException("Unexpected snapshot state " + snapshotInfo.state());
+                        };
+                        final long startTime = snapshotInfo.startTime();
+                        final long endTime = snapshotInfo.endTime();
+                        assert endTime >= startTime || (endTime == 0L && snapshotInfo.state().completed() == false)
+                            : "Inconsistent timestamps found in SnapshotInfo [" + snapshotInfo + "]";
+                        threadSafeBuilder.add(
+                            new SnapshotStatus(
+                                new Snapshot(projectId, repositoryName, snapshotInfo.snapshotId()),
+                                state,
+                                Collections.unmodifiableList(shardStatusBuilder),
+                                snapshotInfo.includeGlobalState(),
+                                startTime,
+                                // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
+                                (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime
+                            )
+                        );
+                    }, delegate.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder))));
             }
         }));
     }
@@ -382,17 +407,19 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
      * returns similar information but for already finished snapshots.
      * </p>
      *
+     * @param projectId       project for the repository
      * @param repositoryName  repository name
      * @param snapshotInfo    snapshot info
      * @return map of shard id to snapshot status
      */
     private Map<ShardId, IndexShardSnapshotStatus.Copy> snapshotShards(
+        final ProjectId projectId,
         final String repositoryName,
         final RepositoryData repositoryData,
         final CancellableTask task,
         final SnapshotInfo snapshotInfo
     ) throws IOException {
-        final Repository repository = repositoriesService.repository(repositoryName);
+        final Repository repository = repositoriesService.repository(projectId, repositoryName);
         final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -353,6 +354,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      */
     public SnapshotId snapshotId() {
         return snapshot.getSnapshotId();
+    }
+
+    public ProjectId projectId() {
+        return snapshot.getProjectId();
     }
 
     public String repository() {

@@ -174,11 +174,15 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return forRepo(Metadata.DEFAULT_PROJECT_ID, repository);
     }
 
+    public List<Entry> forRepo(ProjectId projectId, String repository) {
+        return forRepo(new ProjectRepo(projectId, repository));
+    }
+
     /**
      * Returns the list of snapshots in the specified repository.
      */
-    public List<Entry> forRepo(ProjectId projectId, String repository) {
-        return entries.getOrDefault(new ProjectRepo(projectId, repository), ByRepo.EMPTY).entries;
+    public List<Entry> forRepo(ProjectRepo projectRepo) {
+        return entries.getOrDefault(projectRepo, ByRepo.EMPTY).entries;
     }
 
     public boolean isEmpty() {
@@ -219,25 +223,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         return null;
-    }
-
-    /**
-     * Computes a map of repository shard id to set of shard generations, containing all shard generations that became obsolete and may be
-     * deleted from the repository as the cluster state moves from the given old value of {@link SnapshotsInProgress} to this instance.
-     * <p>
-     * An unique shard generation is created for every in-progress shard snapshot. The shard generation file contains information about all
-     * the files needed by pre-existing and any new shard snapshots that were in-progress. When a shard snapshot is finalized, its file list
-     * is promoted to the official shard snapshot list for the index shard. This final list will contain metadata about any other
-     * in-progress shard snapshots that were not yet finalized when it began. All these other in-progress shard snapshot lists are scheduled
-     * for deletion now.
-     */
-    @FixForMultiProject
-    @Deprecated(forRemoval = true)
-    public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(
-        String repository,
-        SnapshotsInProgress oldClusterStateSnapshots
-    ) {
-        return obsoleteGenerations(Metadata.DEFAULT_PROJECT_ID, repository, oldClusterStateSnapshots);
     }
 
     /**

@@ -3500,7 +3500,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         // TODO this one is incorrect
         expectError("explain ( from test ) | limit 1", "line 1:23: mismatched input '|' expecting {'|', ',', ')', 'metadata'}");
-        expectError("explain (row x=\"Elastic\" | eval y=concat(x,to_upper(\"search\"))) | mv_expand y", "line 1:1: EXPLAIN does not support downstream commands");
+        expectError(
+            "explain (row x=\"Elastic\" | eval y=concat(x,to_upper(\"search\"))) | mv_expand y",
+            "line 1:1: EXPLAIN does not support downstream commands"
+        );
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.elastic.rerank;
+package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
@@ -15,8 +15,6 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
-import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestMetadata;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -126,12 +127,17 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
             var projectId = randomUniqueProjectId();
 
             // Create the project object store
+            ClusterState state = clusterService.state();
             ClusterServiceUtils.setState(
                 clusterService,
-                ClusterState.builder(clusterService.state())
-                    .putProjectMetadata(
-                        ProjectMetadata.builder(projectId).settings(Settings.builder().put(BUCKET_SETTING.getKey(), projectId.id()).build())
+                ClusterState.builder(state)
+                    .putCustom(
+                        ProjectStateRegistry.TYPE,
+                        ProjectStateRegistry.builder(state)
+                            .putProjectSettings(projectId, Settings.builder().put(BUCKET_SETTING.getKey(), projectId.id()).build())
+                            .build()
                     )
+                    .putProjectMetadata(ProjectMetadata.builder(projectId))
                     .build()
             );
 

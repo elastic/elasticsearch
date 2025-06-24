@@ -24,8 +24,8 @@ _New webinar:_ [Architect search apps with Google Cloud](https://www.elastic.co/
 
 ## Install, manage, and secure
 
-* [Set up Elasticsearch](https://www.elastic.co/docs/deploy-manage/deploy/self-managed/installing-elasticsearch)
-* [Secure the Elastic Stack](https://www.elastic.co/docs/deploy-manage/security)
+* [Set up Elasticsearch](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md)
+* [Secure the Elastic Stack](docs-content://deploy-manage/security.md)
 * [Upgrade Elasticsearch](https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster)
 * [Set up a cluster for high availability](https://www.elastic.co/docs/deploy-manage/tools)
 * [Monitor a cluster](https://www.elastic.co/docs/deploy-manage/monitor/cloud-health-perf)

@@ -19,7 +19,10 @@ package co.elastic.elasticsearch.stateless.objectstore;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+
+import static org.hamcrest.Matchers.equalTo;
 
 @LuceneTestCase.SuppressFileSystems(value = { "ExtrasFS" })
 public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
@@ -41,5 +44,15 @@ public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
     @Override
     protected Settings projectSecrets(ProjectId projectId) {
         return Settings.EMPTY;
+    }
+
+    @Override
+    protected Settings repositorySettings(ProjectId projectId) {
+        return Settings.builder().put(super.repositorySettings()).put("location", "backup_" + projectId.id()).build();
+    }
+
+    @Override
+    protected void assertBackupRepositorySettings(RepositoryMetadata repositoryMetadata, ProjectId projectId) {
+        assertThat(repositoryMetadata.settings().get("location"), equalTo("backup_" + projectId.id()));
     }
 }

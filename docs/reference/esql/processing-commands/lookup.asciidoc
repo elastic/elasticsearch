@@ -2,14 +2,6 @@
 [[esql-lookup-join]]
 === `LOOKUP JOIN`
 
-[WARNING]
-====
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-====
-
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
 index, to your {esql} query results, simplifying data enrichment
 and analysis workflows.

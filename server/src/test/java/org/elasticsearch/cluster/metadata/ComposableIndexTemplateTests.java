@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -347,14 +348,15 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(indexTemplate.mergeSettings(dataStreamSettings), equalTo(expectedEffectiveTemplate));
     }
 
-    public void testMergeEmptyMappingsIntoTemplateWithNonEmptySettings() {
+    public void testMergeEmptyMappingsIntoTemplateWithNonEmptySettings() throws IOException {
         // Attempting to merge in null mappings ought to fail
         ComposableIndexTemplate indexTemplate = randomInstance();
         expectThrows(NullPointerException.class, () -> indexTemplate.mergeMappings(null));
+        assertThat(indexTemplate.mergeMappings(EMPTY_MAPPINGS), equalTo(indexTemplate));
         assertThat(indexTemplate.mergeSettings(Settings.EMPTY), equalTo(indexTemplate));
     }
 
-    public void testMergeNonEmptyMappingsIntoTemplateWithEmptyMapptings() throws IOException {
+    public void testMergeNonEmptyMappingsIntoTemplateWithEmptyMappings() throws IOException {
         // We only have settings from the data stream, so we expect to get only those back in the effective template
         CompressedXContent dataStreamMappings = randomMappings(randomDataStreamTemplate());
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -389,8 +391,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .template(templateBuilder)
             .componentTemplates(componentTemplates)
             .build();
-        CompressedXContent mergedMappings = new CompressedXContent(Map.of());
-        Template.Builder expectedTemplateBuilder = Template.builder().settings(templateSettings).mappings(mergedMappings);
+        Template.Builder expectedTemplateBuilder = Template.builder().settings(templateSettings).mappings(EMPTY_MAPPINGS);
         ComposableIndexTemplate expectedEffectiveTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

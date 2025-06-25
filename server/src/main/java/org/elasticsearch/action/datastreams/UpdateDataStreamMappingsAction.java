@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -203,7 +202,8 @@ public class UpdateDataStreamMappingsAction extends ActionType<UpdateDataStreamM
             if (dataStreamErrorMessage != null) {
                 builder.field("error", dataStreamErrorMessage);
             }
-            Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(mappings.uncompressed(), true, XContentType.JSON).v2();
+            Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(mappings.uncompressed(), true, builder.contentType())
+                .v2();
             if (uncompressedMappings.isEmpty() == false) {
                 builder.field("mappings");
                 builder.map(uncompressedMappings);
@@ -211,7 +211,7 @@ public class UpdateDataStreamMappingsAction extends ActionType<UpdateDataStreamM
             Map<String, Object> uncompressedEffectiveMappings = XContentHelper.convertToMap(
                 effectiveMappings.uncompressed(),
                 true,
-                XContentType.JSON
+                builder.contentType()
             ).v2();
             if (uncompressedEffectiveMappings.isEmpty() == false) {
                 builder.field("effective_mappings");

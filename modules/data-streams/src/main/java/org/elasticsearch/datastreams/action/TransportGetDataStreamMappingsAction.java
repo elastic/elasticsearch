@@ -58,7 +58,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamMappingsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

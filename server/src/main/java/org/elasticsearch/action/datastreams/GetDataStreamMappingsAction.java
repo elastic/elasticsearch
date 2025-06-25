@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -89,26 +90,26 @@ public class GetDataStreamMappingsAction extends ActionType<GetDataStreamMapping
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
-        private final List<DataStreamMappingsResponse> DataStreamMappingsResponses;
+        private final List<DataStreamMappingsResponse> dataStreamMappingsResponses;
 
         public Response(List<DataStreamMappingsResponse> DataStreamMappingsResponses) {
-            this.DataStreamMappingsResponses = DataStreamMappingsResponses;
+            this.dataStreamMappingsResponses = DataStreamMappingsResponses;
         }
 
         public List<DataStreamMappingsResponse> getDataStreamMappingsResponses() {
-            return DataStreamMappingsResponses;
+            return dataStreamMappingsResponses;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert false : "This ought to never be called because this action only runs locally";
+            TransportAction.localOnly();
         }
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 Iterators.single((builder, params1) -> builder.startObject().startArray("data_streams")),
-                DataStreamMappingsResponses.stream().map(DataStreamMappingsResponse -> (ToXContent) DataStreamMappingsResponse).iterator(),
+                dataStreamMappingsResponses.stream().map(DataStreamMappingsResponse -> (ToXContent) DataStreamMappingsResponse).iterator(),
                 Iterators.single((builder, params1) -> builder.endArray().endObject())
             );
         }
@@ -128,7 +129,7 @@ public class GetDataStreamMappingsAction extends ActionType<GetDataStreamMapping
             Map<String, Object> uncompressedEffectiveMappings = XContentHelper.convertToMap(
                 effectiveMappings.uncompressed(),
                 true,
-                XContentType.JSON
+                builder.contentType()
             ).v2();
             builder.field("effective_mappings");
             builder.map(uncompressedEffectiveMappings);

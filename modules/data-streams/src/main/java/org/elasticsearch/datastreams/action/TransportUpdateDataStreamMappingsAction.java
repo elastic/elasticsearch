@@ -21,11 +21,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
-import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.Mapping;
@@ -38,20 +37,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class TransportUpdateDataStreamMappingsAction extends TransportMasterNodeAction<
     UpdateDataStreamMappingsAction.Request,
     UpdateDataStreamMappingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamMappingsAction.class);
-    private static final Set<String> APPLY_TO_BACKING_INDICES = Set.of("index.lifecycle.name");
-    private static final Set<String> APPLY_TO_DATA_STREAM_ONLY = Set.of("index.number_of_shards");
     private final MetadataDataStreamsService metadataDataStreamsService;
-    private final MetadataUpdateSettingsService updateSettingsService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
-    private final SettingsFilter settingsFilter;
 
     @Inject
     public TransportUpdateDataStreamMappingsAction(
@@ -61,10 +55,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
         MetadataDataStreamsService metadataDataStreamsService,
-        MetadataUpdateSettingsService updateSettingsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices,
-        SettingsFilter settingsFilter
+        SystemIndices systemIndices
     ) {
         super(
             UpdateDataStreamMappingsAction.NAME,
@@ -78,10 +70,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         );
         this.projectResolver = projectResolver;
         this.metadataDataStreamsService = metadataDataStreamsService;
-        this.updateSettingsService = updateSettingsService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
-        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -121,7 +111,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                         new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
                             dataStreamName,
                             false,
-                            e.getMessage(),
+                            Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
                             Mapping.EMPTY.toCompressedXContent(),
                             Mapping.EMPTY.toCompressedXContent()
                         )

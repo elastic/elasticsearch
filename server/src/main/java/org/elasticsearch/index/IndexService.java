@@ -50,6 +50,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -173,6 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     @SuppressWarnings("this-escape")
     @SuppressForbidden(
@@ -214,7 +216,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
-        SearchStatsSettings searchStatsSettings
+        SearchStatsSettings searchStatsSettings,
+        MergeMetrics mergeMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -301,6 +304,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
         updateFsyncTaskIfNecessary();
     }
 
@@ -592,7 +596,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexCommitListener,
                 mapperMetrics,
                 indexingStatsSettings,
-                searchStatsSettings
+                searchStatsSettings,
+                mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

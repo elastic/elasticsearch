@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -118,7 +120,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     }
 
     @Override
-    public void validate(ShardFollowTask params, ClusterState clusterState) {
+    public void validate(ShardFollowTask params, ClusterState clusterState, @Nullable ProjectId projectId) {
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         final ShardRouting primaryShard = routingTable.shard(params.getFollowShardId().id()).primaryShard();
         if (primaryShard.active() == false) {
@@ -131,8 +133,9 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     @Override
     public Assignment getAssignment(
         final ShardFollowTask params,
-        Collection<DiscoveryNode> candidateNodes,
-        final ClusterState clusterState
+        final Collection<DiscoveryNode> candidateNodes,
+        final ClusterState clusterState,
+        @Nullable final ProjectId projectId
     ) {
         final DiscoveryNode node = selectLeastLoadedNode(
             clusterState,

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1087,7 +1088,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Assignment getAssignment(P params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+                public Assignment getAssignment(
+                    P params,
+                    Collection<DiscoveryNode> candidateNodes,
+                    ClusterState clusterState,
+                    ProjectId projectId
+                ) {
                     return fn.apply(params, candidateNodes, clusterState);
                 }
 

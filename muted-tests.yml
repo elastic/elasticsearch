@@ -564,7 +564,9 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
-
+- class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
+  method: testRerank
+  issue: https://github.com/elastic/elasticsearch/issues/130009
 
 # Examples:
 #

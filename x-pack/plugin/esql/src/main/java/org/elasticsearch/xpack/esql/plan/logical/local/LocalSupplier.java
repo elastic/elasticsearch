@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
@@ -25,9 +26,14 @@ import java.util.function.Supplier;
  *     {@link UnsupportedOperationException}.
  * </p>
  */
-public interface LocalSupplier extends Supplier<Block[]>, Writeable {
+public interface LocalSupplier extends Supplier<Block[]>, Writeable, NamedWriteable {
 
     LocalSupplier EMPTY = new LocalSupplier() {
+        @Override
+        public String getWriteableName() {
+            return "EmptySupplier";
+        }
+
         @Override
         public Block[] get() {
             return BlockUtils.NO_BLOCKS;

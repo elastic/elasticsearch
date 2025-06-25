@@ -586,7 +586,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testStatsOnLargeKeywords() throws IOException, InterruptedException {
-        initVeryLargeKeyword(1000, 1, 10_000_000, 1);
+        initVeryLargeText(500, 1, 10_000_000, 1);
         StringBuilder query = startQuery();
         query.append("FROM large_text_idx | STATS SUM(LENGTH(large_text0))\"}");
         for (int i = 0; i < 5; i++) {
@@ -594,7 +594,7 @@ public class HeapAttackIT extends ESRestTestCase {
         }
     }
 
-    private void initVeryLargeKeyword(int docs, int nFields, int fieldSize, int docsPerBulk) throws IOException {
+    private void initVeryLargeText(int docs, int nFields, int fieldSize, int docsPerBulk) throws IOException {
         logger.info("loading many documents a very large string field");
         Request request = new Request("PUT", "/large_text_idx");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();

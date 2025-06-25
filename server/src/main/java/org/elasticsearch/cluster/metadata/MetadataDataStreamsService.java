@@ -484,6 +484,15 @@ public class MetadataDataStreamsService {
 
         Template.Builder templateBuilder = Template.builder();
         Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(settingsOverrides);
+        /*
+         * A null value for a setting override means that we remove it from the data stream, and let the value from the template (if any)
+         * be used.
+         */
+        settingsOverrides.keySet().forEach(key -> {
+            if (mergedSettingsBuilder.get(key) == null) {
+                mergedSettingsBuilder.remove(key);
+            }
+        });
         Settings mergedSettings = mergedSettingsBuilder.build();
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);

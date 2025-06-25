@@ -57,6 +57,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    public static final CompressedXContent EMPTY_MAPPINGS;
+    static {
+        try {
+            EMPTY_MAPPINGS = new CompressedXContent(Map.of());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
@@ -369,24 +377,22 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
         Map<String, Object> combinedMappingMap = new HashMap<>();
         if (originalMapping != null) {
-            combinedMappingMap.putAll(
-                (Map<? extends String, ?>) XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON)
-                    .v2()
-                    .get("_doc")
-            );
+            Map<String, Object> originalMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON)
+                .v2();
+            if (originalMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                combinedMappingMap.putAll((Map<String, ?>) originalMappingMap.get(MapperService.SINGLE_MAPPING_NAME));
+            } else {
+                combinedMappingMap.putAll(originalMappingMap);
+            }
         }
         XContentHelper.update(combinedMappingMap, mappingAdditionMap, true);
-        if (combinedMappingMap.isEmpty()) {
-            return null;
-        } else {
-            return convertMappingMapToXContent(combinedMappingMap);
-        }
+        return convertMappingMapToXContent(combinedMappingMap);
     }
 
     private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
         CompressedXContent compressedXContent;
-        if (rawAdditionalMapping == null || rawAdditionalMapping.isEmpty()) {
-            compressedXContent = null;
+        if (rawAdditionalMapping.isEmpty()) {
+            compressedXContent = EMPTY_MAPPINGS;
         } else {
             try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
                 compressedXContent = mappingFromXContent(parser);

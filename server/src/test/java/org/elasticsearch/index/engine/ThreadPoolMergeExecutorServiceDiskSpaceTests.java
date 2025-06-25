@@ -534,7 +534,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         bFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         aFileStore.usableSpace = randomLongBetween(900L, aFileStore.totalSpace);
-        bFileStore.usableSpace = randomLongBetween(900L, bFileStore.totalSpace);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> randomLongBetween(900L, bFileStore.totalSpace));
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         try (
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
@@ -613,7 +613,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         bFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         aFileStore.usableSpace = randomLongBetween(900L, aFileStore.totalSpace);
-        bFileStore.usableSpace = randomLongBetween(900L, bFileStore.totalSpace);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> randomLongBetween(900L, bFileStore.totalSpace));
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         try (
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
@@ -847,6 +847,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 when(mergeTask2.schedule()).thenReturn(RUN);
                 boolean task1Runs = randomBoolean();
                 long currentAvailableBudget = expectedAvailableBudget.get();
+                // the over-budget here can be larger than the total initial available budget
                 long overBudget = randomLongBetween(currentAvailableBudget + 1L, currentAvailableBudget + 100L);
                 long underBudget = randomLongBetween(0L, currentAvailableBudget);
                 if (task1Runs) {
@@ -882,11 +883,18 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 // update the expected budget given that one task now finished
                 expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
             }
-            // let the test finish cleanly
-            assertBusy(() -> {
-                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
-                assertThat(threadPoolMergeExecutorService.allDone(), is(true));
-            });
+            assertBusy(
+                () -> assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(aHasMoreSpace ? 112_500L : 103_000L)
+                )
+            );
+            // let the test finish cleanly (some tasks can be over budget even if all the other tasks finished running)
+            aFileStore.totalSpace = Long.MAX_VALUE;
+            bFileStore.totalSpace = Long.MAX_VALUE;
+            aFileStore.usableSpace = Long.MAX_VALUE;
+            bFileStore.usableSpace = Long.MAX_VALUE;
+            assertBusy(() -> assertThat(threadPoolMergeExecutorService.allDone(), is(true)));
         }
         if (setThreadPoolMergeSchedulerSetting) {
             assertWarnings(
@@ -900,7 +908,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         long diskSpaceLimitBytes = randomLongBetween(10L, 100L);
         aFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
         aFileStore.totalSpace = aFileStore.usableSpace + randomLongBetween(1L, 10L);
-        bFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> diskSpaceLimitBytes + randomLongBetween(1L, 100L));
         bFileStore.totalSpace = bFileStore.usableSpace + randomLongBetween(1L, 10L);
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         Settings.Builder settingsBuilder = Settings.builder().put(settings);
@@ -1001,7 +1009,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         bFileStore.totalSpace = randomLongBetween(300L, 1_000L);
         long grantedUsableSpaceBuffer = randomLongBetween(10L, 50L);
         aFileStore.usableSpace = randomLongBetween(200L, aFileStore.totalSpace - grantedUsableSpaceBuffer);
-        bFileStore.usableSpace = randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer);
+        bFileStore.usableSpace = randomValueOtherThan(
+            aFileStore.usableSpace,
+            () -> randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer)
+        );
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // change the watermark level, just for coverage and it's easier with the calculations

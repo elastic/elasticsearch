@@ -46,7 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -75,6 +74,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -94,15 +94,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
-
-    public static final CompressedXContent EMPTY_MAPPINGS;
-    static {
-        try {
-            EMPTY_MAPPINGS = new CompressedXContent(Map.of());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
@@ -172,7 +163,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             generation,
             metadata,
             Settings.EMPTY,
-            Mapping.EMPTY.toCompressedXContent(),
+            EMPTY_MAPPINGS,
             hidden,
             replicated,
             system,

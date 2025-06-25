@@ -332,7 +332,7 @@ public class MetadataCreateDataStreamService {
             initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             Settings.EMPTY,
-            DataStream.EMPTY_MAPPINGS,
+            ComposableIndexTemplate.EMPTY_MAPPINGS,
             hidden,
             false,
             isSystem,

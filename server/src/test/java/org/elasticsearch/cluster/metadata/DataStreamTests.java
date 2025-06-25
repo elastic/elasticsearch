@@ -2576,7 +2576,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testGetEffectiveIndexTemplateTemplateNoOverrides() throws IOException {
         // We only have settings and mappings from the template, so the effective template will just be the original template
-        DataStream dataStream = createDataStream(Settings.EMPTY, DataStream.EMPTY_MAPPINGS);
+        DataStream dataStream = createDataStream(Settings.EMPTY, ComposableIndexTemplate.EMPTY_MAPPINGS);
         Settings templateSettings = randomSettings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(randomMappings());
         ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
@@ -2603,7 +2603,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     public void testGetEffectiveIndexTemplateDataStreamSettingsOnly() throws IOException {
         // We only have settings from the data stream, so we expect to get only those back in the effective template
         Settings dataStreamSettings = randomSettings();
-        DataStream dataStream = createDataStream(dataStreamSettings, DataStream.EMPTY_MAPPINGS);
+        DataStream dataStream = createDataStream(dataStreamSettings, ComposableIndexTemplate.EMPTY_MAPPINGS);
         Settings templateSettings = Settings.EMPTY;
         CompressedXContent templateMappings = randomMappings();
         Template.Builder templateBuilder = Template.builder().settings(templateSettings).mappings(templateMappings);

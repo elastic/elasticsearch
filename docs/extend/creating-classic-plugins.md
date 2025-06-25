@@ -137,7 +137,8 @@ Allows code to access the filesystem, to read or write paths as specified by the
 
 It is possible to specify 3 different types of file entitlement:
   - `path` to specify an absolute path
-  - `relative_path` to specify a relative path. The path will be resolved via the `relative_to` field, which is used to qualify the relative path. It can be a specific {{es}} directory (`config` or `data`), or to the user home directory (`home`) (the home of the user running {{es}}). The `relative_to` field can have the following values:
+ - `relative_path` to specify a relative path
+  - Use the `relative_to` field to qualify the relative path. `relative_to` accepts the following options:
     - `config`: the {{es}} [config directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#config-files-location)
     - `data`: the {{es}} [data directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/path-settings-overview.html)
     - `home`: the home directory of the user running {{es}}

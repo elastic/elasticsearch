@@ -841,6 +841,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 when(mergeTask2.schedule()).thenReturn(RUN);
                 boolean task1Runs = randomBoolean();
                 long currentAvailableBudget = expectedAvailableBudget.get();
+                // the over-budget here can be larger than the total initial available budget
                 long overBudget = randomLongBetween(currentAvailableBudget + 1L, currentAvailableBudget + 100L);
                 long underBudget = randomLongBetween(0L, currentAvailableBudget);
                 if (task1Runs) {
@@ -876,11 +877,18 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 // update the expected budget given that one task now finished
                 expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
             }
-            // let the test finish cleanly
-            assertBusy(() -> {
-                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
-                assertThat(threadPoolMergeExecutorService.allDone(), is(true));
-            });
+            assertBusy(
+                () -> assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(aHasMoreSpace ? 112_500L : 103_000L)
+                )
+            );
+            // let the test finish cleanly (some tasks can be over budget even if all the other tasks finished running)
+            aFileStore.totalSpace = Long.MAX_VALUE;
+            bFileStore.totalSpace = Long.MAX_VALUE;
+            aFileStore.usableSpace = Long.MAX_VALUE;
+            bFileStore.usableSpace = Long.MAX_VALUE;
+            assertBusy(() -> assertThat(threadPoolMergeExecutorService.allDone(), is(true)));
         }
         if (setThreadPoolMergeSchedulerSetting) {
             assertWarnings(

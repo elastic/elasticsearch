@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -90,12 +90,12 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
     }
 
     private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
-
-        IndexMetadata sourceMetadata = state.metadata().getProject().index(updateTask.sourceIndex);
+        final ProjectMetadata projectMetadata = state.metadata().getProject();
+        IndexMetadata sourceMetadata = projectMetadata.index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);
         }
-        IndexMetadata destMetadata = state.metadata().getProject().index(updateTask.destIndex);
+        IndexMetadata destMetadata = projectMetadata.index(updateTask.destIndex);
         if (destMetadata == null) {
             throw new IndexNotFoundException(updateTask.destIndex);
         }
@@ -113,11 +113,11 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
             // creation date updates settings so must increment settings version
             .settingsVersion(destMetadata.getSettingsVersion() + 1);
 
-        var indices = new HashMap<>(state.metadata().getProject().indices());
+        var indices = new HashMap<>(projectMetadata.indices());
         indices.put(updateTask.destIndex, newDestMetadata.build());
 
-        Metadata newMetadata = Metadata.builder(state.metadata()).indices(indices).build();
-        return ClusterState.builder(state).metadata(newMetadata).build();
+        ProjectMetadata newMetadata = ProjectMetadata.builder(projectMetadata).indices(indices).build();
+        return ClusterState.builder(state).putProjectMetadata(newMetadata).build();
     }
 
     static class UpdateIndexMetadataTask extends AckedBatchedClusterStateUpdateTask {

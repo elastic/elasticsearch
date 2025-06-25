@@ -304,7 +304,18 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             if (hasSeenStar && hasExclusion) {
                 return;
             }
-            throw new ParsingException(e, source(ctx), e.getMessage());
+
+            InvalidIndexNameException errorToThrow = e;
+            /*
+             * We only modify this particular message because it mentions '*' as an invalid char.
+             * However, we do allow asterisk in the index patterns: wildcarded patterns. Let's not
+             * mislead the user by mentioning this char in the error message.
+             */
+            if (e.getMessage().contains("must not contain the following characters")) {
+                errorToThrow = new InvalidIndexNameException(index, e.getMessage().replace("'*',", ""));
+            }
+
+            throw new ParsingException(errorToThrow, source(ctx), errorToThrow.getMessage());
         }
     }
 

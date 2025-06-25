@@ -136,7 +136,6 @@ POST _query
 * Fix IndexSortSortedNumericDocValuesRangeQuery for integer sorting
 * ValueSource.fromDoubleValuesSource(dvs).getSortField() would throw errors when used if the DoubleValuesSource needed scores
 * Disable connectedComponents logic in HNSW graph building.
-----
 
 {es-pull}129555[#129555]
 

@@ -299,7 +299,10 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 ensureAuthorizationCallFinished(service);
 
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.RERANK)));
+                assertThat(
+                    service.supportedTaskTypes(),
+                    is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
+                );
                 containsInAnyOrder(
                     new InferenceService.DefaultConfigId(
                         ".elser-v2-elastic",

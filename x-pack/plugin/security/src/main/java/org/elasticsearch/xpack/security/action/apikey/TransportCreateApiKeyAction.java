@@ -63,10 +63,6 @@ public final class TransportCreateApiKeyAction extends TransportAction<CreateApi
                 );
                 return;
             }
-            if (authentication.isCloudApiKey()) {
-                listener.onFailure(new IllegalArgumentException("creating elasticsearch api keys using cloud api keys is not supported"));
-                return;
-            }
             resolver.resolveUserRoleDescriptors(
                 authentication,
                 ActionListener.wrap(

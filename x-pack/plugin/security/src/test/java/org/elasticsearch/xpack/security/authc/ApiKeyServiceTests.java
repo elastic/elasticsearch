@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -2555,6 +2556,25 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
         final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
         assertThat(e, is(rejectedExecutionException));
+    }
+
+    @Test
+    public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        assertEquals(true, future.isDone());
+        assertThrows(ExecutionException.class, future::get);
+        try {
+            future.get();
+        } catch (ExecutionException ex) {
+            assertEquals(
+                "java.lang.IllegalArgumentException: creating elasticsearch api keys using cloud api keys is not supported",
+                ex.getMessage()
+            );
+        }
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

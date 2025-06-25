@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -30,7 +32,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<CohereServiceSettings> {
+public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereServiceSettings> {
 
     public static CohereServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
@@ -358,5 +360,23 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         }
 
         return map;
+    }
+
+    @Override
+    protected CohereServiceSettings mutateInstanceForVersion(CohereServiceSettings instance, TransportVersion version) {
+        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+            return new CohereServiceSettings(
+                instance.uri(),
+                instance.similarity(),
+                instance.dimensions(),
+                instance.maxInputTokens(),
+                instance.modelId(),
+                instance.rateLimitSettings(),
+                CohereServiceSettings.CohereApiVersion.V1
+            );
+        }
+
+        return instance;
     }
 }

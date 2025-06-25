@@ -88,14 +88,15 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
                 CohereServiceSettings.CohereApiVersion.V1
             );
-        } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
-            return new CohereRerankServiceSettings(
-                instance.uri(),
-                instance.modelId(),
-                instance.rateLimitSettings(),
-                CohereServiceSettings.CohereApiVersion.V1
-            );
-        }
+        } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+                return new CohereRerankServiceSettings(
+                    instance.uri(),
+                    instance.modelId(),
+                    instance.rateLimitSettings(),
+                    CohereServiceSettings.CohereApiVersion.V1
+                );
+            }
         return instance;
     }
 

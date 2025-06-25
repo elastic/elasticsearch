@@ -7,32 +7,41 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.index.query.AutomatonTranslatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
-import org.elasticsearch.xpack.esql.core.querydsl.query.AutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 
-public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
+public class WildcardLikeList extends RegexMatch<WildcardPatternList> implements AutomatonTranslatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLikeList",
         WildcardLikeList::new
     );
+    private Configuration configuration;
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -40,13 +49,21 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public WildcardLikeList(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns,
+        Configuration configuration
     ) {
-        this(source, left, patterns, false);
+        this(source, left, patterns, false, configuration);
     }
 
-    public WildcardLikeList(Source source, Expression left, WildcardPatternList patterns, boolean caseInsensitive) {
+    public WildcardLikeList(
+        Source source,
+        Expression left,
+        WildcardPatternList patterns,
+        boolean caseInsensitive,
+        Configuration configuration
+    ) {
         super(source, left, patterns, caseInsensitive);
+        this.configuration = configuration;
     }
 
     public WildcardLikeList(StreamInput in) throws IOException {
@@ -54,8 +71,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             new WildcardPatternList(in),
-            deserializeCaseInsensitivity(in)
+            deserializeCaseInsensitivity(in),
+            null
         );
+        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, blockFactory);
+        this.configuration = new Configuration(blockStreamInput);
     }
 
     @Override
@@ -64,6 +85,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         out.writeNamedWriteable(field());
         pattern().writeTo(out);
         serializeCaseInsensitivity(out);
+        configuration.writeTo(out);
     }
 
     @Override
@@ -78,12 +100,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     @Override
     protected NodeInfo<WildcardLikeList> info() {
-        return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive());
+        return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive(), configuration);
     }
 
     @Override
     protected WildcardLikeList replaceChild(Expression newLeft) {
-        return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive());
+        return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive(), configuration);
     }
 
     /**
@@ -104,7 +126,8 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);
+        return translateField(targetFieldName);
     }
 
     /**
@@ -112,12 +135,18 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        return new AutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
+        return new ExpressionQuery(source(), targetFieldName, this, configuration);
     }
 
-    private String getAutomatonDescription() {
+    @Override
+    public String getAutomatonDescription() {
         // we use the information used to create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
         return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
+    }
+
+    @Override
+    public Automaton getAutomaton() {
+        return pattern().createAutomaton(caseInsensitive());
     }
 }

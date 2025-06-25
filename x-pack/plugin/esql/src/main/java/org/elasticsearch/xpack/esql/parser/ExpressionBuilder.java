@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -120,11 +121,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final ParsingContext context;
+    private final Configuration configuration;
 
     public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
 
-    ExpressionBuilder(ParsingContext context) {
+    ExpressionBuilder(ParsingContext context, Configuration configuration) {
         this.context = context;
+        this.configuration = configuration;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -777,7 +780,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
         Expression e = wildcardPatterns.size() == 1
             ? new WildcardLike(source, left, wildcardPatterns.getFirst())
-            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns), configuration);
         return ctx.NOT() == null ? e : new Not(source, e);
     }
 

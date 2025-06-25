@@ -16,13 +16,13 @@ import java.util.Objects;
 /**
  * Query that matches documents based on a Lucene Automaton.
  */
-public class AutomatonQuery extends Query {
+public class EsqlAutomatonQuery extends Query {
 
     private final String field;
     private final Automaton automaton;
     private final String automatonDescription;
 
-    public AutomatonQuery(Source source, String field, Automaton automaton, String automatonDescription) {
+    public EsqlAutomatonQuery(Source source, String field, Automaton automaton, String automatonDescription) {
         super(source);
         this.field = field;
         this.automaton = automaton;
@@ -53,7 +53,7 @@ public class AutomatonQuery extends Query {
             return false;
         }
 
-        AutomatonQuery other = (AutomatonQuery) obj;
+        EsqlAutomatonQuery other = (EsqlAutomatonQuery) obj;
         return Objects.equals(field, other.field)
             && Objects.equals(automaton, other.automaton)
             && Objects.equals(automatonDescription, other.automatonDescription);

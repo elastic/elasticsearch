@@ -975,5 +975,5 @@ setup:
         fields: semantic_field
         include_defaults: true
 
-  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options": null }
+  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
 

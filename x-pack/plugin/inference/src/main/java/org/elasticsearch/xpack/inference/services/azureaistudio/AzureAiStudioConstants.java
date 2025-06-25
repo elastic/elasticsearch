@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio;
 public class AzureAiStudioConstants {
     public static final String EMBEDDINGS_URI_PATH = "/v1/embeddings";
     public static final String COMPLETIONS_URI_PATH = "/v1/chat/completions";
+    public static final String RERANK_URI_PATH = "/v1/rerank";
 
     // common service settings fields
     public static final String TARGET_FIELD = "target";
@@ -34,6 +35,10 @@ public class AzureAiStudioConstants {
 
     public static final Double MIN_TEMPERATURE_TOP_P = 0.0;
     public static final Double MAX_TEMPERATURE_TOP_P = 2.0;
+
+    // rerank task settings fields
+    public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
+    public static final String TOP_N_FIELD = "top_n";
 
     private AzureAiStudioConstants() {}
 }

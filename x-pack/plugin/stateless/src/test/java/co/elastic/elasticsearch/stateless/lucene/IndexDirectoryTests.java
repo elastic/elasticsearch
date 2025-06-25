@@ -21,7 +21,6 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
@@ -444,11 +443,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 recoveryCommit.nodeEphemeralId(),
                 recoveryCommit.translogRecoveryStartFile(),
                 recoveryCommit.sizeInBytes(),
-                BlobFileRanges.computeBlobFileRanges(
-                    new BatchedCompoundCommit(recoveryCommit.primaryTermAndGeneration(), List.of(recoveryCommit)),
-                    files,
-                    randomBoolean()
-                )
+                BlobFileRanges.computeBlobFileRanges(List.of(recoveryCommit).iterator(), files, randomBoolean())
             );
 
             assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().isPresent(), is(true));

@@ -725,6 +725,43 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength,
         boolean exactBlobLength
     ) throws IOException {
+        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
+        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, exactBlobLength);
+    }
+
+    /**
+     * Creates an iterator that incrementally reads {@link StatelessCompoundCommit} header from a batched compound commit blob
+     * identified by a term/generation from the object store, fetching bytes using a prewarming instance from the provided
+     * {@link IndexBlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound commit header.
+     *
+     * @param directory         the {@link IndexBlobStoreCacheDirectory} used to read the blob in the object store
+     * @param blobTermAndGen    the term/generation of the blob to read
+     * @param maxBlobLength     the blob's maximum length to read
+     * @param exactBlobLength   a flag indicating that the max. blob length is equal to the real blob length in the object store (flag is
+     *                          {@code true}) or not (flag is {@code false}) in which case we are OK to not read the blob fully. This flag
+     *                          is used in assertions only.
+     * @return                  an iterator over {@link StatelessCompoundCommit} objects that lazily reads compound commits
+     *                          from the blob store with caching support
+     */
+    private static Iterator<StatelessCompoundCommit> readBatchedCompoundCommitIncrementallyUsingCache(
+        IndexBlobStoreCacheDirectory directory,
+        IOContext context,
+        PrimaryTermAndGeneration blobTermAndGen,
+        long maxBlobLength,
+        boolean exactBlobLength
+    ) {
+        var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
+        return BatchedCompoundCommit.readFromStoreIncrementally(blobName, maxBlobLength, blobReader, exactBlobLength);
+    }
+
+    private static BatchedCompoundCommit.BlobReader getBlobReader(
+        IndexBlobStoreCacheDirectory directory,
+        IOContext context,
+        PrimaryTermAndGeneration blobTermAndGen,
+        long maxBlobLength
+    ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
@@ -741,7 +778,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
         );
-        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, (ignored, offset, length) -> {
+
+        return (ignored, offset, length) -> {
             assert offset + length <= maxBlobLength : offset + " + " + length + " > " + maxBlobLength;
             var input = dir.openInput(blobName, context);
             try {
@@ -755,7 +793,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 IOUtils.closeWhileHandlingException(input);
                 throw e;
             }
-        }, exactBlobLength);
+        };
     }
 
     /**
@@ -1026,10 +1064,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     var blobTermAndGen = referencedBlob.getKey();
                     var blobLengthAndFiles = referencedBlob.getValue();
 
-                    BatchedCompoundCommit bcc = blobTermAndGen.equals(latestBcc.primaryTermAndGeneration()) == false
-                        ? readBatchedCompoundCommitUsingCache(directory, context, blobTermAndGen, blobLengthAndFiles.maxBlobLength(), false)
-                        : latestBcc;
-                    blobFileRanges.putAll(computeBlobFileRanges(bcc, blobLengthAndFiles.files(), useReplicatedRanges));
+                    var bccCommitsIterator = blobTermAndGen.equals(latestBcc.primaryTermAndGeneration()) == false
+                        ? readBatchedCompoundCommitIncrementallyUsingCache(
+                            directory,
+                            context,
+                            blobTermAndGen,
+                            blobLengthAndFiles.maxBlobLength(),
+                            false
+                        )
+                        : latestBcc.compoundCommits().iterator();
+
+                    blobFileRanges.putAll(computeBlobFileRanges(bccCommitsIterator, blobLengthAndFiles.files(), useReplicatedRanges));
                 }));
             }
         }

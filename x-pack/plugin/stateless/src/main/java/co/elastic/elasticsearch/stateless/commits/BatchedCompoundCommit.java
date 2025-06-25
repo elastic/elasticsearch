@@ -24,10 +24,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -99,10 +101,81 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
      */
     public static BatchedCompoundCommit readFromStore(String blobName, long maxBlobLength, BlobReader blobReader, boolean exactBlobLength)
         throws IOException {
-        List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
-        long offset = 0;
         PrimaryTermAndGeneration primaryTermAndGeneration = null;
-        while (offset < maxBlobLength) {
+        List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
+        var bccCommitsIterator = readFromStoreIncrementally(blobName, maxBlobLength, blobReader, exactBlobLength);
+        while (bccCommitsIterator.hasNext()) {
+            var compoundCommit = bccCommitsIterator.next();
+            // BatchedCompoundCommit uses the first StatelessCompoundCommit primary term and generation
+            if (primaryTermAndGeneration == null) {
+                primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
+            }
+            compoundCommits.add(compoundCommit);
+        }
+        return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
+    }
+
+    /**
+     * Creates an iterator that incrementally reads {@link StatelessCompoundCommit} headers from a batched compound commit blob
+     * in the blob store, up to the specified maximum blob length. This method provides lazy loading of compound commits,
+     * allowing for memory-efficient processing of large batched compound commits without materializing all commits at once.
+     * <p>
+     * The iterator will read and parse compound commit headers sequentially from the blob, stopping when either the maximum
+     * blob length is reached or all compound commits in the blob have been processed. Each iteration returns a
+     * {@link StatelessCompoundCommit} containing both the BCC primary term and generation and the compound commit header.
+     * </p>
+     *
+     * <p>
+     * This method is particularly useful when processing large batched compound commits where memory usage needs to be
+     * controlled, or when only a subset of the compound commits in a blob need to be processed.
+     * </p>
+     *
+     * @param blobName          the blob name where the batched compound commit is stored
+     * @param maxBlobLength     the maximum number of bytes to read for the blob (not expected to be in the middle of a header or internal
+     *                          replicated range bytes)
+     * @param blobReader        a blob reader
+     * @param exactBlobLength   a flag indicating that the max. blob length is equal to the real blob length in the object store (flag is
+     *                          {@code true}) or not (flag is {@code false}) in which case we are OK to not read the blob fully. This flag
+     *                          is used in assertions only.
+     * @return                  an iterator over {@link StatelessCompoundCommit} objects that lazily reads compound commit headers
+     *                          from the blob store up to the specified maximum length
+     */
+    public static Iterator<StatelessCompoundCommit> readFromStoreIncrementally(
+        String blobName,
+        long maxBlobLength,
+        BlobReader blobReader,
+        boolean exactBlobLength
+    ) {
+        return new BCCStatelessCompoundCommitsIterator(blobName, maxBlobLength, blobReader, exactBlobLength);
+    }
+
+    static class BCCStatelessCompoundCommitsIterator implements Iterator<StatelessCompoundCommit> {
+        private final String blobName;
+        private final long maxBlobLength;
+        private final BlobReader blobReader;
+        private final boolean exactBlobLength;
+        private long offset;
+
+        BCCStatelessCompoundCommitsIterator(String blobName, long maxBlobLength, BlobReader blobReader, boolean exactBlobLength) {
+            this.blobName = blobName;
+            this.maxBlobLength = maxBlobLength;
+            this.blobReader = blobReader;
+            this.exactBlobLength = exactBlobLength;
+        }
+
+        @Override
+        public boolean hasNext() {
+            assert offset < maxBlobLength || offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
+                : "offset "
+                    + offset
+                    + " != page-aligned blobLength "
+                    + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
+                    + " with exact blob length flag [true]";
+            return offset < maxBlobLength;
+        }
+
+        @Override
+        public StatelessCompoundCommit next() {
             assert offset == BlobCacheUtils.toPageAlignedSize(offset) : "should only read page-aligned compound commits but got: " + offset;
             try (StreamInput streamInput = blobReader.readBlobAtOffset(blobName, offset, maxBlobLength - offset)) {
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
@@ -110,22 +183,14 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                     offset,
                     ignored -> StatelessCompoundCommit.parseGenerationFromBlobName(blobName)
                 );
-                // BatchedCompoundCommit uses the first StatelessCompoundCommit primary term and generation
-                if (primaryTermAndGeneration == null) {
-                    primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
-                }
-                compoundCommits.add(compoundCommit);
+
                 assert assertPaddingComposedOfZeros(blobName, maxBlobLength, blobReader, offset, compoundCommit);
                 offset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+                return compoundCommit;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
-        assert offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
-            : "offset "
-                + offset
-                + " != page-aligned blobLength "
-                + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
-                + " with exact blob length flag [true]";
-        return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
     }
 
     private static boolean assertPaddingComposedOfZeros(

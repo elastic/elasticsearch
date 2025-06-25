@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -503,6 +504,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
      * This method solely exists because we are not making ILM properly project-aware and it's not worth the investment of altering this
      * health indicator to be project-aware.
      */
+    @NotMultiProjectCapable
     private static ProjectMetadata getDefaultILMProject(ClusterState state) {
         return state.metadata().getProject(ProjectId.DEFAULT);
     }

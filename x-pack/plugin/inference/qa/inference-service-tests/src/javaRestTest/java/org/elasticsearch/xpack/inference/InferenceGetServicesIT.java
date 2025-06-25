@@ -77,16 +77,21 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
+        assertThat(services.size(), equalTo(18));
+
         assertThat(
             providersFor(TaskType.TEXT_EMBEDDING),
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
                     "amazonbedrock",
+                    "amazon_sagemaker",
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
                     "custom",
+                    "elastic",
                     "elasticsearch",
                     "googleaistudio",
                     "googlevertexai",
@@ -96,8 +101,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "openai",
                     "text_embedding_test_service",
                     "voyageai",
-                    "watsonxai",
-                    "amazon_sagemaker"
+                    "watsonxai"
                 ).toArray()
             )
         );

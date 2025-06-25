@@ -96,6 +96,11 @@ You can update this parameter by using the <<indices-put-mapping, Update mapping
 Use the <<put-inference-api>> to create the endpoint.
 If not specified, the {infer} endpoint defined by `inference_id` will be used at both index and query time.
 
+`index_options`::
+(Optional, object) Specifies the index options to override default values for the field.
+Currently, `dense_vector` index options are supported.
+For text embeddings, `index_options` may match any allowed <<dense-vector-index-options,dense vector index options>>.
+
 `chunking_settings`::
 (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {infer-cap} endpoint associated with `inference_id`.
@@ -124,9 +129,8 @@ The number of overlapping words allowed in chunks.
 Valid values are `0` or `1`.
 Required for `sentence` type chunking settings.
 
-WARNING: If the input exceeds the maximum token limit of the underlying model,  some services (such as OpenAI) may return an
-error. In contrast, the `elastic` and `elasticsearch` services  will automatically truncate the input to fit within the
-model's limit.
+WARNING: If the input exceeds the maximum token limit of the underlying model, some services (such as OpenAI) may return an error.
+In contrast, the `elastic` and `elasticsearch` services will automatically truncate the input to fit within the model's limit.
 
 ====
 
@@ -258,12 +262,39 @@ PUT test-index
 `semantic_text` uses defaults for indexing data based on the {infer} endpoint specified.
 It enables you to quickstart your semantic search by providing automatic {infer} and a dedicated query so you don't need to provide further details.
 
-In case you want to customize data indexing, use the
-<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field types and create an ingest pipeline with an
-<<inference-processor, {infer} processor>> to generate the embeddings.
-<<semantic-search-inference,This tutorial>> walks you through the process.
-In these cases - when you use `sparse_vector` or `dense_vector` field types instead of the `semantic_text` field type to customize indexing - using the
-<<query-dsl-semantic-query,`semantic_query`>> is not supported for querying the field data.
+If you want to override those defaults and customize the embeddings that
+`semantic_text` stores, you can do so by modifying <<semantic-text-params, parameters>>:
+
+- Use `index_options` to specify alternate index options such as specific
+`dense_vector` quantization methods
+- Use `chunking_settings` to override the chunking strategy associated with the
+{{infer}} endpoint, or completely disable chunking using the `none` type
+
+Here is an example of how to set these parameters for a text embedding endpoint:
+
+[source,console]
+------------------------------------------------------------
+PUT my-index-000004
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": "my-text-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "type": "int4_flat"
+          }
+        },
+        "chunking_settings": {
+          "type": "none"
+        }
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:Requires inference endpoint]
 
 [discrete]
 [[update-script]]

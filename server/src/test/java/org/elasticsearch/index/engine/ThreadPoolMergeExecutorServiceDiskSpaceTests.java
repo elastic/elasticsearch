@@ -883,7 +883,12 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 // update the expected budget given that one task now finished
                 expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
             }
-            assertBusy(() -> assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L)));
+            assertBusy(
+                () -> assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(aHasMoreSpace ? 112_500L : 103_000L)
+                )
+            );
             // let the test finish cleanly (some tasks can be over budget even if all the other tasks finished running)
             aFileStore.totalSpace = Long.MAX_VALUE;
             bFileStore.totalSpace = Long.MAX_VALUE;

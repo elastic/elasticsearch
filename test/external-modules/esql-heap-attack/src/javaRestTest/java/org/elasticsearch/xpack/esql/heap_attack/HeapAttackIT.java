@@ -585,6 +585,56 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
 
+    public void testStatsOnLargeKeywords() throws IOException, InterruptedException {
+        initVeryLargeKeyword(1000, 1, 10_000_000, 1);
+        StringBuilder query = startQuery();
+        query.append("FROM large_text_idx | STATS SUM(LENGTH(large_text0))\"}");
+        for (int i = 0; i < 5; i++) {
+            assertCircuitBreaks(attempt -> responseAsMap(query(query.toString(), "columns")));
+        }
+    }
+
+    private void initVeryLargeKeyword(int docs, int nFields, int fieldSize, int docsPerBulk) throws IOException {
+        logger.info("loading many documents a very large string field");
+        Request request = new Request("PUT", "/large_text_idx");
+        XContentBuilder config = JsonXContent.contentBuilder().startObject();
+        config.startObject("mappings").startObject("properties");
+        for (int i = 0; i < nFields; i++) {
+            config.startObject("large_text" + i).field("type", "text").endObject();
+        }
+
+        config.endObject().endObject();
+        request.setJsonEntity(Strings.toString(config.endObject()));
+        Response response = client().performRequest(request);
+        assertThat(
+            EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
+            equalTo("{\"acknowledged\":true,\"shards_acknowledged\":true,\"index\":\"large_text_idx\"}")
+        );
+
+        StringBuilder bulk = new StringBuilder();
+        for (int d = 0; d < docs; d++) {
+            bulk.append("{ \"index\" : { \"_index\" : \"large_text_idx\"} }\n");
+
+            bulk.append('{');
+            for (int i = 0; i < nFields; i++) {
+                if (i > 0) {
+                    bulk.append(",");
+                }
+                bulk.append('"').append("").append("large_text" + i).append("\": \"");
+                bulk.append(randomAlphanumericOfLength(fieldSize));
+                bulk.append('"');
+            }
+
+            bulk.append("}\n");
+            if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
+                bulk("large_text_idx", bulk.toString());
+                bulk.setLength(0);
+                logger.error("loaded {} docs", d);
+            }
+        }
+        initIndex("large_text_idx", bulk.toString());
+    }
+
     /**
      * Fetches documents containing 1000 fields which are {@code 1kb} each.
      */

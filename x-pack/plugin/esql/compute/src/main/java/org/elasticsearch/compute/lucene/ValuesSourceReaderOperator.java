@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -515,7 +516,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         implements
             Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
-            reader.read(doc, storedFields, builder);
+            int size = storedFields.source().internalSourceRef().length();
+            if (size > 500_000 && builder instanceof AbstractBlockBuilder ab) {
+                // accounting for twice the source size, one for the binary, one for the map
+                ab.adjustBreaker(size * 2);
+                reader.read(doc, storedFields, builder);
+                ab.adjustBreaker(-size * 2);
+            } else {
+                reader.read(doc, storedFields, builder);
+            }
         }
 
         Block build() {

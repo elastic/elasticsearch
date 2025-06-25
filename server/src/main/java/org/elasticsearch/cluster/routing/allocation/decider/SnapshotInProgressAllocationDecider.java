@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -73,7 +74,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_SNAPSHOTTED;
         }
 
-        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
+        final ProjectId projectId = allocation.metadata().projectFor(shardRouting.index()).id();
+        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo(projectId)) {
             for (final var entry : entriesByRepo) {
                 if (entry.isClone()) {
                     // clones do not run on data nodes

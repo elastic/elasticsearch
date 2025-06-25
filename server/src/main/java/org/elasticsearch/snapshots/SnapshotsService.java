@@ -77,7 +77,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -92,12 +91,12 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -137,6 +136,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -198,6 +198,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final SystemIndices systemIndices;
 
+    private final boolean supportsMultipleProjects;
+
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
@@ -225,7 +227,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RepositoriesService repositoriesService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        boolean supportsMultipleProjects
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -244,6 +247,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
         this.systemIndices = systemIndices;
+        this.supportsMultipleProjects = supportsMultipleProjects;
 
         this.masterServiceTaskQueue = clusterService.createTaskQueue("snapshots-service", Priority.NORMAL, new SnapshotTaskExecutor());
         this.updateNodeIdsToRemoveQueue = clusterService.createTaskQueue(
@@ -434,7 +438,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     /**
      * Checks the cluster state for any in-progress repository cleanup tasks ({@link RepositoryCleanupInProgress}).
-     * Repository cleanup is intentionally cluster wide exclusive
+     * Note that repository cleanup is intentionally cluster wide exclusive.
      */
     private static void ensureNoCleanupInProgress(
         final ClusterState currentState,
@@ -787,7 +791,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 RepositoryShardId key = entry.getKey();
                 ShardSnapshotStatus value = entry.getValue();
                 final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.findIndex(index).isEmpty()) {
+                if (metadata.getProject(snapshot.projectId()).hasIndex(index) == false) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     if (deletedBuilder == null) {
                         deletedBuilder = ShardGenerations.builder();
@@ -801,11 +805,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         return new UpdatedShardGenerations(builder.build(), deletedBuilder == null ? ShardGenerations.EMPTY : deletedBuilder.build());
     }
 
-    private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
+    private Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
         final ProjectMetadata snapshotProject = projectForSnapshot(snapshot, metadata.getProject(projectId));
         final Metadata.Builder builder;
-        if (snapshot.includeGlobalState() == false) {
-            // Remove global state from the cluster state
+        if (snapshot.includeGlobalState() == false || supportsMultipleProjects) {
+            // Remove global state from the cluster state when
+            // 1. The request explicitly demands that
+            // 2. The snapshot is for a project in a multi-project cluster. Such a snapshot must not include cluster level info
             builder = Metadata.builder();
         } else {
             builder = Metadata.builder(metadata);
@@ -871,7 +877,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return Collections.emptyList();
         }
         if ("_all".equals(repository)) {
-            return snapshotsInProgress.asStream().toList();
+            return snapshotsInProgress.asStream(projectId).toList();
         }
         if (snapshots.isEmpty()) {
             return snapshotsInProgress.forRepo(projectId, repository);
@@ -1169,7 +1175,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ClusterState res = readyDeletions(
                     updatedSnapshots != snapshotsInProgress
                         ? ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, updatedSnapshots).build()
-                        : currentState
+                        : currentState,
+                    null
                 ).v1();
                 for (SnapshotDeletionsInProgress.Entry delete : SnapshotDeletionsInProgress.get(res).getEntries()) {
                     if (delete.state() == SnapshotDeletionsInProgress.State.STARTED) {
@@ -1205,7 +1212,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         }
                     }
                 }
-                startExecutableClones(SnapshotsInProgress.get(newState), null);
+                startExecutableClones(SnapshotsInProgress.get(newState));
                 // run newly ready deletes
                 for (SnapshotDeletionsInProgress.Entry entry : deletionsToExecute) {
                     if (tryEnterRepoLoop(entry.projectId(), entry.repository())) {
@@ -1469,7 +1476,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new SnapshotFinalization(snapshot, metadata, repositoryData));
+        final ProjectId projectId = snapshot.getProjectId();
+        final Metadata effectiveMetadata;
+        if (supportsMultipleProjects) {
+            assert ProjectId.DEFAULT.equals(projectId) == false : "should not snapshot for default project when multi-project is enabled";
+            effectiveMetadata = Metadata.builder().put(metadata.getProject(projectId)).build();
+        } else {
+            assert ProjectId.DEFAULT.equals(projectId) : "expect snapshots for only the default project when multi-project is disabled";
+            effectiveMetadata = metadata;
+        }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new SnapshotFinalization(snapshot, effectiveMetadata, repositoryData));
     }
 
     /**
@@ -1482,7 +1498,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private class SnapshotFinalization extends AbstractRunnable {
 
         private final Snapshot snapshot;
-        @FixForMultiProject(description = "replace with ProjectMetadata")
         private final Metadata metadata;
         private final RepositoryData repositoryData;
 
@@ -1528,7 +1543,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final Repository repo = repositoriesService.repository(projectId, repository);
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
-                    final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source());
+                    final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source(), supportsMultipleProjects);
                     final ProjectMetadata existingProject = existingMetadata.getProject(projectId);
                     final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(existingProject);
                     final Set<Index> existingIndices = new HashSet<>();
@@ -1610,6 +1625,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
+                        supportsMultipleProjects,
                         updatedShardGenerations,
                         repositoryData.getGenId(),
                         metaForSnapshot,
@@ -1781,7 +1797,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                assert readyDeletions(currentState).v1() == currentState
+                assert readyDeletions(currentState, projectId).v1() == currentState
                     : "Deletes should have been set to ready by finished snapshot deletes and finalizations";
                 for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(currentState).getEntries()) {
                     if (entry.projectId().equals(projectId)
@@ -1818,12 +1834,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * {@link SnapshotDeletionsInProgress.State#STARTED} or waiting entries in state {@link SnapshotDeletionsInProgress.State#WAITING}
      * that were moved to {@link SnapshotDeletionsInProgress.State#STARTED} in the returned updated cluster state.
      *
+     * @param projectId the project for repositories where deletions should be prepared. {@code null} means all projects
      * @param currentState current cluster state
      * @return tuple of an updated cluster state and currently executable snapshot delete operations
      */
-    private static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(ClusterState currentState) {
+    private static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(
+        ClusterState currentState,
+        @Nullable ProjectId projectId
+    ) {
         final SnapshotDeletionsInProgress deletions = SnapshotDeletionsInProgress.get(currentState);
-        if (deletions.hasDeletionsInProgress() == false) {
+        if (deletions.hasDeletionsInProgress() == false || (projectId != null && deletions.hasDeletionsInProgress(projectId) == false)) {
             return Tuple.tuple(currentState, List.of());
         }
         final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
@@ -1833,6 +1853,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final ArrayList<SnapshotDeletionsInProgress.Entry> readyDeletions = new ArrayList<>();
         final List<SnapshotDeletionsInProgress.Entry> newDeletes = new ArrayList<>();
         for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
+            if (projectId != null && projectId.equals(entry.projectId()) == false) {
+                // Not the target project, keep the entry as is
+                newDeletes.add(entry);
+                continue;
+            }
             final var projectRepo = new ProjectRepo(entry.projectId(), entry.repository());
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
@@ -1877,7 +1902,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         ClusterState result = state;
         int indexOfEntry = -1;
         // Find the in-progress snapshot entry that matches {@code snapshot}.
-        final List<SnapshotsInProgress.Entry> entryList = inProgressSnapshots.forRepo(snapshot.getProjectId(), snapshot.getRepository());
+        final ProjectId projectId = snapshot.getProjectId();
+        final String repository = snapshot.getRepository();
+        final List<SnapshotsInProgress.Entry> entryList = inProgressSnapshots.forRepo(projectId, repository);
         for (int i = 0; i < entryList.size(); i++) {
             SnapshotsInProgress.Entry entry = entryList.get(i);
             if (entry.snapshot().equals(snapshot)) {
@@ -1976,15 +2003,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             result = ClusterState.builder(state)
                 .putCustom(
                     SnapshotsInProgress.TYPE,
-                    inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(
-                        snapshot.getProjectId(),
-                        snapshot.getRepository(),
-                        updatedEntries
-                    )
+                    inProgressSnapshots.createCopyWithUpdatedEntriesForRepo(projectId, repository, updatedEntries)
                 )
                 .build();
         }
-        return readyDeletions(result).v1();
+        return readyDeletions(result, projectId).v1();
     }
 
     private static void addSnapshotEntry(
@@ -2218,9 +2241,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return currentState;
                 }
 
-                final Set<SnapshotId> activeCloneSources = snapshotsInProgress.asStream()
+                final Set<SnapshotId> activeCloneSources = snapshotsInProgress.asStream(projectId)
                     .filter(SnapshotsInProgress.Entry::isClone)
-                    .filter(entry -> entry.projectId().equals(projectId))
                     .map(SnapshotsInProgress.Entry::source)
                     .collect(Collectors.toSet());
                 for (SnapshotId snapshotId : snapshotIds) {
@@ -2340,7 +2362,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 logger.info(
-                    () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
+                    () -> format(
+                        "deleting snapshots [%s] from repository %s",
+                        arrayToCommaDelimitedString(snapshotNames),
+                        projectRepoString(projectId, repositoryName)
+                    )
                 );
 
                 if (completedNoCleanup.isEmpty() == false) {
@@ -2666,7 +2692,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
                         snapshotIds.forEach(collector::appendItem);
                         collector.finish();
-                        sb.append("] deleted");
+                        sb.append("] deleted in repository [");
+                        sb.append(projectRepoString(deleteEntry.projectId(), deleteEntry.repository()));
                         return sb;
                     });
                     doneFuture.onResponse(null);
@@ -2785,7 +2812,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             final SnapshotDeletionsInProgress newDeletions = filterDeletions(updatedDeletions);
             final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(
-                updateWithSnapshots(currentState, updatedSnapshotsInProgress(currentState, newDeletions), newDeletions)
+                updateWithSnapshots(currentState, updatedSnapshotsInProgress(currentState, newDeletions), newDeletions),
+                deleteEntry.projectId()
             );
             readyDeletions = res.v2();
             return res.v1();
@@ -2834,7 +2862,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             // TODO: be more efficient here, we could collect newly ready shard clones as we compute them and then directly start them
             // instead of looping over all possible clones to execute
-            startExecutableClones(SnapshotsInProgress.get(newState), null);
+            startExecutableClones(SnapshotsInProgress.get(newState), deleteEntry.projectId());
         }
 
         /**
@@ -3162,13 +3190,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * Returns the data streams that are currently being snapshotted (with partial == false) and that are contained in the
      * indices-to-check set.
      */
-    @FixForMultiProject
     public static Set<String> snapshottingDataStreams(final ProjectState projectState, final Set<String> dataStreamsToCheck) {
-        // TODO multi-project: this will behave incorrectly when there are data streams with equal names in different projects that are
-        // being snapshotted at the same time.
         Map<String, DataStream> dataStreams = projectState.metadata().dataStreams();
         return SnapshotsInProgress.get(projectState.cluster())
-            .asStream()
+            .asStream(projectState.projectId())
             .filter(e -> e.partial() == false)
             .flatMap(e -> e.dataStreams().stream())
             .filter(ds -> dataStreams.containsKey(ds) && dataStreamsToCheck.contains(ds))
@@ -3180,7 +3205,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
-        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster()).entriesByRepo()) {
+        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster())
+            .entriesByRepo(projectState.projectId())) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
@@ -3826,14 +3852,29 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         masterServiceTaskQueue.submitTask("update snapshot state", update, null);
     }
 
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, @Nullable ProjectRepo projectRepo) {
-        if (projectRepo == null) {
-            for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
-                startExecutableClones(entries);
-            }
-        } else {
-            startExecutableClones(snapshotsInProgress.forRepo(projectRepo));
+    /**
+     * Maybe kick off new shard clone operations for all repositories from all projects
+     */
+    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress) {
+        for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
+            startExecutableClones(entries);
         }
+    }
+
+    /**
+     * Maybe kick off new shard clone operations for all repositories of the specified project
+     */
+    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
+        for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo(projectId)) {
+            startExecutableClones(entries);
+        }
+    }
+
+    /**
+     * Maybe kick off new shard clone operations for the single specified project repository
+     */
+    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
+        startExecutableClones(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
     }
 
     private void startExecutableClones(List<SnapshotsInProgress.Entry> entries) {
@@ -3955,7 +3996,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public void onFailure(Exception e) {
-            logger.info(() -> "Failed to remove all snapshot tasks for repo [" + repository + "] from cluster state", e);
+            logger.info(
+                () -> "Failed to remove all snapshot tasks for repo [" + projectRepoString(projectId, repository) + "] from cluster state",
+                e
+            );
             failAllListenersOnMasterFailOver(e);
         }
 
@@ -4370,7 +4414,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
-                    indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
+                    indexNameExpressionResolver.dataStreamNames(projectState.metadata(), request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),
                 threadPool.absoluteTimeInMillis(),

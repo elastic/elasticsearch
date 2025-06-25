@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -65,10 +66,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
-        final Set<String> activeRepositories = new HashSet<>();
+        final Set<ProjectRepo> activeRepositories = new HashSet<>();
         for (Entry entry : entries) {
             if (entry.state() == State.STARTED) {
-                final boolean added = activeRepositories.add(entry.repository());
+                final boolean added = activeRepositories.add(new ProjectRepo(entry.projectId(), entry.repository()));
                 assert added : "Found multiple running deletes for a single repository in " + entries;
             }
         }
@@ -114,12 +115,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     /**
      * Checks if there is an actively executing delete operation for the given repository
      *
-     * @param projectId project to look for the repository
+     * @param projectId project for the repository
      * @param repository repository name
      */
     public boolean hasExecutingDeletion(ProjectId projectId, String repository) {
         for (Entry entry : entries) {
-            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+            if (entry.state() == State.STARTED && entry.projectId.equals(projectId) && entry.repository().equals(repository)) {
                 return true;
             }
         }
@@ -132,6 +133,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public boolean hasDeletionsInProgress() {
         return entries.isEmpty() == false;
+    }
+
+    public boolean hasDeletionsInProgress(ProjectId projectId) {
+        return entries.stream().filter(entry -> entry.projectId().equals(projectId)).findFirst().isPresent();
     }
 
     @Override

@@ -34,8 +34,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -60,7 +60,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.repositories.RepositoryOperation.PROJECT_REPO_SERIALIZER;
+import static org.elasticsearch.repositories.ProjectRepo.PROJECT_REPO_SERIALIZER;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -201,8 +201,28 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return () -> Iterators.map(entries.values().iterator(), byRepo -> byRepo.entries);
     }
 
+    /**
+     * Similar to {@link #entriesByRepo()} but only returns entries for the specified project.
+     */
+    public Iterable<List<Entry>> entriesByRepo(ProjectId projectId) {
+        return () -> Iterators.map(
+            Iterators.filter(entries.entrySet().iterator(), entry -> entry.getKey().projectId().equals(projectId)),
+            entry -> entry.getValue().entries
+        );
+    }
+
     public Stream<Entry> asStream() {
         return entries.values().stream().flatMap(t -> t.entries.stream());
+    }
+
+    /**
+     * Similar to {@link #asStream()} but only returns entries for the specified project.
+     */
+    public Stream<Entry> asStream(ProjectId projectId) {
+        return entries.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().projectId().equals(projectId))
+            .flatMap(entry -> entry.getValue().entries.stream());
     }
 
     @Nullable

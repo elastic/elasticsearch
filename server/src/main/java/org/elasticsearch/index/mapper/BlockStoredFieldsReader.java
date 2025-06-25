@@ -35,10 +35,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         return true;
     }
 
-    private abstract static class StoredFieldsBlockLoader implements BlockLoader {
+    public abstract static class StoredFieldsBlockLoader implements BlockLoader {
         protected final String field;
 
-        StoredFieldsBlockLoader(String field) {
+        public StoredFieldsBlockLoader(String field) {
             this.field = field;
         }
 
@@ -60,33 +60,6 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         @Override
         public final SortedSetDocValues ordinals(LeafReaderContext context) {
             throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class BytesFromMixedStringsBytesRefBlockLoader extends StoredFieldsBlockLoader {
-        public BytesFromMixedStringsBytesRefBlockLoader(String field) {
-            super(field);
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            return new Bytes(field) {
-                private final BytesRef scratch = new BytesRef();
-
-                @Override
-                protected BytesRef toBytesRef(Object v) {
-                    if (v instanceof BytesRef) {
-                        return (BytesRef) v;
-                    } else {
-                        return BlockSourceReader.toBytesRef(scratch, (String) v);
-                    }
-                }
-            };
         }
     }
 
@@ -139,10 +112,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
-    private abstract static class Bytes extends BlockStoredFieldsReader {
+    public abstract static class Bytes extends BlockStoredFieldsReader {
         private final String field;
 
-        Bytes(String field) {
+        public Bytes(String field) {
             this.field = field;
         }
 

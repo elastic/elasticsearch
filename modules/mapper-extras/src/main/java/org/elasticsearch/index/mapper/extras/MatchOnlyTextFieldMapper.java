@@ -365,7 +365,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedFieldNameForSyntheticSource());
+                return new BlockStoredFieldsReader.BytesFromMixedStringsBytesRefBlockLoader(storedFieldNameForSyntheticSource());
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -386,7 +386,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 ) {
                     @Override
                     protected BytesRef storedToBytesRef(Object stored) {
-                        return (BytesRef) stored;
+                        if (stored instanceof BytesRef) {
+                            return (BytesRef) stored;
+                        } else {
+                            return new BytesRef((String) stored);
+                        }
                     }
                 };
             }
@@ -477,7 +481,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
-                    b.value(((BytesRef) value).utf8ToString());
+                    if (value instanceof BytesRef) {
+                        b.value(((BytesRef) value).utf8ToString());
+                    } else {
+                        b.value((String) value);
+                    }
                 }
             }
         );

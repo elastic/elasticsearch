@@ -322,6 +322,7 @@ public class TransportVersions {
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
+    public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

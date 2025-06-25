@@ -389,7 +389,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         if (stored instanceof BytesRef) {
                             return (BytesRef) stored;
                         } else {
-                            assert stored instanceof String;
                             return new BytesRef((String) stored);
                         }
                     }
@@ -485,7 +484,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     if (value instanceof BytesRef) {
                         b.value(((BytesRef) value).utf8ToString());
                     } else {
-                        assert value instanceof String;
                         b.value((String) value);
                     }
                 }

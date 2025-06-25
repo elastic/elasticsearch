@@ -83,7 +83,6 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
                     if (v instanceof BytesRef) {
                         return (BytesRef) v;
                     } else {
-                        assert v instanceof String;
                         return BlockSourceReader.toBytesRef(scratch, (String) v);
                     }
                 }

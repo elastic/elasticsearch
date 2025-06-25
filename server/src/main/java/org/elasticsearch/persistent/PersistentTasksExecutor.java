@@ -10,6 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -59,11 +60,28 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
 
     /**
+     * Use {@link #getAssignment(PersistentTaskParams, Collection, ClusterState, ProjectId)}.
+     */
+    @Deprecated
+    public PersistentTasksCustomMetadata.Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState
+    ) {
+        return getAssignment(params, candidateNodes, clusterState, null);
+    }
+
+    /**
      * Returns the node id where the params has to be executed,
      * <p>
      * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+    public Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
@@ -105,7 +123,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
      */
-    public void validate(Params params, ClusterState clusterState) {}
+    public void validate(Params params, ClusterState clusterState, @Nullable ProjectId projectId) {}
 
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager

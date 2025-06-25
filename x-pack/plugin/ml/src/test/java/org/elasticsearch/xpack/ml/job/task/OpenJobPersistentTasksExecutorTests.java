@@ -173,7 +173,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), null).getExplanation()
         );
     }
 
@@ -195,7 +195,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            null
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -216,7 +217,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            null
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());

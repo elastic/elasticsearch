@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -116,7 +117,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     public PersistentTasksCustomMetadata.Assignment getAssignment(
         TransformTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         /* Note:
          *
@@ -125,14 +127,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
+        var transformMetadata = TransformMetadata.transformMetadata(clusterState, projectId);
         if (transformMetadata.upgradeMode()) {
             return AWAITING_UPGRADE;
         }
         if (transformMetadata.resetMode()) {
             return RESET_IN_PROGRESS;
         }
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver, projectId);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
                 + params.getId()
@@ -178,7 +180,17 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
+    static List<String> verifyIndicesPrimaryShardsAreActive(
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        @Nullable ProjectId projectId
+    ) {
+        // if the projectId doesn't exist, we will get an empty routing table which will have no indices
+        if (projectId == null) {
+            return List.of();
+        }
+
+        var projectRoutingTable = clusterState.routingTable(projectId);
         String[] indices = resolver.concreteIndexNames(
             clusterState,
             IndicesOptions.lenientExpandOpen(),
@@ -187,7 +199,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
-            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            IndexRoutingTable routingTable = projectRoutingTable.index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 unavailableIndices.add(index);
             }

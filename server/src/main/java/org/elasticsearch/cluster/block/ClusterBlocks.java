@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,7 +44,7 @@ import static java.util.stream.Collectors.toSet;
 public class ClusterBlocks implements Diffable<ClusterBlocks> {
     private static final ClusterBlock[] EMPTY_BLOCKS_ARRAY = new ClusterBlock[0];
 
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of());
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of(), 0);
 
     private final Set<ClusterBlock> global;
 
@@ -57,15 +58,17 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
      */
     // Package private for testing
     final Map<ProjectId, ProjectBlocks> projectBlocksMap;
+    private final long projectsWithUnderDeletionBlockGeneration;
 
     private final EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders;
 
-    ClusterBlocks(Set<ClusterBlock> global, Map<ProjectId, ProjectBlocks> projectBlocksMap) {
+    ClusterBlocks(Set<ClusterBlock> global, Map<ProjectId, ProjectBlocks> projectBlocksMap, long projectsWithUnderDeletionBlockGeneration) {
         this.global = global;
         assert projectBlocksMap.values().stream().allMatch(projectBlocks -> projectBlocks.isEmpty() == false)
             : "Map must not contain projects with empty blocks " + projectBlocksMap;
         this.projectBlocksMap = projectBlocksMap;
         this.levelHolders = generateLevelHolders(global, projectBlocksMap);
+        this.projectsWithUnderDeletionBlockGeneration = projectsWithUnderDeletionBlockGeneration;
     }
 
     public Set<ClusterBlock> global() {
@@ -163,6 +166,14 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     public boolean hasGlobalBlock(ClusterBlock block) {
         return global.contains(block);
+    }
+
+    public boolean hasProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
+        var projectBlocks = projectBlocksMap.get(projectId);
+        if (projectBlocks == null) {
+            return false;
+        }
+        return projectBlocks.projectGlobals().contains(block);
     }
 
     public boolean hasGlobalBlockWithId(final int blockId) {
@@ -493,7 +504,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                 && projectBlocksMap.getOrDefault(Metadata.DEFAULT_PROJECT_ID, ProjectBlocks.EMPTY).indices().isEmpty()) {
                 return EMPTY_CLUSTER_BLOCK;
             }
-            return new ClusterBlocks(global, projectBlocksMap);
+            return new ClusterBlocks(global, projectBlocksMap, 0 /*todo*/);
         } else {
             return readFromSingleProjectNode(in);
         }
@@ -506,9 +517,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
             return EMPTY_CLUSTER_BLOCK;
         }
         if (indicesBlocks.isEmpty()) {
-            return new ClusterBlocks(global, Map.of());
+            return new ClusterBlocks(global, Map.of(), 0);
         }
-        return new ClusterBlocks(global, Map.of(Metadata.DEFAULT_PROJECT_ID, new ProjectBlocks(indicesBlocks, Set.of())));
+        return new ClusterBlocks(global, Map.of(Metadata.DEFAULT_PROJECT_ID, new ProjectBlocks(indicesBlocks, Set.of())), 0);
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
@@ -602,6 +613,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         }
     }
 
+    public long projectsWithUnderDeletionBlockGeneration() {
+        return projectsWithUnderDeletionBlockGeneration;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -617,6 +632,8 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         private final Set<ClusterBlock> global = new HashSet<>();
         private final Map<ProjectId, ProjectBlocks> projects = new HashMap<>();
+        private long projectsWithUnderDeletionBlockGeneration = 0;
+        private boolean newProjectsWithUnderDeletionBlock = false;
 
         public Builder() {}
 
@@ -636,6 +653,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                     projectBlocks.indices.get(entry.getKey()).addAll(entry.getValue());
                 }
             }
+            this.projectsWithUnderDeletionBlockGeneration = blocks.projectsWithUnderDeletionBlockGeneration();
             return this;
         }
 
@@ -700,7 +718,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
         public Builder addProjectGlobalBlock(ProjectId projectId, ClusterBlock block) {
             assert projectId.equals(ProjectId.DEFAULT) == false;
-            projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).projectGlobal.add(block);
+            boolean added = projects.computeIfAbsent(projectId, k -> emptyMutableProjectBlocks()).projectGlobal.add(block);
+            if (newProjectsWithUnderDeletionBlock == false && block.id() == ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK.id() && added) {
+                newProjectsWithUnderDeletionBlock = true;
+            }
             return this;
         }
 
@@ -812,7 +833,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                     );
                 }
             }
-            return new ClusterBlocks(Set.copyOf(global), Map.copyOf(projectsBuilder));
+            long newProjectsWithUnderDeletionBlockGeneration = newProjectsWithUnderDeletionBlock
+                ? projectsWithUnderDeletionBlockGeneration + 1
+                : projectsWithUnderDeletionBlockGeneration;
+            return new ClusterBlocks(Set.copyOf(global), Map.copyOf(projectsBuilder), newProjectsWithUnderDeletionBlockGeneration);
         }
     }
 }

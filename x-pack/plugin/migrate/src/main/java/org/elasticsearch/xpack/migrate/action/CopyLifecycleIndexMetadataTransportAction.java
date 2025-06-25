@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -49,7 +50,8 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             CopyLifecycleIndexMetadataAction.NAME,
@@ -64,7 +66,8 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState clusterState) {
-                return new Tuple<>(applyUpdate(clusterState, task), task);
+                final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
+                return new Tuple<>(applyUpdate(clusterState, projectMetadata, task), task);
             }
         };
         this.taskQueue = clusterService.createTaskQueue("migrate-copy-index-metadata", Priority.NORMAL, this.executor);
@@ -89,8 +92,7 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
-        final ProjectMetadata projectMetadata = state.metadata().getProject();
+    private static ClusterState applyUpdate(ClusterState state, ProjectMetadata projectMetadata, UpdateIndexMetadataTask updateTask) {
         IndexMetadata sourceMetadata = projectMetadata.index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);

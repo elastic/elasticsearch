@@ -605,7 +605,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
             }
 
-            final Repository repository = repositoriesService.repository(snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(snapshot.getProjectId(), snapshot.getRepository());
             SnapshotIndexCommit snapshotIndexCommit = null;
             try {
                 snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");

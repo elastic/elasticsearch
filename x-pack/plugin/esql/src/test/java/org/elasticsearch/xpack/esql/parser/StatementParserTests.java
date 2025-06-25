@@ -961,14 +961,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSubquery() {
-        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
-    }
-
-    public void testSubqueryWithPipe() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
     }
 
     public void testBlockComments() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";
         LogicalPlan expected = statement(query);
 
@@ -984,6 +982,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSingleLineComments() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo ) ";
         LogicalPlan expected = statement(query);
 
@@ -1009,16 +1008,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSuggestAvailableSourceCommandsOnParsingError() {
-        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
-            Tuple.tuple("frm foo", "frm"),
-            Tuple.tuple("expln[from bar]", "expln"),
-            Tuple.tuple("not-a-thing logs", "not-a-thing"),
-            Tuple.tuple("high5 a", "high5"),
-            Tuple.tuple("a+b = c", "a+b"),
-            Tuple.tuple("a//hi", "a"),
-            Tuple.tuple("a/*hi*/", "a"),
-            Tuple.tuple("explain ( frm a )", "frm")
-        )) {
+        var cases = new ArrayList<Tuple<String, String>>();
+        cases.add(Tuple.tuple("frm foo", "frm"));
+        cases.add(Tuple.tuple("expln[from bar]", "expln"));
+        cases.add(Tuple.tuple("not-a-thing logs", "not-a-thing"));
+        cases.add(Tuple.tuple("high5 a", "high5"));
+        cases.add(Tuple.tuple("a+b = c", "a+b"));
+        cases.add(Tuple.tuple("a//hi", "a"));
+        cases.add(Tuple.tuple("a/*hi*/", "a"));
+        if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+            cases.add(Tuple.tuple("explain ( frm a )", "frm"));
+        }
+
+        for (Tuple<String, String> queryWithUnexpectedCmd : cases) {
             expectThrows(
                 ParsingException.class,
                 allOf(
@@ -1084,7 +1086,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
-        expectError("explain ( from foo ) metadata _index", "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}");
+        if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+            expectError(
+                "explain ( from foo ) metadata _index",
+                "line 1:22: mismatched input 'metadata' expecting {'|', ',', ')', 'metadata'}"
+            );
+        }
     }
 
     public void testMetadataFieldMultipleDeclarations() {
@@ -3354,7 +3361,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+            | KEEP a
+            """;
+
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3365,7 +3380,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | KEEP a
             """;
 
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
@@ -3383,7 +3398,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( EVAL xyz = ( (a/b) * (b/a)) )
                ( WHERE a < 1 )
                ( KEEP a )
-               ( DROP b )
+
+            | KEEP a
+            """;
+        var plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
@@ -3392,22 +3415,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a = b WITH c )
                ( SAMPLE 0.99 )
+            | KEEP a
+            """;
+        plan = statement(query);
+        assertThat(plan, instanceOf(Keep.class));
+
+        query = """
+            FROM foo*
+            | FORK
                ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
-
-        var plan = statement(query);
+        plan = statement(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
     public void testInvalidFork() {
-        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least 2 branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least 2 branches");
+
+        expectError("""
+            FROM foo*
+            | FORK (where true) (where true) (where true) (where true)
+                   (where true) (where true) (where true) (where true)
+                   (where true)
+            """, "Fork requires less than 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
@@ -3443,8 +3480,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     // [ and ( are used to trigger a double mode causing their symbol name (instead of text) to be used in error reporting
-    // this test checks that their are properly replaced in the error message
-    public void testPreserveParanthesis() {
+    // this test checks that they are properly replaced in the error message
+    public void testPreserveParentheses() {
         // test for (
         expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
         expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
@@ -3452,9 +3489,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
         expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
         // test for [
-        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
-        expectError("explain ]", "line 1:9: token recognition error at: ']'");
-        expectError("explain ( row x = 1", "line 1:20: missing ')' at '<EOF>'");
+        if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
+            expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
+            expectError("explain ]", "line 1:9: token recognition error at: ']'");
+            expectError("explain ( row x = 1", "line 1:20: missing ')' at '<EOF>'");
+        }
+    }
+
+    public void testExplainErrors() {
+        assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        // TODO this one is incorrect
+        expectError("explain ( from test ) | limit 1", "line 1:23: mismatched input '|' expecting {'|', ',', ')', 'metadata'}");
+        expectError(
+            "explain (row x=\"Elastic\" | eval y=concat(x,to_upper(\"search\"))) | mv_expand y",
+            "line 1:1: EXPLAIN does not support downstream commands"
+        );
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {

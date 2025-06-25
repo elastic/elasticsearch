@@ -49,7 +49,6 @@ tasks.named("yamlRestTest").configure {
     '^ilm/60_operation_mode/*',
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',
-    '^migrate/10_reindex/*',
     '^migrate/20_reindex_status/*',
     '^migrate/30_create_from/*',
     '^migration/10_get_feature_upgrade_status/*',

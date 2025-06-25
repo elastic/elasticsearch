@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.task;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
+    private final ProjectId projectId;
     private final ClusterService clusterService;
     private final long persistentTaskStartTime;
     private final int initialTotalIndices;
@@ -39,6 +41,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
 
     @SuppressWarnings("this-escape")
     public ReindexDataStreamTask(
+        ProjectId projectId,
         ClusterService clusterService,
         long persistentTaskStartTime,
         int initialTotalIndices,
@@ -51,6 +54,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         Map<String, String> headers
     ) {
         super(id, type, action, description, parentTask, headers);
+        this.projectId = projectId;
         this.clusterService = clusterService;
         this.persistentTaskStartTime = persistentTaskStartTime;
         this.initialTotalIndices = initialTotalIndices;
@@ -70,7 +74,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         int totalIndices = initialTotalIndices;
         int totalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state(),
+            clusterService.state().projectState(projectId).metadata(),
             getPersistentTaskId()
         );
         boolean isComplete;
@@ -130,7 +134,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
 
     private boolean isCompleteInClusterState() {
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state(),
+            clusterService.state().projectState(projectId).metadata(),
             getPersistentTaskId()
         );
         if (persistentTask != null) {

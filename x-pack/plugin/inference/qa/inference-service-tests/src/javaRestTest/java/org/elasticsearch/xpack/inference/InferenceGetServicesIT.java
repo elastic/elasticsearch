@@ -118,18 +118,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "amazon_sagemaker",
                     "cohere",
                     "custom",
                     "elastic",
                     "elasticsearch",
                     "googlevertexai",
+                    "hugging_face",
                     "jinaai",
                     "test_reranking_service",
-                    "voyageai",
-                    "hugging_face",
-                    "amazon_sagemaker",
-                    "hugging_face",
-                    "elastic"
+                    "voyageai"
                 ).toArray()
             )
         );

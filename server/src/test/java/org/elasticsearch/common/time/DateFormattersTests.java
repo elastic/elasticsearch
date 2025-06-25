@@ -608,6 +608,15 @@ public class DateFormattersTests extends ESTestCase {
         formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+01:00"));
     }
 
+    public void testParsingDateTimeWithZoneId() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time");
+        formatter.format(formatter.parse("2018-05-15T17:14:56-08:00[America/Los_Angeles]"));
+        formatter.format(formatter.parse("2029-05-15T17:14:56.123456789-08:00[America/Los_Angeles]"));
+        formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[Europe/Paris]"));
+        formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[PST]"));
+        formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[EST]"));
+    }
+
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second

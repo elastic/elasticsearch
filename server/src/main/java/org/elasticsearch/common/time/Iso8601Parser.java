@@ -477,6 +477,10 @@ class Iso8601Parser {
         if (minutes == null || minutes > 59) return null;
         if (len == pos) return ofHoursMinutesSeconds(hours, minutes, 0, positive);
 
+        if (str.charAt(pos) == '[' && str.charAt(len - 1) == ']') {
+            return parseRawZoneId(str, pos);
+        }
+
         // either both dividers have a colon, or neither do
         if ((str.charAt(pos) == ':') != hasColon) return null;
         if (hasColon) {
@@ -487,8 +491,30 @@ class Iso8601Parser {
         if (seconds == null || seconds > 59) return null;
         if (len == pos) return ofHoursMinutesSeconds(hours, minutes, seconds, positive);
 
+        if (str.charAt(pos) == '[' && str.charAt(len - 1) == ']') {
+            return parseRawZoneId(str, pos);
+        }
+
         // there's some text left over...
         return null;
+    }
+
+    /**
+     * Parses a raw zone id, which is a string of the form [zoneId] (eg [Europe/Paris]).
+     *
+     * @param str The string to parse
+     * @param pos The position in the string where the zone id starts (the first character after the opening [)
+     * @return The parsed zone id, or {@code null} if the string is not a valid zone id.
+     */
+    private ZoneId parseRawZoneId(CharSequence str, int pos) {
+        try {
+            String zoneId = str.subSequence(pos + 1, str.length() - 1).toString();
+            // Try to resolve short zone ids to offsets.
+            zoneId = ZoneId.SHORT_IDS.getOrDefault(zoneId, zoneId);
+            return ZoneId.of(zoneId);
+        } catch (DateTimeException e) {
+            return null;
+        }
     }
 
     /*

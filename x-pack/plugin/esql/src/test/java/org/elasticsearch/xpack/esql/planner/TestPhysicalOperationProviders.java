@@ -442,7 +442,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
                     driverContext.blockFactory(),
                     pageSize,
-                    false
+                    false,
+                    100
                 ),
                 attribute,
                 driverContext

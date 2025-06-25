@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -279,6 +280,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 return b;
             }));
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
+            content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
             content.add(ChunkedToXContentHelper.endObject());
         }
         content.add(ChunkedToXContentHelper.endObject());
@@ -387,15 +389,23 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public record Profile(List<DriverProfile> drivers) implements Writeable {
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {
-            return new Profile(in.readCollectionAsImmutableList(DriverProfile::readFrom));
+            return new Profile(
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+                out.writeCollection(plans);
+            }
         }
     }
 }

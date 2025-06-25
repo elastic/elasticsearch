@@ -3285,7 +3285,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             // Construct the new invalid index pattern.
             var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
             var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
-            expectError(query, "must not contain the following characters ['\\',' ','\"','<','?','>','|',',','/']");
+            expectError(query, "must not contain the following characters ['\"',' ','\\','/',',','|','>','?','<']");
         }
 
         // Colon outside a quoted string should result in an ANTLR error: a comma is expected.

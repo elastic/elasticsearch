@@ -60,8 +60,9 @@ setup:
 
 ---
 "Indexed by default with specified similarity and index options with early_termination":
-  - cluster_features: [ "search.vectors.mappers.expose_hnsw_early_termination" ]
-  - reason: "requires early termination for hnsw to be exposed"
+  - requires:
+      cluster_features: [ "search.vectors.mappers.expose_hnsw_early_termination" ]
+      reason: "requires early termination for hnsw to be exposed"
   - do:
       indices.create:
         index: test

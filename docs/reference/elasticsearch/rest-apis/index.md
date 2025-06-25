@@ -463,7 +463,7 @@ The snapshot lifecycle management APIs enable you to set up policies to automati
 | [Run a policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-execute-lifecycle) | Triggers a snapshot lifecycle policy manually. |
 | [Run a retention policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-execute-retention) | Manually apply the retention policy to force immediate removal of snapshots that are expired according to the snapshot lifecycle policy retention rules. |
 | [Get snapshot lifecycle management statistics](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-stats) | Returns statistics about snapshot lifecycle executions. |
-| [https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-status) | Returns the status of the snapshot lifecycle management feature. |
+| [Get the snapshot lifecycle management status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-status) | Returns the status of the snapshot lifecycle management feature. |
 | [Start snapshot lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-start) | Starts the snapshot lifecycle management feature. |
 | [Stop snapshot lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-stop) | Stops the snapshot lifecycle management feature. |
 

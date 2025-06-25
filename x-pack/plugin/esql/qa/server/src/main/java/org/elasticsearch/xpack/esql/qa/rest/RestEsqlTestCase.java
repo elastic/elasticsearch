@@ -1019,7 +1019,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestDataLookupMode(10);
         // lookup join with and without sort
         for (String sort : List.of("", "| sort integer")) {
-            var query = requestObjectBuilder().query(format(null, "from {},no_sort_field_idx* | lookup join {} on integer {}", testIndexName(), testIndexName(), sort));
+            var query = requestObjectBuilder().query(
+                format(null, "from {},no_sort_field_idx* | lookup join {} on integer {}", testIndexName(), testIndexName(), sort)
+            );
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
             assertEquals(22, columns.size());

@@ -813,6 +813,7 @@ public final class DocumentParser {
                 fieldName,
                 context.indexSettings().getIndexVersionCreated()
             );
+            builder.dimensions(mappers.size());
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
             context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
         }

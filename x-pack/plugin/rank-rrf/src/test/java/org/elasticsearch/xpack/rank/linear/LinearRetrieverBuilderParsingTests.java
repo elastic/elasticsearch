@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
 
 public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase<LinearRetrieverBuilder> {
     private static List<NamedXContentRegistry.Entry> xContentRegistryEntries;
@@ -51,11 +52,13 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
 
         List<String> fields = null;
         String query = null;
-        ScoreNormalizer normalizer = null;
+        ScoreNormalizer normalizer;
         if (randomBoolean()) {
             fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
             query = randomAlphaOfLengthBetween(1, 10);
             normalizer = randomScoreNormalizer();
+        } else {
+            normalizer = DEFAULT_NORMALIZER;
         }
 
         int num = randomIntBetween(1, 3);
@@ -67,7 +70,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
                 new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
             );
             weights[i] = randomFloat();
-            normalizers[i] = randomScoreNormalizer();
+            normalizers[i] = normalizer;
         }
 
         return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);

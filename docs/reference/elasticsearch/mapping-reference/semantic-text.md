@@ -315,18 +315,14 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
-In case you want to customize data indexing, use the [
-`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
-or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with
-an [{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
-generate the
-embeddings. [This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
-walks you through the process. In these cases - when you use `sparse_vector` or
-`dense_vector` field types instead of the `semantic_text` field type to
-customize indexing - using the [
-`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
-is not supported for querying the field data.
+If you want to override those defaults and customize the embeddings that
+`semantic_text` stores, you can do so by modifying <<semantic-text-params,
+parameters>>:
+
+- Use `index_options` to specify alternate index options such as specific
+  `dense_vector` quantization methods
+- Use `chunking_settings` to override the chunking strategy associated with the
+  {{infer}} endpoint, or completely disable chunking using the `none` type
 
 ## Updates to `semantic_text` fields [update-script]
 

@@ -425,7 +425,7 @@ GET /_nodes/ra*:2*
 
 Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax*.
 
-Some indices and data streams are made of multiple components besides their default data. These other components store additional data which can be queried separately like a regular index. Some APIs may operate on subsets of these index components which can be specified by using a selector suffix.
+Some indices and data streams are made of multiple components besides their default data. These other components store additional data which can be queried separately like regular index data. Some APIs may operate on subsets of these index components which can be specified by using a selector suffix.
 
 There are currently two selector suffixes supported by {{es}} APIs:
 

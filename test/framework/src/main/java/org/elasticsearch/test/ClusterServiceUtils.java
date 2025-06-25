@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -139,6 +141,16 @@ public class ClusterServiceUtils {
         Settings providedSettings,
         ClusterSettings clusterSettings
     ) {
+        return createClusterService(threadPool, localNode, providedSettings, clusterSettings, null);
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        DiscoveryNode localNode,
+        Settings providedSettings,
+        ClusterSettings clusterSettings,
+        ProjectId projectId
+    ) {
         Settings settings = Settings.builder()
             .put("node.name", "test")
             .put("cluster.name", "ClusterServiceTests")
@@ -151,12 +163,14 @@ public class ClusterServiceUtils {
             new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
-        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .putCompatibilityVersions(localNode.getId(), CompatibilityVersionsUtils.staticCurrent())
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
-            .build();
-        clusterService.getClusterApplierService().setInitialState(initialClusterState);
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK);
+        if (projectId != null) {
+            builder.putProjectMetadata(ProjectMetadata.builder(projectId));
+        }
+        clusterService.getClusterApplierService().setInitialState(builder.build());
         clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();

@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
@@ -82,7 +82,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         licenseState.addListener(this);
     }
 
-    @FixForMultiProject(description = "Replace DEFAULT project after license is project-aware")
+    @NotMultiProjectCapable(description = "Replace DEFAULT project after enterprise license is supported in serverless and project-aware")
     @Override
     public void licenseStateChanged() {
         licenseIsValid.put(ProjectId.DEFAULT, ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState));

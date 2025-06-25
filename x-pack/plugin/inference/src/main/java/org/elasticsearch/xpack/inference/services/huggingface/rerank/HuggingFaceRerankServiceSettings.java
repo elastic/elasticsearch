@@ -120,7 +120,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED)
             || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19);
     }
 

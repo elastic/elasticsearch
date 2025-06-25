@@ -231,7 +231,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
             || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
     }
 

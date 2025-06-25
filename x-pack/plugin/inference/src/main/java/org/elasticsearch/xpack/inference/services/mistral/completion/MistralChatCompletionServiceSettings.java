@@ -83,7 +83,7 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED)
             || version.isPatchFrom(TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19);
     }
 

@@ -88,7 +88,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_ELASTIC_RERANK)
             || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19);
     }
 

@@ -181,7 +181,8 @@ public class DeepSeekChatCompletionModel extends Model {
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return ServiceSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.ML_INFERENCE_DEEPSEEK_8_19);
+            return version.onOrAfter(TransportVersions.ML_INFERENCE_DEEPSEEK)
+                || version.isPatchFrom(TransportVersions.ML_INFERENCE_DEEPSEEK_8_19);
         }
 
         @Override

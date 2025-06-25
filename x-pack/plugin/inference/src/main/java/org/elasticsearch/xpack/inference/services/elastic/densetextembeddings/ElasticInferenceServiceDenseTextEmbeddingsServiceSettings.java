@@ -210,7 +210,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED)
             || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19);
     }
 

@@ -167,7 +167,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return TaskSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
             || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
     }
 

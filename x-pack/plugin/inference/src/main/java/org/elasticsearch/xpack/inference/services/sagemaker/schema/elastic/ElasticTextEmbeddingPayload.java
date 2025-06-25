@@ -255,7 +255,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return SageMakerStoredServiceSchema.super.supportsVersion(version)
+            return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC)
                 || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC_8_19);
         }
 

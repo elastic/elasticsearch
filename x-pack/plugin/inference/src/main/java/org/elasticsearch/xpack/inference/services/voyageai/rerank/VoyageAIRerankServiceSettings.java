@@ -89,14 +89,14 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
     }
 
     @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
-            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
+            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
     }
 
     @Override

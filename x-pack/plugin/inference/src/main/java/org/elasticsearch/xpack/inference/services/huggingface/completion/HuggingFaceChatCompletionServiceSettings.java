@@ -149,7 +149,7 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return ServiceSettings.super.supportsVersion(version)
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED)
             || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_CHAT_COMPLETION_ADDED_8_19);
     }
 

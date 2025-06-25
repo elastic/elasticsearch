@@ -95,7 +95,8 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return SecretSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+        return version.onOrAfter(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED)
+            || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
     }
 
     @Override

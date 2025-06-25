@@ -5,54 +5,56 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.cohere.request;
+package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
+import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record CohereRerankRequestEntity(
-    String model,
-    String query,
-    List<String> documents,
-    @Nullable Boolean returnDocuments,
-    @Nullable Integer topN,
-    CohereRerankTaskSettings taskSettings
-) implements ToXContentObject {
+public class CohereV1RerankRequest extends CohereRequest {
 
-    private static final String DOCUMENTS_FIELD = "documents";
-    private static final String QUERY_FIELD = "query";
-    private static final String MODEL_FIELD = "model";
+    private final String query;
+    private final List<String> input;
+    private final Boolean returnDocuments;
+    private final Integer topN;
+    private final CohereRerankTaskSettings taskSettings;
 
-    public CohereRerankRequestEntity {
-        Objects.requireNonNull(query);
-        Objects.requireNonNull(documents);
-        Objects.requireNonNull(taskSettings);
-    }
-
-    public CohereRerankRequestEntity(
+    public CohereV1RerankRequest(
         String query,
         List<String> input,
         @Nullable Boolean returnDocuments,
         @Nullable Integer topN,
-        CohereRerankTaskSettings taskSettings,
-        String model
+        CohereRerankModel model
     ) {
-        this(model, query, input, returnDocuments, topN, taskSettings);
+        super(CohereAccount.of(model), model.getInferenceEntityId(), model.getServiceSettings().modelId(), false);
+
+        this.input = Objects.requireNonNull(input);
+        this.query = Objects.requireNonNull(query);
+        this.returnDocuments = returnDocuments;
+        this.topN = topN;
+        taskSettings = model.getTaskSettings();
+    }
+
+    @Override
+    protected List<String> pathSegments() {
+        return List.of(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(MODEL_FIELD, model);
-        builder.field(QUERY_FIELD, query);
-        builder.field(DOCUMENTS_FIELD, documents);
+        builder.field(CohereUtils.MODEL_FIELD, getModelId());
+        builder.field(CohereUtils.QUERY_FIELD, query);
+        builder.field(CohereUtils.DOCUMENTS_FIELD, input);
 
         // prefer the root level return_documents over task settings
         if (returnDocuments != null) {
@@ -75,5 +77,4 @@ public record CohereRerankRequestEntity(
         builder.endObject();
         return builder;
     }
-
 }

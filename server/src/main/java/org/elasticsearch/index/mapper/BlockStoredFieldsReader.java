@@ -63,6 +63,33 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
+    public static class BytesFromMixedStringsBytesRefBlockLoader extends StoredFieldsBlockLoader {
+        public BytesFromMixedStringsBytesRefBlockLoader(String field) {
+            super(field);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            return new Bytes(field) {
+                private final BytesRef scratch = new BytesRef();
+
+                @Override
+                protected BytesRef toBytesRef(Object v) {
+                    if (v instanceof BytesRef) {
+                        return (BytesRef) v;
+                    } else {
+                        return BlockSourceReader.toBytesRef(scratch, (String) v);
+                    }
+                }
+            };
+        }
+    }
+
     /**
      * Load {@link BytesRef} blocks from stored {@link BytesRef}s.
      */

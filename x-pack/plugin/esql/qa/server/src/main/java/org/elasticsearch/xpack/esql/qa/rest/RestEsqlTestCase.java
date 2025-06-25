@@ -1014,12 +1014,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         // Create more than 10 indices to trigger multiple batches of data node execution.
         // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
         for (int i = 1; i <= 20; i++) {
-            createIndex("idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
+            createIndex("no_sort_field_idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
         }
         bulkLoadTestDataLookupMode(10);
         // lookup join with and without sort
         for (String sort : List.of("", "| sort integer")) {
-            var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
+            var query = requestObjectBuilder().query(format(null, "from {},no_sort_field_idx* | lookup join {} on integer {}", testIndexName(), testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
             assertEquals(22, columns.size());
@@ -1028,7 +1028,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
         // clean up
         for (int i = 1; i <= 20; i++) {
-            assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));
+            assertThat(deleteIndex("no_sort_field_idx" + i).isAcknowledged(), is(true));
         }
     }
 

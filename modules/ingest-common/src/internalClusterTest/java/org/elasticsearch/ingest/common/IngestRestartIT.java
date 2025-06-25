@@ -410,7 +410,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
     private void blockSystemWriteThreadPool(CountDownLatch blockingLatch, ThreadPool threadPool) {
         assertThat(blockingLatch.getCount(), greaterThan(0L));
-        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
+        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
         // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
         expectThrows(EsRejectedExecutionException.class, () -> {
             // noinspection InfiniteLoopStatement

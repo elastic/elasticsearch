@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BooleanClause;
@@ -14,6 +17,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -76,7 +80,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -177,6 +180,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /** A hack to pretend an unmapped field still exists. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
+        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        static {
+            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
+            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            UNMAPPED_FIELD_TYPE.setStored(false);
+            UNMAPPED_FIELD_TYPE.freeze();
+        }
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
@@ -187,9 +197,22 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName())
-                ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
-                : superResult;
+            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            builder.docValues(false);
+            builder.indexed(false);
+            return new KeywordFieldMapper.KeywordFieldType(
+                name,
+                UNMAPPED_FIELD_TYPE,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                builder,
+                context.ctx.isSourceSynthetic()
+            );
         }
     }
 

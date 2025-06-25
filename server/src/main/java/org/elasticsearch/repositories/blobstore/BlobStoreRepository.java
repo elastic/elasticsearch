@@ -3891,7 +3891,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return "BlobStoreRepository[" + toStringShort() + ", [" + blobStore.get() + ']' + ']';
     }
 
-    private String toStringShort() {
+    // Package private for testing
+    String toStringShort() {
         return projectRepoString(projectId, metadata.name());
     }
 

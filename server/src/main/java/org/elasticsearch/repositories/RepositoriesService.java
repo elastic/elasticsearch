@@ -455,8 +455,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         logger.info(
             Strings.format(
-                "Registering repository [%s] with repository UUID [%s] and generation [%d]",
-                repositoryName,
+                "Registering repository %s with repository UUID [%s] and generation [%d]",
+                projectRepoString(projectId, repositoryName),
                 repositoryData.getUuid(),
                 repositoryData.getGenId()
             )

@@ -198,7 +198,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final SystemIndices systemIndices;
 
-    private final boolean supportsMultipleProjects;
+    private final boolean serializeProjectMetadata;
 
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
@@ -228,7 +228,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         TransportService transportService,
         ActionFilters actionFilters,
         SystemIndices systemIndices,
-        boolean supportsMultipleProjects
+        boolean serializeProjectMetadata
     ) {
         this.clusterService = clusterService;
         this.rerouteService = rerouteService;
@@ -247,7 +247,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
         this.systemIndices = systemIndices;
-        this.supportsMultipleProjects = supportsMultipleProjects;
+        this.serializeProjectMetadata = serializeProjectMetadata;
 
         this.masterServiceTaskQueue = clusterService.createTaskQueue("snapshots-service", Priority.NORMAL, new SnapshotTaskExecutor());
         this.updateNodeIdsToRemoveQueue = clusterService.createTaskQueue(
@@ -808,7 +808,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
         final ProjectMetadata snapshotProject = projectForSnapshot(snapshot, metadata.getProject(projectId));
         final Metadata.Builder builder;
-        if (snapshot.includeGlobalState() == false || supportsMultipleProjects) {
+        if (snapshot.includeGlobalState() == false || serializeProjectMetadata) {
             // Remove global state from the cluster state when
             // 1. The request explicitly demands that
             // 2. The snapshot is for a project in a multi-project cluster. Such a snapshot must not include cluster level info
@@ -1478,7 +1478,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
         final ProjectId projectId = snapshot.getProjectId();
         final Metadata effectiveMetadata;
-        if (supportsMultipleProjects) {
+        if (serializeProjectMetadata) {
             effectiveMetadata = Metadata.builder().put(metadata.getProject(projectId)).build();
         } else {
             effectiveMetadata = metadata;
@@ -1541,7 +1541,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final Repository repo = repositoriesService.repository(projectId, repository);
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
-                    final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source(), supportsMultipleProjects);
+                    final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source(), serializeProjectMetadata);
                     final ProjectMetadata existingProject = existingMetadata.getProject(projectId);
                     final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(existingProject);
                     final Set<Index> existingIndices = new HashSet<>();
@@ -1623,7 +1623,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        supportsMultipleProjects,
+                        serializeProjectMetadata,
                         updatedShardGenerations,
                         repositoryData.getGenId(),
                         metaForSnapshot,

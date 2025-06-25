@@ -52,6 +52,19 @@ public interface RepositoryOperation {
             projectId.writeTo(out);
             out.writeString(name);
         }
+
+        @Override
+        public String toString() {
+            return projectRepoString(projectId, name);
+        }
+    }
+
+    static ProjectRepo projectRepo(ProjectId projectId, String repositoryName) {
+        return new ProjectRepo(projectId, repositoryName);
+    }
+
+    static String projectRepoString(ProjectId projectId, String repositoryName) {
+        return "[" + projectId + "][" + repositoryName + "]";
     }
 
     DiffableUtils.KeySerializer<ProjectRepo> PROJECT_REPO_SERIALIZER = new DiffableUtils.KeySerializer<>() {

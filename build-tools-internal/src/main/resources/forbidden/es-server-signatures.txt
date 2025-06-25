@@ -160,7 +160,7 @@ org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.cl
 
 @defaultMessage Do not construct this records outside the source files they are declared in
 org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress$ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
-org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
+org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(org.elasticsearch.cluster.metadata.ProjectId, java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
 
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)

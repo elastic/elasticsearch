@@ -25,21 +25,25 @@ The autoscaling APIs enable you to create and manage autoscaling policies and re
 
 | API | Description |
 | --- | ----------- |
-| [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/autoscaling.get_autoscaling_capacity) | Estimates autoscaling capacity for current cluster state. |
-| [Put Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/autoscaling.put_autoscaling_policy) | Creates or updates an autoscaling policy. |
-| [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/autoscaling.delete_autoscaling_policy) | Deletes an existing autoscaling policy. |
-| [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/autoscaling.get_autoscaling_policy) | Retrieves a specific autoscaling policy. |
+| [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-policy) | Retrieves a specific autoscaling policy. |
+| [Create or update an autoscaling policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-put-autoscaling-policy) | Creates or updates an autoscaling policy. |
+| [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy) | Deletes an existing autoscaling policy. |
+| [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity) | Estimates autoscaling capacity for current cluster state. |
 
 ### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-analytics)
+
+```{applies_to}
+stack: deprecated
+```
 
 The behavioral analytics APIs enable you to create and manage analytics collections and retrieve information about analytics collections. Behavioral Analytics is an analytics event collection platform. You can use it to analyze your users' searching and clicking behavior. Leverage this information to improve the relevance of your search results and identify gaps in your content.
 
 | API | Description |
 | --- | ----------- |
-| [Get Collections](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.get_behavioral_analytics) | Lists all behavioral analytics collections. |
-| [Create Collection](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.put_behavioral_analytics) | Creates a new behavioral analytics collection. |
-| [Delete Collection](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.delete_behavioral_analytics) | Deletes a behavioral analytics collection. |
-| [Create Event](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.post_behavioral_analytics_event) | Sends a behavioral analytics event to a collection. |
+| [Get Collections](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-get-behavioral-analytics) | Lists all behavioral analytics collections. |
+| [Create Collection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-put-behavioral-analytics) | Creates a new behavioral analytics collection. |
+| [Delete Collection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-delete-behavioral-analytics) | Deletes a behavioral analytics collection. |
+| [Create Event](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-post-behavioral-analytics-event) | Sends a behavioral analytics event to a collection. |
 
 ### [Compact and aligned text (CAT)](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-cat)
 
@@ -48,7 +52,9 @@ The compact and aligned text (CAT) APIs return human-readable text as a response
 
 | API | Description |
 | --- | ----------- |
-| [Cat Indices](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.indices) | Lists index stats in a compact, human-readable format. |
+| [Cat aliases](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-aliases) | Get the cluster's index aliases, including filter and routing information in a compact, human-readable format. |
+| [Cat allocation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-allocation) | Provides a snapshot of the number of shards allocated to each data node and their disk space in a compact, human-readable format. |
+| [Cat Indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) | Lists index stats in a compact, human-readable format. |
 | [Cat Nodes](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.nodes) | Shows node-level metrics like CPU, memory, and roles. |
 | [Cat Shards](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.shards) | Displays shard allocation across nodes. |
 | [Cat Health](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.health) | Provides a snapshot of cluster health. |
@@ -451,14 +457,15 @@ The snapshot lifecycle management APIs enable you to set up policies to automati
 
 | API | Description |
 | --- | ----------- |
-| [Put SLM Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.put_lifecycle) | Creates or updates a snapshot lifecycle policy. |
-| [Get SLM Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.get_lifecycle) | Retrieves one or more snapshot lifecycle policies. |
-| [Delete SLM Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.delete_lifecycle) | Deletes a snapshot lifecycle policy. |
-| [Execute SLM Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.execute_lifecycle) | Triggers a snapshot lifecycle policy manually. |
-| [Get SLM Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.get_stats) | Returns statistics about snapshot lifecycle executions. |
-| [Get SLM Status](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.get_status) | Returns the status of the snapshot lifecycle management feature. |
-| [Start SLM](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.start) | Starts the snapshot lifecycle management feature. |
-| [Stop SLM](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/slm.stop) | Stops the snapshot lifecycle management feature. |
+| [Get policy information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-lifecycle) | Retrieves one or more snapshot lifecycle policies. |
+| [Create or update a policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-put-lifecycle) | Creates or updates a snapshot lifecycle policy. |
+| [Delete a policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-delete-lifecycle) | Deletes a snapshot lifecycle policy. |
+| [Run a policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-execute-lifecycle) | Triggers a snapshot lifecycle policy manually. |
+| [Run a retention policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-execute-retention) | Manually apply the retention policy to force immediate removal of snapshots that are expired according to the snapshot lifecycle policy retention rules. |
+| [Get snapshot lifecycle management statistics](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-stats) | Returns statistics about snapshot lifecycle executions. |
+| [https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-status) | Returns the status of the snapshot lifecycle management feature. |
+| [Start snapshot lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-start) | Starts the snapshot lifecycle management feature. |
+| [Stop snapshot lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-stop) | Stops the snapshot lifecycle management feature. |
 
 ### [SQL](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-sql)
 
@@ -466,11 +473,13 @@ The SQL APIs enable you to run SQL queries on Elasticsearch indices and data str
 
 | API | Description |
 | --- | ----------- |
-| [SQL Query](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.query) | Executes an SQL query. |
-| [SQL Translate](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.translate) | Translates SQL into Elasticsearch DSL. |
-| [SQL Async Query](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.async_query) | Submits an SQL query to run asynchronously. |
-| [SQL Async Get](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.get_async) | Retrieves results of an async SQL query. |
-| [SQL Async Delete](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.delete_async) | Cancels an async SQL query. |
+| [Clear a SQL search cursor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-clear-cursor) |  |
+| [Delete an async SQL search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-delete-async) |  |
+| [Get async SQL search results](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async) | Retrieves results of an async SQL query. |
+| [Get the async SQL search status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async-status) | Get the current status of an async SQL search or a stored synchronous SQL search. |
+| [Get SQL search results](hhttps://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-query) | Executes an SQL query. |
+| [SQL Translate](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-translate) | Translates SQL into Elasticsearch DSL. |
+| [Translate SQL into Elasticsearch queries](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.async_query) | Submits an SQL query to run asynchronously. |
 
 ### [Synonyms](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-synonyms)
 
@@ -478,29 +487,32 @@ The synonyms management APIs provide a convenient way to define and manage synon
 
 | API | Description |
 | --- | ----------- |
-| [Put Synonym Set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.put_synonym) | Creates or updates a synonym set. |
-| [Get Synonym Set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.get_synonym) | Retrieves a synonym set by ID. |
-| [Delete Synonym Set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.delete_synonym) | Deletes a synonym set. |
-| [List Synonym Sets](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.get_synonyms) | Lists all synonym sets. |
+| [Get synonym set](hthttps://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym) | Retrieves a synonym set by ID. |
+| [Create of update synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-put-synonym) | Creates or updates a synonym set. |
+| [Delete synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.delete_synonym) | Deletes a synonym set. |
+| [Get synonym rule](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym-rule) | |
+| [Get synonym sets](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.get_synonyms) | Lists all synonym sets. |
 
 ### [Task management](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-tasks)
 
 The task management APIs enable you to retrieve information about tasks or cancel tasks running in a cluster.
 
-
 | API | Description |
 | --- | ----------- |
-| [List Tasks](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/tasks.list) | Retrieves information about running tasks. |
-| [Cancel Task](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/tasks.cancel) | Cancels a running task. |
+| [Cancel a task](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-tasks-cancel) | Cancels a running task. |
+| [Get task information](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-tasks-get) | Cancels a running task. |
+| [Get all tasks](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-tasks-list) | Retrieves information about running tasks. |
 
 ### [Text structure](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-text_structure)
 
 The text structure APIs enable you to find the structure of a text field in an {{es}} index.
 
-
 | API | Description |
 | --- | ----------- |
-| [Find Structure](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/text_structure.find_structure) | Analyzes a text file and returns its structure. |
+| [Find the structure of a text field](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-field-structure) |  |
+| [Find the structure of a text message](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-message-structure) |  |
+| [Find the structure of a text file](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-find-structure) | Analyzes a text file and returns its structure. |
+| [Test a Grok pattern](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-text-structure-test-grok-pattern) |  |
 
 ### [Transform](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-transform)
 
@@ -508,16 +520,27 @@ The transform APIs enable you to create and manage transforms.
 
 | API | Description |
 | --- | ----------- |
-| [Put Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.put_transform) | Creates or updates a transform job. |
-| [Get Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.get_transform) | Retrieves configuration for one or more transforms. |
-| [Delete Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.delete_transform) | Deletes a transform job. |
-| [Start Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.start_transform) | Starts a transform job. |
-| [Stop Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.stop_transform) | Stops a running transform job. |
-| [Preview Transform](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/transform.preview_transform) | Previews the results of a transform job. |
+| [Get transforms](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-get-transform) | Retrieves configuration for one or more transforms. |
+| [Create a transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-put-transform) | Creates or updates a transform job. |
+| [Get transform stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-get-transform-stats) |  |
+| [Preview transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-preview-transform) | Previews the results of a transform job. |
+| [Reset a transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-reset-transform) | Previews the results of a transform job. |
+| [Delete transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-delete-transform) | Deletes a transform job. |
+| [Schedule a transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-schedule-now-transform) | Previews the results of a transform job. |
+| [Start transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-start-transform) | Starts a transform job. |
+| [Stop transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-stop-transform) | Stops a running transform job. |
+| [Update transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-update-transform) | Updates certain properties of a transform. |
+| [Upgrade all transforms](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-upgrade-transforms) | Updates certain properties of a transform. |
 
 ### [Usage](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-xpack)
 
 The usage API provides usage information about the installed X-Pack features.
+
+| API | Description |
+| --- | ----------- |
+| [Get information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-info) |  |
+| [Get usage information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-usage) |  |
+
 
 ### [Watcher](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-watcher)
 
@@ -525,11 +548,16 @@ You can use Watcher to watch for changes or anomalies in your data and perform t
 
 | API | Description |
 | --- | ----------- |
-| [Put Watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.put_watch) | Creates or updates a watch. |
-| [Get Watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.get_watch) | Retrieves a watch by ID. |
-| [Delete Watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.delete_watch) | Deletes a watch. |
-| [Execute Watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.execute_watch) | Executes a watch manually. |
-| [Ack Watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.ack_watch) | Acknowledges a watch action. |
-| [Watcher Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stats) | Returns statistics about the Watcher service. |
-| [Start Watcher](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.start) | Starts the Watcher service. |
-| [Stop Watcher](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stop) | Stops the Watcher service. |
+| [Acknowledge a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.ack_watch) | Acknowledges a watch action. |
+| [Activate a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-activate-watch) | Activates a watch. |
+| [Deactivates a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-deactivate-watch) | Activates a watch. |
+| [Get a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-watch) | Retrieves a watch by ID. |
+| [Create or update a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-put-watch) | Creates or updates a watch. |
+| [Delete a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.delete_watch) | Deletes a watch. |
+| [Run a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.execute_watch) | Executes a watch manually. |
+| [Get Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-settings) |  |
+| [Update Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-update-settings) |  |
+| [Query watches](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-query-watches) |  |
+| [Start the watch service](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.start) | Starts the Watcher service. |
+| [Get Watcher statistics](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stats) | Returns statistics about the Watcher service. |
+| [Stop the watch service](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stop) | Stops the Watcher service. |

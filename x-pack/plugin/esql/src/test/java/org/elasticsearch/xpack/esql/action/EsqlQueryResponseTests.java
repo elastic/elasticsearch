@@ -311,7 +311,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        ;
         return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, executionInfo);
     }
 

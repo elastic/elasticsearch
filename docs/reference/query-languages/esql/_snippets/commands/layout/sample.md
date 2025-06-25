@@ -1,6 +1,7 @@
 ## `SAMPLE` [esql-sample]
 
 ```yaml {applies_to}
+serverless: preview
 stack: preview 9.1.0
 ```
 

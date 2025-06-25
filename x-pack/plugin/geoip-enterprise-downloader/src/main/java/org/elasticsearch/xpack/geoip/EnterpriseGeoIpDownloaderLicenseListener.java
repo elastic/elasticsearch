@@ -16,9 +16,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
@@ -31,12 +34,14 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 
 public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateListener, ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloaderLicenseListener.class);
-    // Note: This custom type is GeoIpMetadata.TYPE, but that class is not exposed to this plugin
+    // Note: This custom type is IngestGeoIpMetadata.TYPE, but that class is not exposed to this plugin
     static final String INGEST_GEOIP_CUSTOM_METADATA_TYPE = "ingest_geoip";
 
     private final PersistentTasksService persistentTasksService;
@@ -47,18 +52,21 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         XPackField.ENTERPRISE_GEOIP_DOWNLOADER,
         License.OperationMode.PLATINUM
     );
-    private volatile boolean licenseIsValid = false;
-    private volatile boolean hasIngestGeoIpMetadata = false;
+    private final ConcurrentMap<ProjectId, Boolean> licenseIsValid = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ProjectId, Boolean> hasIngestGeoIpMetadata = new ConcurrentHashMap<>();
+    private final ProjectResolver projectResolver;
 
     protected EnterpriseGeoIpDownloaderLicenseListener(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         this.clusterService = clusterService;
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     private volatile boolean licenseStateListenerRegistered;
@@ -74,47 +82,54 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         licenseState.addListener(this);
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project after license is project-aware")
     @Override
     public void licenseStateChanged() {
-        licenseIsValid = ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState);
-        maybeUpdateTaskState(clusterService.state());
+        licenseIsValid.put(ProjectId.DEFAULT, ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState));
+        maybeUpdateTaskState(clusterService.state().projectState(ProjectId.DEFAULT));
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        hasIngestGeoIpMetadata = event.state().metadata().getProject().custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
-        final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
-            && event.changedCustomProjectMetadataSet().contains(INGEST_GEOIP_CUSTOM_METADATA_TYPE);
-        final boolean masterNodeChanged = Objects.equals(
-            event.state().nodes().getMasterNode(),
-            event.previousState().nodes().getMasterNode()
-        ) == false;
-        /*
-         * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState if this cluster change
-         * event involved the modification of custom geoip metadata OR a master node change
-         */
-        if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata)) {
-            maybeUpdateTaskState(event.state());
-        }
+        event.state().forEachProject(projectState -> {
+            ProjectId projectId = projectState.projectId();
+            final boolean hasMetadata = event.state().metadata().getProject(projectId).custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
+            hasIngestGeoIpMetadata.put(projectId, hasMetadata);
+            final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
+                && event.customMetadataChanged(projectId, INGEST_GEOIP_CUSTOM_METADATA_TYPE);
+            final boolean masterNodeChanged = Objects.equals(
+                event.state().nodes().getMasterNode(),
+                event.previousState().nodes().getMasterNode()
+            ) == false;
+            /*
+             * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState
+             * if this cluster change event involved the modification of custom geoip metadata OR a master node change
+             */
+            if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata.getOrDefault(projectId, false))) {
+                maybeUpdateTaskState(projectState);
+            }
+        });
     }
 
-    private void maybeUpdateTaskState(ClusterState state) {
+    private void maybeUpdateTaskState(ProjectState projectState) {
+        ProjectId projectId = projectState.projectId();
         // We should only start/stop task from single node, master is the best as it will go through it anyway
-        if (state.nodes().isLocalNodeElectedMaster()) {
-            if (licenseIsValid) {
-                if (hasIngestGeoIpMetadata) {
-                    ensureTaskStarted();
+        if (projectState.cluster().nodes().isLocalNodeElectedMaster()) {
+            if (licenseIsValid.getOrDefault(projectId, false)) {
+                if (hasIngestGeoIpMetadata.getOrDefault(projectId, false)) {
+                    ensureTaskStarted(projectId);
                 }
             } else {
-                ensureTaskStopped();
+                ensureTaskStopped(projectId);
             }
         }
     }
 
-    private void ensureTaskStarted() {
-        assert licenseIsValid : "Task should never be started without valid license";
-        persistentTasksService.sendStartRequest(
-            ENTERPRISE_GEOIP_DOWNLOADER,
+    private void ensureTaskStarted(ProjectId projectId) {
+        assert licenseIsValid.getOrDefault(projectId, false) : "Task should never be started without valid license";
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
+            getTaskId(projectId, projectResolver.supportsMultipleProjects()),
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTaskParams(),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
@@ -127,7 +142,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         );
     }
 
-    private void ensureTaskStopped() {
+    private void ensureTaskStopped(ProjectId projectId) {
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped enterprise geoip downloader task"),
             e -> {
@@ -137,6 +152,14 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, listener);
+        persistentTasksService.sendRemoveRequest(
+            getTaskId(projectId, projectResolver.supportsMultipleProjects()),
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            listener
+        );
+    }
+
+    protected static String getTaskId(ProjectId projectId, boolean supportsMultipleProjects) {
+        return supportsMultipleProjects ? projectId + "/" + ENTERPRISE_GEOIP_DOWNLOADER : ENTERPRISE_GEOIP_DOWNLOADER;
     }
 }

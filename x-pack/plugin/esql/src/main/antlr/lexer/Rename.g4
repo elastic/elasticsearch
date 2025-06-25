@@ -14,6 +14,8 @@ RENAME : 'rename'             -> pushMode(RENAME_MODE);
 
 mode RENAME_MODE;
 RENAME_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow RENAME in FORK branches
+RENAME_RP : RP -> type(RP), popMode, popMode;
 RENAME_ASSIGN : ASSIGN -> type(ASSIGN);
 RENAME_COMMA : COMMA -> type(COMMA);
 RENAME_DOT: DOT -> type(DOT);

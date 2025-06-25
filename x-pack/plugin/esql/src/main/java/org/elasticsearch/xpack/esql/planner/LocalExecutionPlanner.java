@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -526,10 +527,12 @@ public class LocalExecutionPlanner {
 
         int intLimit;
         if (limit instanceof Literal literal) {
-            intLimit = stringToInt(literal.value().toString());
+            String val = BytesRefs.toString(literal.value());
+            intLimit = stringToInt(val);
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
+
         return source.with(
             new TopNOperatorFactory(intLimit, asList(elementTypes), asList(encoders), orders, context.pageSize(estimatedRowSize)),
             source.layout
@@ -632,17 +635,28 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
-            .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
+        EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
+        if (rerank.rerankFields().size() > 1) {
+            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
+            // The input value will looks like
+            // text_field: foo bar
+            // multivalue_text_field:
+            // - value 1
+            // - value 2
+            // integer_field: 132
+            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
+                .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
 
-        for (var rerankField : rerank.rerankFields()) {
-            rerankFieldsEvaluatorSuppliers.put(
-                new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
-            );
+            for (var rerankField : rerank.rerankFields()) {
+                rerankFieldsEvaluatorSuppliers.put(
+                    new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
+                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
+                );
+            }
+            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
+        } else {
+            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
         }
-
-        XContentRowEncoder.Factory rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
@@ -897,22 +911,30 @@ public class LocalExecutionPlanner {
 
         final Layout layout; // maps field names to channels
 
-        /** Creates a new physical operation with the given source and layout. */
+        /**
+         * Creates a new physical operation with the given source and layout.
+         */
         static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
-        /** Creates a new physical operation from this operation with the given layout. */
+        /**
+         * Creates a new physical operation from this operation with the given layout.
+         */
         PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
-        /** Creates a new physical operation from this operation with the given intermediate operator and layout. */
+        /**
+         * Creates a new physical operation from this operation with the given intermediate operator and layout.
+         */
         PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
-        /** Creates a new physical operation from this operation with the given sink and layout. */
+        /**
+         * Creates a new physical operation from this operation with the given sink and layout.
+         */
         PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }

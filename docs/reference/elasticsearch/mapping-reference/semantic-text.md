@@ -144,7 +144,7 @@ To completely disable chunking, use the `none` chunking strategy.
     or `1`. Required for `sentence` type chunking settings
 
 ::::{warning}
-If the input exceeds the maximum token limit of the underlying model, some
+When using the `none` chunking strategy, if the input exceeds the maximum token limit of the underlying model, some
 services (such as OpenAI) may return an
 error. In contrast, the `elastic` and `elasticsearch` services will
 automatically truncate the input to fit within the

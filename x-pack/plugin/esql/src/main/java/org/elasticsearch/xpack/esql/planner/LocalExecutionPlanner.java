@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;

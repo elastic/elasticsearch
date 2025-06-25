@@ -35,7 +35,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
+        int maxPageSize,
+        int maxTopNLimit
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -48,7 +49,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         groups,
                         driverContext.blockFactory(),
                         maxPageSize,
-                        true // we can enable optimizations as the inputs are vectors
+                        true, // we can enable optimizations as the inputs are vectors
+                        maxTopNLimit
                     );
                 }
             }, driverContext);

@@ -198,7 +198,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec.estimatedRowSize()),
-                    analysisRegistry
+                    analysisRegistry,
+                    context.queryPragmas().maxTopNAggsLimit()
                 );
             }
         }

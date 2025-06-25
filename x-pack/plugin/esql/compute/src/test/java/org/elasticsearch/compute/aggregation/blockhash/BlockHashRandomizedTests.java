@@ -256,7 +256,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
-            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true, 100);
     }
 
     private static final int LOOKUP_POSITIONS = 1_000;

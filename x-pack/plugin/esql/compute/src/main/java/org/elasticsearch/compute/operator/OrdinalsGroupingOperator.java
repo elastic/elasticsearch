@@ -509,7 +509,8 @@ public class OrdinalsGroupingOperator implements Operator {
                     List.of(new GroupSpec(channelIndex, groupingElementType)),
                     driverContext.blockFactory(),
                     maxPageSize,
-                    false
+                    false,
+                    0 // TODO: Should this come from the pragma?
                 ),
                 driverContext
             );

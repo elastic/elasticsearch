@@ -44,6 +44,8 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class BlockHashTests extends BlockHashTestCase {
@@ -1353,7 +1355,8 @@ public class BlockHashTests extends BlockHashTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
             blockFactory,
             32 * 1024,
-            forcePackedHash
+            forcePackedHash,
+            100
         );
         int numPages = between(1, 100);
         int globalTsid = -1;
@@ -1469,6 +1472,34 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    public void testTopNBlockHashLimit() {
+        int limit = randomIntBetween(1, 100);
+
+        try (
+            var hash = BlockHash.build(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, false, limit))),
+                blockFactory,
+                32 * 1024,
+                forcePackedHash,
+                randomIntBetween(limit, 1000)
+            )
+        ) {
+            assertThat(hash, instanceOf(LongTopNBlockHash.class));
+        }
+
+        try (
+            var hash = BlockHash.build(
+                List.of(new BlockHash.GroupSpec(0, ElementType.LONG, false, new BlockHash.TopNDef(0, true, false, limit))),
+                blockFactory,
+                32 * 1024,
+                forcePackedHash,
+                randomIntBetween(1, limit)
+            )
+        ) {
+            assertThat(hash, not(instanceOf(LongTopNBlockHash.class)));
+        }
+    }
+
     /**
      * Hash some values into a single block of group ids. If the hash produces
      * more than one block of group ids this will fail.
@@ -1522,6 +1553,6 @@ public class BlockHashTests extends BlockHashTestCase {
         }
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
-            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true, 100);
     }
 }

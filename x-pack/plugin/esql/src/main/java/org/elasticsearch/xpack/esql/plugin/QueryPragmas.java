@@ -79,6 +79,8 @@ public final class QueryPragmas implements Writeable {
         MappedFieldType.FieldExtractPreference.NONE
     );
 
+    public static final Setting<Integer> MAX_TOP_N_AGGS_LIMIT = Setting.intSetting("max_top_n_aggs_limit", 100, 1);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -194,6 +196,14 @@ public final class QueryPragmas implements Writeable {
      */
     public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
         return FIELD_EXTRACT_PREFERENCE.get(settings);
+    }
+
+    /**
+     * The maximum {@code LIMIT} after an aggregation with groups to enable
+     * the {@link org.elasticsearch.xpack.esql.plan.logical.TopNAggregate} behavior.
+     */
+    public int maxTopNAggsLimit() {
+        return MAX_TOP_N_AGGS_LIMIT.get(settings);
     }
 
     public boolean isEmpty() {

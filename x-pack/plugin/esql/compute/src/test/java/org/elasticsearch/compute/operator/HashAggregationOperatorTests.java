@@ -64,7 +64,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
             ),
             randomPageSize(),
-            null
+            null,
+            100
         );
     }
 
@@ -103,6 +104,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     public void testTopNNullsLast() {
         boolean ascOrder = randomBoolean();
+        int limit = 3;
         var groups = new Long[] { 0L, 10L, 20L, 30L, 40L, 50L };
         if (ascOrder) {
             Arrays.sort(groups, Comparator.reverseOrder());
@@ -113,14 +115,15 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, 3))),
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, false, limit))),
                 mode,
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
-                null
+                null,
+                randomIntBetween(limit, 1000)
             ).get(driverContext())
         ) {
             var page = new Page(
@@ -180,6 +183,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     public void testTopNNullsFirst() {
         boolean ascOrder = randomBoolean();
+        int limit = 3;
         var groups = new Long[] { 0L, 10L, 20L, 30L, 40L, 50L };
         if (ascOrder) {
             Arrays.sort(groups, Comparator.reverseOrder());
@@ -190,14 +194,15 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, true, 3))),
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, false, new BlockHash.TopNDef(0, ascOrder, true, limit))),
                 mode,
                 List.of(
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
-                null
+                null,
+                randomIntBetween(limit, 1000)
             ).get(driverContext())
         ) {
             var page = new Page(

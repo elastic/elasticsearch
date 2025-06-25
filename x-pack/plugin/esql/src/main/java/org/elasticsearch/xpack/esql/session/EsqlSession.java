@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -235,6 +236,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         if (explainMode) {
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
                 new ReferenceAttribute(EMPTY, "role", DataType.KEYWORD),
@@ -247,11 +249,13 @@ public class EsqlSession {
             values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
             var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
             physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(blocks));
+            planRunner.run(physicalPlan, listener);
+        } else {
+            // TODO: this could be snuck into the underlying listener
+            EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+            // execute any potential subplans
+            executeSubPlans(optimizedPlan, planRunner, executionInfo, request, listener);
         }
-        // TODO: this could be snuck into the underlying listener
-        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-        // execute any potential subplans
-        executeSubPlans(optimizedPlan, planRunner, executionInfo, request, listener);
     }
 
     private record LogicalPlanTuple(LogicalPlan nonStubbedSubPlan, LogicalPlan originalSubPlan) {}

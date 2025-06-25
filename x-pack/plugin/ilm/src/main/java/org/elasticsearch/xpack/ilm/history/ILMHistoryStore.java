@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -170,6 +171,7 @@ public class ILMHistoryStore implements Closeable {
     /**
      * Attempts to asynchronously index an ILM history entry
      */
+    @NotMultiProjectCapable(description = "See comment inside method")
     public void putAsync(ProjectId projectId, ILMHistoryItem item) {
         if (ilmHistoryEnabled == false) {
             logger.trace(

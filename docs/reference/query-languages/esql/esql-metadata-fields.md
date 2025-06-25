@@ -25,16 +25,15 @@ The following metadata fields are available in {{esql}}:
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
-| [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). This field is not supported by functions. |
+| [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
 | `_version` | [`long`](/reference/elasticsearch/mapping-reference/number.md) | Document version number |
 
 ## Usage and limitations
 
 - Metadata fields are only available when the data source is an index
-- The `_source` field is not supported by functions
+- The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
-- Fields are dropped after aggregations unless used for grouping ([example](#metadata-fields-and-aggregations))
 
 ## Examples
 

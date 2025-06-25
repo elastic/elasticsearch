@@ -1,5 +1,0 @@
-pr: 128320
-summary: Use new source loader when lower `docId` is accessed
-area: Codec
-type: bug
-issues: []

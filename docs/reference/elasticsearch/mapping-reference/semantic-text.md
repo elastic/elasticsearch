@@ -117,27 +117,6 @@ for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
 
-An example of how to set index_options for a `semantic_text` field:
-
-```console
-PUT my-index-000004
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text",
-        "inference_id": "my-text-embedding-endpoint",
-        "index_options": {
-          "dense_vector": {
-            "type": "int4_flat"
-          }
-        }
-      }
-    }
-  }
-}
-```
-
 `chunking_settings`
 :   (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {{infer-cap}}
@@ -323,6 +302,30 @@ parameters>>:
   `dense_vector` quantization methods
 - Use `chunking_settings` to override the chunking strategy associated with the
   {{infer}} endpoint, or completely disable chunking using the `none` type
+
+Here is an example of how to set these parameters for a text embedding endpoint:
+
+```console
+PUT my-index-000004
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": "my-text-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "type": "int4_flat"
+          }
+        },
+        "chunking_settings": {
+          "type": "none"
+        }
+      }
+    }
+  }
+}
+```
 
 ## Updates to `semantic_text` fields [update-script]
 

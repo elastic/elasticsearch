@@ -1,0 +1,158 @@
+{
+  "properties" : {
+    "kibana_name" : {
+      "type" : "keyword"
+    },
+    "created_at" : {
+      "type" : "date"
+    },
+    "priority" : {
+      "type" : "byte"
+    },
+    "jobtype" : {
+      "type" : "keyword"
+    },
+    "created_by" : {
+      "type" : "keyword"
+    },
+    "migration_version" : {
+      "type" : "keyword"
+    },
+    "timeout" : {
+      "type" : "long"
+    },
+    "kibana_id" : {
+      "type" : "keyword"
+    },
+    "output" : {
+      "type" : "object",
+      "properties" : {
+        "content_type" : {
+          "type" : "keyword"
+        },
+        "size" : {
+          "type" : "long"
+        },
+        "csv_contains_formulas" : {
+          "type" : "boolean"
+        },
+        "warnings" : {
+          "type" : "text"
+        },
+        "chunk" : {
+          "type" : "long"
+        },
+        "error_code" : {
+          "type" : "keyword"
+        },
+        "max_size_reached" : {
+          "type" : "boolean"
+        },
+        "content" : {
+          "type" : "object",
+          "enabled" : false
+        }
+      }
+    },
+    "process_expiration" : {
+      "type" : "date"
+    },
+    "completed_at" : {
+      "type" : "date"
+    },
+    "payload" : {
+      "type" : "object",
+      "enabled" : false
+    },
+    "meta" : {
+      "properties" : {
+        "layout" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "ignore_above" : 256,
+              "type" : "keyword"
+            }
+          }
+        },
+        "isDeprecated" : {
+          "type" : "boolean"
+        },
+        "objectType" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "ignore_above" : 256,
+              "type" : "keyword"
+            }
+          }
+        }
+      }
+    },
+    "parent_id" : {
+      "type" : "keyword"
+    },
+    "max_attempts" : {
+      "type" : "short"
+    },
+    "started_at" : {
+      "type" : "date"
+    },
+    "metrics" : {
+      "type" : "object",
+      "properties" : {
+        "pdf" : {
+          "type" : "object",
+          "properties" : {
+            "pages" : {
+              "type" : "long"
+            },
+            "memory" : {
+              "type" : "long"
+            },
+            "cpuInPercentage" : {
+              "type" : "double"
+            },
+            "cpu" : {
+              "type" : "double"
+            },
+            "memoryInMegabytes" : {
+              "type" : "double"
+            }
+          }
+        },
+        "csv" : {
+          "type" : "object",
+          "properties" : {
+            "rows" : {
+              "type" : "long"
+            }
+          }
+        },
+        "png" : {
+          "type" : "object",
+          "properties" : {
+            "memory" : {
+              "type" : "long"
+            },
+            "cpuInPercentage" : {
+              "type" : "double"
+            },
+            "cpu" : {
+              "type" : "double"
+            },
+            "memoryInMegabytes" : {
+              "type" : "double"
+            }
+          }
+        }
+      }
+    },
+    "attempts" : {
+      "type" : "short"
+    },
+    "status" : {
+      "type" : "keyword"
+    }
+  }
+}

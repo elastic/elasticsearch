@@ -22,6 +22,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +45,20 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final SystemDataStreamDescriptor KIBANA_REPORTING_DS_DESCRIPTOR;
 
+    private static String loadTemplateSource() throws IOException {
+        try (InputStream is = KibanaPlugin.class.getResourceAsStream("/kibana-reporting-template.json")) {
+            if (is == null) {
+                throw new IOException(
+                    "Kibana reporting template [/kibana-reporting-template.json] not found in kibana template resources."
+                );
+            }
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     static {
         try {
+            final String source = loadTemplateSource();
             KIBANA_REPORTING_DS_DESCRIPTOR = new SystemDataStreamDescriptor(
                 ".kibana-reporting",
                 "system data stream for reporting",
@@ -59,165 +73,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(true, false))
                     .metadata(Map.of("managed", "true", "description", "default kibana reporting template installed by elasticsearch"))
                     .componentTemplates(List.of("kibana-reporting@settings", "kibana-reporting@custom"))
-                    .template(Template.builder().mappings(CompressedXContent.fromJSON("""
-                        {
-                          "properties" : {
-                            "kibana_name" : {
-                              "type" : "keyword"
-                            },
-                            "created_at" : {
-                              "type" : "date"
-                            },
-                            "priority" : {
-                              "type" : "byte"
-                            },
-                            "jobtype" : {
-                              "type" : "keyword"
-                            },
-                            "created_by" : {
-                              "type" : "keyword"
-                            },
-                            "migration_version" : {
-                              "type" : "keyword"
-                            },
-                            "timeout" : {
-                              "type" : "long"
-                            },
-                            "kibana_id" : {
-                              "type" : "keyword"
-                            },
-                            "output" : {
-                              "type" : "object",
-                              "properties" : {
-                                "content_type" : {
-                                  "type" : "keyword"
-                                },
-                                "size" : {
-                                  "type" : "long"
-                                },
-                                "csv_contains_formulas" : {
-                                  "type" : "boolean"
-                                },
-                                "warnings" : {
-                                  "type" : "text"
-                                },
-                                "chunk" : {
-                                  "type" : "long"
-                                },
-                                "error_code" : {
-                                  "type" : "keyword"
-                                },
-                                "max_size_reached" : {
-                                  "type" : "boolean"
-                                },
-                                "content" : {
-                                  "type" : "object",
-                                  "enabled" : false
-                                }
-                              }
-                            },
-                            "process_expiration" : {
-                              "type" : "date"
-                            },
-                            "completed_at" : {
-                              "type" : "date"
-                            },
-                            "payload" : {
-                              "type" : "object",
-                              "enabled" : false
-                            },
-                            "meta" : {
-                              "properties" : {
-                                "layout" : {
-                                  "type" : "text",
-                                  "fields" : {
-                                    "keyword" : {
-                                      "ignore_above" : 256,
-                                      "type" : "keyword"
-                                    }
-                                  }
-                                },
-                                "isDeprecated" : {
-                                  "type" : "boolean"
-                                },
-                                "objectType" : {
-                                  "type" : "text",
-                                  "fields" : {
-                                    "keyword" : {
-                                      "ignore_above" : 256,
-                                      "type" : "keyword"
-                                    }
-                                  }
-                                }
-                              }
-                            },
-                            "parent_id" : {
-                              "type" : "keyword"
-                            },
-                            "max_attempts" : {
-                              "type" : "short"
-                            },
-                            "started_at" : {
-                              "type" : "date"
-                            },
-                            "metrics" : {
-                              "type" : "object",
-                              "properties" : {
-                                "pdf" : {
-                                  "type" : "object",
-                                  "properties" : {
-                                    "pages" : {
-                                      "type" : "long"
-                                    },
-                                    "memory" : {
-                                      "type" : "long"
-                                    },
-                                    "cpuInPercentage" : {
-                                      "type" : "double"
-                                    },
-                                    "cpu" : {
-                                      "type" : "double"
-                                    },
-                                    "memoryInMegabytes" : {
-                                      "type" : "double"
-                                    }
-                                  }
-                                },
-                                "csv" : {
-                                  "type" : "object",
-                                  "properties" : {
-                                    "rows" : {
-                                      "type" : "long"
-                                    }
-                                  }
-                                },
-                                "png" : {
-                                  "type" : "object",
-                                  "properties" : {
-                                    "memory" : {
-                                      "type" : "long"
-                                    },
-                                    "cpuInPercentage" : {
-                                      "type" : "double"
-                                    },
-                                    "cpu" : {
-                                      "type" : "double"
-                                    },
-                                    "memoryInMegabytes" : {
-                                      "type" : "double"
-                                    }
-                                  }
-                                }
-                              }
-                            },
-                            "attempts" : {
-                              "type" : "short"
-                            },
-                            "status" : {
-                              "type" : "keyword"
-                            }
-                          }
-                        }""")).lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(true)))
+                    .template(
+                        Template.builder()
+                            .mappings(CompressedXContent.fromJSON(source))
+                            .lifecycle(DataStreamLifecycle.dataLifecycleBuilder().enabled(true))
+                    )
                     .build(),
                 Map.of(
                     "kibana-reporting@settings",

@@ -129,11 +129,10 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     private boolean isCompleteInClusterState() {
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .getProject()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(getPersistentTaskId());
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
+            clusterService.state(),
+            getPersistentTaskId()
+        );
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
             if (state != null) {

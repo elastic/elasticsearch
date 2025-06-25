@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -59,11 +60,13 @@ public class ComputeListenerTests extends ESTestCase {
     }
 
     private DriverCompletionInfo randomCompletionInfo() {
-        int numProfiles = randomIntBetween(0, 2);
-        List<DriverProfile> profiles = new ArrayList<>(numProfiles);
-        for (int i = 0; i < numProfiles; i++) {
-            profiles.add(
-                new DriverProfile(
+        return new DriverCompletionInfo(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomList(
+                0,
+                2,
+                () -> new DriverProfile(
                     randomIdentifier(),
                     randomIdentifier(),
                     randomIdentifier(),
@@ -75,9 +78,13 @@ public class ComputeListenerTests extends ESTestCase {
                     List.of(),
                     DriverSleeps.empty()
                 )
-            );
-        }
-        return new DriverCompletionInfo(randomNonNegativeLong(), randomNonNegativeLong(), profiles);
+            ),
+            randomList(
+                0,
+                2,
+                () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphaOfLengthBetween(1, 1024))
+            )
+        );
     }
 
     public void testEmpty() {
@@ -86,7 +93,7 @@ public class ComputeListenerTests extends ESTestCase {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
-        assertThat(results.actionGet(10, TimeUnit.SECONDS).collectedProfiles(), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).driverProfiles(), empty());
     }
 
     public void testCollectComputeResults() {
@@ -109,7 +116,7 @@ public class ComputeListenerTests extends ESTestCase {
                     var info = randomCompletionInfo();
                     documentsFound += info.documentsFound();
                     valuesLoaded += info.valuesLoaded();
-                    allProfiles.addAll(info.collectedProfiles());
+                    allProfiles.addAll(info.driverProfiles());
                     ActionListener<DriverCompletionInfo> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
                         ActionRunnable.wrap(subListener, l -> l.onResponse(info)),
@@ -123,7 +130,7 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(actual.documentsFound(), equalTo(documentsFound));
         assertThat(actual.valuesLoaded(), equalTo(valuesLoaded));
         assertThat(
-            actual.collectedProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            actual.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
         assertThat(onFailure.get(), equalTo(0));
@@ -178,7 +185,7 @@ public class ComputeListenerTests extends ESTestCase {
                 assertThat(result.documentsFound(), equalTo(documentsFound.get()));
                 assertThat(result.valuesLoaded(), equalTo(valuesLoaded.get()));
                 assertThat(
-                    result.collectedProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+                    result.driverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
                     equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
                 );
                 Map<String, Set<String>> responseHeaders = threadPool.getThreadContext()
@@ -216,7 +223,7 @@ public class ComputeListenerTests extends ESTestCase {
                     var resp = randomCompletionInfo();
                     documentsFound.addAndGet(resp.documentsFound());
                     valuesLoaded.addAndGet(resp.valuesLoaded());
-                    allProfiles.addAll(resp.collectedProfiles());
+                    allProfiles.addAll(resp.driverProfiles());
                     int numWarnings = randomIntBetween(1, 5);
                     Map<String, String> warnings = new HashMap<>();
                     for (int i = 0; i < numWarnings; i++) {

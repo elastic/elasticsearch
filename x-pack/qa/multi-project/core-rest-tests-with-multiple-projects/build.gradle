@@ -47,8 +47,6 @@ tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
     '^cat.recovery/*/*',
-    '^cat.repositories/*/*',
-    '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
     '^cluster.stats/10_basic/snapshot stats reported in get cluster stats',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
@@ -59,14 +57,7 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
     '^migration/*/*',
-    '^nodes.stats/70_repository_throttling_stats/Repository throttling stats (some repositories exist)',
-    '^snapshot.clone/*/*',
-    '^snapshot.create/*/*',
-    '^snapshot.delete/*/*',
-    '^snapshot.get/*/*',
-    '^snapshot.get_repository/*/*',
     '^snapshot.restore/*/*',
-    '^snapshot.status/*/*',
     '^synonyms/*/*',
     '^tsdb/30_snapshot/*',
     '^update_by_query/80_scripting/Update all docs with one deletion and one noop using a stored script', // scripting is not project aware yet

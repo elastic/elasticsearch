@@ -23,9 +23,11 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeR
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,7 +46,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -56,6 +60,10 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
     protected Settings repositorySettings() {
         return Settings.builder().put("compress", randomBoolean()).build();
+    }
+
+    protected Settings repositorySettings(ProjectId projectId) {
+        return repositorySettings();
     }
 
     @Override
@@ -217,6 +225,78 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         } finally {
             removeProjects(allProjects);
         }
+    }
+
+    public void testBackupRepositories() throws Exception {
+        assumeTrue("multi-project not enabled", multiProjectIntegrationTest());
+        final var indexNodeName = startMasterAndIndexNode();
+        final var searchNodeName = startSearchNode();
+        ensureStableCluster(2);
+        final var repoName = "backup";
+        putProjects(allProjects);
+        final CountDownLatch latch = new CountDownLatch(allProjects.size());
+
+        try {
+            runInParallel(allProjects.size(), i -> {
+                final ProjectId projectId = allProjects.get(i);
+                final var projectClient = client().projectClient(projectId);
+                try {
+                    // PUT repository
+                    safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                            .setType(repositoryType())
+                            .setSettings(repositorySettings(projectId))
+                            .setVerify(true)
+                            .execute()
+                    );
+
+                    // GET repository
+                    final var getRepositoriesResponse = safeGet(
+                        projectClient.admin().cluster().prepareGetRepositories(TEST_REQUEST_TIMEOUT, repoName).execute()
+                    );
+                    assertThat(getRepositoriesResponse.repositories(), hasSize(1));
+                    final RepositoryMetadata repositoryMetadata = getRepositoriesResponse.repositories().iterator().next();
+                    assertThat(repositoryMetadata.type(), equalTo(repositoryType()));
+                    assertThat(repositoryMetadata.name(), equalTo(repoName));
+                    assertBackupRepositorySettings(repositoryMetadata, projectId);
+
+                    // Verify repository
+                    final var verifyRepositoryResponse = safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .prepareVerifyRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                            .execute()
+                    );
+                    assertThat(
+                        verifyRepositoryResponse.getNodes().stream().map(VerifyRepositoryResponse.NodeView::getName).toList(),
+                        containsInAnyOrder(indexNodeName, searchNodeName)
+                    );
+
+                    // Delete repository
+                    safeGet(
+                        projectClient.admin()
+                            .cluster()
+                            .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                            .execute()
+                    );
+
+                } catch (Exception e) {
+                    fail(e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            safeAwait(latch);
+        } finally {
+            removeProjects(allProjects);
+        }
+    }
+
+    protected void assertBackupRepositorySettings(RepositoryMetadata repositoryMetadata, ProjectId projectId) {
+        throw new UnsupportedOperationException("This method should be overridden in the test class where it is called");
     }
 
     private Index createIndexWithDocs(Client client, String indexName) throws Exception {

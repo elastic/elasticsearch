@@ -2671,7 +2671,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
                             deleteEntry.snapshots().forEach(s -> collector.appendItem(s.getName()));
                             collector.finish();
-                            sb.append("] from repository [").append(deleteEntry.repository()).append("]");
+                            sb.append("] from repository ").append(projectRepoString(deleteEntry.projectId(), deleteEntry.repository()));
                             return sb;
                         }, e);
                         submitUnbatchedTask(
@@ -4004,8 +4004,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             logger.warn(
-                () -> format("Removed all snapshot tasks for repository [%s] from cluster state, now failing listeners", repository),
-                failure
+                () -> format(
+                    "Removed all snapshot tasks for repository %s from cluster state, now failing listeners",
+                    projectRepoString(projectId, repository),
+                    failure
+                )
             );
             final List<Runnable> readyToResolveListeners = new ArrayList<>();
             synchronized (currentlyFinalizing) {
@@ -4147,8 +4150,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // suppress stack trace at INFO unless extra verbosity is configured
             logger.info(
                 format(
-                    "[%s][%s] failed to %s snapshot: %s",
-                    snapshot.getRepository(),
+                    "%s[%s] failed to %s snapshot: %s",
+                    projectRepoString(snapshot.getProjectId(), snapshot.getRepository()),
                     snapshot.getSnapshotId().getName(),
                     operation,
                     e.getMessage()

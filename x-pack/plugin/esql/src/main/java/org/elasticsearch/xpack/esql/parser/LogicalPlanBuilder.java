@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
@@ -112,8 +113,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(ParsingContext context) {
-        super(context);
+    public LogicalPlanBuilder(ParsingContext context, Configuration configuration) {
+        super(context, configuration);
     }
 
     private int queryDepth = 0;

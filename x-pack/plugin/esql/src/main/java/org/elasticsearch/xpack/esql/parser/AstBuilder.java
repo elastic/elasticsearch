@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.xpack.esql.session.Configuration;
+
 public class AstBuilder extends LogicalPlanBuilder {
-    public AstBuilder(ParsingContext context) {
-        super(context);
+    public AstBuilder(ParsingContext context, Configuration configuration) {
+        super(context, configuration);
     }
 }

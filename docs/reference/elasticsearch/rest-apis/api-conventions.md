@@ -442,7 +442,7 @@ Selectors are applied to an index pattern at the end and can be combined with ot
 ```console
 # Search for regular data on a data stream
 GET my-data-stream/_search
-# Search for failure data on a data stream
+# Search for failure data in a data stream
 GET my-data-stream::failures/_search
 
 # Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)

@@ -301,7 +301,7 @@ public class EsqlFunctionRegistry {
         return new FunctionDefinition[][] {
             // grouping functions
             new FunctionDefinition[] {
-                def(Bucket.class, Bucket::new, "bucket", "bin"),
+                def(Bucket.class, quin(Bucket::new), "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
@@ -1010,6 +1010,39 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
+    /**
+     * Build a {@linkplain FunctionDefinition} for a quinary function.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, QuinaryBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (OptionalArgument.class.isAssignableFrom(function)) {
+                if (children.size() > 5 || children.size() < 4) {
+                    throw new QlIllegalArgumentException("expects four or five arguments");
+                }
+            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 5 || children.size() < 3) {
+                    throw new QlIllegalArgumentException("expects minimum three, maximum five arguments");
+                }
+            } else if (ThreeOptionalArguments.class.isAssignableFrom(function)) {
+                if (children.size() > 5 || children.size() < 2) {
+                    throw new QlIllegalArgumentException("expects minimum two, maximum five arguments");
+                }
+            } else if (children.size() != 5) {
+                throw new QlIllegalArgumentException("expects exactly five arguments");
+            }
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.get(1),
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                children.size() > 4 ? children.get(4) : null
+            );
+        };
+        return def(function, builder, names);
+    }
+
     protected interface QuaternaryBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Expression four);
     }
@@ -1204,4 +1237,7 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
+    private static <T extends Function> QuinaryBuilder<T> quin(QuinaryBuilder<T> function) {
+        return function;
+    }
 }

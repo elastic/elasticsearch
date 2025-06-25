@@ -265,7 +265,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullBucketGetsFolded() {
-        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, NULL)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {

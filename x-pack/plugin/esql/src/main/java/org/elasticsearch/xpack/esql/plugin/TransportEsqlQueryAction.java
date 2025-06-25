@@ -349,7 +349,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 columns,
                 result.pages(),
                 result.completionInfo().documentsFound(),
-                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,

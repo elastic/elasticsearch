@@ -144,7 +144,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     ) {
         assert task instanceof CancellableTask : task + " not cancellable";
 
-        final var resolvedRepositories = ResolvedRepositories.resolve(state, request.repositories());
+        final var resolvedRepositories = ResolvedRepositories.resolve(state.metadata().getProject(), request.repositories());
         if (resolvedRepositories.hasMissingRepositories()) {
             throw new RepositoryMissingException(String.join(", ", resolvedRepositories.missing()));
         }

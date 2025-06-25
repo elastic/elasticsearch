@@ -20,11 +20,14 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -43,6 +46,18 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     public static final String NAME = "cohere_service_settings";
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
+    public static final String API_VERSION = "api_version";
+    public static final String MODEL_REQUIRED_FOR_V2_API = "The [service_settings.model_id] field is required for the Cohere V2 API.";
+
+    public enum CohereApiVersion {
+        V1,
+        V2;
+
+        public static CohereApiVersion fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
     // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
     // 10K requests a minute
@@ -72,11 +87,45 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 
+        var resolvedModelId = modelId(oldModelId, modelId);
+        var apiVersion = apiVersionFromMap(map, context, validationException);
+        if (apiVersion == CohereApiVersion.V2) {
+            if (resolvedModelId == null) {
+                validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
+            }
+        }
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, modelId(oldModelId, modelId), rateLimitSettings);
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, resolvedModelId, rateLimitSettings, apiVersion);
+    }
+
+    public static CohereApiVersion apiVersionFromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return switch (context) {
+            case REQUEST -> CohereApiVersion.V2; // new endpoints all use the V2 API.
+            case PERSISTENT -> {
+                var apiVersion = ServiceUtils.extractOptionalEnum(
+                    map,
+                    API_VERSION,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    CohereApiVersion::fromString,
+                    EnumSet.allOf(CohereApiVersion.class),
+                    validationException
+                );
+
+                if (apiVersion == null) {
+                    yield CohereApiVersion.V1; // If the API version is not persisted then it must be V1
+                } else {
+                    yield apiVersion;
+                }
+            }
+        };
     }
 
     private static String modelId(@Nullable String model, @Nullable String modelId) {
@@ -89,6 +138,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     private final Integer maxInputTokens;
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
+    private final CohereApiVersion apiVersion;
 
     public CohereServiceSettings(
         @Nullable URI uri,
@@ -96,7 +146,8 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable String modelId,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereApiVersion apiVersion
     ) {
         this.uri = uri;
         this.similarity = similarity;
@@ -104,6 +155,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         this.maxInputTokens = maxInputTokens;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.apiVersion = apiVersion;
     }
 
     public CohereServiceSettings(
@@ -112,9 +164,10 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable String modelId,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereApiVersion apiVersion
     ) {
-        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
+        this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
     public CohereServiceSettings(StreamInput in) throws IOException {
@@ -129,16 +182,27 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
+        } else {
+            this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
+        }
     }
 
     // should only be used for testing, public because it's accessed outside of the package
-    public CohereServiceSettings() {
-        this((URI) null, null, null, null, null, null);
+    public CohereServiceSettings(CohereApiVersion apiVersion) {
+        this((URI) null, null, null, null, null, null, apiVersion);
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
+    }
+
+    @Override
+    public CohereApiVersion apiVersion() {
+        return apiVersion;
     }
 
     public URI uri() {
@@ -172,15 +236,14 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
         toXContentFragment(builder, params);
-
         builder.endObject();
         return builder;
     }
 
     public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        return toXContentFragmentOfExposedFields(builder, params);
+        toXContentFragmentOfExposedFields(builder, params);
+        return builder.field(API_VERSION, apiVersion); // API version is persisted but not exposed to the user
     }
 
     @Override
@@ -222,6 +285,10 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            out.writeEnum(apiVersion);
+        }
     }
 
     @Override
@@ -234,11 +301,12 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && apiVersion == that.apiVersion;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings);
+        return Objects.hash(uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 }

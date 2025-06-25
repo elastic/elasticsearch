@@ -54,6 +54,11 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
     }
 
     @Override
+    public String getName() {
+        return "AutomatonQueryBuilder";
+    }
+
+    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         throw new UnsupportedEncodingException("AutomatonQueryBuilder does not support doWriteTo");
     }

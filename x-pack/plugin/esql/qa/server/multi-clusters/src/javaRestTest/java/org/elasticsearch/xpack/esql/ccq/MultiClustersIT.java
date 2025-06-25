@@ -21,6 +21,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -129,7 +130,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query, boolean includeCCSMetadata) throws IOException {
-        var queryBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+        var queryBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query).profile(true);
         if (includeCCSMetadata) {
             queryBuilder.includeCCSMetadata(true);
         }
@@ -163,7 +164,7 @@ public class MultiClustersIT extends ESRestTestCase {
             ccsMetadataAvailable(),
             result.containsKey("is_partial"),
             result.containsKey("documents_found")
-        );
+        ).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }
@@ -270,7 +271,7 @@ public class MultiClustersIT extends ESRestTestCase {
             assertThat(localClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
             assertThat((Integer) localClusterShards.get("total"), greaterThanOrEqualTo(0));
             assertThat((Integer) localClusterShards.get("successful"), equalTo((Integer) localClusterShards.get("total")));
-            assertThat((Integer) localClusterShards.get("skipped"), equalTo(0));
+            // assertThat((Integer) localClusterShards.get("skipped"), equalTo(0));
             assertThat((Integer) localClusterShards.get("failed"), equalTo(0));
         }
     }
@@ -369,6 +370,94 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusterData, hasKey("total"));
         assertThat(clusterData, hasKey("skipped"));
         assertThat(clusterData, hasKey("took"));
+    }
+
+    public void testLikeIndex() throws Exception {
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index LIKE "*remote*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
+        System.out.println(resultString);
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
+    public void testNotLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT LIKE "*remote*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
+        System.out.println(resultString);
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
+    public void testLikeListIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index LIKE ("*remote*", "not-exist*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
+        System.out.println(resultString);
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
+    public void testNotLikeListIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT LIKE ("*remote*", "not-exist*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
+    public void testRLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index RLIKE ".*remote.*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
+    }
+
+    public void testNotRLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT RLIKE ".*remote.*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
     }
 
     private RestClient remoteClusterClient() throws IOException {

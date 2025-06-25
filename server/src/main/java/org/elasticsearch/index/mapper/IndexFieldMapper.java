@@ -10,9 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -27,6 +31,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
 
@@ -102,6 +107,33 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             };
         }
 
+        @Override
+        public Query wildcardLikeQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitve,
+            SearchExecutionContext context
+        ) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitve, indexName);
+        }
+
+        private static Query getWildcardLikeQuery(String value, boolean caseInsensitve, String indexName) {
+            if (caseInsensitve) {
+                value = value.toLowerCase(Locale.ROOT);
+                indexName = indexName.toLowerCase(Locale.ROOT);
+            }
+            if (Regex.simpleMatch(value, indexName)) {
+                return new MatchAllDocsQuery();
+            }
+            return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");
+        }
+
+        @Override
+        public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitive, indexName);
+        }
     }
 
     public IndexFieldMapper() {

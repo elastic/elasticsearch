@@ -135,6 +135,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         }
     }
 
+    public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+        return wildcardQuery(value, caseInsensitive, context);
+    }
+
     @Override
     public final boolean fieldHasValue(FieldInfos fieldInfos) {
         // We consider constant field types to always have value.

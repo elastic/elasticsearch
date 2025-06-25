@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,12 +36,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
+import java.util.Objects;
 
 public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNodeAction<
     CopyLifecycleIndexMetadataAction.Request,
     AcknowledgedResponse> {
     private final ClusterStateTaskExecutor<UpdateIndexMetadataTask> executor;
     private final MasterServiceTaskQueue<UpdateIndexMetadataTask> taskQueue;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public CopyLifecycleIndexMetadataTransportAction(
@@ -62,12 +65,14 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         );
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState clusterState) {
-                final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
-                return new Tuple<>(applyUpdate(clusterState, projectMetadata, task), task);
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState state) {
+                var projectMetadata = state.metadata().getProject(task.projectId);
+                var updatedMetadata = applyUpdate(projectMetadata, task);
+                return new Tuple<>(ClusterState.builder(state).putProjectMetadata(updatedMetadata).build(), task);
             }
         };
         this.taskQueue = clusterService.createTaskQueue("migrate-copy-index-metadata", Priority.NORMAL, this.executor);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -79,7 +84,13 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
     ) {
         taskQueue.submitTask(
             "migrate-copy-index-metadata",
-            new UpdateIndexMetadataTask(request.sourceIndex(), request.destIndex(), request.ackTimeout(), listener),
+            new UpdateIndexMetadataTask(
+                projectResolver.getProjectId(),
+                request.sourceIndex(),
+                request.destIndex(),
+                request.ackTimeout(),
+                listener
+            ),
             request.masterNodeTimeout()
         );
     }
@@ -89,7 +100,10 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static ClusterState applyUpdate(ClusterState state, ProjectMetadata projectMetadata, UpdateIndexMetadataTask updateTask) {
+    private static ProjectMetadata applyUpdate(ProjectMetadata projectMetadata, UpdateIndexMetadataTask updateTask) {
+        assert projectMetadata != null && updateTask != null;
+        assert Objects.equals(updateTask.projectId, projectMetadata.id());
+
         IndexMetadata sourceMetadata = projectMetadata.index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);
@@ -115,16 +129,23 @@ public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNo
         var indices = new HashMap<>(projectMetadata.indices());
         indices.put(updateTask.destIndex, newDestMetadata.build());
 
-        ProjectMetadata newMetadata = ProjectMetadata.builder(projectMetadata).indices(indices).build();
-        return ClusterState.builder(state).putProjectMetadata(newMetadata).build();
+        return ProjectMetadata.builder(projectMetadata).indices(indices).build();
     }
 
     static class UpdateIndexMetadataTask extends AckedBatchedClusterStateUpdateTask {
+        private final ProjectId projectId;
         private final String sourceIndex;
         private final String destIndex;
 
-        UpdateIndexMetadataTask(String sourceIndex, String destIndex, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+        UpdateIndexMetadataTask(
+            ProjectId projectId,
+            String sourceIndex,
+            String destIndex,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.sourceIndex = sourceIndex;
             this.destIndex = destIndex;
         }

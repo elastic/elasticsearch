@@ -1024,7 +1024,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(22, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }

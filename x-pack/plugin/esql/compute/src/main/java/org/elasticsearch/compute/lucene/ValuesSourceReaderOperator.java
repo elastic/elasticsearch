@@ -516,7 +516,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         implements
             Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
-            int size = storedFields.source().internalSourceRef().length();
+            int size = storedFields.source() == null ? -1 : storedFields.source().internalSourceRef().length();
             if (size > 500_000 && builder instanceof AbstractBlockBuilder ab) {
                 // accounting for twice the source size, one for the binary, one for the map
                 ab.adjustBreaker(size * 2);

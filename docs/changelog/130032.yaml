@@ -1,8 +1,8 @@
 pr: 130032
 summary: ES|QL cross-cluster querying is now generally available
-area: "ES|QL"
-type: feature
-issues: [ ]
+area: ES|QL
+type: docs
+issues: []
 highlight:
   title: ES|QL cross-cluster querying is now generally available
   body: |-

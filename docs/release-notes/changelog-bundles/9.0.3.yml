@@ -1,6 +1,6 @@
 version: 9.0.3
-released: false
-generated: 2025-06-21T00:06:16.346021604Z
+released: true
+generated: 2025-06-24T15:19:29.859630035Z
 changelogs:
   - pr: 120869
     summary: Threadpool merge scheduler

@@ -21,9 +21,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.cluster.metadata.Metadata.GLOBAL_STATE_FILE_PREFIX;
 
 /**
  * Handles writing and loading {@link Manifest}, {@link Metadata} and {@link IndexMetadata} as used for cluster state persistence in
@@ -76,19 +80,28 @@ public class MetaStateService {
     }
 
     /**
-     * Loads the global state, *without* index state
-     */
-    Metadata loadGlobalState() throws IOException {
-        return Metadata.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-    }
-
-    /**
      * Creates empty cluster state file on disk, deleting global metadata and unreferencing all index metadata
      * (only used for dangling indices at that point).
      */
     public void unreferenceAll() throws IOException {
         Manifest.FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        Metadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        cleanUpGlobalStateFiles();
+    }
+
+    private void cleanUpGlobalStateFiles() throws IOException {
+        for (Path location : nodeEnv.nodeDataPaths()) {
+            logger.trace("cleanupOldFiles: cleaning up {} for global state files", location);
+            final Path stateLocation = location.resolve(MetadataStateFormat.STATE_DIR_NAME);
+            try (var paths = Files.list(stateLocation)) {
+                paths.filter(file -> file.getFileName().toString().startsWith(GLOBAL_STATE_FILE_PREFIX)).forEach(file -> {
+                    try {
+                        Files.deleteIfExists(file);
+                    } catch (IOException e) {
+                        logger.trace("failed to delete global state file: {}", file);
+                    }
+                });
+            }
+        }
     }
 
     /**

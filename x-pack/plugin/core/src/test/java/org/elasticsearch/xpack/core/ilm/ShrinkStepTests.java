@@ -10,11 +10,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -66,7 +66,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);
+        return new ShrinkStep(key, nextKey, instance.getClientWithoutProject(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         return new ShrinkStep(
             instance.getKey(),
             instance.getNextStepKey(),
-            instance.getClient(),
+            instance.getClientWithoutProject(),
             instance.getNumberOfShards(),
             instance.getMaxPrimaryShardSize()
         );
@@ -123,9 +123,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, sourceIndexMetadata, emptyClusterState(), null);
+        final var state = projectStateWithEmptyProject();
+        performActionAndWait(step, sourceIndexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
@@ -155,9 +158,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             .numberOfReplicas(0)
             .build();
         Map<String, IndexMetadata> indices = Map.of(generatedShrunkenIndexName, indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices));
 
-        step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
+        step.performAction(sourceIndexMetadata, state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {}
 
@@ -186,9 +189,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        final var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
@@ -212,9 +218,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        final var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }

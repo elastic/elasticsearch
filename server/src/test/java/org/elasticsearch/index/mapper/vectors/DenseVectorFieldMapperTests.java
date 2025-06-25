@@ -65,7 +65,9 @@ import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,7 +87,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.indexed = randomBoolean();
         this.indexOptionsSet = this.indexed && randomBoolean();
-        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int randomMultiplier = ElementType.FLOAT == elementType ? randomIntBetween(1, 64) : 1;
+        this.dims = baseDims * randomMultiplier;
     }
 
     @Override
@@ -107,15 +111,28 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             // Serialize if it's new index version, or it was not the default for previous indices
             b.field("index", indexed);
         }
-        if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+        if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+            || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
             && elementType.equals(ElementType.FLOAT)
             && indexOptionsSet == false) {
-            b.startObject("index_options");
-            b.field("type", "int8_hnsw");
-            b.field("m", 16);
-            b.field("ef_construction", 100);
-            b.endObject();
+            if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
+                && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
+                b.startObject("index_options");
+                b.field("type", "bbq_hnsw");
+                b.field("m", 16);
+                b.field("ef_construction", 100);
+                b.startObject("rescore_vector");
+                b.field("oversample", DEFAULT_OVERSAMPLE);
+                b.endObject();
+                b.endObject();
+            } else {
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.field("m", 16);
+                b.field("ef_construction", 100);
+                b.endObject();
+            }
         }
         if (indexed) {
             b.field("similarity", elementType == ElementType.BIT ? "l2_norm" : "dot_product");
@@ -131,7 +148,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
+        return elementType == ElementType.FLOAT
+            ? convertToList(randomNormalizedVector(this.dims))
+            : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1);
+    }
+
+    private static List<Float> convertToList(float[] vector) {
+        List<Float> list = new ArrayList<>(vector.length);
+        for (float v : vector) {
+            list.add(v);
+        }
+        return list;
     }
 
     @Override
@@ -2038,15 +2065,24 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testValidateOnBuild() {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
+        int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
         DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current()).elementType(ElementType.FLOAT)
+            .dimensions(dimensions)
             .build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(ElementType.BYTE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build(context));
-        assertThat(e.getMessage(), containsString("[element_type] cannot be [byte] when using index type [int8_hnsw]"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                dimensions >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD
+                    ? "[element_type] cannot be [byte] when using index type [bbq_hnsw]"
+                    : "[element_type] cannot be [byte] when using index type [int8_hnsw]"
+            )
+        );
     }
 
     private static float[] decodeDenseVector(IndexVersion indexVersion, BytesRef encodedVector) {

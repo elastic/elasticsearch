@@ -389,6 +389,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    private void maybeAggregateAndDispatchRequest(
+        RestRequest restRequest,
+        RestChannel restChannel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
+        if (handler.supportsContentStream()) {
+            dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
+        } else {
+            RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
+                try {
+                    dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
+                } catch (Exception e) {
+                    throw new ElasticsearchException(e);
+                }
+            });
+        }
+    }
+
     private void dispatchRequest(
         RestRequest request,
         RestChannel channel,
@@ -424,8 +444,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
-        // TODO: estimate streamed content size for circuit breaker,
-        // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
         final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -623,7 +641,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    dispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }

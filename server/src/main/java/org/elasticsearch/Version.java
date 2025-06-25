@@ -208,11 +208,13 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_17_6 = new Version(8_17_06_99);
     public static final Version V_8_17_7 = new Version(8_17_07_99);
     public static final Version V_8_17_8 = new Version(8_17_08_99);
+    public static final Version V_8_17_9 = new Version(8_17_09_99);
     public static final Version V_8_18_0 = new Version(8_18_00_99);
     public static final Version V_8_18_1 = new Version(8_18_01_99);
     public static final Version V_8_18_2 = new Version(8_18_02_99);
     public static final Version V_8_18_3 = new Version(8_18_03_99);
-    public static final Version CURRENT = V_8_18_3;
+    public static final Version V_8_18_4 = new Version(8_18_04_99);
+    public static final Version CURRENT = V_8_18_4;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;

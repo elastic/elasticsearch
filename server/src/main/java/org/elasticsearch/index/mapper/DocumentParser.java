@@ -17,7 +17,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -754,9 +753,10 @@ public final class DocumentParser {
         long nestedDocsLimit = context.indexSettings().getMappingNestedDocsLimit();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                if(countArray++ >= nestedDocsLimit) {
-                    throw new IllegalStateException("Limit [" + nestedDocsLimit + "] of elements in an array field [" + lastFieldName + "] " +
-                        "has been exceeded");
+                if (countArray++ >= nestedDocsLimit) {
+                    throw new IllegalStateException(
+                        "Limit [" + nestedDocsLimit + "] of elements in an array field [" + lastFieldName + "] " + "has been exceeded"
+                    );
                 }
                 elements = 2;
                 parseObject(context, lastFieldName);

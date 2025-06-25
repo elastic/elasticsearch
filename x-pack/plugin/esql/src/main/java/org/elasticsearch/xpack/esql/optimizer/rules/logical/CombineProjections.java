@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
     // don't drop groupings from a local plan, as the layout has already been agreed upon
@@ -100,25 +101,12 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
 
             // This can lead to duplicates in the groupings: e.g.
             // | EVAL x = y | STATS ... BY x, y
-            if (local == false) {
-                // On the coordinator, we can just discard the duplicates.
-
-                // All substitutions happen before; groupings must be attributes at this point except for non-evaluatable groupings which
-                // will be an alias like `c = CATEGORIZE(attribute)`.
-                // Due to such aliases, we can't use an AttributeSet to deduplicate. But we can use a regular set to deduplicate based on
-                // regular equality (i.e. based on names) instead of name ids.
-                // TODO: The deduplication based on simple equality will be insufficient in case of multiple non-evaluatable groupings, e.g.
-                // for `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead. Also
-                // applies in the local case below.
-                LinkedHashSet<Expression> deduplicatedResolvedGroupings = new LinkedHashSet<>(resolvedGroupings);
-                List<Expression> newGroupings = new ArrayList<>(deduplicatedResolvedGroupings);
-                plan = a.with(p.child(), newGroupings, combineProjections(a.aggregates(), p.projections()));
-            } else {
+            if (local) {
                 // On the data node, the groupings must be preserved because they affect the physical output (see
                 // AbstractPhysicalOperationProviders#intermediateAttributes).
                 // In case that propagating the lower projection leads to duplicates in the resolved groupings, we'll leave an Eval in place
                 // of the original projection to create new attributes for the duplicate groups.
-                HashSet<Expression> seenResolvedGroupings = new HashSet<>(resolvedGroupings.size());
+                Set<Expression> seenResolvedGroupings = new HashSet<>(resolvedGroupings.size());
                 List<Expression> newGroupings = new ArrayList<>();
                 List<Alias> aliasesAgainstDuplication = new ArrayList<>();
 
@@ -142,7 +130,6 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                         // propagate the new alias into the new grouping
                         AttributeMap.Builder<Attribute> resolverBuilder = AttributeMap.builder();
                         resolverBuilder.put(coreAttribute, renameAgainstDuplication.toAttribute());
-                        resolverBuilder.build();
                         AttributeMap<Attribute> resolver = resolverBuilder.build();
 
                         newGroupings.add(resolvedGrouping.transformUp(Attribute.class, attr -> resolver.resolve(attr, attr)));
@@ -153,6 +140,17 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                     ? p.child()
                     : new Eval(p.source(), p.child(), aliasesAgainstDuplication);
                 plan = a.with(newChild, newGroupings, combineProjections(a.aggregates(), p.projections()));
+            } else {
+                // On the coordinator, we can just discard the duplicates.
+                // All substitutions happen before; groupings must be attributes at this point except for non-evaluatable groupings which
+                // will be an alias like `c = CATEGORIZE(attribute)`.
+                // Due to such aliases, we can't use an AttributeSet to deduplicate. But we can use a regular set to deduplicate based on
+                // regular equality (i.e. based on names) instead of name ids.
+                // TODO: The deduplication based on simple equality will be insufficient in case of multiple non-evaluatable groupings, e.g.
+                // for `| EVAL x = y | STATS ... BY CATEGORIZE(x), CATEGORIZE(y)`. That will require semantic equality instead. Also
+                // applies in the local case below.
+                List<Expression> newGroupings = new ArrayList<>(new LinkedHashSet<>(resolvedGroupings));
+                plan = a.with(p.child(), newGroupings, combineProjections(a.aggregates(), p.projections()));
             }
         }
 

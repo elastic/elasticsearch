@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_NAME_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentUtilsTests extends ESTestCase {
@@ -60,6 +61,13 @@ public class XContentUtilsTests extends ESTestCase {
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(json, equalTo("{\"authorization\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
+    }
+
+    public void testAddAuthorizationInfoWithCloudApiKey() throws IOException {
+        String apiKeyId = randomAlphaOfLength(20);
+        Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication(apiKeyId);
+        String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(json, containsString("{\"authorization\":{\"cloud_api_key\":{\"id\":\"" + apiKeyId + "\""));
     }
 
     public void testAddAuthorizationInfoWithServiceAccount() throws IOException {

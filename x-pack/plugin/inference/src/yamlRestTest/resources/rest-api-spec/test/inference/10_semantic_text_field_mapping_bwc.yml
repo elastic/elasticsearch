@@ -740,8 +740,8 @@ setup:
 ---
 "Displaying default index_options with and without include_defaults":
   - requires:
-      cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.19.0
+      cluster_features: "semantic_text.index_options_with_defaults"
+      reason: Index options defaults support introduced in 9.2.0
 
   # Semantic text defaults to BBQ HNSW starting in 8.19.0/9.1.0
   - do:

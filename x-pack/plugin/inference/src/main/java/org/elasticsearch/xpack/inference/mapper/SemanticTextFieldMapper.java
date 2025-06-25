@@ -140,6 +140,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         "semantic_text.exclude_sub_fields_from_field_caps"
     );
     public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS = new NodeFeature("semantic_text.index_options");
+    public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS = new NodeFeature(
+        "semantic_text.index_options_with_defaults"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;

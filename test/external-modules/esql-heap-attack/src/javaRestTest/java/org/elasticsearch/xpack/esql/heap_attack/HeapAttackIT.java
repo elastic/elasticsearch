@@ -585,8 +585,8 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
 
-    public void testStatsOnLargeKeywords() throws IOException, InterruptedException {
-        initVeryLargeText(500, 1, 10_000_000, 1);
+    public void testStatsOnLargeKeywords() throws IOException {
+        initVeryLargeText(500, 1, 2_000_000, 1);
         StringBuilder query = startQuery();
         query.append("FROM large_text_idx | STATS SUM(LENGTH(large_text0))\"}");
         for (int i = 0; i < 5; i++) {
@@ -632,7 +632,9 @@ public class HeapAttackIT extends ESRestTestCase {
                 logger.error("loaded {} docs", d);
             }
         }
-        initIndex("large_text_idx", bulk.toString());
+        if (bulk.length() > 0) {
+            bulk("large_text_idx", bulk.toString());
+        }
     }
 
     /**

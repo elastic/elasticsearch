@@ -43,6 +43,10 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                       "task_types": ["embed/text/sparse"]
                     },
                     {
+                      "model_name": "multilingual-embed-v1",
+                      "task_types": ["embed/text/dense"]
+                    },
+                  {
                       "model_name": "rerank-v1",
                       "task_types": ["rerank/text/text-similarity"]
                     }

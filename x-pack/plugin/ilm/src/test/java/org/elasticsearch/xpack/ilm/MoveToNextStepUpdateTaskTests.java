@@ -96,6 +96,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             )
         );
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -124,6 +125,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         setStateToKey(notCurrentStepKey, now);
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -142,6 +144,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey, now);
         setStatePolicy("not-" + policy);
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -173,6 +176,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             )
         );
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,
@@ -203,6 +207,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         setStateToKey(currentStepKey, now);
 
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(
+            state.projectId(),
             index,
             policy,
             currentStepKey,

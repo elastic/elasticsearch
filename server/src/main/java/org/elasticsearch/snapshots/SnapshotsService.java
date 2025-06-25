@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -1376,7 +1377,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
-                repositoriesService.repository(repoName)
+                repositoriesService.repository(snapshot.getProjectId(), repoName)
                     .getRepositoryData(
                         EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
                         new ActionListener<>() {
@@ -1485,7 +1486,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             final String repository = snapshot.getRepository();
             final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
-            final Repository repo = repositoriesService.repository(snapshot.getRepository());
+            final Repository repo = repositoriesService.repository(snapshot.getProjectId(), snapshot.getRepository());
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
                     final Metadata existingMetadata = repo.getSnapshotGlobalMetadata(entry.source());
@@ -2255,7 +2256,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         reusedExistingDelete = true;
                         return currentState;
                     }
+                    @FixForMultiProject
+                    final var projectId = ProjectId.DEFAULT;
                     newDelete = new SnapshotDeletionsInProgress.Entry(
+                        projectId,
                         repositoryName,
                         List.copyOf(snapshotIdsRequiringCleanup),
                         threadPool.absoluteTimeInMillis(),
@@ -2437,7 +2441,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     private void deleteSnapshotsFromRepository(SnapshotDeletionsInProgress.Entry deleteEntry, IndexVersion minNodeVersion) {
         final long expectedRepoGen = deleteEntry.repositoryStateId();
-        repositoriesService.getRepositoryData(deleteEntry.repository(), new ActionListener<>() {
+        repositoriesService.getRepositoryData(deleteEntry.projectId(), deleteEntry.repository(), new ActionListener<>() {
             @Override
             public void onResponse(RepositoryData repositoryData) {
                 assert repositoryData.getGenId() == expectedRepoGen
@@ -2560,7 +2564,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return;
             }
             final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
-            repositoriesService.repository(deleteEntry.repository())
+            repositoriesService.repository(deleteEntry.projectId(), deleteEntry.repository())
                 .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new ActionListener<>() {
                     @Override
                     public void onResponse(RepositoryData updatedRepoData) {
@@ -3784,7 +3788,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             entry.source(),
                             clone.getValue(),
                             clone.getKey(),
-                            repositoriesService.repository(entry.repository())
+                            repositoriesService.repository(entry.projectId(), entry.repository())
                         );
                     }
                 }

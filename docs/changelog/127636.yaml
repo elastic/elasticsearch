@@ -1,0 +1,17 @@
+pr: 127636
+summary: Disallow mixed quoted/unquoted patterns in FROM
+area: ES|QL
+type: breaking
+issues:
+ - 122651
+breaking:
+  title: Disallow mixed quoted/unquoted patterns in FROM
+  area: ES|QL
+  details: "Previously, the ES|QL grammar allowed users to individually quote constituent strings in index patterns\
+    \ such as \"remote_cluster\":\"index_name\". This would allow users to write complex malformed index patterns\
+    \ that often slip through grammar and the subsequent validation. This could result in runtime errors\
+    \ that can be misleading. This change simplifies the grammar to early reject such malformed index patterns\
+    \ at the parsing stage, allowing users to write simpler queries and see more relevant and meaningful\
+    \ errors."
+  impact: "Users can write queries with simpler index patterns and see more meaningful and relevant errors."
+  notable: false

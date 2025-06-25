@@ -1,0 +1,11 @@
+pr: 128854
+summary: Mark token pruning for sparse vector as GA
+area: Machine Learning
+type: feature
+issues: []
+highlight:
+  title: Mark Token Pruning for Sparse Vector as GA
+  body: |-
+    Token pruning for sparse_vector queries has been live since 8.13 as tech preview.
+    As of 8.19.0 and 9.1.0, this is now generally available.
+  notable: true

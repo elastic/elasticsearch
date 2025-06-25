@@ -19,9 +19,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.ShardHeapUsage;
-import org.elasticsearch.cluster.ShardHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -123,7 +124,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusShardHeapUsagePlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -264,14 +265,33 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testHeapUsageEstimateIsPresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
-        ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        Map<String, ShardHeapUsage> shardHeapUsages = clusterInfoService.getClusterInfo().getShardHeapUsages();
-        assertNotNull(shardHeapUsages);
-        assertEquals(state.nodes().size(), shardHeapUsages.size());
-        for (DiscoveryNode node : state.nodes()) {
-            assertTrue(shardHeapUsages.containsKey(node.getId()));
-            ShardHeapUsage shardHeapUsage = shardHeapUsages.get(node.getId());
-            assertThat(shardHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(shardHeapUsage.totalBytes()));
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
+        assertNotNull(estimatedHeapUsages);
+        // Not collecting yet because it is disabled
+        assertTrue(estimatedHeapUsages.isEmpty());
+
+        // Enable collection for estimated heap usages
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+                .build()
+        );
+        try {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
+            assertEquals(state.nodes().size(), estimatedHeapUsages.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(estimatedHeapUsages.containsKey(node.getId()));
+                EstimatedHeapUsage estimatedHeapUsage = estimatedHeapUsages.get(node.getId());
+                assertThat(estimatedHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(estimatedHeapUsage.totalBytes()));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
+                    .build()
+            );
         }
     }
 
@@ -661,7 +681,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             null,
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
     }
 
@@ -819,11 +840,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    public static class BogusShardShardHeapUsageCollector implements ShardHeapUsageCollector {
+    public static class BogusEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
 
-        private final BogusShardHeapUsagePlugin plugin;
+        private final BogusEstimatedHeapUsagePlugin plugin;
 
-        public BogusShardShardHeapUsageCollector(BogusShardHeapUsagePlugin plugin) {
+        public BogusEstimatedEstimatedHeapUsageCollector(BogusEstimatedHeapUsagePlugin plugin) {
             this.plugin = plugin;
         }
 
@@ -840,7 +861,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    public static class BogusShardHeapUsagePlugin extends Plugin implements ClusterPlugin {
+    public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {
 
         private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 

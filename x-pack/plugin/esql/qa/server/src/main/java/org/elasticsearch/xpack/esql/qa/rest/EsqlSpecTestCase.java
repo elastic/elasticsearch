@@ -76,6 +76,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -273,6 +276,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<?, ?> prevTooks = supportsTook() ? tooks() : null;
         Map<String, Object> answer = runEsql(builder.query(query), testCase.assertWarnings(deduplicateExactWarnings()));
 
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -364,9 +371,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
         }
         if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {

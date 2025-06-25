@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -125,19 +126,20 @@ public class BlobFileRanges {
     /**
      * Computes the {@link BlobFileRanges} for a given set of internal files of a {@link BatchedCompoundCommit}
      *
-     * @param batchedCompoundCommit the batched compound commit
+     * @param commitIterator        the batched compound commit iterator that provides the stored compound commit headers
      * @param files                 the set of files for which the blob file ranges must be computed
      * @param useReplicatedRanges   if the replication of ranges feature is enabled
      * @return map of all the commit files of the last commit of the batched compound commit associated to their {@link BlobFileRanges}
      */
     public static Map<String, BlobFileRanges> computeBlobFileRanges(
-        BatchedCompoundCommit batchedCompoundCommit,
+        Iterator<StatelessCompoundCommit> commitIterator,
         Set<String> files,
         boolean useReplicatedRanges
     ) {
         long blobOffset = 0L;
         var blobFileRanges = HashMap.<String, BlobFileRanges>newHashMap(files.size());
-        for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
+        while (commitIterator.hasNext()) {
+            var compoundCommit = commitIterator.next();
             assert blobOffset == BlobCacheUtils.toPageAlignedSize(blobOffset);
             var internalFiles = Sets.intersection(compoundCommit.internalFiles(), files);
             if (internalFiles.isEmpty() == false) {

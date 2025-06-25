@@ -27,6 +27,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -410,6 +411,7 @@ public class IndexLifecycleService
         });
     }
 
+    @NotMultiProjectCapable(description = "See comment inside the method")
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         // only act if we are master, otherwise keep idle until elected

@@ -27,6 +27,8 @@ Settings are available for the following modules:
   Index settings not tied to a specific module.
 * [Index shard allocation](shard-allocation.md):
   Control where, when, and how shards are allocated to nodes.
+* [History retention](history-retention.md)
+  Control how long the history of operations is retained in the index.
 * [Index blocks](./index-block.md):
   Block different type of operations to the indices.
 * [Mapping limits](./mapping-limit.md):
@@ -37,16 +39,14 @@ Settings are available for the following modules:
   Configure custom similarity settings to customize how search results are scored.
 * [Slowlog](slow-log.md):
   Control how slow queries and fetch requests are logged.
-* [Store](store.md):
-  Configure the type of filesystem used to access shard data.
 * [Sorting](./sorting.md):
   Configure how to sort the segments inside each shard.
+* [Store](store.md):
+  Configure the type of filesystem used to access shard data.
 * [Time series](time-series.md)
   Configure the backing indices in a time series data stream (TSDS).
 * [Translog](translog.md)
   Control the transaction log and background flush operations.
-* [History retention](history-retention.md)
-  Control the retention of a history of operations in the index.
 * [Indexing pressure](pressure.md)
   Configure indexing back pressure limits.
 

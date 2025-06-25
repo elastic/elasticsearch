@@ -253,7 +253,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
-            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(14.4)));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(72.0)));
         }
 
         {
@@ -264,14 +264,14 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                         .withShardWriteLoad(1, 24, 999, 999, 5)
                         .withShardWriteLoad(2, 24, 999, 999, 5)
                         .withShardWriteLoad(3, 24, 999, 999, 5)
-                        .withShardWriteLoad(4, 24, 999, 999, 4)
+                        .withShardWriteLoad(4, 24, 999, 999, 5)
                         .build(),
                     // Since this shard uptime is really low, it doesn't add much to the avg
                     IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 999, 999, 1).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
-            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(15.36)));
+            assertThat(writeLoadForecast.getAsDouble(), is(closeTo(72.59, 0.01)));
         }
 
         {
@@ -283,7 +283,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
-            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(12.0)));
+            assertThat(writeLoadForecast.getAsDouble(), is(equalTo(16.0)));
         }
 
         {
@@ -302,7 +302,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
-            assertThat(writeLoadForecast.getAsDouble(), is(closeTo(15.83, 0.01)));
+            assertThat(writeLoadForecast.getAsDouble(), is(closeTo(31.66, 0.01)));
         }
     }
 

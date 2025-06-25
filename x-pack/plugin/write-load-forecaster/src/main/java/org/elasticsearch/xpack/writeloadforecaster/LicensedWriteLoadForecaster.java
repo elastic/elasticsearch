@@ -108,7 +108,12 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
 
         final IndexMetadata writeIndex = metadata.getSafe(dataStream.getWriteIndex());
-        metadata.put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false);
+        metadata.put(
+            IndexMetadata.builder(writeIndex)
+                .indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble() / writeIndex.getNumberOfShards())
+                .build(),
+            false
+        );
 
         return metadata;
     }
@@ -130,10 +135,20 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     }
 
     // Visible for testing
+
+    /**
+     * This calculates the weighted average total write-load for all recent indices.
+     *
+     * @param indicesWriteLoadWithinMaxAgeRange The indices considered "recent"
+     * @return The weighted average total write-load. To get the per-shard write load, this number must be divided by the number of shards
+     */
     static OptionalDouble forecastIndexWriteLoad(List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange) {
-        double totalWeightedWriteLoad = 0;
-        long totalShardUptime = 0;
+        double allIndicesWriteLoad = 0;
+        long allIndicesUptime = 0;
         for (IndexWriteLoad writeLoad : indicesWriteLoadWithinMaxAgeRange) {
+            double totalShardWriteLoad = 0;
+            long totalShardUptimeInMillis = 0;
+            long maxShardUptimeInMillis = 0;
             for (int shardId = 0; shardId < writeLoad.numberOfShards(); shardId++) {
                 final OptionalDouble writeLoadForShard = writeLoad.getWriteLoadForShard(shardId);
                 final OptionalLong uptimeInMillisForShard = writeLoad.getUptimeInMillisForShard(shardId);
@@ -141,13 +156,20 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
                     assert uptimeInMillisForShard.isPresent();
                     double shardWriteLoad = writeLoadForShard.getAsDouble();
                     long shardUptimeInMillis = uptimeInMillisForShard.getAsLong();
-                    totalWeightedWriteLoad += shardWriteLoad * shardUptimeInMillis;
-                    totalShardUptime += shardUptimeInMillis;
+                    totalShardWriteLoad += shardWriteLoad * shardUptimeInMillis;
+                    totalShardUptimeInMillis += shardUptimeInMillis;
+                    maxShardUptimeInMillis = Math.max(maxShardUptimeInMillis, shardUptimeInMillis);
                 }
             }
+            double weightedAverageShardWriteLoad = totalShardWriteLoad / totalShardUptimeInMillis;
+            double totalIndexWriteLoad = weightedAverageShardWriteLoad * writeLoad.numberOfShards();
+            // We assume the index shards for a single index lived for approximately the same amount of time,
+            // so it's safe to weigh the index write load by the max shard uptime
+            allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
+            allIndicesUptime += maxShardUptimeInMillis;
         }
 
-        return totalShardUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(totalWeightedWriteLoad / totalShardUptime);
+        return allIndicesUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(allIndicesWriteLoad / allIndicesUptime);
     }
 
     @Override

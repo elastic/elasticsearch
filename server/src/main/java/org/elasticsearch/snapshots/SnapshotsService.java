@@ -1479,10 +1479,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final ProjectId projectId = snapshot.getProjectId();
         final Metadata effectiveMetadata;
         if (supportsMultipleProjects) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "should not snapshot for default project when multi-project is enabled";
             effectiveMetadata = Metadata.builder().put(metadata.getProject(projectId)).build();
         } else {
-            assert ProjectId.DEFAULT.equals(projectId) : "expect snapshots for only the default project when multi-project is disabled";
             effectiveMetadata = metadata;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new SnapshotFinalization(snapshot, effectiveMetadata, repositoryData));

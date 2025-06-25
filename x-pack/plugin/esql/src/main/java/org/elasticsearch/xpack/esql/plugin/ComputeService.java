@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -194,7 +193,7 @@ public class ComputeService {
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
 
         // we have no sub plans, so we can just execute the given plan
-        if (subplans == null || subplans.size() == 0) {
+        if (subplans == null || subplans.isEmpty()) {
             executePlan(sessionId, rootTask, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
             return;
         }
@@ -230,7 +229,6 @@ public class ComputeService {
             );
 
             Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-            PhysicalPlan finalMainPlan = mainPlan;
 
             try (
                 ComputeListener localListener = new ComputeListener(
@@ -238,11 +236,11 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     finalListener.map(profiles -> {
                         execInfo.markEndQuery();
-                        return new Result(finalMainPlan.output(), collectedPages, profiles, execInfo);
+                        return new Result(mainPlan.output(), collectedPages, profiles, execInfo);
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, finalMainPlan, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -539,9 +537,7 @@ public class ComputeService {
 
                 @Override
                 public SourceProvider createSourceProvider() {
-                    final Supplier<SourceProvider> supplier = () -> super.createSourceProvider();
-                    return new ReinitializingSourceProvider(supplier);
-
+                    return new ReinitializingSourceProvider(super::createSourceProvider);
                 }
             };
             contexts.add(
@@ -554,7 +550,6 @@ public class ComputeService {
             searchService.getIndicesService().getAnalysis(),
             defaultDataPartitioning
         );
-        final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -575,37 +570,40 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
+            var localPlan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
-            drivers = localExecutionPlan.createDrivers(context.sessionId());
+            var drivers = localExecutionPlan.createDrivers(context.sessionId());
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                ActionListener.releaseAfter(listener.map(ignored -> {
+                    if (context.configuration().profile()) {
+                        return DriverCompletionInfo.includingProfiles(
+                            drivers,
+                            context.description(),
+                            clusterService.getClusterName().value(),
+                            transportService.getLocalNode().getName(),
+                            localPlan.toString()
+                        );
+                    } else {
+                        return DriverCompletionInfo.excludingProfiles(drivers);
+                    }
+                }), () -> Releasables.close(drivers))
+            );
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
         }
-        ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
-            if (context.configuration().profile()) {
-                return DriverCompletionInfo.includingProfiles(drivers);
-            } else {
-                return DriverCompletionInfo.excludingProfiles(drivers);
-            }
-        });
-        listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
-        driverRunner.executeDrivers(
-            task,
-            drivers,
-            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            listenerCollectingStatus
-        );
     }
 
     static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {

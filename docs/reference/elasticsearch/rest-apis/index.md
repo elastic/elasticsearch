@@ -27,6 +27,13 @@ The autoscaling APIs enable you to create and manage autoscaling policies and re
 
 The behavioral analytics APIs enable you to create and manage analytics collections and retrieve information about analytics collections. Behavioral Analytics is an analytics event collection platform. You can use it to analyze your users' searching and clicking behavior. Leverage this information to improve the relevance of your search results and identify gaps in your content.
 
+| API | Description |
+| --- | ----------- |
+| [Get Collections](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.get_behavioral_analytics) | Lists all behavioral analytics collections. |
+| [Create Collection](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.put_behavioral_analytics) | Creates a new behavioral analytics collection. |
+| [Delete Collection](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.delete_behavioral_analytics) | Deletes a behavioral analytics collection. |
+| [Create Event](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/behavioral_analytics.post_behavioral_analytics_event) | Sends a behavioral analytics event to a collection. |
+
 ### [Compact and aligned text (CAT)](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-cat)
 
 The compact and aligned text (CAT) APIs return human-readable text as a response, instead of a JSON object. The CAT APIs aim are intended only for human consumption using the Kibana console or command line. They are not intended for use by applications. For application consumption, it's recommend to use a corresponding JSON API.
@@ -46,6 +53,17 @@ The connector and sync jobs APIs provide a convenient way to create and manage E
 ### [Cross-cluster replication (CCR)](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ccr)
 
 The cross-cluster replication (CCR) APIs enable you to run cross-cluster replication operations, such as creating and managing follower indices or auto-follow patterns. With CCR, you can replicate indices across clusters to continue handling search requests in the event of a datacenter outage, prevent search volume from impacting indexing throughput, and reduce search latency by processing search requests in geo-proximity to the user.
+
+| API | Description |
+| --- | ----------- |
+| [Follow Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.follow) | Creates a follower index that replicates a leader index from a remote cluster. |
+| [Pause Follow](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.pause_follow) | Pauses replication of a follower index. |
+| [Resume Follow](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.resume_follow) | Resumes replication of a paused follower index. |
+| [Unfollow Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.unfollow) | Converts a follower index into a regular index. |
+| [Get Follow Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.follow_stats) | Retrieves stats about follower indices. |
+| [Get Auto-follow Patterns](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.get_auto_follow_pattern) | Lists auto-follow patterns for remote clusters. |
+| [Put Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.put_auto_follow_pattern) | Creates or updates an auto-follow pattern. |
+| [Delete Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.delete_auto_follow_pattern) | Deletes an auto-follow pattern. |
 
 ### [Data stream](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-data-stream)
 
@@ -90,6 +108,13 @@ The index lifecycle management APIs enable you to set up policies to automatical
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
 The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+
+| API | Description |
+| --- | ----------- |
+| [Put Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.put_model) | Uploads a new inference model. |
+| [Get Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.get_model) | Retrieves one or more inference models. |
+| [Delete Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.delete_model) | Deletes an inference model. |
+| [Infer](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.infer) | Runs inference using a deployed model. |
 
 ### [Info](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-info)
 

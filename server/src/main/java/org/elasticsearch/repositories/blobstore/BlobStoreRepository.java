@@ -2407,7 +2407,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
             throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
         }
-        final var project = currentState.metadata().getDefaultProject();
+        final var project = currentState.metadata().getProject(getProjectId());
         return ClusterState.builder(currentState)
             .putProjectMetadata(
                 ProjectMetadata.builder(project)
@@ -2476,6 +2476,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // someone switched the repo contents out from under us
                         RepositoriesService.updateRepositoryUuidInMetadata(
                             clusterService,
+                            getProjectId(),
                             metadata.name(),
                             loaded,
                             new ThreadedActionListener<>(threadPool.generic(), listener.map(v -> loaded))
@@ -2593,7 +2594,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata state = RepositoriesMetadata.get(currentState);
+                    final var project = currentState.metadata().getDefaultProject();
+                    final RepositoriesMetadata state = RepositoriesMetadata.get(project);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
                         throw new IllegalStateException(
@@ -2605,8 +2607,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         );
                     }
                     return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.metadata())
+                        .putProjectMetadata(
+                            ProjectMetadata.builder(project)
                                 .putCustom(
                                     RepositoriesMetadata.TYPE,
                                     state.withUpdatedGeneration(
@@ -2615,7 +2617,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         repoState.pendingGeneration()
                                     )
                                 )
-                                .build()
                         )
                         .build();
                 }
@@ -2787,12 +2788,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + "] must be larger than latest known generation ["
                         + latestKnownRepoGen.get()
                         + "]";
+                final var project = currentState.metadata().getDefaultProject();
                 return ClusterState.builder(currentState)
-                    .metadata(
-                        Metadata.builder(currentState.getMetadata())
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(project)
                             .putCustom(
                                 RepositoriesMetadata.TYPE,
-                                RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
+                                RepositoriesMetadata.get(project).withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
                             .build()
                     )
@@ -3114,7 +3116,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
-        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state).repository(metadata.name());
+        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state.getMetadata().getProject(getProjectId()))
+            .repository(metadata.name());
         assert repositoryMetadata != null || lifecycle.stoppedOrClosed()
             : "did not find metadata for repo [" + metadata.name() + "] in state [" + lifecycleState() + "]";
         return repositoryMetadata;

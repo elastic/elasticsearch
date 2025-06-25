@@ -685,21 +685,21 @@ public class TransportService extends AbstractLifecycleComponent
                 // message, but recognise that this may fail
                 discoveryNode = new DiscoveryNode(in);
             } catch (Exception e) {
-                maybeThrowOnIncompatibleBuild(null, e);
+                maybeWarnOnIncompatibleBuild(null, e);
                 throw e;
             }
-            maybeThrowOnIncompatibleBuild(discoveryNode, null);
+            maybeWarnOnIncompatibleBuild(discoveryNode, null);
             clusterName = new ClusterName(in);
         }
 
-        private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
+        private void maybeWarnOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
             if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
-                throwOnIncompatibleBuild(node, e);
+                warnOnIncompatibleBuild(node, e);
             }
         }
 
-        private void throwOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            throw new IllegalArgumentException(
+        private void warnOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
+            logger.warn(
                 "remote node ["
                     + (node == null ? "unidentifiable" : node)
                     + "] is build ["

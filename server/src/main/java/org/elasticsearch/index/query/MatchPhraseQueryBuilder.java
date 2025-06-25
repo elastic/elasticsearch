@@ -129,6 +129,11 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this;
     }
 
+    public MatchPhraseQueryBuilder zeroTermsQuery(String zeroTermsQueryString) {
+        ZeroTermsQueryOption zeroTermsQueryOption = ZeroTermsQueryOption.readFromString(zeroTermsQueryString);
+        return zeroTermsQuery(zeroTermsQueryOption);
+    }
+
     public ZeroTermsQueryOption zeroTermsQuery() {
         return this.zeroTermsQuery;
     }

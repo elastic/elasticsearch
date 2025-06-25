@@ -70,6 +70,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     private final FlatVectorsReader rawVectorsReader;
     private final ES818BinaryFlatVectorsScorer vectorScorer;
 
+    @SuppressWarnings("this-escape")
     ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
@@ -159,7 +160,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
-        if (fi == null) {
+        if (fi == null || fi.size() == 0) {
             return null;
         }
         return vectorScorer.getRandomVectorScorer(

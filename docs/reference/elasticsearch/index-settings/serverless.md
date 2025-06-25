@@ -6,7 +6,7 @@ applies_to:
 
 # Index settings available in {{serverless-full}} projects
 
-This page lists the {{es}} index settings available in {{serverless-full}} projects.
+[{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) manages most index settings for you. This page lists the {{es}} index settings available in {{serverless-short}} projects.
 
 ### General settings
 
@@ -43,7 +43,7 @@ This page lists the {{es}} index settings available in {{serverless-full}} proje
 * [`index.mapping.total_fields.limit`](./mapping-limit.md#total-fields-limit)
 * [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](./mapping-limit.md#ignore-dynamic-beyond-limit)
 
-### ILM and Data Stream settings
+### Data stream lifecycle settings
 
 * [`index.lifecycle.origination_date`](../configuration-reference/data-stream-lifecycle-settings.md#index-data-stream-lifecycle-origination-date)
 

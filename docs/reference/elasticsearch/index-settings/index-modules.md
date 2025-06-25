@@ -152,7 +152,7 @@ $$$index-refresh-interval-setting$$$
 `index.refresh_interval` {applies_to}`serverless: all`
 :   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
 
-    It defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In both cases, the setting can be set to `-1` to disable refresh.
+    The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
 

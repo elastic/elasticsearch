@@ -74,7 +74,7 @@ $$$index-data-stream-lifecycle-origination-date$$$
 
 ## Reindex settings [reindex-data-stream-settings]
 
-You can use the following clustetr-level settings to control the behavior of the reindex data stream API:
+You can use the following cluster-level settings to control the behavior of the reindex data stream API:
 
 `migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
 

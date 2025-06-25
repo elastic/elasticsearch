@@ -9,22 +9,35 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collections;
 
 public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValuesDisabled() {
-        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", false, Collections.emptyMap());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.NEW_SPARSE_VECTOR,
+            IndexVersion.current()
+        );
+        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
         expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
     }
 
     public void testIsNotAggregatable() {
-        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", false, Collections.emptyMap());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.NEW_SPARSE_VECTOR,
+            IndexVersion.current()
+        );
+        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
     }
 }

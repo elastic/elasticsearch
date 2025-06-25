@@ -24,11 +24,13 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.injection.guice.Inject;
@@ -252,7 +254,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             // BWC behavior, load the stats directly from the repository.
                             shardStatus = new SnapshotIndexShardStatus(
                                 shardId,
-                                repositoriesService.repository(entry.repository())
+                                repositoriesService.repository(entry.projectId(), entry.repository())
                                     .getShardSnapshotStatus(
                                         entry.snapshot().getSnapshotId(),
                                         entry.indices().get(shardId.getIndexName()),
@@ -297,7 +299,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     ) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
+        @FixForMultiProject(description = "resolve the actual projectId, ES-10166")
+        final var projectId = ProjectId.DEFAULT;
+        repositoriesService.getRepositoryData(projectId, repositoryName, repositoryDataListener);
         final Collection<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
         repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             task.ensureNotCancelled();

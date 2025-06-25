@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -56,6 +57,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * step does type resolution and fails queries based on invalid type expressions.
  */
 public class Verifier {
+    @FixForMultiProject(description = "The settings passed here will need to be per-project")
     public interface ExtraCheckers {
         /**
          * Build a list of checks to perform on the plan. Each one is called once per

@@ -874,6 +874,49 @@ setup:
   - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
   - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
 
+  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
+  - do:
+      indices.create:
+        index: test-index-options-dense2
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+                    m: 16
+                    ef_construction: 100
+                    rescore_vector:
+                      oversample: 3
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense2
+
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense2
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
   # Indices not compatible with BBQ for whatever reason will fall back to whatever `dense_vector` defaults are.
   - do:
       indices.create:

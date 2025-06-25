@@ -291,9 +291,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     ? modelSettings.get()
                     : modelRegistry.getMinimalServiceSettings(inferenceId.get());
                 return defaultIndexOptions(indexVersionCreated, resolvedModelSettings) != null;
-            } else {
-                return isConfigured;
             }
+
+            return includeDefaults || isConfigured;
         }
 
         public Builder setInferenceId(String id) {

@@ -74,7 +74,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         int totalIndices = initialTotalIndices;
         int totalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state().projectState(projectId).metadata(),
+            clusterService.state().metadata().getProject(projectId),
             getPersistentTaskId()
         );
         boolean isComplete;

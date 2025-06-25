@@ -59,10 +59,10 @@ final class ComputeResponse extends TransportResponse {
 
     ComputeResponse(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
-            completionInfo = new DriverCompletionInfo(in);
+            completionInfo = DriverCompletionInfo.readFrom(in);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom));
+                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;
             }
@@ -96,7 +96,7 @@ final class ComputeResponse extends TransportResponse {
             completionInfo.writeTo(out);
         } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(true);
-            out.writeCollection(completionInfo.collectedProfiles());
+            out.writeCollection(completionInfo.driverProfiles());
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalTimeValue(took);

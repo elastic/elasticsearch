@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -26,22 +27,29 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 
@@ -143,7 +151,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
+                groupSpecs.add(
+                    new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, analysisRegistry)
+                );
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -341,6 +351,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }
 
+    private static Pattern pattern = Pattern.compile("BUCKET\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*,\\s*" +      // field
+        "(\\d+)\\s*,\\s*" +                                        // buckets
+        "\"([^\"]+)\"\\s*,\\s*" +                                  // from
+        "\"([^\"]+)\"\\s*,\\s*" +                                  // to
+        "(true|false)\\s*\\)"                                      // emitEmptyBuckets
+    );
+
     /**
      * The input configuration of this group.
      *
@@ -348,13 +365,41 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, AnalysisRegistry analysisRegistry) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
 
-            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize, null);
+            BlockHash.GroupSpec result;
+            Expression unwrappedExpression = Alias.unwrap(expression);
+            Matcher matcher = pattern.matcher(unwrappedExpression.sourceText());
+            if (matcher.find()) {
+                String field = matcher.group(1);
+                int buckets = Integer.parseInt(matcher.group(2));
+                Instant from = Instant.parse(matcher.group(3));
+                Instant to = Instant.parse(matcher.group(4));
+                boolean emitEmptyBuckets = Boolean.parseBoolean(matcher.group(5));
+                Bucket bucket = new Bucket(
+                    expression.source(),
+                    new Literal(Source.EMPTY, field, DataType.DATETIME),
+                    new Literal(Source.EMPTY, buckets, DataType.INTEGER),
+                    new Literal(Source.EMPTY, from.toEpochMilli(), DataType.DATETIME),
+                    new Literal(Source.EMPTY, to.toEpochMilli(), DataType.DATETIME),
+                    new Literal(Source.EMPTY, emitEmptyBuckets, DataType.BOOLEAN)
+                );
+                Rounding.Prepared rounding = bucket.getDateRoundingOrNull(new FoldContext(128));
+                result = new BlockHash.GroupSpec(
+                    channel,
+                    elementType(),
+                    new BlockHash.EmptyBucketDef(emitEmptyBuckets, from.toEpochMilli(), to.toEpochMilli(), rounding)
+                );
+            } else if (unwrappedExpression instanceof Categorize) {
+                result = new BlockHash.GroupSpec(channel, elementType(), true);
+            } else {
+                result = new BlockHash.GroupSpec(channel, elementType());
+            }
+            return result;
         }
 
         ElementType elementType() {

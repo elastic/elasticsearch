@@ -393,12 +393,13 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private final Attribute attribute;
 
         TestHashAggregationOperator(
+            List<BlockHash.GroupSpec> groups,
             List<GroupingAggregator.Factory> aggregators,
             Supplier<BlockHash> blockHash,
             Attribute attribute,
             DriverContext driverContext
         ) {
-            super(aggregators, blockHash, driverContext);
+            super(groups, aggregators, blockHash, driverContext);
             this.attribute = attribute;
         }
 
@@ -437,14 +438,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         public Operator get(DriverContext driverContext) {
             Random random = Randomness.get();
             int pageSize = random.nextBoolean() ? randomIntBetween(random, 1, 16) : randomIntBetween(random, 1, 10 * 1024);
+            List<BlockHash.GroupSpec> groups = List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType));
             return new TestHashAggregationOperator(
+                groups,
                 aggregators,
-                () -> BlockHash.build(
-                    List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
-                    driverContext.blockFactory(),
-                    pageSize,
-                    false
-                ),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), pageSize, false),
                 attribute,
                 driverContext
             );

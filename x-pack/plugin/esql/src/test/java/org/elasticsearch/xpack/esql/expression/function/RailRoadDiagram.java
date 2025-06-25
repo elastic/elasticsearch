@@ -72,7 +72,16 @@ public class RailRoadDiagram {
                             // BUCKET requires optional args to be optional together, so we need custom code to do that
                             var nextArg = args.get(++i);
                             assert nextArg.optional();
-                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name));
+                            var nexterArg = args.get(++i);
+                            assert nexterArg.optional();
+                            // TODO: Should it be possible to be able to specify "emitEmptyBuckets" but not "from" and "to"?
+                            Sequence seq = new Sequence(
+                                new Literal(argName),
+                                new Syntax(","),
+                                new Literal(nextArg.name),
+                                new Syntax(","),
+                                new Literal(nexterArg.name)
+                            );
                             argExpressions.add(new Repetition(seq, 0, 1));
                         } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
                             // Special case with leading optional args

@@ -319,10 +319,14 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         Expression from = null;
         Expression to = null;
+        Expression emitEmptyBuckets = null;
         if (args.size() > 2) {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to);
+        if (args.size() > 4) {
+            emitEmptyBuckets = args.get(4);
+        }
+        return new Bucket(source, args.get(0), args.get(1), from, to, emitEmptyBuckets);
     }
 }

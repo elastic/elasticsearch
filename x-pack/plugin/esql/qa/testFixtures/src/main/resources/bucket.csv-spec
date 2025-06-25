@@ -145,6 +145,98 @@ AVG(salary):double | bucket:date
 // end::bucket_in_agg-result[]
 ;
 
+bucketMonthWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
+| SORT bucket
+;
+
+bucket:datetime
+1985-01-01T00:00:00.000Z
+1985-02-01T00:00:00.000Z
+1985-03-01T00:00:00.000Z
+1985-04-01T00:00:00.000Z
+1985-05-01T00:00:00.000Z
+1985-06-01T00:00:00.000Z
+1985-07-01T00:00:00.000Z
+1985-08-01T00:00:00.000Z
+1985-09-01T00:00:00.000Z
+1985-10-01T00:00:00.000Z
+1985-11-01T00:00:00.000Z
+1985-12-01T00:00:00.000Z
+;
+
+bucketMonthInAggWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| STATS MAX(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT bucket
+;
+
+MAX(salary):integer | bucket:datetime
+null                | 1985-01-01T00:00:00.000Z
+66174               | 1985-02-01T00:00:00.000Z
+null                | 1985-03-01T00:00:00.000Z
+null                | 1985-04-01T00:00:00.000Z
+44817               | 1985-05-01T00:00:00.000Z
+null                | 1985-06-01T00:00:00.000Z
+62405               | 1985-07-01T00:00:00.000Z
+null                | 1985-08-01T00:00:00.000Z
+49095               | 1985-09-01T00:00:00.000Z
+54329               | 1985-10-01T00:00:00.000Z
+74999               | 1985-11-01T00:00:00.000Z
+null                | 1985-12-01T00:00:00.000Z
+;
+
+bucketMonthInAggsWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucket_in_aggs_with_empty[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS MIN(salary), MAX(salary), AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", true)
+// end::bucket_in_aggs_with_empty[]
+| SORT bucket
+;
+warningRegex:evaluation of \[AVG\(salary\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex:java.lang.ArithmeticException: / by zero
+
+// tag::bucket_in_aggs_with_empty-result[]
+MIN(salary):integer | MAX(salary):integer | AVG(salary):double | bucket:datetime
+null                | null                | null               | 1985-01-01T00:00:00.000Z
+26436               | 66174               | 46305.0            | 1985-02-01T00:00:00.000Z
+null                | null                | null               | 1985-03-01T00:00:00.000Z
+null                | null                | null               | 1985-04-01T00:00:00.000Z
+44817               | 44817               | 44817.0            | 1985-05-01T00:00:00.000Z
+null                | null                | null               | 1985-06-01T00:00:00.000Z
+62405               | 62405               | 62405.0            | 1985-07-01T00:00:00.000Z
+null                | null                | null               | 1985-08-01T00:00:00.000Z
+49095               | 49095               | 49095.0            | 1985-09-01T00:00:00.000Z
+48735               | 54329               | 51532.0            | 1985-10-01T00:00:00.000Z
+33956               | 74999               | 54539.75           | 1985-11-01T00:00:00.000Z
+null                | null                | null               | 1985-12-01T00:00:00.000Z
+// end::bucket_in_aggs_with_empty-result[]
+;
+
+bucketHeightWithEmpty#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucket_height_with_empty[]
+FROM employees
+| STATS MIN(salary), MAX(salary), AVG(salary) BY height_bucket = ROUND(BUCKET(height, 10, 1.0, 2.0), 2)
+// end::bucket_height_with_empty[]
+| SORT height_bucket
+;
+
+// tag::bucket_height_with_empty-result[]
+MIN(salary):integer | MAX(salary):integer | AVG(salary):double | height_bucket:double
+29175               | 60408               | 42504.0            | 1.4
+27215               | 73851               | 43495.75           | 1.5
+25324               | 70011               | 45273.444444444445 | 1.6
+25976               | 74970               | 53563.64705882353  | 1.7
+25945               | 73578               | 54413.0            | 1.8
+33956               | 74999               | 49684.545454545456 | 1.9
+26436               | 73717               | 47524.0            | 2.0
+28336               | 66817               | 46637.8            | 2.1
+// end::bucket_height_with_empty-result[]
+;
+
 bucketWithOffset#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucketWithOffset[]
 FROM employees

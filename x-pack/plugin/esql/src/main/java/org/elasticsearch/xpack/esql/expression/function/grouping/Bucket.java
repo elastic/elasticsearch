@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -61,7 +62,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
-        TwoOptionalArguments {
+        ThreeOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -93,6 +94,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     private final Expression buckets;
     private final Expression from;
     private final Expression to;
+    private final Expression emitEmptyBuckets;
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
@@ -211,13 +213,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             type = { "integer", "long", "double", "date", "keyword", "text" },
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
-        ) Expression to
+        ) Expression to,
+        @Param(
+            name = "emitEmptyBuckets",
+            type = { "boolean" },
+            optional = true,
+            description = "Whether or not empty buckets should be emitted."
+        ) Expression emitEmptyBuckets
     ) {
-        super(source, fields(field, buckets, from, to));
+        super(source, fields(field, buckets, from, to, emitEmptyBuckets));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
+        this.emitEmptyBuckets = emitEmptyBuckets;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -226,11 +235,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EMIT_EMPTY_BUCKETS)
+                ? in.readOptionalNamedWriteable(Expression.class)
+                : null
         );
     }
 
-    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
+    private static List<Expression> fields(
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        Expression emitEmptyBuckets
+    ) {
         List<Expression> list = new ArrayList<>(4);
         list.add(field);
         list.add(buckets);
@@ -239,6 +257,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             if (to != null) {
                 list.add(to);
             }
+        }
+        if (emitEmptyBuckets != null) {
+            list.add(emitEmptyBuckets);
         }
         return list;
     }
@@ -250,6 +271,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         out.writeNamedWriteable(buckets);
         out.writeOptionalNamedWriteable(from);
         out.writeOptionalNamedWriteable(to);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EMIT_EMPTY_BUCKETS)) {
+            out.writeOptionalNamedWriteable(emitEmptyBuckets);
+        }
     }
 
     @Override
@@ -259,7 +283,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public boolean foldable() {
-        return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
+        return field.foldable()
+            && buckets.foldable()
+            && (from == null || from.foldable())
+            && (to == null || to.foldable())
+            && (emitEmptyBuckets == null || emitEmptyBuckets.foldable());
     }
 
     @Override
@@ -460,12 +488,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
         Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to);
+        Expression emitEmptyBuckets = newChildren.size() > 4 ? newChildren.get(4) : null;
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, emitEmptyBuckets);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, emitEmptyBuckets);
     }
 
     public Expression field() {
@@ -484,8 +513,23 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return to;
     }
 
+    public Expression emitEmptyBuckets() {
+        return emitEmptyBuckets;
+    }
+
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{"
+            + "field="
+            + field
+            + ", buckets="
+            + buckets
+            + ", from="
+            + from
+            + ", to="
+            + to
+            + ", emitEmptyBuckets="
+            + emitEmptyBuckets
+            + '}';
     }
 }

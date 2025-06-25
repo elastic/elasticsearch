@@ -861,7 +861,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 };
             };
 
-            return new HashAggregationOperator(aggregators, blockHashSupplier, driverContext);
+            return new HashAggregationOperator(groups, aggregators, blockHashSupplier, driverContext);
         }
 
         @Override

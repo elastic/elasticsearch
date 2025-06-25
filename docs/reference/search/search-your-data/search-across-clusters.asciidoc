@@ -22,7 +22,7 @@ The following APIs support {ccs}:
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
-* experimental:[] <<esql-cross-clusters,ES|QL>>
+* <<esql-cross-clusters,ES|QL>>
 
 [discrete]
 === Prerequisites

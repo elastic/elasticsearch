@@ -525,6 +525,7 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 
 If the remote cluster is configured with `skip_unavailable: true` (the default setting), the cluster would be set
 to `skipped` or `partial` status but the query will not fail, if:
+
 * The remote cluster is disconnected from the querying cluster, either before or during the query.
 * The remote cluster does not have the requested index.
 * An error happened while processing the query on the remote cluster.

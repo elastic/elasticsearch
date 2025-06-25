@@ -116,7 +116,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
     @Override
     protected CohereCompletionServiceSettings mutateInstanceForVersion(CohereCompletionServiceSettings instance, TransportVersion version) {
         if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
             return new CohereCompletionServiceSettings(
                 instance.uri(),
                 instance.modelId(),

@@ -89,7 +89,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
                 CohereServiceSettings.CohereApiVersion.V1
             );
         } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+            && version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false) {
                 return new CohereRerankServiceSettings(
                     instance.uri(),
                     instance.modelId(),

@@ -148,6 +148,7 @@ public final class InstrumenterImpl implements Instrumenter {
         EntitlementClassVisitor(int api, ClassVisitor classVisitor, String className) {
             super(api, classVisitor);
             this.className = className;
+            logger.info("Instrumenting class [{}]", className);
         }
 
         @Override

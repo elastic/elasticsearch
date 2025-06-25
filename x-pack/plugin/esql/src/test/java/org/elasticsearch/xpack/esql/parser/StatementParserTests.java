@@ -3230,13 +3230,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var randomInvalidChar = randomFrom(invalidChars);
 
             // Construct the new invalid index pattern.
-            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
+            var invalidIndexName = "foo" + randomInvalidChar + "bar";
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + invalidIndexName);
             var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
             expectError(
                 query,
-                "Invalid index name [foo"
-                    + randomInvalidChar
-                    + "bar], must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']"
+                "Invalid index name ["
+                    + invalidIndexName
+                    + "], must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']"
             );
         }
 

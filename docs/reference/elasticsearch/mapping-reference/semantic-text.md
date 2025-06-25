@@ -295,7 +295,7 @@ automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
 If you want to override those defaults and customize the embeddings that
-`semantic_text` stores, you can do so by modifying <<semantic-text-params,
+`semantic_text` indexes, you can do so by modifying <<semantic-text-params,
 parameters>>:
 
 - Use `index_options` to specify alternate index options such as specific

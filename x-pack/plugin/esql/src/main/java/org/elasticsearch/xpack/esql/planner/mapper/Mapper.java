@@ -191,7 +191,7 @@ public class Mapper {
         // TODO: share code with local LocalMapper?
         if (unary instanceof Sample sample) {
             mappedChild = addExchangeForFragment(sample, mappedChild);
-            return new SampleExec(sample.source(), mappedChild, sample.probability(), sample.seed());
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //

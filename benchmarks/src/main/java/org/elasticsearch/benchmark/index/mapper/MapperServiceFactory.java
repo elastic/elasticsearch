@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -38,11 +39,16 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class MapperServiceFactory {
 
     public static MapperService create(String mappings) {
+        return create(mappings, Collections.emptyList());
+    }
+
+    public static MapperService create(String mappings, List<MapperPlugin> mapperPlugins) {
         Settings settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -51,7 +57,7 @@ public class MapperServiceFactory {
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
+        MapperRegistry mapperRegistry = new IndicesModule(mapperPlugins).getMapperRegistry();
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);

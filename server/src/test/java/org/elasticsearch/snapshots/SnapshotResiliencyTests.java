@@ -145,6 +145,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -2303,7 +2304,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
-                client = new NodeClient(settings, threadPool);
+                client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
                 this.usageService = new UsageService();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
@@ -2483,6 +2484,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .client(client)
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
+                    .mergeMetrics(MergeMetrics.NOOP)
                     .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2520,7 +2522,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         threadPool,
                         clusterService,
-                        repositoriesService
+                        repositoriesService,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
                     )
                 );
                 actions.put(
@@ -2767,7 +2770,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportPutRepositoryAction.TYPE,
-                    new TransportPutRepositoryAction(transportService, clusterService, repositoriesService, threadPool, actionFilters)
+                    new TransportPutRepositoryAction(
+                        transportService,
+                        clusterService,
+                        repositoriesService,
+                        threadPool,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
                 );
                 actions.put(
                     TransportCleanupRepositoryAction.TYPE,

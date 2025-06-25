@@ -71,6 +71,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -216,6 +217,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, (BytesRefBlock) block);
             case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
+            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
             case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, aliasFilter, block);
         };
     }
@@ -414,8 +416,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
+            String fieldName = extractField instanceof FieldAttribute fa ? fa.fieldName().string()
+                // Cases for Alias and ReferenceAttribute: only required for ENRICH (Alias in case of ENRICH ... WITH x = field)
+                // (LOOKUP JOIN uses FieldAttributes)
+                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
+                : extractField.name();
             BlockLoader loader = shardContext.blockLoader(
-                extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );

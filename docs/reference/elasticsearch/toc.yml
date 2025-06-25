@@ -40,23 +40,23 @@ toc:
         - file: index-settings/index-modules.md
         - file: index-settings/shard-allocation.md
           children:
+            - file: index-settings/data-tier-allocation.md
             - file: index-settings/recovery-prioritization.md
             - file: index-settings/total-shards-per-node.md
-            - file: index-settings/data-tier-allocation.md
+        - file: index-settings/history-retention.md
         - file: index-settings/index-block.md
         - file: index-settings/mapping-limit.md
         - file: index-settings/merge.md
         - file: index-settings/similarity.md
         - file: index-settings/slow-log.md
-        - file: index-settings/store.md
-          children:
-            - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/sorting.md
           children:
             - file: index-settings/sorting-conjunctions.md
+        - file: index-settings/store.md
+          children:
+            - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/time-series.md
         - file: index-settings/translog.md
-        - file: index-settings/history-retention.md
         - file: index-settings/pressure.md
         - file: index-settings/path.md
   - file: index-lifecycle-actions/index.md

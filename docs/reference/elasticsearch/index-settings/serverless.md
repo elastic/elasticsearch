@@ -33,7 +33,7 @@ applies_to:
 * [`index.blocks.write`](./index-block.md#index-blocks-write)  
 * [`index.blocks.metadata`](./index-block.md#index-blocks-metadata)  
 
-### Field and mappings related settings
+### Field and mapping related settings
 
 * [`index.mapping.coerce`](../mapping-reference/coerce.md#coerce-setting)
 * [`index.mapping.ignore_above`](../mapping-reference/index-mapping-ignore-above.md)

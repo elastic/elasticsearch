@@ -119,6 +119,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "alibabacloud-ai-search",
                     "cohere",
                     "custom",
+                    "elastic",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",

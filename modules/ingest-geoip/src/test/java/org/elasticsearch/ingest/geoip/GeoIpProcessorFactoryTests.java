@@ -74,9 +74,11 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void loadDatabaseReaders() throws IOException {
+        // cover for multi-project enable/disabled
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+
         final Path configDir = createTempDir();
         geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);

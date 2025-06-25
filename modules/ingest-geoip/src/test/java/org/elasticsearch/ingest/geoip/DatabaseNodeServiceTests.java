@@ -125,10 +125,10 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
+        // cover for multi-project enable/disabled
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
-        projectId = randomProjectIdOrDefault();
         final Path geoIpConfigDir = createTempDir();
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);

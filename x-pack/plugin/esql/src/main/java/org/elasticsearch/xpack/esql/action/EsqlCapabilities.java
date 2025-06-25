@@ -248,7 +248,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -938,7 +938,7 @@ public class EsqlCapabilities {
         TO_LOWER_EMPTY_STRING,
 
         /**
-         * Support parameters for LiMIT command.
+         * Support parameters for LIMIT command.
          */
         PARAMETER_FOR_LIMIT,
 
@@ -972,18 +972,28 @@ public class EsqlCapabilities {
          */
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        /**
+         * Support for the SAMPLE command
+         */
+        SAMPLE_V3,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * Support for the SAMPLE aggregation function
+         */
+        AGG_SAMPLE,
+
         /*
          * From now, Literal only accepts strings as BytesRefs.
          * No java.lang.String anymore.
          *
          * https://github.com/elastic/elasticsearch/issues/129322
          */
-        NO_PLAIN_STRINGS_IN_LITERALS,
-
-        /**
-         * Support for the SAMPLE aggregation function
-         */
-        AGG_SAMPLE;
+        NO_PLAIN_STRINGS_IN_LITERALS;
 
         private final boolean enabled;
 

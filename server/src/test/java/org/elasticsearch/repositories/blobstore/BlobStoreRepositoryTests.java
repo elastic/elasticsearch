@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -520,11 +521,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     public void testEnsureUploadListenerIsResolvedWhenAFileSnapshotTaskFails() throws Exception {
+        final ProjectId projectId = randomProjectIdOrDefault();
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final FsRepository repository = new FsRepository(
-            randomProjectIdOrDefault(),
+            projectId,
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

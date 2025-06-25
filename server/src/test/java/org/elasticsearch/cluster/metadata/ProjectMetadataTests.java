@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -560,10 +559,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "data_stream_aliases": {}
                       },
-                      "settings": {
-                         "project.setting.value": "43"
-                       },
-                       "reserved_state": {}
+                      "reserved_state": {}
                     }
                     """,
                 IndexVersion.current(),
@@ -623,7 +619,6 @@ public class ProjectMetadataTests extends ESTestCase {
         builder.put(backingIndex1, false);
         builder.put(backingIndex2, false);
         builder.put(dataStream);
-        builder.settings(Settings.builder().put(PROJECT_SETTING.getKey(), 43).build());
 
         final ProjectMetadata projectMetadata = builder.build();
         return projectMetadata;
@@ -670,8 +665,6 @@ public class ProjectMetadataTests extends ESTestCase {
         if (params.paramAsBoolean("multi-project", false)) {
             // 2 chunks for wrapping reserved state + 1 chunk for each item
             chunkCount += 2 + project.reservedStateMetadata().size();
-            // 1 chunk for settings
-            chunkCount += 1;
         }
 
         return Math.toIntExact(chunkCount);

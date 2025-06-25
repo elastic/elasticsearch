@@ -115,6 +115,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         private final List<Integer> docToOrds;
         private int currDoc = -1;
 
+        // Single value for each docId, null if no value for a docId
         SimpleSortedSetDocValues(String... docIdToValue) {
             ordToValues = Arrays.stream(docIdToValue).filter(Objects::nonNull).collect(Collectors.toSet()).stream().sorted().toList();
             docToOrds = Arrays.stream(docIdToValue).map(v -> v == null ? null : ordToValues.indexOf(v)).toList();

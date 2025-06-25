@@ -352,7 +352,11 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         // Attempting to merge in null mappings ought to fail
         ComposableIndexTemplate indexTemplate = randomInstance();
         expectThrows(NullPointerException.class, () -> indexTemplate.mergeMappings(null));
-        assertThat(indexTemplate.mergeMappings(EMPTY_MAPPINGS), equalTo(indexTemplate));
+        if (indexTemplate.template() == null || indexTemplate.template().mappings() == null) {
+            assertThat(indexTemplate.mergeMappings(EMPTY_MAPPINGS).template().mappings(), equalTo(EMPTY_MAPPINGS));
+        } else {
+            assertThat(indexTemplate.mergeMappings(EMPTY_MAPPINGS), equalTo(indexTemplate));
+        }
         assertThat(indexTemplate.mergeSettings(Settings.EMPTY), equalTo(indexTemplate));
     }
 

@@ -572,9 +572,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleDuringSplitOrClone
   issue: https://github.com/elastic/elasticsearch/issues/130044
-- class: org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests
-  method: testMergeEmptyMappingsIntoTemplateWithNonEmptySettings
-  issue: https://github.com/elastic/elasticsearch/issues/130050
 
 # Examples:
 #

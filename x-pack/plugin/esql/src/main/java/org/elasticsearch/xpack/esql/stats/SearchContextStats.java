@@ -82,12 +82,6 @@ public class SearchContextStats implements SearchStats {
         assert contexts != null && contexts.isEmpty() == false;
     }
 
-    @Override
-    public boolean exists(FieldName field) {
-        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        return stat.config.exists;
-    }
-
     private FieldStats makeFieldStats(String field) {
         var stat = new FieldStats();
         stat.config = makeFieldConfig(field);
@@ -103,19 +97,18 @@ public class SearchContextStats implements SearchStats {
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                exists = exists || true;
-                MappedFieldType type = context.getFieldType(field);
-                indexed = indexed && type.isIndexed();
-                hasDocValues = hasDocValues && type.hasDocValues();
-                if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
-                } else {
-                    hasExactSubfield = false;
-                }
+                var type = context.getFieldType(field);
+                exists |= true;
+                indexed &= type.isIndexed();
+                hasDocValues &= type.hasDocValues();
+                hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
                 indexed = false;
                 hasDocValues = false;
                 hasExactSubfield = false;
+            }
+            if (exists && indexed == false && hasDocValues == false && hasExactSubfield == false) {
+                break;
             }
         }
         if (exists == false) {
@@ -126,22 +119,34 @@ public class SearchContextStats implements SearchStats {
         }
     }
 
+    private boolean fastNoCacheFieldExists(String field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.isFieldMapped(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean exists(FieldName field) {
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
+    }
+
     @Override
     public boolean isIndexed(FieldName field) {
-        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        return stat.config.indexed;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
     }
 
     @Override
     public boolean hasDocValues(FieldName field) {
-        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        return stat.config.hasDocValues;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
     }
 
     @Override
     public boolean hasExactSubfield(FieldName field) {
-        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
-        return stat.config.hasExactSubfield;
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
 
     @Override
@@ -231,7 +236,7 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
-            if (exists(field) == false) {
+            if (stat.config.exists == false) {
                 stat.singleValue = true;
             } else {
                 // fields are MV per default

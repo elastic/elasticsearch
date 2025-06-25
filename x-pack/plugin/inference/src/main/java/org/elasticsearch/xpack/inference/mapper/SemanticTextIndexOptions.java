@@ -52,10 +52,17 @@ public class SemanticTextIndexOptions implements ToXContent {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o instanceof SemanticTextIndexOptions == false) return false;
-        SemanticTextIndexOptions that = (SemanticTextIndexOptions) o;
-        return type == that.type && Objects.equals(indexOptions, that.indexOptions);
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        SemanticTextIndexOptions otherSemanticTextIndexOptions = (SemanticTextIndexOptions) other;
+        return type == otherSemanticTextIndexOptions.type && Objects.equals(indexOptions, otherSemanticTextIndexOptions.indexOptions);
     }
 
     @Override

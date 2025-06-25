@@ -398,6 +398,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 validateServiceSettings(modelSettings.get(), resolvedModelSettings);
             }
 
+            // If index_options are specified by the user, we will validate them against the model settings to ensure compatibility.
+            // We do not serialize or otherwise store model settings at this time, this happens when the underlying vector field is created.
             SemanticTextIndexOptions builderIndexOptions = indexOptions.get();
             if (context.getMergeReason() != MapperService.MergeReason.MAPPING_RECOVERY && builderIndexOptions != null) {
                 validateIndexOptions(builderIndexOptions, inferenceId.getValue(), resolvedModelSettings);
@@ -1200,6 +1202,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
+                // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
+                // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
+                // and the field will use the defaults for the dense_vector field.
                 if (indexOptions != null) {
                     DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
                         (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();

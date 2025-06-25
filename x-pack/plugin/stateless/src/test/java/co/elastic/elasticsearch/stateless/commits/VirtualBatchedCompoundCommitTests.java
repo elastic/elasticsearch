@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
@@ -29,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
@@ -44,12 +46,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -95,12 +99,53 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     var serializedBatchedCompoundCommit = output.bytes();
                     batchedCompoundCommitBlobs.put(virtualBatchedCompoundCommit.getBlobName(), serializedBatchedCompoundCommit);
 
-                    var deserializedBatchedCompoundCommit = BatchedCompoundCommit.readFromStore(
-                        virtualBatchedCompoundCommit.getBlobName(),
-                        output.size(),
-                        (blobName, offset, length) -> serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput(),
-                        true
-                    );
+                    BatchedCompoundCommit deserializedBatchedCompoundCommit;
+                    if (randomBoolean()) {
+                        deserializedBatchedCompoundCommit = BatchedCompoundCommit.readFromStore(
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            output.size(),
+                            (blobName, offset, length) -> serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput(),
+                            true
+                        );
+                    } else {
+                        var bytesRead = new AtomicInteger(0);
+                        var bccIterator = BatchedCompoundCommit.readFromStoreIncrementally(
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            output.size(),
+                            (blobName, offset, length) -> new FilterStreamInput(
+                                serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput()
+                            ) {
+                                @Override
+                                public byte readByte() throws IOException {
+                                    bytesRead.incrementAndGet();
+                                    return super.readByte();
+                                }
+
+                                @Override
+                                public void readBytes(byte[] b, int offset, int len) throws IOException {
+                                    bytesRead.addAndGet(len);
+                                    super.readBytes(b, offset, len);
+                                }
+                            },
+                            true
+                        );
+                        assertThat(bytesRead.get(), equalTo(0));
+                        List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
+                        PrimaryTermAndGeneration bccTermAndGen = null;
+                        var lastObservedBytesRead = 0;
+                        while (bccIterator.hasNext()) {
+                            // The read is actually triggered once the #next element is requested
+                            assertThat(bytesRead.get(), equalTo(lastObservedBytesRead));
+                            var compoundCommit = bccIterator.next();
+                            assertThat(bytesRead.get(), is(greaterThan(lastObservedBytesRead)));
+                            lastObservedBytesRead = bytesRead.get();
+                            if (bccTermAndGen == null) {
+                                bccTermAndGen = compoundCommit.primaryTermAndGeneration();
+                            }
+                            compoundCommits.add(compoundCommit);
+                        }
+                        deserializedBatchedCompoundCommit = new BatchedCompoundCommit(bccTermAndGen, compoundCommits);
+                    }
                     assertEquals(batchedCompoundCommit, deserializedBatchedCompoundCommit);
 
                     // Ensure that the contents written into the blob store are the same as the local files

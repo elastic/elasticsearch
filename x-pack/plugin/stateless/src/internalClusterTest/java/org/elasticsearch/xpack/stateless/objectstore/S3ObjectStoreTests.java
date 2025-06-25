@@ -148,6 +148,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         mockSecureSettings.setString("s3.client.test.access_key", "test_access_key");
         mockSecureSettings.setString("s3.client.test.secret_key", "test_secret_key");
         return super.nodeSettings().put("s3.client.test.endpoint", httpServerUrl())
+            .put("s3.client.backup.endpoint", httpServerUrl())
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.S3)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")

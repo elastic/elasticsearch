@@ -129,8 +129,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     }
 
     private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, KnnVectorQueryBuilder original) {
-        KnnVectorQueryBuilder copy = KnnVectorQueryBuilder.from(original);
-        copy.addFilterQueries(original.filterQueries());
+        KnnVectorQueryBuilder copy = new KnnVectorQueryBuilder(original);
         copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return copy;
     }
@@ -149,9 +148,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         KnnVectorQueryBuilder original,
         QueryVectorBuilder queryVectorBuilder
     ) {
-        KnnVectorQueryBuilder newQueryBuilder = KnnVectorQueryBuilder.from(original, fieldName, queryVectorBuilder);
-        newQueryBuilder.addFilterQueries(original.filterQueries());
-        return newQueryBuilder;
+        return new KnnVectorQueryBuilder(original, fieldName, queryVectorBuilder);
     }
 
     @Override

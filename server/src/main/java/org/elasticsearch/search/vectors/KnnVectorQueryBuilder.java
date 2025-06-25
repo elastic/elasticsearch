@@ -265,34 +265,22 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorSupplier = null;
     }
 
-    public static KnnVectorQueryBuilder from(KnnVectorQueryBuilder queryBuilder) {
-        return from(queryBuilder, queryBuilder.getFieldName(), queryBuilder.queryVectorBuilder());
+    public KnnVectorQueryBuilder(KnnVectorQueryBuilder queryBuilder) {
+        this(queryBuilder, queryBuilder.getFieldName(), queryBuilder.queryVectorBuilder());
     }
 
-    public static KnnVectorQueryBuilder from(KnnVectorQueryBuilder queryBuilder, String fieldName, QueryVectorBuilder queryVectorBuilder) {
-        KnnVectorQueryBuilder knnVectorQueryBuilder;
-        if (queryBuilder.queryVectorBuilder() != null) {
-            knnVectorQueryBuilder = new KnnVectorQueryBuilder(
-                fieldName,
-                queryVectorBuilder,
-                queryBuilder.k(),
-                queryBuilder.numCands(),
-                queryBuilder.getVectorSimilarity()
-            );
-        } else {
-            knnVectorQueryBuilder = new KnnVectorQueryBuilder(
-                fieldName,
-                queryBuilder.queryVector(),
-                queryBuilder.k(),
-                queryBuilder.numCands(),
-                queryBuilder.rescoreVectorBuilder(),
-                queryBuilder.getVectorSimilarity()
-            );
-        }
-
-        knnVectorQueryBuilder.boost(queryBuilder.boost());
-        knnVectorQueryBuilder.queryName(queryBuilder.queryName());
-        return knnVectorQueryBuilder;
+    public KnnVectorQueryBuilder(KnnVectorQueryBuilder queryBuilder, String fieldName, QueryVectorBuilder queryVectorBuilder) {
+        this(fieldName,
+            queryBuilder.queryVector(),
+            queryVectorBuilder,
+            null,
+            queryBuilder.k(),
+            queryBuilder.numCands(),
+            queryBuilder.rescoreVectorBuilder(),
+            queryBuilder.getVectorSimilarity());
+        this.boost = queryBuilder.boost();
+        this.queryName = queryBuilder.queryName();
+        this.filterQueries.addAll(queryBuilder.filterQueries());
     }
 
     public String getFieldName() {

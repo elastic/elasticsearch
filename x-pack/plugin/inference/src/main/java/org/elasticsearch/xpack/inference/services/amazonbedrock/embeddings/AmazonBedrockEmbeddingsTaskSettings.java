@@ -83,6 +83,11 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return TaskSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(cohereTruncation());
     }

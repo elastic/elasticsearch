@@ -230,6 +230,12 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ServiceSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));

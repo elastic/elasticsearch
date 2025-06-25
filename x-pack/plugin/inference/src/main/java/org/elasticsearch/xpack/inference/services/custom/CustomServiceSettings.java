@@ -398,6 +398,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ServiceSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         textEmbeddingSettings.writeTo(out);
         out.writeString(url);

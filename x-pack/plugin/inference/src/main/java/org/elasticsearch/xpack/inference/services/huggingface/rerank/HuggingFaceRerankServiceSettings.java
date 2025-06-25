@@ -119,6 +119,12 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ServiceSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
         rateLimitSettings.writeTo(out);

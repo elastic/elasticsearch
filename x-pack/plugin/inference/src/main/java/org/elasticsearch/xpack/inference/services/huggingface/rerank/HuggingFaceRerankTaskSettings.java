@@ -122,6 +122,12 @@ public class HuggingFaceRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return TaskSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_HUGGING_FACE_RERANK_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(topNDocumentsOnly);
         out.writeOptionalBoolean(returnDocuments);

@@ -94,6 +94,11 @@ public class CustomSecretSettings implements SecretSettings {
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return SecretSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(secretParameters, StreamOutput::writeSecureString);
     }

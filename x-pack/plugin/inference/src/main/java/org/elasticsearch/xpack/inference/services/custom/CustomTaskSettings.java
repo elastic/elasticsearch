@@ -104,6 +104,11 @@ public class CustomTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return TaskSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGenericMap(parameters);
     }

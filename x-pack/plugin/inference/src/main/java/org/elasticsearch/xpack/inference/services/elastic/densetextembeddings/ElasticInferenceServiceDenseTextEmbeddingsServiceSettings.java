@@ -209,6 +209,12 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ServiceSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));

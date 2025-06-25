@@ -134,6 +134,12 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return TaskSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }

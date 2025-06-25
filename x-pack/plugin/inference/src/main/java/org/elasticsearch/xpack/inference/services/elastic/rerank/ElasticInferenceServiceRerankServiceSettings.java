@@ -87,6 +87,12 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ServiceSettings.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_ELASTIC_RERANK_ADDED_8_19);
+    }
+
+    @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);

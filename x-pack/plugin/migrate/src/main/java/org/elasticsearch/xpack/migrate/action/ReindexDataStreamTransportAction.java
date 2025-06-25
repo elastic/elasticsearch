@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -71,6 +72,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
         final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        final var projectId = projectMetadata.id();
         DataStream dataStream = projectMetadata.dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
@@ -92,7 +94,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, persistentTaskId);
 
         if (persistentTask == null) {
-            startTask(listener, persistentTaskId, params);
+            startTask(projectId, listener, persistentTaskId, params);
         } else {
             GetMigrationReindexStatusAction.Request statusRequest = new GetMigrationReindexStatusAction.Request(sourceDataStreamName);
             statusRequest.setParentTask(task.getParentTaskId());
@@ -109,7 +111,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
                         CancelReindexDataStreamAction.INSTANCE,
                         cancelRequest,
                         getListener.delegateFailureAndWrap(
-                            (cancelListener, cancelResponse) -> startTask(cancelListener, persistentTaskId, params)
+                            (cancelListener, cancelResponse) -> startTask(projectId, cancelListener, persistentTaskId, params)
                         )
                     );
                 })
@@ -118,8 +120,14 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
 
     }
 
-    private void startTask(ActionListener<AcknowledgedResponse> listener, String persistentTaskId, ReindexDataStreamTaskParams params) {
-        persistentTasksService.sendStartRequest(
+    private void startTask(
+        ProjectId projectId,
+        ActionListener<AcknowledgedResponse> listener,
+        String persistentTaskId,
+        ReindexDataStreamTaskParams params
+    ) {
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
             persistentTaskId,
             ReindexDataStreamTask.TASK_NAME,
             params,

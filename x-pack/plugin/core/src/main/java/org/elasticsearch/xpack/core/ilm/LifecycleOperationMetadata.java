@@ -91,6 +91,7 @@ public class LifecycleOperationMetadata implements Metadata.ProjectCustom {
      * back to {@link SnapshotLifecycleMetadata#getOperationMode()}. If neither exist, the default
      * value for an empty state is used.
      */
+    @SuppressWarnings("deprecated")
     public static OperationMode currentSLMMode(ProjectMetadata project) {
         SnapshotLifecycleMetadata oldMetadata = project.custom(SnapshotLifecycleMetadata.TYPE);
         LifecycleOperationMetadata currentMetadata = project.custom(LifecycleOperationMetadata.TYPE);

@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -392,9 +391,7 @@ public class ComputeService {
 
                 @Override
                 public SourceProvider createSourceProvider() {
-                    final Supplier<SourceProvider> supplier = () -> super.createSourceProvider();
-                    return new ReinitializingSourceProvider(supplier);
-
+                    return new ReinitializingSourceProvider(super::createSourceProvider);
                 }
             };
             contexts.add(
@@ -407,7 +404,6 @@ public class ComputeService {
             searchService.getIndicesService().getAnalysis(),
             defaultDataPartitioning
         );
-        final List<Driver> drivers;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -428,7 +424,7 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
+            var localPlan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
@@ -436,29 +432,32 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
-            drivers = localExecutionPlan.createDrivers(context.sessionId());
+            var drivers = localExecutionPlan.createDrivers(context.sessionId());
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+                ActionListener.releaseAfter(listener.map(ignored -> {
+                    if (context.configuration().profile()) {
+                        return DriverCompletionInfo.includingProfiles(
+                            drivers,
+                            context.taskDescription(),
+                            clusterService.getClusterName().value(),
+                            transportService.getLocalNode().getName(),
+                            localPlan.toString()
+                        );
+                    } else {
+                        return DriverCompletionInfo.excludingProfiles(drivers);
+                    }
+                }), () -> Releasables.close(drivers))
+            );
         } catch (Exception e) {
             listener.onFailure(e);
-            return;
         }
-        ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
-            if (context.configuration().profile()) {
-                return DriverCompletionInfo.includingProfiles(drivers);
-            } else {
-                return DriverCompletionInfo.excludingProfiles(drivers);
-            }
-        });
-        listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
-        driverRunner.executeDrivers(
-            task,
-            drivers,
-            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            listenerCollectingStatus
-        );
     }
 
     static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {

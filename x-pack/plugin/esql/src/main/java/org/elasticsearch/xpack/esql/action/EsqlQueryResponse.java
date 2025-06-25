@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -121,7 +122,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19) ? in.readVLong() : 0;
         long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            profile = in.readOptionalWriteable(Profile::new);
+            profile = in.readOptionalWriteable(Profile::readFrom);
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
@@ -261,6 +262,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                         ob.field("planning", executionInfo.planningTimeSpan());
                     }
                     ob.array("drivers", profile.drivers.iterator(), ChunkedToXContentBuilder::append);
+                    ob.array("plans", profile.plans.iterator());
                 }));
             }
         });
@@ -372,41 +374,23 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public static class Profile implements Writeable {
-        private final List<DriverProfile> drivers;
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
 
-        public Profile(List<DriverProfile> drivers) {
-            this.drivers = drivers;
-        }
-
-        public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+        public static Profile readFrom(StreamInput in) throws IOException {
+            return new Profile(
+                in.readCollectionAsImmutableList(DriverProfile::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+                out.writeCollection(plans);
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Profile profile = (Profile) o;
-            return Objects.equals(drivers, profile.drivers);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(drivers);
-        }
-
-        List<DriverProfile> drivers() {
-            return drivers;
         }
     }
 }

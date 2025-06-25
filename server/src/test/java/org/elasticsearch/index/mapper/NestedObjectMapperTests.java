@@ -857,7 +857,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "The number of nested documents has exceeded the allowed limit of ["
+                "[1:108903] failed to parse: The number array objects has exceeded the allowed limit of ["
                     + defaultMaxNoNestedDocs
                     + "]. This limit can be set by changing the ["
                     + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
@@ -905,7 +905,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         SourceToParse source2 = new SourceToParse("2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
-            "[1:73] The number of nested documents has exceeded the allowed limit of ["
+            "[1:73] failed to parse: The number array objects has exceeded the allowed limit of ["
                 + maxNoNestedDocs
                 + "]. This limit can be set by changing the ["
                 + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()

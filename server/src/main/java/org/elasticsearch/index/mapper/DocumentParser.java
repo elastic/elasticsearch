@@ -17,6 +17,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -755,7 +756,9 @@ public final class DocumentParser {
             if (token == XContentParser.Token.START_OBJECT) {
                 if (countArray++ >= nestedDocsLimit) {
                     throw new IllegalStateException(
-                        "Limit [" + nestedDocsLimit + "] of elements in an array field [" + lastFieldName + "] " + "has been exceeded"
+                        "The number array objects has exceeded the allowed limit of [" + nestedDocsLimit + "]. " +
+                            "This limit can be set by changing the [" +  MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                            + "] index level setting."
                     );
                 }
                 elements = 2;

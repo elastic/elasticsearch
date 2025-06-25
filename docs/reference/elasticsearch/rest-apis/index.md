@@ -442,14 +442,18 @@ The snapshot and restore APIs enable you to set up snapshot repositories, manage
 
 | API | Description |
 | --- | ----------- |
-| [Create Snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.create) | Creates a snapshot of one or more indices. |
-| [Get Snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.get) | Retrieves information about snapshots. |
-| [Delete Snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.delete) | Deletes a snapshot from a repository. |
-| [Restore Snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.restore) | Restores a snapshot into the cluster. |
-| [Create Repository](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.create_repository) | Registers a snapshot repository. |
-| [Get Repository](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.get_repository) | Retrieves information about snapshot repositories. |
-| [Delete Repository](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.delete_repository) | Deletes a snapshot repository. |
-| [Verify Repository](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/snapshot.verify_repository) | Verifies access to a snapshot repository. |
+| [Clean up the snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-cleanup-repository) |  |
+| [Clone a snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-clone) |  |
+| [Get snapshot information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get) | Retrieves information about snapshots. |
+| [Create snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create) | Creates a snapshot of one or more indices. |
+| [Delete snapshots](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-delete) | Deletes a snapshot from a repository. |
+| [Get snapshot repository information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get) | Retrieves information about snapshot repositories. |
+| [Create or update a snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository) | Registers a snapshot repository. |
+| [Delete snapshot repositories](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-delete-repository) | Deletes a snapshot repository. |
+| [Analyze a snapshot repository](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-analyze) | |
+| [Verify the repository integrity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity) | Verifies access to a snapshot repository. |
+| [Restore Snapshot](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-restore) | Restores a snapshot into the cluster. |
+| [Get the snapshot status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-status) | Get a detailed description of the current state for each shard participating in the snapshot. |
 
 ### [Snapshot lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-slm)
 
@@ -477,7 +481,7 @@ The SQL APIs enable you to run SQL queries on Elasticsearch indices and data str
 | [Delete an async SQL search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-delete-async) |  |
 | [Get async SQL search results](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async) | Retrieves results of an async SQL query. |
 | [Get the async SQL search status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async-status) | Get the current status of an async SQL search or a stored synchronous SQL search. |
-| [Get SQL search results](hhttps://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-query) | Executes an SQL query. |
+| [Get SQL search results](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-query) | Executes an SQL query. |
 | [SQL Translate](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-translate) | Translates SQL into Elasticsearch DSL. |
 | [Translate SQL into Elasticsearch queries](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/sql.async_query) | Submits an SQL query to run asynchronously. |
 
@@ -487,7 +491,7 @@ The synonyms management APIs provide a convenient way to define and manage synon
 
 | API | Description |
 | --- | ----------- |
-| [Get synonym set](hthttps://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym) | Retrieves a synonym set by ID. |
+| [Get synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym) | Retrieves a synonym set by ID. |
 | [Create of update synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-put-synonym) | Creates or updates a synonym set. |
 | [Delete synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.delete_synonym) | Deletes a synonym set. |
 | [Get synonym rule](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym-rule) | |

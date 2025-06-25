@@ -456,6 +456,3 @@ tests:
   - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
     method: testSchedulerCloseWaitsForRunningMerge
     issue: https://github.com/elastic/elasticsearch/issues/125236
-  - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-    method: testEnqueuedMergeTasksAreUnblockedWhenEstimatedMergeSizeChanges
-    issue: https://github.com/elastic/elasticsearch/issues/129761

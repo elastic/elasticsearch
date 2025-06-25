@@ -94,9 +94,6 @@ Security:
 
 
 ## 9.0.2 [elasticsearch-9.0.2-release-notes]
-```{applies_to}
-stack: coming 9.0.2
-```
 
 ### Features and enhancements [elasticsearch-9.0.2-features-enhancements]
 
@@ -114,6 +111,9 @@ Aggregations:
 Audit:
 * Handle streaming request body in audit log [#127798](https://github.com/elastic/elasticsearch/pull/127798)
 
+Codec:
+* Use new source loader when lower `docId` is accessed [#128320](https://github.com/elastic/elasticsearch/pull/128320)
+
 Data streams:
 * Fix system data streams incorrectly showing up in the list of template validation problems [#128161](https://github.com/elastic/elasticsearch/pull/128161)
 
@@ -121,12 +121,17 @@ Downsampling:
 * Downsampling does not consider passthrough fields as dimensions [#127752](https://github.com/elastic/elasticsearch/pull/127752) (issue: [#125156](https://github.com/elastic/elasticsearch/issues/125156))
 
 ES|QL:
+* Consider inlinestats when having `field_caps` check for field names [#127564](https://github.com/elastic/elasticsearch/pull/127564) (issue: [#127236](https://github.com/elastic/elasticsearch/issues/127236))
 * Don't push down filters on the right hand side of an inlinejoin [#127383](https://github.com/elastic/elasticsearch/pull/127383)
 * ESQL: Avoid unintended attribute removal [#127563](https://github.com/elastic/elasticsearch/pull/127563) (issue: [#127468](https://github.com/elastic/elasticsearch/issues/127468))
 * ESQL: Fix alias removal in regex extraction with JOIN [#127687](https://github.com/elastic/elasticsearch/pull/127687) (issue: [#127467](https://github.com/elastic/elasticsearch/issues/127467))
 * ESQL: Keep `DROP` attributes when resolving field names [#127009](https://github.com/elastic/elasticsearch/pull/127009) (issue: [#126418](https://github.com/elastic/elasticsearch/issues/126418))
 * Ensure ordinal builder emit ordinal blocks [#127949](https://github.com/elastic/elasticsearch/pull/127949)
 * Fix union types in CCS [#128111](https://github.com/elastic/elasticsearch/pull/128111)
+* Fix validation NPE in Enrich and add extra @Nullable annotations [#128260](https://github.com/elastic/elasticsearch/pull/128260) (issues: [#126297](https://github.com/elastic/elasticsearch/issues/126297), [#126253](https://github.com/elastic/elasticsearch/issues/126253))
+
+Geo:
+* Added geometry validation for GEO types to exit early on invalid latitudes [#128259](https://github.com/elastic/elasticsearch/pull/128259) (issue: [#128234](https://github.com/elastic/elasticsearch/issues/128234))
 
 Infra/Core:
 * Add missing `outbound_network` entitlement to x-pack-core [#126992](https://github.com/elastic/elasticsearch/pull/126992) (issue: [#127003](https://github.com/elastic/elasticsearch/issues/127003))
@@ -138,6 +143,8 @@ Infra/Scripting:
 Machine Learning:
 * Append all data to Chat Completion buffer [#127658](https://github.com/elastic/elasticsearch/pull/127658)
 * Fix services API Google Vertex AI Rerank location field requirement [#127856](https://github.com/elastic/elasticsearch/pull/127856)
+* Pass timeout to chat completion [#128338](https://github.com/elastic/elasticsearch/pull/128338)
+* Use internal user for internal inference action [#128327](https://github.com/elastic/elasticsearch/pull/128327)
 
 Relevance:
 * Fix: Add `NamedWriteable` for `RuleQueryRankDoc` [#128153](https://github.com/elastic/elasticsearch/pull/128153) (issue: [#126071](https://github.com/elastic/elasticsearch/issues/126071))

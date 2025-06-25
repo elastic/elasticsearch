@@ -1,0 +1,11 @@
+pr: 130034
+summary: "[8.19] ES|QL CCS GA release notes highlight"
+area: "CCS, ES|QL"
+type: docs
+issues: []
+highlight:
+  title: "[8.19] ES|QL CCS GA release notes highlight"
+  body: |-
+    Backports the following commits to 8.19:  - ES|QL CCS GA release notes
+    highlight (#130032)
+  notable: true

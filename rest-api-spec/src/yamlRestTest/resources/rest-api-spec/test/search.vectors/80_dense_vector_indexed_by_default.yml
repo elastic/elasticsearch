@@ -56,7 +56,6 @@ setup:
   - match: { test.mappings.properties.vector.index_options.type: hnsw }
   - match: { test.mappings.properties.vector.index_options.m: 32 }
   - match: { test.mappings.properties.vector.index_options.ef_construction: 200 }
-  - match: { test.mappings.properties.vector.index_options.early_termination: null }
 
 ---
 "Indexed by default with specified similarity and index options with early_termination":

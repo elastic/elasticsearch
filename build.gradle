@@ -8,11 +8,10 @@
  */
 
 
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
@@ -22,6 +21,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 
 import java.nio.file.Files
+import java.util.regex.Matcher
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
@@ -200,6 +200,37 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
       filterIntermediatePatches(buildParams.bwcVersions.indexCompatible)
     )
+  }
+}
+
+// Create a task to ensure that the transport versions exist in the main branch prior to allowing them to be added
+// in minor or bugfix branches.  All transport versions must be added to the main branch first, before they can be
+// added elsewhere. This task will download the TransportVersions.java file from github using the url
+// https://raw.githubusercontent.com/elastic/elasticsearch/main/server/src/main/java/org/elasticsearch/transport/TransportVersions.java,
+// parse out the versions, and ensure that all TransportVersions on this branch are also present in the main branch.
+tasks.register("ensureTransportVersionsInMain") {
+  def mainTransportVersionsUrl = 'https://raw.githubusercontent.com/elastic/elasticsearch/refs/heads/main/server/src/main/java/org/elasticsearch/TransportVersions.java'
+
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify transport versions")
+    }
+    def mainTransportVersions = new URI(mainTransportVersionsUrl).toURL().text
+    def currentTransportVersions = file('server/src/main/java/org/elasticsearch/TransportVersions.java').text
+
+    def transportVersionRegex = /public static final TransportVersion (\w+) = def\((\w+)\);/
+
+    Matcher mainVersionMatcher = mainTransportVersions =~ transportVersionRegex
+    Matcher currentVersionMatcher = currentTransportVersions =~ transportVersionRegex
+
+    def mainVersionsMap = mainVersionMatcher.iterator().collectEntries { [(it[1]): it[2]] }
+    def currentVersionsMap = currentVersionMatcher.iterator().collectEntries { [(it[1]): it[2]] }
+
+    currentVersionsMap.each { versionName, versionValue ->
+      if (mainVersionsMap[versionName] != versionValue) {
+        throw new GradleException("Transport version ${versionName} with value ${versionValue} is not present in the main branch.")
+      }
+    }
   }
 }
 

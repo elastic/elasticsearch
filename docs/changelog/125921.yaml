@@ -5,12 +5,12 @@ type: feature
 highlight:
   title: Allow direct IO for BBQ rescoring
   body: |-
-    BBQ rescoring can be drastically affected by the amount of available RAM
-    for use in the page cache. When there is not enough RAM to fit the whole
+    BBQ rescoring performance can be drastically affected by the amount of available RAM
+    for use for the system page cache. When there is not enough RAM to fit all the
     vector data in memory, BBQ search latencies can be affected by as much as 5000x.
     Specifying the `vector.rescoring.directio=true` Java option on all vector search
-    nodes changes rescoring to use direct IO, which eliminates these very high latencies
-    from searches in low-memory scenarios, at a cost of a reduction
+    nodes modifies rescoring to use direct IO, which eliminates these very high latencies
+    from searches in low-memory scenarios, at a cost of a general reduction
     in vector search performance for BBQ indices.
 
     This option is released in 9.1 as a tech preview whilst we analyse its effect

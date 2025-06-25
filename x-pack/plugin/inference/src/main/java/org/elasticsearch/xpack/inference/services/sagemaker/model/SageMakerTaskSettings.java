@@ -105,6 +105,11 @@ record SageMakerTaskSettings(
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return TaskSettings.super.supportsVersion(version) || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(customAttributes);
         out.writeOptionalString(enableExplanations);

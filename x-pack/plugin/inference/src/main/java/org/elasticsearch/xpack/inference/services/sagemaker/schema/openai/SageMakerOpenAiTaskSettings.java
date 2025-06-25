@@ -41,6 +41,12 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
     }
 
     @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return SageMakerStoredTaskSchema.super.supportsVersion(version)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION_8_19);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(user);
     }

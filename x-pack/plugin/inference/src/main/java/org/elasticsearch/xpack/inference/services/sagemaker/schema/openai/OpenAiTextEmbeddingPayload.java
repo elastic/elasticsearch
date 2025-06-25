@@ -142,6 +142,12 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
         }
 
         @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return SageMakerStoredServiceSchema.super.supportsVersion(version)
+                || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalInt(dimensions);
             out.writeBoolean(dimensionsSetByUser);

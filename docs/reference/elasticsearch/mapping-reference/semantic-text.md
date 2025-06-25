@@ -112,7 +112,7 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 `inference_id` will be used at both index and query time.
 
 `index_options`
-:   (Optional, string) Specifies the index options to override default values
+:   (Optional, object) Specifies the index options to override default values
 for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).

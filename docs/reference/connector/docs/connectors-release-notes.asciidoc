@@ -57,6 +57,12 @@ IMPORTANT: Users building custom docker images based on this Dockerfile may have
 See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
 
 [discrete]
+[[es-connectors-release-notes-8-17-8]]
+=== 8.17.8
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-17-7]]
 === 8.17.7
 

@@ -412,7 +412,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     deletedBytes.addAndGet(s3Object.size());
                     return s3Object.key();
                 });
-                blobStore.deleteBlobs(purpose, false, blobNameIterator);
+                blobStore.deleteBlobs(purpose, blobNameIterator);
                 prevListing = listObjectsResponse;
             }
         } catch (final SdkException e) {
@@ -423,7 +423,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobs(purpose, true, Iterators.map(blobNames, this::buildKey));
+        blobStore.deleteBlobs(purpose, Iterators.map(blobNames, this::buildKey));
     }
 
     @Override

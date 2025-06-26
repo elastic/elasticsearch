@@ -306,11 +306,6 @@ class S3BlobStore implements BlobStore {
     private static class DeletionExceptions {
         Exception exception = null;
         private int count = 0;
-        final boolean ignoreNoSuchKey;
-
-        DeletionExceptions(boolean ignoreNoSuchKey) {
-            this.ignoreNoSuchKey = ignoreNoSuchKey;
-        }
 
         void useOrMaybeSuppress(Exception e) {
             if (count < MAX_DELETE_EXCEPTIONS) {
@@ -320,7 +315,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    void deleteBlobs(OperationPurpose purpose, boolean ignoreNoSuchKey, Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -328,7 +323,7 @@ class S3BlobStore implements BlobStore {
         final List<ObjectIdentifier> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final var deletionExceptions = new DeletionExceptions(ignoreNoSuchKey);
+            final var deletionExceptions = new DeletionExceptions();
             blobNames.forEachRemaining(key -> {
                 partition.add(ObjectIdentifier.builder().key(key).build());
                 if (partition.size() == bulkDeletionBatchSize) {
@@ -360,7 +355,7 @@ class S3BlobStore implements BlobStore {
         while (true) {
             try (AmazonS3Reference clientReference = clientReference()) {
                 final var response = clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
-                if (maybeRecordDeleteErrors(response, deletionExceptions) == false) {
+                if (maybeRecordDeleteErrors(purpose, response, deletionExceptions) == false) {
                     s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
                 }
                 return;
@@ -384,7 +379,11 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static boolean maybeRecordDeleteErrors(DeleteObjectsResponse response, DeletionExceptions deletionExceptions) {
+    private static boolean maybeRecordDeleteErrors(
+        OperationPurpose purpose,
+        DeleteObjectsResponse response,
+        DeletionExceptions deletionExceptions
+    ) {
         if (response.hasErrors() == false) {
             return false;
         }
@@ -394,8 +393,9 @@ class S3BlobStore implements BlobStore {
         StringBuilder sb = null;
 
         for (final var err : errors) {
-            if (deletionExceptions.ignoreNoSuchKey && "NoSuchKey".equals(err.code())) {
+            if (purpose != OperationPurpose.REPOSITORY_ANALYSIS && "NoSuchKey".equals(err.code())) {
                 // The blob does not exist, which is what we wanted, so let's count that as a win
+                // (except for repo analysis where we can be certain that the blobs being deleted do all exist)
                 continue;
             }
 

@@ -324,10 +324,19 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     }
 
     public void testAvailableDiskSpaceMonitorWhenFileSystemStatErrors() throws Exception {
-        aFileStore.usableSpace = randomLongBetween(1L, 100L);
-        aFileStore.totalSpace = randomLongBetween(1L, 100L);
-        bFileStore.usableSpace = randomLongBetween(1L, 100L);
-        bFileStore.totalSpace = randomLongBetween(1L, 100L);
+        long aUsableSpace;
+        long bUsableSpace;
+        do {
+            aFileStore.usableSpace = randomLongBetween(1L, 1000L);
+            aFileStore.totalSpace = randomLongBetween(1L, 1000L);
+            bFileStore.usableSpace = randomLongBetween(1L, 1000L);
+            bFileStore.totalSpace = randomLongBetween(1L, 1000L);
+            // the default 5% (same as flood stage level)
+            aUsableSpace = Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L);
+            bUsableSpace = Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L);
+        } while (aUsableSpace == bUsableSpace); // they must be different in order to distinguish the available disk space updates
+        long finalBUsableSpace = bUsableSpace;
+        long finalAUsableSpace = aUsableSpace;
         boolean aErrorsFirst = randomBoolean();
         if (aErrorsFirst) {
             // the "a" file system will error when collecting stats
@@ -355,18 +364,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     assertThat(availableDiskSpaceUpdates.size(), is(1));
                     if (aErrorsFirst) {
                         // uses the stats from "b"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalBUsableSpace));
                     } else {
                         // uses the stats from "a"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalAUsableSpace));
                     }
                 }
             });
@@ -393,21 +394,14 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             }
             assertBusy(() -> {
                 synchronized (availableDiskSpaceUpdates) {
+                    // the updates are different values
                     assertThat(availableDiskSpaceUpdates.size(), is(3));
                     if (aErrorsFirst) {
                         // uses the stats from "a"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalAUsableSpace));
                     } else {
                         // uses the stats from "b"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalBUsableSpace));
                     }
                 }
             });

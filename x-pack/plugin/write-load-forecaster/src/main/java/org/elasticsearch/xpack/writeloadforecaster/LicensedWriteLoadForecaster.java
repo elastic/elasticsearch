@@ -168,7 +168,9 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             // any write-load data beyond their lifetime.
             // To avoid making assumptions about periods for which we have no data, we'll weight
             // each index's contribution to the forecast by the maximum shard uptime observed in
-            // that index.
+            // that index. It should be safe to extrapolate our weighted average out to the
+            // maximum uptime observed, based on the assumption that write-load is roughly
+            // evenly distributed across shards of a datastream index.
             allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
             allIndicesUptime += maxShardUptimeInMillis;
         }

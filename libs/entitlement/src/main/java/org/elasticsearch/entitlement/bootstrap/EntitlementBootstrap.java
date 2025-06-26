@@ -98,6 +98,10 @@ public class EntitlementBootstrap {
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
+
+        if (EntitlementInitialization.getError() != null) {
+            throw EntitlementInitialization.getError();
+        }
     }
 
     private static Path getUserHome() {

@@ -16,7 +16,7 @@ BRANCH="${BRANCH:-$2}"
 ES_VERSION="${ES_VERSION:-$3}"
 WORKFLOW=${WORKFLOW:-$4}
 
-LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $BRANCH)
+LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $ES_VERSION)
 
 # Commented out because there's only one 7.17 branch now
 # LATEST_VERSION=$(strip_version $LATEST_BUILD)

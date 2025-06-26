@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,35 +85,36 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
     @Override
     public void licenseStateChanged() {
         licenseIsValid.put(ProjectId.DEFAULT, ENTERPRISE_GEOIP_FEATURE.checkWithoutTracking(licenseState));
-        maybeUpdateTaskState(clusterService.state().projectState(ProjectId.DEFAULT));
+        final boolean isLocalNodeMaster = clusterService.state().nodes().isLocalNodeElectedMaster();
+        maybeUpdateTaskState(ProjectId.DEFAULT, isLocalNodeMaster);
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        event.state().forEachProject(projectState -> {
-            ProjectId projectId = projectState.projectId();
-            final boolean hasMetadata = event.state().metadata().getProject(projectId).custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
+        final boolean masterNodeChanged = Objects.equals(
+            event.state().nodes().getMasterNode(),
+            event.previousState().nodes().getMasterNode()
+        ) == false;
+        final boolean isLocalNodeMaster = event.state().nodes().isLocalNodeElectedMaster();
+        event.state().metadata().projects().values().forEach(projectMetadata -> {
+            ProjectId projectId = projectMetadata.id();
+            final boolean hasMetadata = projectMetadata.custom(INGEST_GEOIP_CUSTOM_METADATA_TYPE) != null;
             hasIngestGeoIpMetadata.put(projectId, hasMetadata);
             final boolean ingestGeoIpCustomMetaChangedInEvent = event.metadataChanged()
                 && event.customMetadataChanged(projectId, INGEST_GEOIP_CUSTOM_METADATA_TYPE);
-            final boolean masterNodeChanged = Objects.equals(
-                event.state().nodes().getMasterNode(),
-                event.previousState().nodes().getMasterNode()
-            ) == false;
             /*
              * We don't want to potentially start the task on every cluster state change, so only maybeUpdateTaskState
              * if this cluster change event involved the modification of custom geoip metadata OR a master node change
              */
             if (ingestGeoIpCustomMetaChangedInEvent || (masterNodeChanged && hasIngestGeoIpMetadata.getOrDefault(projectId, false))) {
-                maybeUpdateTaskState(projectState);
+                maybeUpdateTaskState(projectId, isLocalNodeMaster);
             }
         });
     }
 
-    private void maybeUpdateTaskState(ProjectState projectState) {
-        ProjectId projectId = projectState.projectId();
+    private void maybeUpdateTaskState(ProjectId projectId, boolean isLocalNodeMaster) {
         // We should only start/stop task from single node, master is the best as it will go through it anyway
-        if (projectState.cluster().nodes().isLocalNodeElectedMaster()) {
+        if (isLocalNodeMaster) {
             if (licenseIsValid.getOrDefault(projectId, false)) {
                 if (hasIngestGeoIpMetadata.getOrDefault(projectId, false)) {
                     ensureTaskStarted(projectId);
@@ -152,7 +152,8 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(
+        persistentTasksService.sendProjectRemoveRequest(
+            projectId,
             getTaskId(projectId, projectResolver.supportsMultipleProjects()),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             listener

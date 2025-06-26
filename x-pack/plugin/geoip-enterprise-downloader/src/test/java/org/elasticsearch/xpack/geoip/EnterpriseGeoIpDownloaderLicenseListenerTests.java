@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 public class EnterpriseGeoIpDownloaderLicenseListenerTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    @FixForMultiProject
+    @NotMultiProjectCapable(description = "Enterprise license not available in serverless or multi-project yet")
     private final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
     @Before

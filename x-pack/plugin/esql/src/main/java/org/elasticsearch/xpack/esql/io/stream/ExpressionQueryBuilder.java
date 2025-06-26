@@ -24,11 +24,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AutomatonTranslatable;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -102,13 +102,13 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (expression instanceof AutomatonTranslatable automatonTranslatable) {
-            Automaton automaton = automatonTranslatable.getAutomaton();
+        if (expression instanceof TranslationAware translationAware) {
+            Automaton automaton = translationAware.asLuceneQuery();
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
                 return new MatchNoDocsQuery("Field [" + fieldName + "] does not exist");
             }
-            String description = automatonTranslatable.getAutomatonDescription();
+            String description = translationAware.getLuceneQueryDescription();
             return fieldType.automatonQuery(automaton, CONSTANT_SCORE_REWRITE, context, description);
         } else {
             throw new UnsupportedOperationException("ExpressionQueryBuilder does not support non-automaton expressions");

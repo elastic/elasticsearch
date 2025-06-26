@@ -118,6 +118,12 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return getWildcardLikeQuery(value, caseInsensitve, indexName);
         }
 
+        @Override
+        public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitive, indexName);
+        }
+
         private static Query getWildcardLikeQuery(String value, boolean caseInsensitve, String indexName) {
             if (caseInsensitve) {
                 value = value.toLowerCase(Locale.ROOT);
@@ -127,12 +133,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 return new MatchAllDocsQuery();
             }
             return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");
-        }
-
-        @Override
-        public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
-            String indexName = context.getFullyQualifiedIndex().getName();
-            return getWildcardLikeQuery(value, caseInsensitive, indexName);
         }
 
         @Override

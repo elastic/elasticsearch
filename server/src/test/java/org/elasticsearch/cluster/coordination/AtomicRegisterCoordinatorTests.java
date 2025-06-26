@@ -194,6 +194,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98488") // also #98419
     public void testElectionSchedulingAfterDiscoveryOutage() {}
 
+    public void testBecomesCandidateOnTermBumpFailure() {
+        /* TODO: need to check that a node which becomes leader but then cannot write its new term to the register falls back to CANDIDATE
+         *  (see exception handling in org.elasticsearch.cluster.coordination.Coordinator.joinLeaderInTerm)
+         */
+    }
+
     @Override
     protected CoordinatorStrategy createCoordinatorStrategy() {
         return new AtomicRegisterCoordinatorStrategy();

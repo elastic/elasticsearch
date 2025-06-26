@@ -450,7 +450,7 @@ class Iso8601Parser {
 
         boolean positive;
         switch (first) {
-            case '+' -> positive = true;
+            case '+', 'Z' -> positive = true;
             case '-' -> positive = false;
             default -> {
                 // non-trivial zone offset, fallback on the built-in java zoneid parser
@@ -462,6 +462,9 @@ class Iso8601Parser {
             }
         }
         pos++;  // read the + or -
+        if (str.charAt(pos) == '[' && str.charAt(len - 1) == ']') {
+            return parseRawZoneId(str, pos);
+        }
 
         Integer hours = parseInt(str, pos, pos += 2);
         if (hours == null || hours > 23) return null;

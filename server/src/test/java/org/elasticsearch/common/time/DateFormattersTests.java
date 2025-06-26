@@ -615,6 +615,7 @@ public class DateFormattersTests extends ESTestCase {
         formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[Europe/Paris]"));
         formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[PST]"));
         formatter.format(formatter.parse("2031-12-03T10:15:30.123456789+01:00:00[EST]"));
+        formatter.format(formatter.parse("2031-12-03T10:15:30.123456789Z[UTC]"));
     }
 
     public void testRoundupFormatterWithEpochDates() {

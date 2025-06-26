@@ -30,6 +30,8 @@ fi
 
 ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
 
+echo "ML_CPP_BUILD_ID: $ML_CPP_BUILD_ID"
+
 LICENSE_KEY_ARG=""
 BUILD_SNAPSHOT_ARG=""
 

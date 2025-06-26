@@ -26,6 +26,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
@@ -147,6 +148,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.field("type", "hnsw");
                 b.field("m", 5);
                 b.field("ef_construction", 50);
+                if (indexVersion.onOrAfter(DenseVectorFieldMapper.EXPOSE_EARLY_TERMINATION)) {
+                    b.field("early_termination", false);
+                }
                 b.endObject();
             }
         }

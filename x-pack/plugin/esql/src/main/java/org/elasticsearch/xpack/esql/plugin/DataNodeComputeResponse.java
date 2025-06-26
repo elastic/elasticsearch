@@ -15,6 +15,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
@@ -33,12 +34,12 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
-            this.completionInfo = new DriverCompletionInfo(in);
+            this.completionInfo = DriverCompletionInfo.readFrom(in);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom));
+            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }
@@ -54,7 +55,7 @@ final class DataNodeComputeResponse extends TransportResponse {
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(out.getTransportVersion())) {
-            out.writeCollection(completionInfo.collectedProfiles(), (o, v) -> v.writeTo(o));
+            out.writeCollection(completionInfo.driverProfiles());
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
             return;
         }

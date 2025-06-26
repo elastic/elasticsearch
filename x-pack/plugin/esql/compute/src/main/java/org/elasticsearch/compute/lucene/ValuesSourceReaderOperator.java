@@ -538,7 +538,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     private LeafReaderContext ctx(int shard, int segment) {
-        return shardContexts.get(shard).reader.leaves().get(segment);
+        return shardContexts.get(shard).reader().leaves().get(segment);
     }
 
     @Override

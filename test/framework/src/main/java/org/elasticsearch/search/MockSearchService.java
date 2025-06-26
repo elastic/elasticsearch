@@ -152,7 +152,12 @@ public class MockSearchService extends SearchService {
     @Override
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         SearchContext searchContext = super.createSearchContext(request, timeout);
-        onPutContext.accept(searchContext.readerContext());
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }

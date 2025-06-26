@@ -226,7 +226,7 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testRuntimeError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
-            code -> (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
+            code -> (params, ctxMapWrapper) -> new IngestConditionalScript(params, ctxMapWrapper) {
                 @Override
                 public boolean execute(Map<String, Object> params) {
                     throw new IllegalArgumentException("runtime problem");

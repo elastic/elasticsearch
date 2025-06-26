@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.script.CtxMapWrapper;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
@@ -56,7 +57,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
-    private final IngestConditionalScript.Factory precompiledConditionScriptFactory;
+    private final IngestConditionalScript precompiledConditionScript;
+    private final CtxMapWrapper ctxMapWrapper;
 
     ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
         this(tag, description, script, scriptService, processor, System::nanoTime);
@@ -76,12 +78,15 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         this.processor = processor;
         this.metric = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+        this.ctxMapWrapper = new CtxMapWrapper();
 
         try {
+            final IngestConditionalScript.Factory factory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
             if (ScriptType.INLINE.equals(script.getType())) {
-                precompiledConditionScriptFactory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
+                precompiledConditionScript = factory.newInstance(script.getParams(), ctxMapWrapper);
             } else {
-                precompiledConditionScriptFactory = null;
+                // stored script, so will have to compile at runtime
+                precompiledConditionScript = null;
             }
         } catch (ScriptException e) {
             throw newConfigurationException(TYPE, tag, null, e);
@@ -139,12 +144,17 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     boolean evaluate(IngestDocument ingestDocument) {
-        IngestConditionalScript.Factory factory = precompiledConditionScriptFactory;
-        if (factory == null) {
-            factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
+        IngestConditionalScript script = precompiledConditionScript;
+        if (script == null) {
+            IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
+            script = factory.newInstance(condition.getParams(), ctxMapWrapper);
         }
-        return factory.newInstance(condition.getParams(), ingestDocument.getCtxMap())
-            .execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
+        ctxMapWrapper.setCtxMap(ingestDocument.getCtxMap());
+        try {
+            return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
+        } finally {
+            ctxMapWrapper.clearCtxMap();
+        }
     }
 
     public Processor getInnerProcessor() {

@@ -15,10 +15,12 @@ import java.util.Map;
 
 /**
  * A script used by {@link org.elasticsearch.ingest.ConditionalProcessor}.
+ * To properly expose the {@link SourceMapFieldScript#field(String)} API, make sure to provide a valid {@link CtxMap} before execution
+ * through the {@link CtxMapWrapper} passed to the constructor and make sure to clear it after use to avoid leaks.
  */
 public abstract class IngestConditionalScript extends SourceMapFieldScript {
 
-    public static final String[] PARAMETERS = { "ctxdsf" /*todo change param name*/ };
+    public static final String[] PARAMETERS = { "runtime-params" };
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -33,8 +35,8 @@ public abstract class IngestConditionalScript extends SourceMapFieldScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestConditionalScript(Map<String, Object> params, CtxMap<?> ctxMap) {
-        super(ctxMap);
+    public IngestConditionalScript(Map<String, Object> params, CtxMapWrapper ctxMapWrapper) {
+        super(ctxMapWrapper);
         this.params = params;
     }
 
@@ -46,6 +48,6 @@ public abstract class IngestConditionalScript extends SourceMapFieldScript {
     public abstract boolean execute(Map<String, Object> params);
 
     public interface Factory {
-        IngestConditionalScript newInstance(Map<String, Object> params, CtxMap<?> ctxMap);
+        IngestConditionalScript newInstance(Map<String, Object> params, CtxMapWrapper ctxMapWrapper);
     }
 }

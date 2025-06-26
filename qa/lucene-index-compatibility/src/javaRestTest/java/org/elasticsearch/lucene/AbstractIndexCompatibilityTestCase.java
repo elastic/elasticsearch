@@ -331,7 +331,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     @SuppressWarnings("unchecked")
     protected static void assertIndexSetting(String indexName, Setting<?> setting, Matcher<Boolean> matcher) throws Exception {
         var indexSettings = getIndexSettingsAsMap(indexName);
-        assertThat(Booleans.parseBoolean((String) indexSettings.get(setting.getKey())), matcher);
+        assertThat(Booleans.parseBoolean((String) indexSettings.get(setting.getKey()), false), matcher);
     }
 
     protected static ResponseException expectUpdateIndexSettingsThrows(String indexName, Settings.Builder settings) {

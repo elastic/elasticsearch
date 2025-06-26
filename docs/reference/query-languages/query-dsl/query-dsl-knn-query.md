@@ -165,7 +165,6 @@ POST my-image-index/_search
 
 Knn query can be used as a part of hybrid search, where knn query is combined with other lexical queries. For example, the query below finds documents with `title` matching `mountain lake`, and combines them with the top 10 documents that have the closest image vectors to the `query_vector`. The combined documents are then scored and the top 3 top scored documents are returned.
 
-+
 
 ```console
 POST my-image-index/_search

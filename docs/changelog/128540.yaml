@@ -3,5 +3,4 @@ summary: Preserve integer-exact representation of numbers and allow conversion o
   floating point values to integers in the `convert` ingest processor
 area: Ingest Node
 type: enhancement
-issues:
-  - 128160
+issues: []

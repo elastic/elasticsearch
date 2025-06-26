@@ -567,8 +567,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testCohereEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/130010
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/128224
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleDuringSplitOrClone
   issue: https://github.com/elastic/elasticsearch/issues/130044

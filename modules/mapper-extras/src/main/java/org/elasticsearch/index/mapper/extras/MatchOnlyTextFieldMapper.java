@@ -382,7 +382,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         if (v instanceof BytesRef b) {
                             return b;
                         } else {
-                            return BlockSourceReader.toBytesRef(scratch, (String) v);
+                            assert v instanceof String;
+                            return BlockSourceReader.toBytesRef(scratch, v.toString());
                         }
                     }
                 };

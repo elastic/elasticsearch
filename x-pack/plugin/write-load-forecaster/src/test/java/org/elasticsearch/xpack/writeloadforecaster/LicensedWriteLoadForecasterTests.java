@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.writeloadforecaster;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
@@ -24,16 +25,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.writeloadforecaster.LicensedWriteLoadForecaster.forecastIndexWriteLoad;
 import static org.hamcrest.Matchers.closeTo;
@@ -42,6 +46,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LicensedWriteLoadForecasterTests extends ESTestCase {
     ThreadPool threadPool;
@@ -67,33 +72,15 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         writeLoadForecaster.refreshLicense();
 
-        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         final String dataStreamName = "logs-es";
         final int numberOfBackingIndices = 10;
-        final int numberOfShards = randomIntBetween(1, 5);
-        final List<Index> backingIndices = new ArrayList<>();
-        for (int i = 0; i < numberOfBackingIndices; i++) {
-            final IndexMetadata indexMetadata = createIndexMetadata(
-                DataStream.getDefaultBackingIndexName(dataStreamName, i),
-                numberOfShards,
-                randomIndexWriteLoad(numberOfShards),
-                System.currentTimeMillis() - (maxIndexAge.millis() / 2)
-            );
-            backingIndices.add(indexMetadata.getIndex());
-            metadataBuilder.put(indexMetadata, false);
-        }
-
-        final IndexMetadata writeIndexMetadata = createIndexMetadata(
-            DataStream.getDefaultBackingIndexName(dataStreamName, numberOfBackingIndices),
-            numberOfShards,
-            null,
-            System.currentTimeMillis()
+        final ProjectMetadata.Builder metadataBuilder = createMetadataBuilderWithDataStream(
+            dataStreamName,
+            numberOfBackingIndices,
+            randomIntBetween(1, 15),
+            maxIndexAge
         );
-        backingIndices.add(writeIndexMetadata.getIndex());
-        metadataBuilder.put(writeIndexMetadata, false);
-
-        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
-        metadataBuilder.put(dataStream);
+        final DataStream dataStream = metadataBuilder.dataStream(dataStreamName);
 
         final ProjectMetadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
@@ -403,5 +390,171 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
                 )
             );
         }, LicensedWriteLoadForecaster.class, collectingLoggingAssertion);
+    }
+
+    public void testShardIncreaseDoesNotIncreaseTotalLoad() {
+        testShardChangeDoesNotChangeTotalForecastLoad(ShardCountChange.INCREASE);
+    }
+
+    public void testShardDecreaseDoesNotDecreaseTotalLoad() {
+        testShardChangeDoesNotChangeTotalForecastLoad(ShardCountChange.DECREASE);
+    }
+
+    private void testShardChangeDoesNotChangeTotalForecastLoad(ShardCountChange shardCountChange) {
+        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
+        final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
+        final AtomicInteger licenseCheckCount = new AtomicInteger();
+        final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> {
+            licenseCheckCount.incrementAndGet();
+            return hasValidLicense.get();
+        }, threadPool, maxIndexAge);
+        writeLoadForecaster.refreshLicense();
+
+        final String dataStreamName = randomIdentifier();
+        final ProjectMetadata.Builder originalMetadata = createMetadataBuilderWithDataStream(
+            dataStreamName,
+            randomIntBetween(5, 15),
+            shardCountChange.originalShardCount(),
+            maxIndexAge
+        );
+        final ProjectMetadata.Builder originalForecastMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+            dataStreamName,
+            originalMetadata
+        );
+
+        // Generate the same data stream, but with a different number of shards in the write index
+        final ProjectMetadata.Builder moreShardsMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+            dataStreamName,
+            updateWriteIndexShardCount(dataStreamName, originalMetadata, shardCountChange)
+        );
+
+        IndexMetadata originalWriteIndexMetadata = originalForecastMetadata.getSafe(
+            originalForecastMetadata.dataStream(dataStreamName).getWriteIndex()
+        );
+        IndexMetadata moreShardsWriteIndexMetadata = moreShardsMetadata.getSafe(
+            moreShardsMetadata.dataStream(dataStreamName).getWriteIndex()
+        );
+
+        // The shard count changed
+        assertThat(
+            moreShardsWriteIndexMetadata.getNumberOfShards(),
+            shardCountChange.expectedChangeFromOriginal(originalWriteIndexMetadata.getNumberOfShards())
+        );
+        // But the total write-load did not
+        assertThat(
+            moreShardsWriteIndexMetadata.getNumberOfShards() * writeLoadForecaster.getForecastedWriteLoad(moreShardsWriteIndexMetadata)
+                .getAsDouble(),
+            closeTo(
+                originalWriteIndexMetadata.getNumberOfShards() * writeLoadForecaster.getForecastedWriteLoad(originalWriteIndexMetadata)
+                    .getAsDouble(),
+                0.01
+            )
+        );
+    }
+
+    public enum ShardCountChange implements IntToIntFunction {
+        INCREASE(1, 15) {
+            @Override
+            public int apply(int originalShardCount) {
+                return randomIntBetween(originalShardCount + 1, originalShardCount * 3);
+            }
+
+            public Matcher<Integer> expectedChangeFromOriginal(int originalShardCount) {
+                return greaterThan(originalShardCount);
+            }
+        },
+        DECREASE(10, 30) {
+            @Override
+            public int apply(int originalShardCount) {
+                return randomIntBetween(1, originalShardCount - 1);
+            }
+
+            public Matcher<Integer> expectedChangeFromOriginal(int originalShardCount) {
+                return lessThan(originalShardCount);
+            }
+        };
+
+        private final int originalMinimumShardCount;
+        private final int originalMaximumShardCount;
+
+        ShardCountChange(int originalMinimumShardCount, int originalMaximumShardCount) {
+            this.originalMinimumShardCount = originalMinimumShardCount;
+            this.originalMaximumShardCount = originalMaximumShardCount;
+        }
+
+        public int originalShardCount() {
+            return randomIntBetween(originalMinimumShardCount, originalMaximumShardCount);
+        }
+
+        abstract Matcher<Integer> expectedChangeFromOriginal(int originalShardCount);
+    }
+
+    private ProjectMetadata.Builder updateWriteIndexShardCount(
+        String dataStreamName,
+        ProjectMetadata.Builder originalMetadata,
+        ShardCountChange shardCountChange
+    ) {
+        final ProjectMetadata.Builder updatedShardCountMetadata = ProjectMetadata.builder(originalMetadata.getId());
+
+        final DataStream originalDataStream = originalMetadata.dataStream(dataStreamName);
+        final Index existingWriteIndex = Objects.requireNonNull(originalDataStream.getWriteIndex());
+        final IndexMetadata originalWriteIndexMetadata = originalMetadata.getSafe(existingWriteIndex);
+
+        // Copy all non-write indices over unchanged
+        final List<IndexMetadata> backingIndexMetadatas = originalDataStream.getIndices()
+            .stream()
+            .filter(index -> index != existingWriteIndex)
+            .map(originalMetadata::getSafe)
+            .collect(Collectors.toList());
+
+        // Create a new write index with an updated shard count
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexMetadatas.size()),
+            shardCountChange.apply(originalWriteIndexMetadata.getNumberOfShards()),
+            null,
+            System.currentTimeMillis()
+        );
+        backingIndexMetadatas.add(writeIndexMetadata);
+        backingIndexMetadatas.forEach(indexMetadata -> updatedShardCountMetadata.put(indexMetadata, false));
+
+        final DataStream dataStream = createDataStream(
+            dataStreamName,
+            backingIndexMetadatas.stream().map(IndexMetadata::getIndex).toList()
+        );
+        updatedShardCountMetadata.put(dataStream);
+        return updatedShardCountMetadata;
+    }
+
+    private ProjectMetadata.Builder createMetadataBuilderWithDataStream(
+        String dataStreamName,
+        int numberOfBackingIndices,
+        int numberOfShards,
+        TimeValue maxIndexAge
+    ) {
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        final List<Index> backingIndices = new ArrayList<>();
+        for (int i = 0; i < numberOfBackingIndices; i++) {
+            final IndexMetadata indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, i),
+                numberOfShards,
+                randomIndexWriteLoad(numberOfShards),
+                System.currentTimeMillis() - (maxIndexAge.millis() / 2)
+            );
+            backingIndices.add(indexMetadata.getIndex());
+            metadataBuilder.put(indexMetadata, false);
+        }
+
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numberOfBackingIndices),
+            numberOfShards,
+            null,
+            System.currentTimeMillis()
+        );
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
+        metadataBuilder.put(dataStream);
+        return metadataBuilder;
     }
 }

@@ -14,5 +14,9 @@ import org.elasticsearch.action.IndicesRequest;
 import java.util.List;
 
 public interface FlatIndicesRequest extends IndicesRequest {
-    void indices(List<String> indices);
+    boolean requiresRewrite();
+
+    void indexExpressions(List<IndexExpression> indexExpressions);
+
+    record IndexExpression(String original, List<String> rewritten) {}
 }

@@ -76,6 +76,9 @@ public class SearchRequest extends LegacyActionRequest
     private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
+    private List<IndexExpression> indexExpressions;
+
+    @Nullable
     private String routing;
     @Nullable
     private String preference;
@@ -860,7 +863,14 @@ public class SearchRequest extends LegacyActionRequest
     }
 
     @Override
-    public void indices(List<String> indices) {
-        indices(indices.toArray(Strings.EMPTY_ARRAY));
+    public boolean requiresRewrite() {
+        return indexExpressions == null;
+    }
+
+    @Override
+    public void indexExpressions(List<IndexExpression> indexExpressions) {
+        assert requiresRewrite();
+        this.indexExpressions = indexExpressions;
+        indices(indexExpressions.stream().flatMap(indexExpression -> indexExpression.rewritten().stream()).toArray(String[]::new));
     }
 }

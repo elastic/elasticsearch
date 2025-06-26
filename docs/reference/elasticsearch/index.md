@@ -6,8 +6,6 @@
 
 {{es}} is the search and analytics engine that powers the {{stack}}.
 
-![](https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/bltb8eb1c8cf2e7309e/636925fb7457f32a10457f6d/elasticsearch.png)
-
 [Get started](https://www.elastic.co/docs/get-started)
 
 [Introduction](https://www.elastic.co/docs/get-started)

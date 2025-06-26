@@ -19,10 +19,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -67,6 +69,7 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
+@NotMultiProjectCapable(description = "Enterprise GeoIP not available in serverless")
 public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
@@ -143,21 +146,27 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     void updateDatabases() throws IOException {
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getProject().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata()
+            .getProject(ProjectId.DEFAULT)
+            .getIndicesLookup()
+            .get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
-            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+            if (clusterState.routingTable(ProjectId.DEFAULT).index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 logger.debug("not updating databases because not all primary shards of [{}] index are active yet", DATABASES_INDEX);
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(ProjectId.DEFAULT, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 throw blockException;
             }
         }
 
         logger.trace("Updating databases");
-        IngestGeoIpMetadata geoIpMeta = clusterState.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = clusterState.metadata()
+            .getProject(ProjectId.DEFAULT)
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // if there are entries in the cs that aren't in the persistent task state,
         // then download those (only)

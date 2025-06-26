@@ -755,7 +755,7 @@ public final class DocumentParser {
             if (token == XContentParser.Token.START_OBJECT) {
                 if (countArray++ >= nestedDocsLimit) {
                     throw new IllegalStateException(
-                        "The number array objects has exceeded the allowed limit of ["
+                        "The number of nested documents has exceeded the allowed limit of ["
                             + nestedDocsLimit
                             + "]. "
                             + "This limit can be set by changing the ["

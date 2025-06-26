@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -335,7 +336,7 @@ public class BlobStoreHealthIndicator extends AbstractLifecycleComponent impleme
             lastCheckStartedTimeMillis = currentTimeMillisSupplier.get();
             electionStrategy.readLease(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Optional<StatelessElectionStrategy.Lease> lease) {
+                public void onResponse(Optional<StatelessLease> lease) {
                     long currentTimeMillis = currentTimeMillisSupplier.get();
                     long durationMillis = currentTimeMillis - lastCheckStartedTimeMillis;
                     // See https://github.com/elastic/elasticsearch-serverless/issues/931

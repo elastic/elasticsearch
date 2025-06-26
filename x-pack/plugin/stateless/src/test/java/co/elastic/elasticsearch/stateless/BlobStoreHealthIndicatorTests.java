@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -67,9 +68,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
         indicator.start();
-        ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
+        ArgumentCaptor<ActionListener<Optional<StatelessLease>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         long startTime = randomIntBetween(1, 100);
         nextTick.set(startTime);
         indicator.runCheck();
@@ -78,9 +77,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         nextTick.set(responseTime);
         listenerCaptor.getValue()
             .onResponse(
-                randomBoolean()
-                    ? Optional.empty()
-                    : Optional.of(new StatelessElectionStrategy.Lease(randomNonNegativeInt(), randomNonNegativeInt()))
+                randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomNonNegativeInt(), randomNonNegativeInt()))
             );
         long healthRequestTime = responseTime + randomIntBetween(1, 100);
         nextTick.set(healthRequestTime);
@@ -111,9 +108,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
         indicator.start();
-        ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
+        ArgumentCaptor<ActionListener<Optional<StatelessLease>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         long startTime = randomIntBetween(1, 100);
         nextTick.set(startTime);
         indicator.runCheck();
@@ -150,9 +145,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         AtomicLong nextTick = new AtomicLong();
         BlobStoreHealthIndicator indicator = new BlobStoreHealthIndicator(Settings.EMPTY, clusterService, electionStrategy, nextTick::get);
         indicator.start();
-        ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
+        ArgumentCaptor<ActionListener<Optional<StatelessLease>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         long startTime = randomIntBetween(1, 100);
         nextTick.set(startTime);
         indicator.runCheck();
@@ -162,9 +155,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         nextTick.set(responseTime);
         listenerCaptor.getValue()
             .onResponse(
-                randomBoolean()
-                    ? Optional.empty()
-                    : Optional.of(new StatelessElectionStrategy.Lease(randomNonNegativeInt(), randomNonNegativeInt()))
+                randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomNonNegativeInt(), randomNonNegativeInt()))
             );
         long healthRequestTime = responseTime + randomIntBetween(1, 100);
         nextTick.set(healthRequestTime);
@@ -191,14 +182,12 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
             () -> Clock.systemUTC().millis()
         );
         indicator.start();
-        ArgumentCaptor<ActionListener<Optional<StatelessElectionStrategy.Lease>>> listenerCaptor = ArgumentCaptor.forClass(
-            ActionListener.class
-        );
+        ArgumentCaptor<ActionListener<Optional<StatelessLease>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         indicator.runCheck();
         indicator.runCheck();
         verify(electionStrategy, times(1)).readLease(listenerCaptor.capture());
         listenerCaptor.getValue()
-            .onResponse(randomBoolean() ? Optional.empty() : Optional.of(new StatelessElectionStrategy.Lease(randomInt(), randomInt())));
+            .onResponse(randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomInt(), randomInt())));
         assertThat(indicator.getInProgress(), is(false));
         indicator.close();
     }
@@ -254,7 +243,7 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         StatelessElectionStrategy electionStrategy = mock(StatelessElectionStrategy.class);
         doAnswer(invocation -> {
-            ActionListener<Optional<StatelessElectionStrategy.Lease>> listener = invocation.getArgument(0);
+            ActionListener<Optional<StatelessLease>> listener = invocation.getArgument(0);
             listener.onResponse(Optional.empty());
             return null;
         }).when(electionStrategy).readLease(any());

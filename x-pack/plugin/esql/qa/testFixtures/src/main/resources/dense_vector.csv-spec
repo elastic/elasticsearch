@@ -1,6 +1,8 @@
-
+# All tests skipped for now due to issues in bwc tests
+# https://github.com/elastic/elasticsearch/issues/130085
 retrieveDenseVectorData
 required_capability: dense_vector_field_type
+required_capability: awaitsfix
 
 FROM dense_vector
 | KEEP id, vector
@@ -16,6 +18,7 @@ id:l | vector:dense_vector
 
 denseVectorWithEval
 required_capability: dense_vector_field_type
+required_capability: awaitsfix
 
 FROM dense_vector
 | EVAL v = vector
@@ -32,6 +35,7 @@ id:l | v:dense_vector
 
 denseVectorWithRenameAndDrop
 required_capability: dense_vector_field_type
+required_capability: awaitsfix
 
 FROM dense_vector 
 | EVAL v = vector 

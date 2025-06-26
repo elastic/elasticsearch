@@ -212,7 +212,8 @@ public class CsvTestsDataLoader {
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
-        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        // Awaitsfix: https://github.com/elastic/elasticsearch/issues/130085
+        // Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(COLORS.indexName, COLORS)
     );
 

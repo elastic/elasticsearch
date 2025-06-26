@@ -35,7 +35,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
-    private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
+    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
         ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );

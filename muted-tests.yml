@@ -563,6 +563,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testTopN
   issue: https://github.com/elastic/elasticsearch/issues/130122
+- class: org.elasticsearch.action.support.ThreadedActionListenerTests
+  method: testRejectionHandling
+  issue: https://github.com/elastic/elasticsearch/issues/130129
 
 # Examples:
 #

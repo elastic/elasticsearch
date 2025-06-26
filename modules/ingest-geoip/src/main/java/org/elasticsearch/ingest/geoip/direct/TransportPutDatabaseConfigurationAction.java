@@ -130,10 +130,11 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         });
     }
 
-    private record UpdateDatabaseConfigurationTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener,
-                                                   DatabaseConfiguration database)
-        implements
-            ClusterStateTaskListener {
+    private record UpdateDatabaseConfigurationTask(
+        ProjectId projectId,
+        ActionListener<AcknowledgedResponse> listener,
+        DatabaseConfiguration database
+    ) implements ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
             final var project = currentState.metadata().getProject(projectId);

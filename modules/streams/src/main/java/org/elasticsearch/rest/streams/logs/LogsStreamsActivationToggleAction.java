@@ -56,8 +56,8 @@ public class LogsStreamsActivationToggleAction {
         }
 
         @Override
-        public Task createTask(String localNodeId, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "Logs streams activation toggle request", parentTaskId, headers);
+        public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(taskId.getId(), type, action, "Logs streams activation toggle request", parentTaskId, headers);
         }
     }
 }

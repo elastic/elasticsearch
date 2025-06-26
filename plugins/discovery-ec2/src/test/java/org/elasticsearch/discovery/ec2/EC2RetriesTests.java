@@ -61,6 +61,8 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             ),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null,
+            null,
             null
         );
     }

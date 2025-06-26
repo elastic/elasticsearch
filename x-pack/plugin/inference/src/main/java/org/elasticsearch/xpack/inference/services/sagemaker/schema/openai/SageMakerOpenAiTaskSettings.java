@@ -37,6 +37,7 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION;
     }
 

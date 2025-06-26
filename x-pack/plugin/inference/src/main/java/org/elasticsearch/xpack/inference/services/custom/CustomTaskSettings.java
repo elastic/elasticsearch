@@ -100,6 +100,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 

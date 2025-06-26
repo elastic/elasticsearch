@@ -78,6 +78,7 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED;
     }
 

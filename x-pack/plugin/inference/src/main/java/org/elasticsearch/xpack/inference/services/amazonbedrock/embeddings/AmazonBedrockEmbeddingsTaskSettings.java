@@ -79,6 +79,7 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable CohereTruncation coh
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.AMAZON_BEDROCK_TASK_SETTINGS;
     }
 

@@ -108,6 +108,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 

@@ -90,6 +90,7 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 

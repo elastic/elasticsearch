@@ -310,7 +310,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                     i++;
                 } else {
                     int label = kMeansResult.parentLayer()[i];
-                    int totalCentroids = 0;
+                    int centroidCount = 0;
                     float[] parentPartitionCentroid = new float[fieldInfo.getVectorDimension()];
                     int j = i;
                     for (; j < kMeansResult.parentLayer().length; j++) {
@@ -320,14 +320,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                         for (int k = 0; k < parentPartitionCentroid.length; k++) {
                             parentPartitionCentroid[k] += centroids[i][k];
                         }
-                        totalCentroids++;
+                        centroidCount++;
                     }
                     int childOrdinal = i;
                     i = j;
                     for (int d = 0; d < parentPartitionCentroid.length; d++) {
-                        parentPartitionCentroid[d] /= totalCentroids;
+                        parentPartitionCentroid[d] /= centroidCount;
                     }
-                    centroidPartitions.add(new CentroidPartition(parentPartitionCentroid, childOrdinal, totalCentroids));
+                    centroidPartitions.add(new CentroidPartition(parentPartitionCentroid, childOrdinal, centroidCount));
                 }
             }
         }

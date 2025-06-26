@@ -135,6 +135,7 @@ class KMeansLocal {
                 }
             }
         }
+
         return bestCentroidOffset;
     }
 

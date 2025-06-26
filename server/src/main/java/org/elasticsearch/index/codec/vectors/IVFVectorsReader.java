@@ -291,27 +291,31 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
-            int parentCentroidOrdinal = parentCentroidQueue.pop();
 
-            int childCentroidOrdinal;
-            int childCentroidCount;
-            if (parentCentroidOrdinal == -1) {
-                // score all centroids
-                childCentroidOrdinal = 0;
-                childCentroidCount = centroidQueryScorer.size();
-            } else {
-                childCentroidOrdinal = parentCentroidQueryScorer.getChildCentroidStart(parentCentroidOrdinal);
-                childCentroidCount = parentCentroidQueryScorer.getChildCount(parentCentroidOrdinal);
+            NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);;
+            int parentsToExplore = 0;
+            while(parentCentroidQueue.size() > 0 && parentsToExplore < parentCentroidQueryScorer.size() * 0.5) {
+                int parentCentroidOrdinal = parentCentroidQueue.pop();
+
+                int childCentroidOrdinal;
+                int childCentroidCount;
+                if (parentCentroidOrdinal == -1) {
+                    // score all centroids
+                    childCentroidOrdinal = 0;
+                    childCentroidCount = centroidQueryScorer.size();
+                } else {
+                    childCentroidOrdinal = parentCentroidQueryScorer.getChildCentroidStart(parentCentroidOrdinal);
+                    childCentroidCount = parentCentroidQueryScorer.getChildCount(parentCentroidOrdinal);
+                }
+                // FIXME: modify scorePostingLists to take a queue instead of creating one
+                centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
+
+                if(parentCentroidOrdinal == -1) {
+                    break;
+                }
+
+                parentsToExplore++;
             }
-
-            NeighborQueue centroidQueue = scorePostingLists(
-                fieldInfo,
-                knnCollector,
-                centroidQueryScorer,
-                nProbe,
-                childCentroidOrdinal,
-                childCentroidCount
-            );
 
             PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
             // initially we visit only the "centroids to search"

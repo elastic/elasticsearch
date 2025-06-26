@@ -8,7 +8,6 @@ dependencies {
   testImplementation project(':test:yaml-rest-runner')
   testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
-  restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
   restXpackTestConfig project(path: ':x-pack:plugin:stack', configuration: "basicRestSpecs")
 }
@@ -26,16 +25,15 @@ tasks.named("yamlRestTest").configure {
   usesDefaultDistribution("to be triaged")
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    // These analytics tests work in MP mode, they just don't work with security enabled.
     '^analytics/boxplot/*',
     '^analytics/histogram/*',
     '^analytics/moving_percentiles/*',
     '^analytics/top_metrics/*',
     '^analytics/usage/*',
-    '^constant_keyword/10_basic/*',
     '^data_streams/10_data_stream_resolvability/*',
     '^deprecation/10_basic/*',
     '^dlm/10_usage/*',
-    '^esql/46_downsample/*',
     '^esql/60_enrich/*',
     '^esql/60_usage/*',
     '^esql/61_enrich_ip/*',
@@ -48,12 +46,6 @@ tasks.named("yamlRestTest").configure {
     '^esql/191_lookup_join_text/*',
     '^esql/192_lookup_join_on_aliases/*',
     '^health/10_usage/*',
-    '^ilm/10_basic/Test Undeletable Policy In Use',
-    '^ilm/20_move_to_step/*',
-    '^ilm/30_retry/*',
-    '^ilm/60_operation_mode/*',
-    '^ilm/60_remove_policy_for_index/*',
-    '^ilm/70_downsampling/*',
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',
     '^migrate/10_reindex/*',
@@ -123,10 +115,6 @@ tasks.named("yamlRestTest").configure {
     '^monitoring/bulk/10_basic/*',
     '^monitoring/bulk/20_privileges/*',
     '^profiling/10_basic/*',
-    '^redact/10_redact_processor/*',
-    '^role_mapping/10_basic/*',
-    '^role_mapping/20_get_missing/*',
-    '^role_mapping/30_delete/*',
     '^rollup/delete_job/*',
     '^rollup/get_jobs/*',
     '^rollup/get_rollup_caps/*',

@@ -48,8 +48,9 @@ public class LlamaEmbeddingsRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        if (model.getSecretSettings() instanceof DefaultSecretSettings(org.elasticsearch.common.settings.SecureString apiKey)) {
-            httpPost.setHeader(createAuthBearerHeader(apiKey));
+        if (model.getSecretSettings() instanceof DefaultSecretSettings) {
+            var secretSettings = (DefaultSecretSettings) model.getSecretSettings();
+            httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
 
         return new HttpRequest(httpPost, getInferenceEntityId());

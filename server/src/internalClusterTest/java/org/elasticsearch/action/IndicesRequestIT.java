@@ -592,17 +592,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate(indexName).setSettings(Settings.builder().put("index.mapping.nested_objects.limit", arrayLimit).build())
-                .setMapping("""
-                        {
-                          "properties": {
-                            "array": {
-                              "properties": {
-                                "value": { "type": "integer" }
-                              }
-                            }
-                          }
-                        }
-                    """)
         );
 
         try (XContentBuilder doc = XContentFactory.jsonBuilder()) {

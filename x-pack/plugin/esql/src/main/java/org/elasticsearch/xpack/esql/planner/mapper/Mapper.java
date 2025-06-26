@@ -214,7 +214,7 @@ public class Mapper {
             PhysicalPlan left = map(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 

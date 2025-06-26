@@ -1573,6 +1573,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             if (uncompressedMapping.isEmpty() == false) {
                 builder.field(MAPPINGS_FIELD.getPreferredName());
                 builder.map(uncompressedMapping);
+            } else {
+                builder.field(MAPPINGS_FIELD.getPreferredName(), Map.of());
             }
         } else {
             builder.field(MAPPINGS_FIELD.getPreferredName(), mappings.compressed());
@@ -1591,6 +1593,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
             && hidden == that.hidden
             && system == that.system
             && replicated == that.replicated
@@ -1609,6 +1612,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             generation,
             metadata,
             settings,
+            mappings,
             hidden,
             system,
             replicated,

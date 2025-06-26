@@ -73,10 +73,10 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public ReindexDataStreamStatus getStatus() {
         int totalIndices = initialTotalIndices;
         int totalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state().metadata().getProject(projectId),
-            getPersistentTaskId()
-        );
+        final var projectMetadata = clusterService.state().metadata().getProject(projectId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = projectMetadata == null
+            ? null
+            : PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, getPersistentTaskId());
         boolean isComplete;
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
@@ -133,10 +133,10 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     private boolean isCompleteInClusterState() {
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state().metadata().getProject(projectId),
-            getPersistentTaskId()
-        );
+        final var projectMetadata = clusterService.state().metadata().getProject(projectId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = projectMetadata == null
+            ? null
+            : PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, getPersistentTaskId());
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
             if (state != null) {

@@ -72,7 +72,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
         final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-        DataStream dataStream = projectMetadata.dataStreams().get(sourceDataStreamName);
+        DataStream dataStream = projectMetadata == null ? null : projectMetadata.dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
             return;

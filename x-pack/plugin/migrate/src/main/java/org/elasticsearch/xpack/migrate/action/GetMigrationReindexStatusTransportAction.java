@@ -70,10 +70,10 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         String index = request.getIndex();
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            projectResolver.getProjectMetadata(clusterService.state()),
-            persistentTaskId
-        );
+        final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = projectMetadata == null
+            ? null
+            : PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, persistentTaskId);
         if (persistentTask == null) {
             listener.onFailure(new ResourceNotFoundException("No migration reindex status found for [{}]", index));
         } else if (persistentTask.isAssigned()) {

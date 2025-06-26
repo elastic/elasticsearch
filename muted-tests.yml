@@ -571,6 +571,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/130067
 
 # Examples:
 #

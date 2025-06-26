@@ -118,7 +118,7 @@ class KMeansLocal {
 
     int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, int[] centroidOffsets) {
         int bestCentroidOffset = centroidIdx;
-        assert centroidIdx > 0 && centroidIdx < centroids.length;
+        assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
         for (int offset : centroidOffsets) {
             float dsq = VectorUtil.squareDistance(vector, centroids[offset]);

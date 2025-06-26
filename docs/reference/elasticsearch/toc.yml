@@ -107,6 +107,7 @@ toc:
             - file: rest-apis/term-vectors-examples.md
             - file: rest-apis/update-cc-api-key-examples.md
             - file: rest-apis/vector-tile-search.md
+            - file: rest-apis/elastic-cloud-serverless-api.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

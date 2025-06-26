@@ -48,10 +48,17 @@ public interface TranslationAware {
      */
     Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
+    /**
+     * Translates the implementing expression into a Lucene {@link Automaton}.
+     */
     default Automaton asLuceneQuery() {
         throw new UnsupportedOperationException("asLuceneQuery is not implemented for " + getClass().getName());
     };
 
+    /**
+     * Returns a description of the Lucene query that this expression translates to.
+     * This is used for debugging and logging purposes.
+     */
     default String getLuceneQueryDescription() {
         throw new UnsupportedOperationException("getLuceneQueryDescription is not implemented for " + getClass().getName());
     };

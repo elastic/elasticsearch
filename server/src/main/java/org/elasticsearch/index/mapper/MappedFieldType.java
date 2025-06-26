@@ -330,6 +330,10 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /**
+     * Similar to wildcardQuery, except that we change the behavior for
+     * this method for IndexFieldMapper
+     */
     public Query wildcardLikeQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -380,6 +384,10 @@ public abstract class MappedFieldType {
         );
     }
 
+    /**
+     * Returns a Lucine pushable Query for the current field
+     * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
+     */
     public Query automatonQuery(
         Automaton automaton,
         @Nullable MultiTermQuery.RewriteMethod method,

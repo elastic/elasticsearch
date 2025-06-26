@@ -137,6 +137,11 @@ public abstract class ConstantFieldType extends MappedFieldType {
         }
     }
 
+    /**
+     * Returns a query that matches all documents or no documents
+     * It usually calls {@link #wildcardQuery(String, boolean, QueryRewriteContext)}
+     * except for IndexFieldType which overrides this method to use its own matching logic.
+     */
     public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         return wildcardQuery(value, caseInsensitive, context);
     }
@@ -147,8 +152,16 @@ public abstract class ConstantFieldType extends MappedFieldType {
         return true;
     }
 
+    /**
+     * Returns the constant value of this field as a string.
+     * Based on the field type, we need to get it in a different way.
+     */
     public abstract String getConstantFieldValue(SearchExecutionContext context);
 
+    /**
+     * Returns a query that matches all documents or no documents
+     * depending on whether the constant value of this field matches or not
+     */
     @Override
     public Query automatonQuery(
         Automaton automaton,

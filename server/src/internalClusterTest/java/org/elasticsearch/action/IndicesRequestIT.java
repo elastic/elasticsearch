@@ -590,9 +590,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexName = "array-limit-test";
         int arrayLimit = 10;
 
-        assertAcked(
-            prepareCreate(indexName).setSettings(Settings.builder().put("index.mapping.nested_objects.limit", arrayLimit).build())
-        );
+        assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put("index.mapping.nested_objects.limit", arrayLimit).build()));
 
         try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
             doc.startObject();

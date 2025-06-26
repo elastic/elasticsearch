@@ -1573,8 +1573,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             if (uncompressedMapping.isEmpty() == false) {
                 builder.field(MAPPINGS_FIELD.getPreferredName());
                 builder.map(uncompressedMapping);
-            } else {
-                builder.field(MAPPINGS_FIELD.getPreferredName(), Map.of());
             }
         } else {
             builder.field(MAPPINGS_FIELD.getPreferredName(), mappings.compressed());

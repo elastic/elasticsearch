@@ -566,6 +566,9 @@ tests:
 - class: org.elasticsearch.action.support.ThreadedActionListenerTests
   method: testRejectionHandling
   issue: https://github.com/elastic/elasticsearch/issues/130129
+- class: org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionTests
+  method: testManyInitialManyPartialFinalRunnerThrowing
+  issue: https://github.com/elastic/elasticsearch/issues/130145
 
 # Examples:
 #

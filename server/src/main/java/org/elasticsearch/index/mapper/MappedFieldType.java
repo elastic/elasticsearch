@@ -380,9 +380,12 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query automatonQuery(Automaton automaton,
-                                @Nullable MultiTermQuery.RewriteMethod method,
-                                SearchExecutionContext context, String description){
+    public Query automatonQuery(
+        Automaton automaton,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
         throw new QueryShardException(
             context,
             "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"

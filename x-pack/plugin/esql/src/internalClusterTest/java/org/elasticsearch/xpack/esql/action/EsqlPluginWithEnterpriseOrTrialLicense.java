@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -19,6 +20,10 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
  * that require an Enteprise (or Trial) license.
  */
 public class EsqlPluginWithEnterpriseOrTrialLicense extends EsqlPlugin {
+    public EsqlPluginWithEnterpriseOrTrialLicense(Settings settings) {
+        super(settings);
+    }
+
     protected XPackLicenseState getLicenseState() {
         License.OperationMode operationMode = randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.TRIAL);
         return new XPackLicenseState(() -> System.currentTimeMillis(), new XPackLicenseStatus(operationMode, true, "Test license expired"));

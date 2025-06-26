@@ -476,9 +476,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
   issue: https://github.com/elastic/elasticsearch/issues/129149
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/129148
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {lookup-join.EnrichLookupStatsBug ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129228
@@ -570,6 +567,14 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testCohereEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/130010
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/128224
+- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  method: testScaleDuringSplitOrClone
+  issue: https://github.com/elastic/elasticsearch/issues/130044
+- class: org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests
+  method: testMergeEmptyMappingsIntoTemplateWithNonEmptySettings
+  issue: https://github.com/elastic/elasticsearch/issues/130050
 
 # Examples:
 #

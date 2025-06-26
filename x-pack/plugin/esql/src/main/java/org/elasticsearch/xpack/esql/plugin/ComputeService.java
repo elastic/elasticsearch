@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -541,7 +542,12 @@ public class ComputeService {
                 }
             };
             contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    searchContext,
+                    searchExecutionContext,
+                    searchContext.request().getAliasFilter()
+                )
             );
         }
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
@@ -579,6 +585,9 @@ public class ComputeService {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
+            // will hold a reference to the contexts where relevant.
+            contexts.forEach(RefCounted::decRef);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }

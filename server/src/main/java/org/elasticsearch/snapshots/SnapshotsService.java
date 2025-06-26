@@ -808,10 +808,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata, ProjectId projectId) {
         final ProjectMetadata snapshotProject = projectForSnapshot(snapshot, metadata.getProject(projectId));
         final Metadata.Builder builder;
-        if (snapshot.includeGlobalState() == false || serializeProjectMetadata) {
-            // Remove global state from the cluster state when
-            // 1. The request explicitly demands that
-            // 2. The snapshot is for a project in a multi-project cluster. Such a snapshot must not include cluster level info
+        if (snapshot.includeGlobalState() == false) {
+            // Remove global state from the cluster state
             builder = Metadata.builder();
         } else {
             builder = Metadata.builder(metadata);
@@ -1479,6 +1477,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final ProjectId projectId = snapshot.getProjectId();
         final Metadata effectiveMetadata;
         if (serializeProjectMetadata) {
+            // If we are serializing ProjectMetadata (i.e. multi-project enabled), capture only the ProjectMetadata with an empty Metadata
             effectiveMetadata = Metadata.builder().put(metadata.getProject(projectId)).build();
         } else {
             effectiveMetadata = metadata;

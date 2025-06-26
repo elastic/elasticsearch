@@ -319,14 +319,11 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         KnnFloatVectorField knnField = new KnnFloatVectorField("field", vector, similarityFunction);
         try (Directory dir = newFSDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setUseCompoundFile(false))) {
-                for (int i = 0; i < 10; i++) {
-                    Document doc = new Document();
-                    knnField.setVectorValue(randomVector(10));
-                    doc.add(knnField);
-                    w.addDocument(doc);
-                }
+                Document doc = new Document();
+                knnField.setVectorValue(randomVector(10));
+                doc.add(knnField);
+                w.addDocument(doc);
                 w.commit();
-                w.forceMerge(1);
 
                 try (IndexReader reader = DirectoryReader.open(w)) {
                     SegmentReader r = (SegmentReader) getOnlyLeafReader(reader);

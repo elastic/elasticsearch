@@ -268,7 +268,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     }
                 },
                 Objects::toString
-            ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
+            ).acceptsNull();
 
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
@@ -283,17 +283,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     indexSettings
                 );
             };
-        }
-
-        private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SemanticTextIndexOptions value) {
-            if (includeDefaults && value == null) {
-                MinimalServiceSettings resolvedModelSettings = modelSettings.get() != null
-                    ? modelSettings.get()
-                    : modelRegistry.getMinimalServiceSettings(inferenceId.get());
-                return defaultIndexOptions(indexVersionCreated, resolvedModelSettings) != null;
-            }
-
-            return includeDefaults || isConfigured;
         }
 
         public Builder setInferenceId(String id) {

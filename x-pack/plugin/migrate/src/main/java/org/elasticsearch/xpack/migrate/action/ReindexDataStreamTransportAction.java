@@ -72,7 +72,6 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
         final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-        final var projectId = projectMetadata.id();
         DataStream dataStream = projectMetadata.dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
@@ -90,9 +89,9 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             totalIndicesToBeUpgraded,
             ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
-        String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
+        final var projectId = projectMetadata.id();
+        final var persistentTaskId = getPersistentTaskId(sourceDataStreamName);
         final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, persistentTaskId);
-
         if (persistentTask == null) {
             startTask(projectId, listener, persistentTaskId, params);
         } else {

@@ -1239,7 +1239,6 @@ public class SecurityTests extends ESTestCase {
         assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
     }
 
-
     public void testAuthContextForSlowLog_LocalAccess_OriginalRealmUser() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
@@ -1252,11 +1251,7 @@ public class SecurityTests extends ESTestCase {
             Collections.emptyMap(),
             true
         );
-        Authentication.RealmRef userRealm = new Authentication.RealmRef(
-            "default_native",
-            "native",
-            "nodeName"
-        );
+        Authentication.RealmRef userRealm = new Authentication.RealmRef("default_native", "native", "nodeName");
 
         Authentication realmAuth = Authentication.newRealmAuthentication(searchUser, userRealm);
         serializer.writeToContext(realmAuth, threadContext);
@@ -1284,14 +1279,7 @@ public class SecurityTests extends ESTestCase {
         apiKeyMetadata.put(AuthenticationField.API_KEY_ID_KEY, "test_local_api_key_id_123");
         apiKeyMetadata.put(AuthenticationField.API_KEY_NAME_KEY, "MyLocalTestApiKey");
 
-        User apiKeyUser = new User(
-            "local_api_key_principal",
-            new String[0],
-            null,
-            null,
-            Collections.emptyMap(),
-            true
-        );
+        User apiKeyUser = new User("local_api_key_principal", new String[0], null, null, Collections.emptyMap(), true);
 
         AuthenticationResult<User> apiKeyAuthResult = AuthenticationResult.success(apiKeyUser, apiKeyMetadata);
 
@@ -1323,36 +1311,28 @@ public class SecurityTests extends ESTestCase {
         // Define the authenticating user
         User authenticatingUser = new User(
             "authenticating_user",
-            new String[]{"admin"},
+            new String[] { "admin" },
             "Authenticating User",
             "test@example.com",
             Collections.emptyMap(),
             true
         );
 
-        Authentication.RealmRef authenticatingRealm = new Authentication.RealmRef(
-            "local_file_realm",
-            "file",
-            "local_node_authenticators"
-        );
+        Authentication.RealmRef authenticatingRealm = new Authentication.RealmRef("local_file_realm", "file", "local_node_authenticators");
 
         Authentication baseAuth = Authentication.newRealmAuthentication(authenticatingUser, authenticatingRealm);
 
         // Define the effective user (the one being run-as)
         User effectiveUser = new User(
             "run_as_user",
-            new String[]{"run_as"},
+            new String[] { "run_as" },
             "Run As User",
             "test2@example.com",
             Collections.emptyMap(),
             true
         );
 
-        Authentication.RealmRef effectiveRealm = new Authentication.RealmRef(
-            "local_ldap_realm",
-            "ldap",
-            "local_node_ldap"
-        );
+        Authentication.RealmRef effectiveRealm = new Authentication.RealmRef("local_ldap_realm", "ldap", "local_node_ldap");
 
         Authentication runAsAuth = baseAuth.runAs(effectiveUser, effectiveRealm);
         assertTrue(runAsAuth.isRunAs());
@@ -1391,11 +1371,7 @@ public class SecurityTests extends ESTestCase {
             Collections.emptyMap(),
             true
         );
-        Authentication.RealmRef remoteSearchRealm = new Authentication.RealmRef(
-            "default_native",
-            "native",
-            "node_name_querying_cluster"
-        );
+        Authentication.RealmRef remoteSearchRealm = new Authentication.RealmRef("default_native", "native", "node_name_querying_cluster");
         Authentication originalAuthentication = Authentication.newRealmAuthentication(remoteSearchUser, remoteSearchRealm);
 
         CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
@@ -1404,14 +1380,7 @@ public class SecurityTests extends ESTestCase {
         );
 
         // Create outer Authentication object (the cross-cluster API key type)
-        User dummyApiKeyUser = new User(
-            "dummy_api_key_principal",
-            new String[0],
-            null,
-            null,
-            Collections.emptyMap(),
-            true
-        );
+        User dummyApiKeyUser = new User("dummy_api_key_principal", new String[0], null, null, Collections.emptyMap(), true);
 
         Map<String, Object> authResultMetadata = new HashMap<>();
         authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, "test_api_key_unique_id_from_auth_result");
@@ -1453,14 +1422,7 @@ public class SecurityTests extends ESTestCase {
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
 
         // Original user authenticated via an API Key on the querying cluster
-        User originalApiKeyUser = new User(
-            "original_api_key_principal",
-            new String[0],
-            null,
-            null,
-            Collections.emptyMap(),
-            true
-        );
+        User originalApiKeyUser = new User("original_api_key_principal", new String[0], null, null, Collections.emptyMap(), true);
 
         Map<String, Object> originalApiKeyMetadata = new HashMap<>();
         originalApiKeyMetadata.put(AuthenticationField.API_KEY_ID_KEY, "original_api_key_id_xyz");
@@ -1487,10 +1449,7 @@ public class SecurityTests extends ESTestCase {
         );
 
         Authentication baseApiKeyAuthApiKey = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(
-                dummyApiKeyUserForApiKey,
-                Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_apikey")
-            ),
+            AuthenticationResult.success(dummyApiKeyUserForApiKey, Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_apikey")),
             "node_fulfilling_apikey"
         );
 
@@ -1521,25 +1480,24 @@ public class SecurityTests extends ESTestCase {
         // Authenticating user on querying cluster (who performs the run-as)
         User authenticatingRemoteUser = new User(
             "authenticating_remote",
-            new String[]{"power_user"},
+            new String[] { "power_user" },
             "Authenticating Remote User",
             null,
             Collections.emptyMap(),
             true
         );
 
-        Authentication.RealmRef authenticatingRemoteRealm = new Authentication.RealmRef(
-            "remote_auth_realm",
-            "ldap",
-            "node_querying_auth"
-        );
+        Authentication.RealmRef authenticatingRemoteRealm = new Authentication.RealmRef("remote_auth_realm", "ldap", "node_querying_auth");
 
-        Authentication baseAuthenticationRemote = Authentication.newRealmAuthentication(authenticatingRemoteUser, authenticatingRemoteRealm);
+        Authentication baseAuthenticationRemote = Authentication.newRealmAuthentication(
+            authenticatingRemoteUser,
+            authenticatingRemoteRealm
+        );
 
         // Effective user (the one being run-as) on querying cluster
         User effectiveRemoteUser = new User(
             "effective_remote",
-            new String[]{"readonly"},
+            new String[] { "readonly" },
             "Effective Remote User",
             null,
             Collections.emptyMap(),
@@ -1567,21 +1525,12 @@ public class SecurityTests extends ESTestCase {
             new String[0],
             null,
             null,
-            Map.of(
-                AuthenticationField.API_KEY_ID_KEY,
-                "api_id_runas"
-            ),
+            Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_runas"),
             true
         );
 
         Authentication baseApiKeyAuthRunAs = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(
-                dummyApiKeyUserForRunAs,
-                Map.of(
-                    AuthenticationField.API_KEY_ID_KEY,
-                    "api_id_runas"
-                )
-            ),
+            AuthenticationResult.success(dummyApiKeyUserForRunAs, Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_runas")),
             "node_fulfilling_runas"
         );
 
@@ -1605,7 +1554,6 @@ public class SecurityTests extends ESTestCase {
         assertFalse(authContext.containsKey("apikey.id"));
         assertFalse(authContext.containsKey("apikey.name"));
     }
-
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));

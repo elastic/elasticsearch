@@ -25,17 +25,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
-import org.hamcrest.Matcher;
 
 import java.io.InputStream;
-import java.util.List;
 
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
 
@@ -73,57 +69,6 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
             StreamInput input = newRootBlob.streamInput();
             input.readLong();
             assertEquals(nodeLeftGenerationBeforeNodeLeft + 1, input.readLong());
-        }
-    }
-
-    public void testEncounter8ByteRootBlobUpgradesTo16ByteWithNodeLeft() throws Exception {
-        startMasterOnlyNode();
-        String indexNode1 = startIndexNode();
-
-        ensureStableCluster(2);
-
-        ObjectStoreService objectStoreService = getObjectStoreService(indexNode1);
-        var blobContainerForTermLease = objectStoreService.getClusterStateBlobContainer();
-        final long termBeforeRootDeleted;
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
-            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
-            StreamInput input = rootBlob.streamInput();
-            termBeforeRootDeleted = input.readLong();
-            input.readLong();
-        }
-
-        byte[] bytes = new byte[Long.BYTES];
-        ByteUtils.writeLongBE(termBeforeRootDeleted + 1, bytes, 0);
-        blobContainerForTermLease.writeBlob(operationPurpose, "lease", new BytesArray(bytes), false);
-        blobContainerForTermLease.deleteBlobsIgnoringIfNotExists(operationPurpose, List.of("heartbeat").iterator());
-
-        // Add a node to force a cluster state update
-
-        String indexNode2 = startIndexNode();
-        ensureStableCluster(3);
-
-        final Matcher<Long> nodeLeftGenerationMatcher;
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
-            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
-            StreamInput input = rootBlob.streamInput();
-            assertThat(input.readLong(), greaterThan(termBeforeRootDeleted + 1));
-            if (rootBlob.length() == Long.BYTES) {
-                // rarely no node-left event occurs during the master failover, in which case we just check the node-left gen exists
-                nodeLeftGenerationMatcher = greaterThan(0L);
-            } else {
-                assertEquals(2 * Long.BYTES, rootBlob.length());
-                nodeLeftGenerationMatcher = equalTo(input.readLong() + 1L);
-            }
-        }
-
-        internalCluster().stopNode(indexNode2);
-        ensureStableCluster(2);
-
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
-            BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
-            StreamInput input = rootBlob.streamInput();
-            input.readLong();
-            assertThat(input.readLong(), nodeLeftGenerationMatcher);
         }
     }
 

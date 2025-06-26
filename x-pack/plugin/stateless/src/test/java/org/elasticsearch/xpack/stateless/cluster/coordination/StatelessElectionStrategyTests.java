@@ -276,7 +276,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 assertThat(beforeCommitListener.isDone(), is(false));
 
                 if (retry == StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES - 1 && failAllReads == false) {
-                    registerValueRef.set(OptionalBytesReference.of(new StatelessElectionStrategy.Lease(1, 0).asBytes()));
+                    registerValueRef.set(OptionalBytesReference.of(new StatelessLease(1, 0).asBytes()));
                 }
 
                 deterministicTaskQueue.runAllRunnableTasks();
@@ -336,18 +336,12 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     public void testLeaseOrdering() {
         final var term = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-        assertThat(
-            new StatelessElectionStrategy.Lease(term, randomLong()),
-            lessThan(new StatelessElectionStrategy.Lease(term + 1, randomLong()))
-        );
-        assertThat(
-            new StatelessElectionStrategy.Lease(term, randomLong()),
-            greaterThan(new StatelessElectionStrategy.Lease(term - 1, randomLong()))
-        );
+        assertThat(new StatelessLease(term, randomLong()), lessThan(new StatelessLease(term + 1, randomLong())));
+        assertThat(new StatelessLease(term, randomLong()), greaterThan(new StatelessLease(term - 1, randomLong())));
 
         final var gen = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-        assertThat(new StatelessElectionStrategy.Lease(term, gen), lessThan(new StatelessElectionStrategy.Lease(term, gen + 1)));
-        assertThat(new StatelessElectionStrategy.Lease(term, gen), greaterThan(new StatelessElectionStrategy.Lease(term, gen - 1)));
+        assertThat(new StatelessLease(term, gen), lessThan(new StatelessLease(term, gen + 1)));
+        assertThat(new StatelessLease(term, gen), greaterThan(new StatelessLease(term, gen - 1)));
     }
 
     static class Node extends Thread {

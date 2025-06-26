@@ -32,9 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
@@ -107,8 +104,8 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     @Override
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
         readLease(listener.delegateFailure((delegate, currentLeaseOpt) -> {
-            final Lease currentLease = currentLeaseOpt.orElse(Lease.ZERO);
-            final Lease newLease = new Lease(Math.max(proposedTerm, currentLease.currentTerm + 1), 0);
+            final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
+            final StatelessLease newLease = new StatelessLease(Math.max(proposedTerm, currentLease.currentTerm() + 1), 0);
 
             blobContainer().compareAndSetRegister(
                 OperationPurpose.CLUSTER_STATE,
@@ -117,11 +114,11 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 newLease.asBytes(),
                 delegate.delegateFailure((delegate2, termGranted) -> {
                     if (termGranted) {
-                        delegate2.onResponse(new StartJoinRequest(candidateMasterNode, newLease.currentTerm));
+                        delegate2.onResponse(new StartJoinRequest(candidateMasterNode, newLease.currentTerm()));
                     } else {
                         delegate2.onFailure(
                             new CoordinationStateRejectedException(
-                                Strings.format("term [%d] already claimed by a different node", newLease.currentTerm)
+                                Strings.format("term [%d] already claimed by a different node", newLease.currentTerm())
                             )
                         );
                     }
@@ -133,18 +130,18 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     public void onNodeLeft(long expectedTerm, long nodeLeftGeneration) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         readLease(future.delegateFailureAndWrap((delegate, currentLeaseOpt) -> {
-            final Lease currentLease = currentLeaseOpt.orElse(Lease.ZERO);
-            if (currentLease.currentTerm != expectedTerm) {
+            final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
+            if (currentLease.currentTerm() != expectedTerm) {
                 delegate.onFailure(
                     new CoordinationStateRejectedException(
-                        "expected term [" + expectedTerm + "] but saw [" + currentLease.currentTerm + "]"
+                        "expected term [" + expectedTerm + "] but saw [" + currentLease.currentTerm() + "]"
                     )
                 );
                 return;
             }
-            final Lease newLease = new Lease(currentLease.currentTerm, nodeLeftGeneration);
-            if (nodeLeftGeneration <= currentLease.nodeLeftGeneration) {
-                assert nodeLeftGeneration == currentLease.nodeLeftGeneration
+            final StatelessLease newLease = new StatelessLease(currentLease.currentTerm(), nodeLeftGeneration);
+            if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()) {
+                assert nodeLeftGeneration == currentLease.nodeLeftGeneration()
                     : "tried to set [" + newLease + "] after [" + currentLease + "]";
                 delegate.onResponse(null);
                 return;
@@ -188,7 +185,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 return;
             }
 
-            final long foundTerm = currentTerm.get().currentTerm;
+            final long foundTerm = currentTerm.get().currentTerm();
             if (foundTerm == term) {
                 delegate.onResponse(null);
             } else {
@@ -217,36 +214,14 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void getCurrentLeaseTerm(ActionListener<OptionalLong> listener) {
-        readLease(listener.map(terms -> terms.map(value -> OptionalLong.of(value.currentTerm)).orElseGet(OptionalLong::empty)));
+        readLease(listener.map(terms -> terms.map(value -> OptionalLong.of(value.currentTerm())).orElseGet(OptionalLong::empty)));
     }
 
-    public void readLease(ActionListener<Optional<Lease>> listener) {
+    public void readLease(ActionListener<Optional<StatelessLease>> listener) {
         getExecutor().execute(
             ActionRunnable.wrap(
                 listener,
-                l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(optionalBytesReference -> {
-                    if (optionalBytesReference.isPresent()) {
-                        Lease result;
-                        BytesReference bytesReference = optionalBytesReference.bytesReference();
-                        if (bytesReference.length() == 0) {
-                            result = Lease.ZERO;
-                        } else if (bytesReference.length() == Long.BYTES) {
-                            result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
-                        } else if (bytesReference.length() == 2 * Long.BYTES) {
-                            result = new Lease(
-                                Long.reverseBytes(bytesReference.getLongLE(0)),
-                                Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
-                            );
-                        } else {
-                            throw new IllegalArgumentException(
-                                "cannot read terms from BytesReference of length " + bytesReference.length()
-                            );
-                        }
-                        return Optional.of(result);
-                    } else {
-                        return Optional.empty();
-                    }
-                }))
+                l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(StatelessLease::fromBytes))
             )
         );
     }
@@ -257,40 +232,6 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     private BlobContainer blobContainer() {
         return Objects.requireNonNull(blobContainerSupplier.get());
-    }
-
-    public record Lease(long currentTerm, long nodeLeftGeneration) implements Comparable<Lease> {
-        private static final long UNSUPPORTED = -1L;
-
-        private static final Lease ZERO = new Lease(0, 0);
-
-        BytesReference asBytes() {
-            if (currentTerm == 0) {
-                return BytesArray.EMPTY;
-            }
-            final byte[] bytes;
-            // If node left generation is unsupported, this lease was written by a cluster with a node whose version is prior to the time
-            // when node left generation was introduced. Do not introduce the value until the entire cluster is upgraded and a node-left
-            // event occurs.
-            if (nodeLeftGeneration == UNSUPPORTED) {
-                bytes = new byte[Long.BYTES];
-                ByteUtils.writeLongBE(currentTerm, bytes, 0);
-            } else {
-                bytes = new byte[Long.BYTES * 2];
-                ByteUtils.writeLongBE(currentTerm, bytes, 0);
-                ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Long.BYTES);
-            }
-            return new BytesArray(bytes);
-        }
-
-        @Override
-        public int compareTo(Lease that) {
-            int result = Long.compare(this.currentTerm, that.currentTerm);
-            if (result == 0) {
-                result = Long.compare(this.nodeLeftGeneration, that.nodeLeftGeneration);
-            }
-            return result;
-        }
     }
 
     @Override

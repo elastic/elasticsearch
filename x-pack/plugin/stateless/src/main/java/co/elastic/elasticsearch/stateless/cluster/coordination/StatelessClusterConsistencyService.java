@@ -126,7 +126,7 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
      */
     public void ensureClusterStateConsistentWithRootBlob(ActionListener<Void> listener, final TimeValue timeout) {
         final var startingClusterState = clusterService.state();
-        final var startingStateLease = new StatelessElectionStrategy.Lease(
+        final var startingStateLease = new StatelessLease(
             startingClusterState.term(),
             startingClusterState.nodes().getNodeLeftGeneration()
         );
@@ -177,10 +177,7 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
                         threadPool.generic().execute(() -> ActionListener.onFailure(listenersToCall, e));
                     }
                 }, clusterState -> {
-                    final var newStateLease = new StatelessElectionStrategy.Lease(
-                        clusterState.term(),
-                        clusterState.nodes().getNodeLeftGeneration()
-                    );
+                    final var newStateLease = new StatelessLease(clusterState.term(), clusterState.nodes().getNodeLeftGeneration());
                     assert startingStateLease.compareTo(newStateLease) <= 0 : startingStateLease + " vs " + newStateLease;
                     return lease.compareTo(newStateLease) <= 0;
                 });
@@ -189,9 +186,9 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
         readLease.run();
     }
 
-    private class ReadLease extends RetryableAction<StatelessElectionStrategy.Lease> {
+    private class ReadLease extends RetryableAction<StatelessLease> {
 
-        private ReadLease(TimeValue timeoutValue, ActionListener<StatelessElectionStrategy.Lease> listener) {
+        private ReadLease(TimeValue timeoutValue, ActionListener<StatelessLease> listener) {
             super(
                 logger,
                 clusterService.threadPool(),
@@ -203,7 +200,7 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
         }
 
         @Override
-        public void tryAction(ActionListener<StatelessElectionStrategy.Lease> listener) {
+        public void tryAction(ActionListener<StatelessLease> listener) {
             electionStrategy.readLease(listener.delegateFailureAndWrap((delegate, optionalLease) -> {
                 if (optionalLease.isEmpty()) {
                     listener.onFailure(new ConcurrentReadLeaseException());

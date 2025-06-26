@@ -16,10 +16,10 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryProfilerProvider {
-    private final Integer kParam;
+    private final int kParam;
     private long vectorOpsCount;
 
-    public ESKnnByteVectorQuery(String field, byte[] target, Integer k, int numCands, Query filter, KnnSearchStrategy strategy) {
+    public ESKnnByteVectorQuery(String field, byte[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
     }
@@ -27,7 +27,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         // if k param is set, we get only top k results from each shard
-        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
+        TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }

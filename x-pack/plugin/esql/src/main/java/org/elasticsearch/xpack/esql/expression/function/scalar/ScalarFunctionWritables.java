@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Hypot;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
@@ -71,6 +72,7 @@ public class ScalarFunctionWritables {
         entries.add(EndsWith.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Greatest.ENTRY);
+        entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);

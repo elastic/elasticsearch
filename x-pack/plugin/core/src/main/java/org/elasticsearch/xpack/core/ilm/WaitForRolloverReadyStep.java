@@ -14,11 +14,11 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -80,8 +80,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index.getName());
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
         final boolean targetFailureStore;
@@ -95,14 +95,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                     index.getName(),
                     targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
-                    metadata.getProject().index(index).getLifecyclePolicyName()
+                    state.metadata().index(index).getLifecyclePolicyName()
                 );
                 listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
             rolloverTarget = dataStream.getName();
         } else {
-            IndexMetadata indexMetadata = metadata.getProject().index(index);
+            IndexMetadata indexMetadata = state.metadata().index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
@@ -200,7 +200,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
-        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
+            state.cluster().metadata().settings()
+        );
         RolloverRequest rolloverRequest = createRolloverRequest(
             rolloverTarget,
             masterTimeout,
@@ -208,7 +210,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             targetFailureStore
         );
 
-        getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
+        getClient(state.projectId()).admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
             final var conditionStatus = response.getConditionStatus();
             final var conditionsMet = rolloverRequest.getConditions().areConditionsMet(conditionStatus);
             if (conditionsMet) {

@@ -404,3 +404,6 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

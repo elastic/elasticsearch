@@ -43,7 +43,7 @@ public class Score extends Function implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        description = "Scores a full text function. Returns scores for all the resulting docs.",
+        description = "Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.",
         examples = { @Example(file = "score-function", tag = "score-single") }
     )
     public Score(

@@ -373,7 +373,11 @@ public class S3HttpHandler implements HttpHandler {
                                     if (blobs.remove("/" + bucket + "/" + blobName) == null) {
                                         errorBuilder.append("<Error><Code>NoSuchKey</Code><Key>")
                                             .append(blobName)
-                                            .append("</Key><Message>")
+                                            .append("</Key><Message>Blob with path [/")
+                                            .append(bucket)
+                                            .append('/')
+                                            .append(blobName)
+                                            .append("] not found in ")
                                             .append(blobs.keySet())
                                             .append("</Message><VersionId>")
                                             .append(UUIDs.randomBase64UUID())

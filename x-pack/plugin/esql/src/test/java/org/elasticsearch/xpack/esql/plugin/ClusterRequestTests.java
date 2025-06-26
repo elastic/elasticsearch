@@ -57,7 +57,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-        writeables.addAll(new EsqlPlugin().getNamedWriteables());
+        writeables.addAll(new EsqlPlugin(Settings.EMPTY).getNamedWriteables());
         return new NamedWriteableRegistry(writeables);
     }
 

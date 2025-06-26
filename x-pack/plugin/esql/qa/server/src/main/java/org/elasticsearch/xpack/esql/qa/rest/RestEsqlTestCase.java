@@ -1650,7 +1650,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=6000s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {

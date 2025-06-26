@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ public class LuceneCountOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
 
     public static class Factory extends LuceneOperator.Factory {
+        private final List<? extends RefCounted> shardRefCounters;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -58,11 +60,12 @@ public class LuceneCountOperator extends LuceneOperator {
                 false,
                 ScoreMode.COMPLETE_NO_SCORES
             );
+            this.shardRefCounters = contexts;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(driverContext.blockFactory(), sliceQueue, limit);
+            return new LuceneCountOperator(shardRefCounters, driverContext.blockFactory(), sliceQueue, limit);
         }
 
         @Override
@@ -71,8 +74,13 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    public LuceneCountOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int limit) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
+    public LuceneCountOperator(
+        List<? extends RefCounted> shardRefCounters,
+        BlockFactory blockFactory,
+        LuceneSliceQueue sliceQueue,
+        int limit
+    ) {
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override

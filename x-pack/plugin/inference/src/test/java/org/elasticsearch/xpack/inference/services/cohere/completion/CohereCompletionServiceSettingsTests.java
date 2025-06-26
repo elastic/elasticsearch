@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.completion;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
@@ -25,7 +27,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class CohereCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<CohereCompletionServiceSettings> {
+public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCompletionServiceSettings> {
 
     public static CohereCompletionServiceSettings createRandom() {
         return new CohereCompletionServiceSettings(
@@ -109,5 +111,20 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
     @Override
     protected CohereCompletionServiceSettings mutateInstance(CohereCompletionServiceSettings instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected CohereCompletionServiceSettings mutateInstanceForVersion(CohereCompletionServiceSettings instance, TransportVersion version) {
+        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
+            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+            return new CohereCompletionServiceSettings(
+                instance.uri(),
+                instance.modelId(),
+                instance.rateLimitSettings(),
+                CohereServiceSettings.CohereApiVersion.V1
+            );
+        }
+
+        return instance;
     }
 }

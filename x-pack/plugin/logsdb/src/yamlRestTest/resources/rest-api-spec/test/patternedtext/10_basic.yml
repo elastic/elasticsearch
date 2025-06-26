@@ -1,0 +1,333 @@
+setup:
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: patterned_text
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  {}
+
+  - do:
+      index:
+        index: test
+        id:    "2"
+        body:  { "foo": "Found 5 errors for service [cheddar1]" }
+
+  - do:
+      index:
+        index: test
+        id:    "3"
+        body:  { "foo": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
+
+  - do:
+      index:
+        index: test
+        id:    "4"
+        body:  { "foo": "Found some errors for cheddar data service" }
+
+  - do:
+      indices.refresh: {}
+
+---
+Field caps:
+
+  - do:
+      field_caps:
+        index: test
+        fields: [ foo ]
+
+  - match: { fields.foo.text.searchable: true }
+  - match: { fields.foo.text.aggregatable: false }
+
+---
+Exist query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: foo
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Match query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: 5
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Match Phrase query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "5 errors"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Match Phrase Prefix query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              foo: "5 err"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+
+---
+Query String query with phrase:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: '"5 errors"'
+              default_field: "foo"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+
+---
+Regexp query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              foo: "ser.*ce"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Wildcard query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              foo: "ser*ce"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Prefix query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              foo: "ser"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Fuzzy query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            fuzzy:
+              foo: "errars"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+Span query:
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            span_term:
+              foo: errors
+
+---
+Term intervals query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                match:
+                  query: "for service"
+                  max_gaps: 1
+
+  - match: { "hits.total.value": 2 }
+
+---
+Prefix intervals query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                prefix:
+                  prefix: "ser"
+
+  - match: { "hits.total.value": 3 }
+
+---
+Wildcard intervals query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                wildcard:
+                  pattern: "*edda*"
+
+  - match: { "hits.total.value": 3 }
+
+---
+Fuzzy intervals query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                fuzzy:
+                  term: "servace"
+
+  - match: { "hits.total.value": 3 }
+
+---
+Wildcard highlighting:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: "5"
+          highlight:
+            fields:
+              "*": {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo: "Found 5 errors for service [cheddar1]" }
+  - match: { hits.hits.0.highlight.foo.0: "Found <em>5</em> errors for service [cheddar1]" }
+
+---
+tsdb:
+
+  - do:
+      indices.create:
+        index: tsdb_test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ dimension ]
+              time_series:
+                start_time: 2000-01-01T00:00:00Z
+                end_time: 2099-12-31T23:59:59Z
+          mappings:
+            properties:
+              dimension:
+                type: keyword
+                time_series_dimension: true
+              foo:
+                type: patterned_text
+
+  - do:
+      index:
+        index: tsdb_test
+        refresh: true
+        body:
+          "@timestamp": "2000-01-01T00:00:00Z"
+          dimension: "a"
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: tsdb_test
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source:
+        "@timestamp" : "2000-01-01T00:00:00.000Z"
+        "dimension" : "a"
+        foo: "Apache Lucene powers Elasticsearch"
+
+---
+Multiple values:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              foo:
+                type: patterned_text
+  - do:
+      catch: bad_request
+      index:
+        index: test1
+        id: "1"
+        body: {
+          "foo": [
+            "Found 5 errors for service [cheddar1]",
+            "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]"
+          ]
+        }
+
+

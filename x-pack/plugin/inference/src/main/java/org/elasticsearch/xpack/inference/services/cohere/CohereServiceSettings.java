@@ -183,7 +183,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -286,7 +286,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             rateLimitSettings.writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
             out.writeEnum(apiVersion);
         }
     }

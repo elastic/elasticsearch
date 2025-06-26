@@ -27,6 +27,7 @@ dependencies {
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:ent-search', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:inference', configuration: 'restXpackTests')
   platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
   platinumCompatTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restCompatTests')
 }

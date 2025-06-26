@@ -1,0 +1,5 @@
+pr: 122497
+summary: Check if index patterns conform to valid format before validation
+area: CCS
+type: enhancement
+issues: []

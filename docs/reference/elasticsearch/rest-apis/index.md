@@ -49,7 +49,6 @@ The behavioral analytics APIs enable you to create and manage analytics collecti
 
 The compact and aligned text (CAT) APIs return human-readable text as a response, instead of a JSON object. The CAT APIs aim are intended only for human consumption using the Kibana console or command line. They are not intended for use by applications. For application consumption, it's recommend to use a corresponding JSON API.
 
-
 | API | Description |
 | --- | ----------- |
 | [Cat aliases](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-aliases) | Get the cluster's index aliases, including filter and routing information in a compact, human-readable format. |
@@ -65,23 +64,20 @@ The cluster APIs enable you to retrieve information about your infrastructure on
 
 | API | Description |
 | --- | ----------- |
-| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.health) | Returns health status of the cluster. |
-| [Cluster Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.stats) | Summarizes cluster-wide statistics. |
-| [Cluster Reroute](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.reroute) | Manually reassigns shard allocations. |
-| [Cluster State](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.state) | Retrieves the current cluster state. |
-| [Update Settings](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.put_settings) | Updates persistent or transient cluster settings. |
+| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-health) | Returns health status of the cluster. |
+| [Cluster Info](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-info) | Returns basic information about the cluster. |
+| [Cluster Reroute](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-reroute) | Manually reassigns shard allocations. |
+| [Cluster State](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-state) | Retrieves the current cluster state. |
+| [Explain shard allocation](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain) | Get explanations for shard allocations in the cluster. |
+| [Update Settings](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-put-settings) | Updates persistent or transient cluster settings. |
 
 ### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-health_report)
 
 The cluster - health API provides you a report with the health status of an Elasticsearch cluster.
 
-
 | API | Description |
 | --- | ----------- |
-| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.health) | Returns health status of the cluster, including index-level details. |
-| [Cluster Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.stats) | Provides statistics about the entire cluster. |
-| [Cluster State](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.state) | Returns the current state of the cluster, including metadata and routing. |
-| [Pending Tasks](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cluster.pending_tasks) | Lists cluster-level tasks that are queued for execution. |
+| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-health-report) | Returns health status of the cluster, including index-level details. |
 
 ### [Connector](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-connector)
 

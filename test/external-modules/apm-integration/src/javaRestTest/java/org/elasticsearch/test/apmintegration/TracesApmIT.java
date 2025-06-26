@@ -94,8 +94,6 @@ public class TracesApmIT extends ESRestTestCase {
         var completed = finished.await(30, TimeUnit.SECONDS);
         assertTrue("Timeout when waiting for assertions to complete", completed);
         assertThat(assertions, equalTo(Collections.emptySet()));
-
-        mockApmServer.stop();
     }
 
     private boolean isTransactionTraceMessage(Map<String, Object> apmMessage) {

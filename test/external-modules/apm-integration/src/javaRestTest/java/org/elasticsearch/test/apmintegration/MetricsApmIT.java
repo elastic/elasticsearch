@@ -129,7 +129,6 @@ public class MetricsApmIT extends ESRestTestCase {
         var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
             .collect(Collectors.joining(","));
         assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
-        mockApmServer.stop();
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

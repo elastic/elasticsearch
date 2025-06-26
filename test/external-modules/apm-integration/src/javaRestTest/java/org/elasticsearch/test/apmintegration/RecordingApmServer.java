@@ -15,7 +15,6 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -33,8 +32,6 @@ import java.util.function.Consumer;
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
-
-    private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
 
     final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
 
@@ -73,12 +70,9 @@ public class RecordingApmServer extends ExternalResource {
 
     @Override
     protected void after() {
+        running = false;
         server.stop(1);
         consumer = null;
-    }
-
-    void stop() {
-        running = false;
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -92,15 +86,22 @@ public class RecordingApmServer extends ExternalResource {
                         }
                     }
 
-                } catch (RuntimeException e) {
-                    logger.warn("failed to parse request", e);
+                } catch (Throwable t) {
+                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
+                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
+                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
+                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
+                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
+                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
+                    // if we have an error outside the test scope (before or after) that is OK.
+                    logger.warn("failed to parse request", t);
                 }
             }
             exchange.sendResponseHeaders(201, 0);
         }
     }
 
-    private List<String> readJsonMessages(InputStream input) throws IOException {
+    private List<String> readJsonMessages(InputStream input) {
         // parse NDJSON
         return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
     }

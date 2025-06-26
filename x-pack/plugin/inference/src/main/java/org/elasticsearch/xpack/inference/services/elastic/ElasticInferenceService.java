@@ -210,7 +210,6 @@ public class ElasticInferenceService extends SenderService {
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             ),
-
             DEFAULT_RERANK_MODEL_ID_V1,
             new DefaultModelConfig(
                 new ElasticInferenceServiceRerankModel(

@@ -1315,6 +1315,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
             service.defaultConfigs(listener);
             var models = listener.actionGet(TIMEOUT);
+
             assertThat(models.size(), is(4));
             assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
             assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-v1-elastic"));

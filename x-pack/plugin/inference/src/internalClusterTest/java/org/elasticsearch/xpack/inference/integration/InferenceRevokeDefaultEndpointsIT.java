@@ -283,6 +283,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         {
                           "model_name": "rerank-v1",
                           "task_types": ["rerank/text/text-similarity"]
+
                         },
                         {
                           "model_name": "multilingual-embed-v1",
@@ -299,28 +300,29 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertThat(
-                    service.defaultConfigIds(),
-                    containsInAnyOrder(
-                        new InferenceService.DefaultConfigId(
-                            ".elser-v2-elastic",
-                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
-                            service
+                    service.supportedTaskTypes(),
+                    is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
+                );
+                containsInAnyOrder(
+                    new InferenceService.DefaultConfigId(
+                        ".elser-v2-elastic",
+                        MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                        service
+                    ),
+                    new InferenceService.DefaultConfigId(
+                        ".multilingual-embed-v1-elastic",
+                        MinimalServiceSettings.textEmbedding(
+                            ElasticInferenceService.NAME,
+                            ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                            ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
+                            DenseVectorFieldMapper.ElementType.FLOAT
                         ),
-                        new InferenceService.DefaultConfigId(
-                            ".multilingual-embed-v1-elastic",
-                            MinimalServiceSettings.textEmbedding(
-                                ElasticInferenceService.NAME,
-                                ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
-                                ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
-                                DenseVectorFieldMapper.ElementType.FLOAT
-                            ),
-                            service
-                        ),
-                        new InferenceService.DefaultConfigId(
-                            ".rerank-v1-elastic",
-                            MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
-                            service
-                        )
+                        service
+                    ),
+                    new InferenceService.DefaultConfigId(
+                        ".rerank-v1-elastic",
+                        MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
+                        service
                     )
                 );
                 assertThat(

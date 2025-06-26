@@ -69,6 +69,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
@@ -677,9 +678,6 @@ public class PersistedClusterStateService {
         );
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     public OnDiskStateMetadata loadOnDiskStateMetadataFromUserData(Map<String, String> userData) {
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
@@ -693,7 +691,7 @@ public class PersistedClusterStateService {
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
             userData.get(NODE_ID_KEY),
             userData.get(CLUSTER_UUID_KEY),
-            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
+            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Booleans.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
         );
     }
 

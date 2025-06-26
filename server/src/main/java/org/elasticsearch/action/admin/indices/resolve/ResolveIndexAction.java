@@ -608,9 +608,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        @SuppressForbidden(
-            reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-        )
         private static void enrichIndexAbstraction(
             ProjectState projectState,
             ResolvedExpression resolvedExpression,
@@ -633,7 +630,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (ia.isSystem()) {
                             attributes.add(Attribute.SYSTEM);
                         }
-                        final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
+                        final boolean isFrozen = isFrozen(writeIndex);
                         if (isFrozen) {
                             attributes.add(Attribute.FROZEN);
                         }
@@ -667,6 +664,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
+        }
+
+        @SuppressForbidden(
+            reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+        )
+        private static boolean isFrozen(IndexMetadata writeIndex) {
+            return Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
         }
 
         private static Stream<Index> getAliasIndexStream(

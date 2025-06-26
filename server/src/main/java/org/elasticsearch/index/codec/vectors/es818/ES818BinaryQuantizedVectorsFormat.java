@@ -86,11 +86,8 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   *  <li>The sparse vector information, if required, mapping vector ordinal to doc ID
   * </ul>
  */
-@SuppressForbidden(
-    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-)
 public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
-    static final boolean USE_DIRECT_IO = Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
+    static final boolean USE_DIRECT_IO = getUseDirectIO();
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES818BinaryQuantizedVectorsFormat";
@@ -102,6 +99,13 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     static final String META_EXTENSION = "vemb";
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean getUseDirectIO() {
+        return Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
+    }
 
     private static final FlatVectorsFormat rawVectorFormat = USE_DIRECT_IO
         ? new DirectIOLucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())

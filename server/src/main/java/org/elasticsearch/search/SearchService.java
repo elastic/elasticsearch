@@ -590,9 +590,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param threadPool     with context where to write the new header
      * @return the wrapped action listener
      */
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     static <T> ActionListener<T> wrapListenerForErrorHandling(
         ActionListener<T> listener,
         TransportVersion version,
@@ -603,7 +600,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         final boolean header;
         if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
-            header = Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
+            header = getErrorTraceHeader(threadPool);
         } else {
             header = true;
         }
@@ -630,6 +627,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             l.onFailure(e);
         });
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    static boolean getErrorTraceHeader(ThreadPool threadPool) {
+        return Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {

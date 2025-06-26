@@ -33,9 +33,6 @@ import java.util.stream.Collectors;
  * Utilities for network interfaces / addresses binding and publishing.
  * Its only intended for that purpose, not general purpose usage!!!!
  */
-@SuppressForbidden(
-    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-)
 public abstract class NetworkUtils {
 
     /** no instantiation */
@@ -48,7 +45,14 @@ public abstract class NetworkUtils {
      * @deprecated transition mechanism only
      */
     @Deprecated
-    static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    static final boolean PREFER_V6 = preferIPv6Addresses();
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    static boolean preferIPv6Addresses() {
+        return Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    }
 
     /**
      * True if we can bind to a v6 address. Its silly, but for *binding* we have a need to know

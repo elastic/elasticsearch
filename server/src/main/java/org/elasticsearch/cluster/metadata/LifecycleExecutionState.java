@@ -92,9 +92,6 @@ public record LifecycleExecutionState(
             .setStepTime(state.stepTime);
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
         Builder builder = builder();
         String phase = customData.get(PHASE);
@@ -115,7 +112,7 @@ public record LifecycleExecutionState(
         }
         String isAutoRetryableError = customData.get(IS_AUTO_RETRYABLE_ERROR);
         if (isAutoRetryableError != null) {
-            builder.setIsAutoRetryableError(Boolean.parseBoolean(isAutoRetryableError));
+            builder.setIsAutoRetryableError(parseIsAutoRetryableError(isAutoRetryableError));
         }
         String failedStepRetryCount = customData.get(FAILED_STEP_RETRY_COUNT);
         if (failedStepRetryCount != null) {
@@ -206,6 +203,13 @@ public record LifecycleExecutionState(
             builder.setDownsampleIndexName(downsampleIndexName);
         }
         return builder.build();
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
+        return Boolean.parseBoolean(isAutoRetryableError);
     }
 
     /**

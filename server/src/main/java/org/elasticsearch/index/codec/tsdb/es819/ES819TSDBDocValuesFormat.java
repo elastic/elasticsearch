@@ -29,9 +29,6 @@ import java.io.IOException;
  *     cpu resources.</li>
  * </ul>
  */
-@SuppressForbidden(
-    reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-)
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
@@ -97,7 +94,14 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final String OPTIMIZED_MERGE_ENABLED_NAME = ES819TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
 
     static {
-        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = getOptimizedMergeEnabledDefault();
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    static boolean getOptimizedMergeEnabledDefault() {
+        return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 
     final int skipIndexIntervalSize;

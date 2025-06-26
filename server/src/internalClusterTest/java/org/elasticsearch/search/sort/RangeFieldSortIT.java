@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldSortIT extends ESSingleNodeTestCase {
 
@@ -25,11 +26,11 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
 
     public void testSortingOnIntegerRangeFieldThrows400() throws Exception {
         String indexName = "int_range_index";
-        ;
         createIndex(indexName, FIELD_NAME, RangeType.INTEGER.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 
@@ -38,7 +39,8 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
         createIndex(indexName, FIELD_NAME, RangeType.LONG.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 
@@ -47,7 +49,8 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
         createIndex(indexName, FIELD_NAME, RangeType.FLOAT.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 
@@ -56,7 +59,8 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
         createIndex(indexName, FIELD_NAME, RangeType.DOUBLE.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 
@@ -65,7 +69,8 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
         createIndex(indexName, FIELD_NAME, RangeType.IP.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 
@@ -74,7 +79,8 @@ public class RangeFieldSortIT extends ESSingleNodeTestCase {
         createIndex(indexName, FIELD_NAME, RangeType.DATE.typeName());
         assertFailures(
             client().prepareSearch(indexName).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(FIELD_NAME).order(SortOrder.ASC)),
-            RestStatus.BAD_REQUEST
+            RestStatus.BAD_REQUEST,
+            containsString("Sorting by range field [" + FIELD_NAME + "] is not supported")
         );
     }
 

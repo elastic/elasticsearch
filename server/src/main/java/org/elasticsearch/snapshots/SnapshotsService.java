@@ -988,19 +988,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private static boolean assertNoDanglingSnapshots(ClusterState state) {
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
-        final Set<String> reposWithRunningDelete = snapshotDeletionsInProgress.getEntries()
+        final Set<ProjectRepo> reposWithRunningDelete = snapshotDeletionsInProgress.getEntries()
             .stream()
             .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
-            .map(SnapshotDeletionsInProgress.Entry::repository)
+            .map(entry -> new ProjectRepo(entry.projectId(), entry.repository()))
             .collect(Collectors.toSet());
         for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo()) {
             final SnapshotsInProgress.Entry entry = repoEntry.get(0);
             for (ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
                 if (value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
-                    assert reposWithRunningDelete.contains(entry.repository())
+                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
                         : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
                 } else if (value.isActive()) {
-                    assert reposWithRunningDelete.contains(entry.repository()) == false
+                    assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
                         : "Found shard snapshot actively executing in ["
                             + entry
                             + "] when it should be blocked by a running delete ["

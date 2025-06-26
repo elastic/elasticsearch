@@ -411,28 +411,20 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         writeLoadForecaster.refreshLicense();
 
         final String dataStreamName = randomIdentifier();
-        final ProjectMetadata.Builder originalMetadata = createMetadataBuilderWithDataStream(
+        final ProjectMetadata.Builder originalMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStreamName,
-            randomIntBetween(5, 15),
-            shardCountChange.originalShardCount(),
-            maxIndexAge
-        );
-        final ProjectMetadata.Builder originalForecastMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
-            dataStreamName,
-            originalMetadata
+            createMetadataBuilderWithDataStream(dataStreamName, randomIntBetween(5, 15), shardCountChange.originalShardCount(), maxIndexAge)
         );
 
         // Generate the same data stream, but with a different number of shards in the write index
-        final ProjectMetadata.Builder moreShardsMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
+        final ProjectMetadata.Builder changedShardCountMetadata = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStreamName,
             updateWriteIndexShardCount(dataStreamName, originalMetadata, shardCountChange)
         );
 
-        IndexMetadata originalWriteIndexMetadata = originalForecastMetadata.getSafe(
-            originalForecastMetadata.dataStream(dataStreamName).getWriteIndex()
-        );
-        IndexMetadata moreShardsWriteIndexMetadata = moreShardsMetadata.getSafe(
-            moreShardsMetadata.dataStream(dataStreamName).getWriteIndex()
+        IndexMetadata originalWriteIndexMetadata = originalMetadata.getSafe(originalMetadata.dataStream(dataStreamName).getWriteIndex());
+        IndexMetadata moreShardsWriteIndexMetadata = changedShardCountMetadata.getSafe(
+            changedShardCountMetadata.dataStream(dataStreamName).getWriteIndex()
         );
 
         // The shard count changed

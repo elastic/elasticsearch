@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
@@ -98,15 +99,15 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     private void checkRemoteJoin(Failures failures) {
         boolean[] agg = { false };
         boolean[] enrichCoord = { false };
-        boolean[] sort = { false };
+        boolean[] limit = { false };
 
         this.forEachUp(UnaryPlan.class, u -> {
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 enrichCoord[0] = true;
-            } else if (u instanceof OrderBy) {
-                sort[0] = true;
+            } else if (u instanceof Limit) {
+                limit[0] = true;
             }
         });
         if (agg[0]) {
@@ -115,8 +116,8 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         if (enrichCoord[0]) {
             failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after ENRICH with coordinator policy"));
         }
-        if (sort[0]) {
-            failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after SORT"));
+        if (limit[0]) {
+            failures.add(fail(this, "LOOKUP JOIN with remote indices can't be executed after LIMIT"));
         }
     }
 

@@ -119,11 +119,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "StatsAndLookupMessageFromIndex",
         "MvJoinKeyOnTheLookupIndexAfterStats",
         "MvJoinKeyOnFromAfterStats",
-        // Lookup join after SORT is not supported in CCS yet
-        "SortBeforeAndAfterJoin",
-        "SortEvalBeforeLookup",
-        "NullifiedJoinKeyToPurgeTheJoin",
-        "SortBeforeAndAfterMultipleJoinAndMvExpand"
+        // Lookup join after SORT+LIMIT is not supported in CCS yet
+        "NullifiedJoinKeyToPurgeTheJoin"
+    // "SortBeforeAndAfterJoin",
+    // "SortEvalBeforeLookup",
+    // "SortBeforeAndAfterMultipleJoinAndMvExpand"
     );
 
     @Override
@@ -148,7 +148,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V7.capabilityName()));
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue("LOKUP JOIN not supported", supportsIndexModeLookup());
-            assumeTrue("LOOKUP JOIN not yet supported in CCS", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0")));
+            assumeTrue("LOOKUP JOIN not yet supported in CCS", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.2.0")));
         }
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));

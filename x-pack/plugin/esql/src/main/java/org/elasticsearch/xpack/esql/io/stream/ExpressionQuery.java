@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.Objects;
 
 /**
- * Query that matches documents based on a Lucene Automaton.
+ * Implements an Expression query, which matches documents based on a given expression.
  */
 public class ExpressionQuery extends Query {
 
@@ -60,6 +60,6 @@ public class ExpressionQuery extends Query {
 
     @Override
     protected String innerToString() {
-        return "AutomatonQuery{" + "field='" + targetFieldName + '\'' + '}';
+        return "ExpressionQuery{" + "field='" + targetFieldName + '\'' + '}';
     }
 }

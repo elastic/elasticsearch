@@ -8,14 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -71,11 +66,8 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
             in.readNamedWriteable(Expression.class),
             new WildcardPatternList(in),
             deserializeCaseInsensitivity(in),
-            null
+            Configuration.readFrom(in)
         );
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        BlockStreamInput blockStreamInput = new BlockStreamInput(in, blockFactory);
-        this.configuration = new Configuration(blockStreamInput);
     }
 
     @Override

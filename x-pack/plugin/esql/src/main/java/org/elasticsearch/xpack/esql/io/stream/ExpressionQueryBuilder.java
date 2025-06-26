@@ -7,21 +7,14 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
@@ -39,8 +32,10 @@ import java.util.Objects;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 /**
- * Implements an Automaton query, which matches documents based on a Lucene Automaton.
- * It does not support serialization or XContent representation.
+ * Implements an Expression query builder, which matches documents based on a given expression.
+ * The expression itself must provide the asLuceneQuery and getLuceneQueryDescription methods
+ * It allows for serialization of the expression and generate an AutomatonQuery on the data node
+ * as Automaton does not support serialization.
  */
 public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQueryBuilder> implements MultiTermQueryBuilder {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -70,10 +65,8 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     public ExpressionQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        BlockStreamInput blockStreamInput = new BlockStreamInput(in, blockFactory);
-        this.config = new Configuration(blockStreamInput);
-        PlanStreamInput planStreamInput = new PlanStreamInput(blockStreamInput, in.namedWriteableRegistry(), config);
+        this.config = Configuration.readFrom(in);
+        PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
         this.expression = planStreamInput.readNamedWriteable(Expression.class);
     }
 
@@ -128,22 +121,5 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         throw new UnsupportedOperationException("AutomatonQueryBuilder does not support getMinimalSupportedVersion");
-    }
-
-    static class AutomatonQueryWithDescription extends AutomatonQuery {
-        private final String description;
-
-        AutomatonQueryWithDescription(Term term, Automaton automaton, String description) {
-            super(term, automaton);
-            this.description = description;
-        }
-
-        @Override
-        public String toString(String field) {
-            if (this.field.equals(field)) {
-                return description;
-            }
-            return this.field + ":" + description;
-        }
     }
 }

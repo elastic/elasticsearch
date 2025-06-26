@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -39,10 +40,13 @@ import java.util.Objects;
  * {@code ?}.
  */
 public class WildcardLikeQueryBuilder extends AbstractQueryBuilder<WildcardLikeQueryBuilder> implements MultiTermQueryBuilder {
-    public static final String NAME = "wildcardlike";
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        QueryBuilder.class,
+        "wildcardLikeQueryBuilder",
+        WildcardLikeQueryBuilder::new
+    );
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
-    private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     private final String fieldName;
@@ -125,12 +129,12 @@ public class WildcardLikeQueryBuilder extends AbstractQueryBuilder<WildcardLikeQ
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return ENTRY.name;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject(ENTRY.name);
         builder.startObject(fieldName);
         builder.field(WILDCARD_FIELD.getPreferredName(), value);
         if (rewrite != null) {

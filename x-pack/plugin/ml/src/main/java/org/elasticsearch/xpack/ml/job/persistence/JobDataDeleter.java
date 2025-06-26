@@ -235,7 +235,6 @@ public class JobDataDeleter {
         if (indicesToQuery.isEmpty()) {
             logger.info("No writable {} indices found for [{}] job. No {} to remove.", entityType, jobId, entityType);
             if (onEmpty != null) {
-                logger.info("Running onEmpty callback for [{}] job", jobId);
                 onEmpty.run();
             }
         }

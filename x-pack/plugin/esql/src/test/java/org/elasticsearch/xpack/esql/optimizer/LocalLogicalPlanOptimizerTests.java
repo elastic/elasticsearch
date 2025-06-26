@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -73,6 +75,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -585,6 +588,36 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam
+     * e{r}#7, first_name{r}#7 AS last_name#10]]
+     *   \_Eval[[null[KEYWORD] AS first_name#7, null[KEYWORD] AS $$first_name$temp_name$17#18]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testGroupingByMissingFields() {
+        var plan = plan("FROM test | STATS SUM(salary) BY first_name, last_name");
+        var testStats = statsForMissingField("first_name", "last_name");
+        var localPlan = localPlan(plan, testStats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(2));
+        ReferenceAttribute grouping1 = as(aggregate.groupings().get(0), ReferenceAttribute.class);
+        ReferenceAttribute grouping2 = as(aggregate.groupings().get(1), ReferenceAttribute.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        Alias eval1 = eval.fields().get(0);
+        Literal literal1 = as(eval1.child(), Literal.class);
+        assertNull(literal1.value());
+        assertThat(literal1.dataType(), is(DataType.KEYWORD));
+        Alias eval2 = eval.fields().get(1);
+        Literal literal2 = as(eval2.child(), Literal.class);
+        assertNull(literal2.value());
+        assertThat(literal2.dataType(), is(DataType.KEYWORD));
+        assertThat(grouping1.id(), equalTo(eval1.id()));
+        assertThat(grouping2.id(), equalTo(eval2.id()));
+        as(eval.child(), EsRelation.class);
     }
 
     private IsNotNull isNotNull(Expression field) {

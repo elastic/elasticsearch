@@ -9,9 +9,9 @@
 
 package org.elasticsearch.versions;
 
-import org.elasticsearch.TransportVersionsGroup;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersionsGroup;
 
 import java.util.List;
 
@@ -23,9 +23,6 @@ public class TestTV extends TransportVersionsGroup {
     }
 
     private TestTV() {
-        super(List.of(
-            new TransportVersion(9_111_0_00),
-            new TransportVersion(8_111_0_00)
-        ));
+        super(List.of(new TransportVersion(9_111_0_00), new TransportVersion(8_111_0_00)));
     }
 }

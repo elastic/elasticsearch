@@ -12,7 +12,6 @@ package org.elasticsearch;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class TransportVersionsGroup {
     public final TransportVersion localTV;
@@ -48,8 +47,7 @@ public abstract class TransportVersionsGroup {
     }
 
     public boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(localTV)
-            || backportTVs.stream().anyMatch(version::isPatchFrom);
+        return version.onOrAfter(localTV) || backportTVs.stream().anyMatch(version::isPatchFrom);
     }
 
     public List<Integer> getLocalAndBackportedTVIds() {

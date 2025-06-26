@@ -29,7 +29,6 @@ import java.util.function.IntFunction;
  */
 public class TransportVersions {
 
-
     static final TreeSet<Integer> ALL_VERSIONS = new TreeSet<>();
 
     public static void register(TransportVersionsGroup transportVersionsGroup) {

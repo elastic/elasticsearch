@@ -6,7 +6,9 @@ applies_to:
 
 # Index settings available in {{serverless-full}} projects
 
-[{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) manages most index settings for you. This page lists the {{es}} index settings available in {{serverless-short}} projects.
+In {{serverless-full}} projects, configuration available to users is [limited](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#elasticsearch-differences-serverless-settings-availability) to certain index-level settings. These restrictions help ensure the reliability of {{serverless-short}} projects.
+
+This page lists the {{es}} index settings available in {{serverless-full}} projects.
 
 ### General settings
 

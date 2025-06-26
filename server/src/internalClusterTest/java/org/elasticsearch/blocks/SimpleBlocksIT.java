@@ -413,8 +413,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             startInParallel(threadCount, i -> {
                 try {
-                    indicesAdmin().prepareAddBlock(block, indexName).get();
-                    assertIndexHasBlock(block, indexName);
+                    AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+                    // Check that the block has been added only for the request that won the race
+                    if (response.isAcknowledged() && response.getIndices().isEmpty() == false) {
+                        assertIndexHasBlock(block, indexName);
+                    }
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));
                     assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));

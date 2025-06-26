@@ -200,6 +200,17 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         result.put(
+            ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
+                halfProcMaxAt5,
+                1000,
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
+            )
+        );
+        result.put(
             ThreadPool.Names.SYSTEM_CRITICAL_READ,
             new FixedExecutorBuilder(
                 settings,

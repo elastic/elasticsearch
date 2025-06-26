@@ -16,9 +16,9 @@ BRANCH="${BRANCH:-$2}"
 ES_VERSION="${ES_VERSION:-$3}"
 WORKFLOW=${WORKFLOW:-$4}
 
-if [[ "$WORKFLOW" == "staging" ]]
+if [[ "$WORKFLOW" == "staging" ]]; then
   LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $ES_VERSION)
-elif [[ "$WORKFLOW" == "snapshot" ]]
+elif [[ "$WORKFLOW" == "snapshot" ]]; then
   LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $BRANCH)
 else
   echo "Unknown workflow: $WORKFLOW"

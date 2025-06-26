@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -397,7 +398,13 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                resultBuilder.append(errorBuilder.toString()).append("</DeleteResult>");
+                if (ESTestCase.randomBoolean()) {
+                    // In practice the real S3 doesn't report errors for blobs that did not exist (this is the desired outcome after a
+                    // delete operation anyway) but this isn't documented, so other implementations may return these errors and can
+                    // legitimately expect Elasticsearch to handle them correctly.
+                    resultBuilder.append(errorBuilder);
+                }
+                resultBuilder.append("</DeleteResult>");
                 byte[] response = resultBuilder.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);

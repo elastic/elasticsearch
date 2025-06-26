@@ -182,9 +182,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testHistoryIsWrittenWithFailure
-  issue: https://github.com/elastic/elasticsearch/issues/123203
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
@@ -563,14 +560,17 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/130010
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/128224
-- class: org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests
-  method: testMergeEmptyMappingsIntoTemplateWithNonEmptySettings
-  issue: https://github.com/elastic/elasticsearch/issues/130050
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testTopN
+  issue: https://github.com/elastic/elasticsearch/issues/130122
 
 # Examples:
 #

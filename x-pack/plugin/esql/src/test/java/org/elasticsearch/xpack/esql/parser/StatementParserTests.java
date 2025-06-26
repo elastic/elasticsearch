@@ -3176,7 +3176,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = new String[] { "FROM", "TS" };
+        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";
@@ -3230,9 +3230,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var randomInvalidChar = randomFrom(invalidChars);
 
             // Construct the new invalid index pattern.
-            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + "foo" + randomInvalidChar + "bar");
+            var invalidIndexName = "foo" + randomInvalidChar + "bar";
+            var remoteIndexWithInvalidChar = quote(randomIdentifier() + ":" + invalidIndexName);
             var query = "FROM " + randomIndex + "," + remoteIndexWithInvalidChar;
-            expectError(query, "must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']");
+            expectError(
+                query,
+                "Invalid index name ["
+                    + invalidIndexName
+                    + "], must not contain the following characters [' ','\"',',','/','<','>','?','\\','|']"
+            );
         }
 
         // Colon outside a quoted string should result in an ANTLR error: a comma is expected.

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -52,15 +53,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
+    private final boolean isStateless;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
+    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, Settings settings, final Executor executor) {
         super(taskName, executor);
         this.client = Objects.requireNonNull(client);
+        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -142,13 +147,13 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 
-        final ShardRouting shardRouting = indexShardRouting.primaryShard();
-        if (shardRouting.started() == false) {
+        final Set<String> eligibleNodes = getEligibleNodes(indexShardRouting);
+        if (eligibleNodes.isEmpty()) {
             return NO_NODE_FOUND;
         }
 
         return candidateNodes.stream()
-            .filter(candidateNode -> candidateNode.getId().equals(shardRouting.currentNodeId()))
+            .filter(candidateNode -> eligibleNodes.contains(candidateNode.getId()))
             .findAny()
             .map(
                 node -> new PersistentTasksCustomMetadata.Assignment(
@@ -157,6 +162,29 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 )
             )
             .orElse(NO_NODE_FOUND);
+    }
+
+    /**
+     * An eligible node to run the downsampling task for a shard is a node that holds
+     * a searchable version of this shard.
+     * In stateless deployment we choose only nodes that hold search shards.
+     * Otherwise, we choose the node that holds the primary shard.
+     * Visible for testing.
+     * @param indexShardRouting the routing of the shard to be downsampled
+     * @return the set of candidate nodes downsampling can run on.
+     */
+    Set<String> getEligibleNodes(IndexShardRoutingTable indexShardRouting) {
+        if (isStateless) {
+            return indexShardRouting.assignedShards()
+                .stream()
+                .filter(shardRouting -> shardRouting.primary() == false && shardRouting.started())
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toSet());
+        }
+        if (indexShardRouting.primaryShard().started()) {
+            return Set.of(indexShardRouting.primaryShard().currentNodeId());
+        }
+        return Set.of();
     }
 
     @Override

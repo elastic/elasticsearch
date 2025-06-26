@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,9 +36,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
@@ -57,7 +60,12 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             "metrics-app1",
             List.of(new Tuple<>(start, end))
         );
-        executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
+        executor = new DownsampleShardPersistentTaskExecutor(
+            mock(Client.class),
+            DownsampleShardTask.TASK_NAME,
+            Settings.EMPTY,
+            mock(Executor.class)
+        );
     }
 
     public void testGetAssignment() {
@@ -124,7 +132,65 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         assertThat(result.getExplanation(), equalTo("a node to fail and stop this persistent task"));
     }
 
+    public void testGetStatelessAssignment() {
+        executor = new DownsampleShardPersistentTaskExecutor(
+            mock(Client.class),
+            DownsampleShardTask.TASK_NAME,
+            Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, "true").build(),
+            mock(Executor.class)
+        );
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
+        var searchNode = newNode(Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        var indexNode = newNode(Set.of(DiscoveryNodeRole.INDEX_ROLE));
+        var shardId = new ShardId(backingIndex, 0);
+        var clusterState = ClusterState.builder(initialClusterState)
+            .nodes(new DiscoveryNodes.Builder().add(indexNode).add(searchNode).build())
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(backingIndex)
+                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
+                    )
+                    .build()
+            )
+            .build();
+
+        var params = new DownsampleShardTaskParams(
+            new DownsampleConfig(new DateHistogramInterval("1h")),
+            shardId.getIndexName(),
+            1,
+            1,
+            shardId,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY
+        );
+        var result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState);
+        assertThat(result.getExecutorNode(), nullValue());
+
+        // Assign a copy of the shard to a search node
+        clusterState = ClusterState.builder(clusterState)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(backingIndex)
+                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
+                            .addShard(shardRoutingBuilder(shardId, searchNode.getId(), false, STARTED).withRecoverySource(null).build())
+                    )
+                    .build()
+            )
+            .build();
+        result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState);
+        assertThat(result.getExecutorNode(), equalTo(searchNode.getId()));
+    }
+
     private static DiscoveryNode newNode() {
+        return newNode(DiscoveryNodeRole.roles());
+    }
+
+    private static DiscoveryNode newNode(Set<DiscoveryNodeRole> nodes) {
         return DiscoveryNodeUtils.create(
             "node_" + UUIDs.randomBase64UUID(random()),
             buildNewFakeTransportAddress(),

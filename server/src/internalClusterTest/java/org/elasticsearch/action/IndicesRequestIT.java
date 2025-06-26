@@ -67,6 +67,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -83,6 +84,8 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -100,6 +103,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -580,6 +584,45 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
+    }
+
+    public void testRejectDocumentWithTooManyArrayObjectFields() throws Exception {
+        String indexName = "array-limit-test";
+        int arrayLimit = 10;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(Settings.builder().put("index.mapping.nested_objects.limit", arrayLimit).build())
+                .setMapping("""
+                        {
+                          "properties": {
+                            "array": {
+                              "properties": {
+                                "value": { "type": "integer" }
+                              }
+                            }
+                          }
+                        }
+                    """)
+        );
+
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+            doc.startArray("array");
+            for (int i = 0; i < arrayLimit + 1; i++) {
+                doc.startObject();
+                doc.field("value", i);
+                doc.endObject();
+            }
+            doc.endArray();
+            doc.endObject();
+
+            Exception e = expectThrows(DocumentParsingException.class, () -> { client().prepareIndex(indexName).setSource(doc).get(); });
+
+            assertThat(
+                e.getMessage(),
+                containsString("The number of nested documents has exceeded " + "the allowed limit of [" + arrayLimit + "]")
+            );
+        }
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

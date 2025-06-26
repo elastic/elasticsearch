@@ -290,10 +290,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             parentCentroidQueue.add(-1, 0.f);
         }
 
+        int bulkParentThreshold = (int) Math.ceil(parentCentroidQueue.size() * 0.5);
+
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
             int parentsToExplore = 0;
-            while (parentCentroidQueue.size() > 0 && parentsToExplore < parentCentroidQueryScorer.size() * 0.5) {
+            while (parentCentroidQueue.size() > 0 && parentsToExplore < bulkParentThreshold) {
                 int parentCentroidOrdinal = parentCentroidQueue.pop();
 
                 int childCentroidOrdinal;

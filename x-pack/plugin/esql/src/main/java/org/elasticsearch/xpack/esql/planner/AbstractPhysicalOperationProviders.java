@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -235,7 +236,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             }
 
             Attribute attribute = (Attribute) orderEntry.child();
-            int intLimit = stringToInt(((Literal) limit).value().toString());
+            int intLimit = stringToInt(BytesRefs.toString(((Literal) limit).value()));
 
             BlockHash.TopNDef topNDef = new BlockHash.TopNDef(
                 i,

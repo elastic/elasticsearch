@@ -1045,6 +1045,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return hasDocValuesSkipper;
         }
 
+        @Override
         public Query automatonQuery(
             Automaton automaton,
             @Nullable MultiTermQuery.RewriteMethod method,

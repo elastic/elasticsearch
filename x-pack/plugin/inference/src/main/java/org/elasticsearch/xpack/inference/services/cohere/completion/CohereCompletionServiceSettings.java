@@ -103,7 +103,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         modelId = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -156,7 +156,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)) {
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
             out.writeEnum(apiVersion);
         }
     }

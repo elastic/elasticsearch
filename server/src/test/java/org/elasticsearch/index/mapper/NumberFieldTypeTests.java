@@ -147,7 +147,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(NumericField.newExactLongQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));

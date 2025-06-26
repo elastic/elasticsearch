@@ -48,7 +48,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(NumericField.newExactLongQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, MOCK_CONTEXT));
 
         MappedFieldType ft2 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100, false);
         ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));

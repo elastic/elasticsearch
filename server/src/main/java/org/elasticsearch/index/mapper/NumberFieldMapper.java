@@ -1247,7 +1247,7 @@ public class NumberFieldMapper extends FieldMapper {
 
                 long v = parse(value, true);
                 if (isIndexed) {
-                    return NumericField.newExactLongQuery(field, v);
+                    return LongPoint.newExactQuery(field, v);
                 } else {
                     return SortedNumericDocValuesField.newSlowExactQuery(field, v);
                 }

@@ -500,7 +500,7 @@ The task management APIs enable you to retrieve information about tasks or cance
 | API | Description |
 | --- | ----------- |
 | [Cancel a task](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-tasks-cancel) | Cancels a running task. |
-| [Get task information](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-tasks-get) | Cancels a running task. |
+| [Get task information](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-tasks-get) |  |
 | [Get all tasks](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-tasks-list) | Retrieves information about running tasks. |
 
 ### [Text structure](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-text_structure)
@@ -522,7 +522,7 @@ The transform APIs enable you to create and manage transforms.
 | --- | ----------- |
 | [Get transforms](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-get-transform) | Retrieves configuration for one or more transforms. |
 | [Create a transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-put-transform) | Creates or updates a transform job. |
-| [Get transform stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-get-transform-stats) |  |
+| [Get transform stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-get-transform-stats) | Get usage information for transforms. |
 | [Preview transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-preview-transform) | Previews the results of a transform job. |
 | [Reset a transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-reset-transform) | Previews the results of a transform job. |
 | [Delete transform](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-delete-transform) | Deletes a transform job. |
@@ -538,8 +538,8 @@ The usage API provides usage information about the installed X-Pack features.
 
 | API | Description |
 | --- | ----------- |
-| [Get information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-info) |  |
-| [Get usage information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-usage) |  |
+| [Get information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-info) | Gets information about build details, license status, and a list of features currently available under the installed license. |
+| [Get usage information](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-usage) | Get information about the features that are currently enabled and available under the current license. |
 
 
 ### [Watcher](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-watcher)
@@ -550,14 +550,14 @@ You can use Watcher to watch for changes or anomalies in your data and perform t
 | --- | ----------- |
 | [Acknowledge a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.ack_watch) | Acknowledges a watch action. |
 | [Activate a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-activate-watch) | Activates a watch. |
-| [Deactivates a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-deactivate-watch) | Activates a watch. |
+| [Deactivates a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-deactivate-watch) | Deactivates a watch. |
 | [Get a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-watch) | Retrieves a watch by ID. |
 | [Create or update a watch](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-put-watch) | Creates or updates a watch. |
 | [Delete a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.delete_watch) | Deletes a watch. |
 | [Run a watch](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.execute_watch) | Executes a watch manually. |
-| [Get Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-settings) |  |
-| [Update Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-update-settings) |  |
-| [Query watches](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-query-watches) |  |
+| [Get Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-settings) | Get settings for the Watcher internal index |
+| [Update Watcher index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-update-settings) | Update settings for the Watcher internal index |
+| [Query watches](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-query-watches) | Get all registered watches in a paginated manner and optionally filter watches by a query. |
 | [Start the watch service](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.start) | Starts the Watcher service. |
 | [Get Watcher statistics](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stats) | Returns statistics about the Watcher service. |
 | [Stop the watch service](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/watcher.stop) | Stops the Watcher service. |

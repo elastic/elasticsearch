@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
-public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>,
+    TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "GreaterThanOrEqual",
@@ -110,6 +112,11 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     @Override
     public LessThan negate() {
         return new LessThan(source(), left(), right(), zoneId());
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return left();
     }
 
     @Override

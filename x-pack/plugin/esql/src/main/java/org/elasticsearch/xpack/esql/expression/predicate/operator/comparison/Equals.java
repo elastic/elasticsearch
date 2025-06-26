@@ -152,7 +152,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         if (right() instanceof Literal rhs && left().dataType() == DataType.TEXT && left() instanceof FieldAttribute lhs) {
             return asQueryText(pushdownPredicates, handler, lhs, ((BytesRef) rhs.value()).utf8ToString());
         }
-        return super.asQuery(pushdownPredicates, handler);
+        return handler.forceToSingleValueQuery(left(), super.asQuery(pushdownPredicates, handler));
     }
 
     private Query asQueryText(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler, FieldAttribute lhs, String rhs) {

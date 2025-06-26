@@ -15,12 +15,15 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 /**
- * Looks for the structure:
+ * Looks for:
  * <pre>
  * {@link TopN}
  * \_{@link Aggregate}
  * </pre>
- * And replaces it with {@link TopNAggregate}.
+ * And replaces it with a {@link TopNAggregate}.
+ * <p>
+ *     {@link TimeSeriesAggregate} subclass should not appear here after a {@link TopN}. See {@link TranslateTimeSeriesAggregate}.
+ * </p>
  */
 public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, LogicalPlan> {
 
@@ -31,8 +34,7 @@ public class ReplaceTopNAndAggregateWithTopNAggregate extends Rule<TopN, Logical
 
     private LogicalPlan applyRule(TopN topN) {
         if (topN.child() instanceof Aggregate aggregate && aggregate instanceof TopNAggregate == false) {
-            // TimeSeriesAggregate shouldn't appear after a TopN when this rule is executed
-            assert aggregate instanceof TimeSeriesAggregate == false : "TimeSeriesAggregate should not be replaced with TopNAggregate";
+            assert aggregate.getClass() == Aggregate.class : "Only Aggregate can be replaced with TopNAggregate";
 
             return new TopNAggregate(
                 aggregate.source(),

@@ -328,7 +328,10 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                 try (IndexReader reader = DirectoryReader.open(w)) {
                     SegmentReader r = (SegmentReader) getOnlyLeafReader(reader);
                     assertThat(unwrapRawVectorReader("field", r.getVectorReader()), instanceOf(DirectIOLucene99FlatVectorsReader.class));
-                    assertThat(unwrapRawVectorReader("field", r.getVectorReader().getMergeInstance()), instanceOf(Lucene99FlatVectorsReader.class));
+                    assertThat(
+                        unwrapRawVectorReader("field", r.getVectorReader().getMergeInstance()),
+                        instanceOf(Lucene99FlatVectorsReader.class)
+                    );
                 }
             }
         }

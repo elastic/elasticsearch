@@ -46,9 +46,7 @@ public enum PredictionFieldType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
+    @SuppressForbidden(reason = "accept lenient boolean field values")
     public Object transformPredictedValue(Double value, String stringRep) {
         if (value == null) {
             return null;

@@ -601,7 +601,7 @@ public class EsqlDataTypeConverter {
     }
 
     @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+        reason = "https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/type-conversion-functions#esql-to_boolean"
     )
     public static boolean stringToBoolean(String field) {
         return Boolean.parseBoolean(field);

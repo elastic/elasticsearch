@@ -84,19 +84,25 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -1232,6 +1238,375 @@ public class SecurityTests extends ESTestCase {
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
         assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
     }
+
+    public void testAuthContextForSlowLog_LocalAccess_OriginalRealmUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        User searchUser = new User(
+            "username",
+            new String[] { "user_role" },
+            "User Full Name",
+            "user@example.com",
+            Collections.emptyMap(),
+            true
+        );
+        Authentication.RealmRef userRealm = new Authentication.RealmRef(
+            "default_native",
+            "native",
+            "nodeName"
+        );
+
+        Authentication realmAuth = Authentication.newRealmAuthentication(searchUser, userRealm);
+        serializer.writeToContext(realmAuth, threadContext);
+
+        Map<String, String> authContextRealm = security.getAuthContextForSlowLog();
+
+        assertThat(authContextRealm.get("user.name"), equalTo("username"));
+        assertThat(authContextRealm.get("user.realm"), equalTo("default_native"));
+        assertThat(authContextRealm.get("user.full_name"), equalTo("User Full Name"));
+        assertThat(authContextRealm.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name()));
+        assertFalse(authContextRealm.containsKey("user.effective.name"));
+        assertFalse(authContextRealm.containsKey("apikey.id"));
+        assertFalse(authContextRealm.containsKey("apikey.name"));
+    }
+
+    /**
+     * Tests getAuthContextForSlowLog for an API Key authentication scenario.
+     * Covers a part of the 'else' branch where authentication is NOT cross-cluster.
+     */
+    public void testAuthContextForSlowLog_LocalAccess_ApiKeyAuthentication() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        Map<String, Object> apiKeyMetadata = new HashMap<>();
+        apiKeyMetadata.put(AuthenticationField.API_KEY_ID_KEY, "test_local_api_key_id_123");
+        apiKeyMetadata.put(AuthenticationField.API_KEY_NAME_KEY, "MyLocalTestApiKey");
+
+        User apiKeyUser = new User(
+            "local_api_key_principal",
+            new String[0],
+            null,
+            null,
+            Collections.emptyMap(),
+            true
+        );
+
+        AuthenticationResult<User> apiKeyAuthResult = AuthenticationResult.success(apiKeyUser, apiKeyMetadata);
+
+        Authentication apiKeyAuth = Authentication.newApiKeyAuthentication(apiKeyAuthResult, "local_node_api_key_origin");
+
+        serializer.writeToContext(apiKeyAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+        assertThat(authContext.get("user.name"), equalTo("local_api_key_principal"));
+        assertThat(authContext.get("user.realm"), equalTo(AuthenticationField.API_KEY_REALM_NAME));
+        assertFalse(authContext.containsKey("user.full_name"));
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.API_KEY.name()));
+        assertThat(authContext.get("apikey.id"), equalTo("test_local_api_key_id_123"));
+        assertThat(authContext.get("apikey.name"), equalTo("MyLocalTestApiKey"));
+        assertFalse(authContext.containsKey("user.effective.name")); // Not a run-as scenario
+        assertFalse(authContext.containsKey("user.effective.realm"));
+    }
+
+    /**
+     * Tests getAuthContextForSlowLog for a Run-as authentication scenario.
+     * Covers a part of the 'else' branch where authentication is NOT cross-cluster.
+     */
+    public void testAuthContextForSlowLog_LocalAccess_RunAsAuthentication() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        // Define the authenticating user
+        User authenticatingUser = new User(
+            "authenticating_user",
+            new String[]{"admin"},
+            "Authenticating User",
+            "test@example.com",
+            Collections.emptyMap(),
+            true
+        );
+
+        Authentication.RealmRef authenticatingRealm = new Authentication.RealmRef(
+            "local_file_realm",
+            "file",
+            "local_node_authenticators"
+        );
+
+        Authentication baseAuth = Authentication.newRealmAuthentication(authenticatingUser, authenticatingRealm);
+
+        // Define the effective user (the one being run-as)
+        User effectiveUser = new User(
+            "run_as_user",
+            new String[]{"run_as"},
+            "Run As User",
+            "test2@example.com",
+            Collections.emptyMap(),
+            true
+        );
+
+        Authentication.RealmRef effectiveRealm = new Authentication.RealmRef(
+            "local_ldap_realm",
+            "ldap",
+            "local_node_ldap"
+        );
+
+        Authentication runAsAuth = baseAuth.runAs(effectiveUser, effectiveRealm);
+        assertTrue(runAsAuth.isRunAs());
+
+        serializer.writeToContext(runAsAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+        assertThat(authContext.get("user.name"), equalTo("authenticating_user"));
+        assertThat(authContext.get("user.realm"), equalTo("local_file_realm"));
+        assertThat(authContext.get("user.full_name"), equalTo("Authenticating User"));
+
+        assertThat(authContext.get("user.effective.name"), equalTo("run_as_user"));
+        assertThat(authContext.get("user.effective.realm"), equalTo("local_ldap_realm"));
+        assertThat(authContext.get("user.effective.full_name"), equalTo("Run As User"));
+
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name()));
+        assertFalse(authContext.containsKey("apikey.id"));
+        assertFalse(authContext.containsKey("apikey.name"));
+    }
+
+    /**
+     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
+     * where the original user on the querying cluster authenticated via a Realm.
+     */
+    public void testAuthContextForSlowLog_CCA_OriginalRealmUser() throws Exception {
+        createComponents(Settings.EMPTY);
+
+        // Create inner Authentication object for the 'remote_search_user'
+        User remoteSearchUser = new User(
+            "remote_search_user",
+            new String[] { "remote_role" },
+            "Remote Search User Full Name",
+            "remote@example.com",
+            Collections.emptyMap(),
+            true
+        );
+        Authentication.RealmRef remoteSearchRealm = new Authentication.RealmRef(
+            "default_native",
+            "native",
+            "node_name_querying_cluster"
+        );
+        Authentication originalAuthentication = Authentication.newRealmAuthentication(remoteSearchUser, remoteSearchRealm);
+
+        CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
+            originalAuthentication,
+            RoleDescriptorsIntersection.EMPTY
+        );
+
+        // Create outer Authentication object (the cross-cluster API key type)
+        User dummyApiKeyUser = new User(
+            "dummy_api_key_principal",
+            new String[0],
+            null,
+            null,
+            Collections.emptyMap(),
+            true
+        );
+
+        Map<String, Object> authResultMetadata = new HashMap<>();
+        authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, "test_api_key_unique_id_from_auth_result");
+        authResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, "Test CCS API Key Name from AuthResult");
+
+        AuthenticationResult<User> apiAuthResult = AuthenticationResult.success(dummyApiKeyUser, authResultMetadata);
+
+        Authentication baseApiKeyAuth = Authentication.newApiKeyAuthentication(apiAuthResult, "node_name_fulfilling_cluster");
+
+        Authentication outerCrossClusterAccessAuth = baseApiKeyAuth.toCrossClusterAccess(crossClusterAccessSubjectInfo);
+
+        assertTrue(outerCrossClusterAccessAuth.isCrossClusterAccess());
+        assertThat(outerCrossClusterAccessAuth.getAuthenticatingSubject().getUser().principal(), equalTo("dummy_api_key_principal"));
+
+        assertNotNull(
+            outerCrossClusterAccessAuth.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+        );
+
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+        serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+        assertThat(authContext.get("user.name"), equalTo("remote_search_user"));
+        assertThat(authContext.get("user.realm"), equalTo("default_native"));
+        assertThat(authContext.get("user.full_name"), equalTo("Remote Search User Full Name"));
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name()));
+    }
+
+    /**
+     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
+     * where the original user on the querying cluster authenticated via an API Key.
+     */
+    public void testAuthContextForSlowLog_CCA_OriginalApiKeyUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        // Original user authenticated via an API Key on the querying cluster
+        User originalApiKeyUser = new User(
+            "original_api_key_principal",
+            new String[0],
+            null,
+            null,
+            Collections.emptyMap(),
+            true
+        );
+
+        Map<String, Object> originalApiKeyMetadata = new HashMap<>();
+        originalApiKeyMetadata.put(AuthenticationField.API_KEY_ID_KEY, "original_api_key_id_xyz");
+        originalApiKeyMetadata.put(AuthenticationField.API_KEY_NAME_KEY, "Original Remote API Key Name");
+
+        Authentication originalAuthenticationApiKey = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(originalApiKeyUser, originalApiKeyMetadata),
+            "node_querying_apikey"
+        );
+
+        // Wrap the original Authentication
+        CrossClusterAccessSubjectInfo ccasiApiKey = new CrossClusterAccessSubjectInfo(
+            originalAuthenticationApiKey,
+            RoleDescriptorsIntersection.EMPTY
+        );
+
+        User dummyApiKeyUserForApiKey = new User(
+            "dummy_api_key_id_apikey",
+            new String[0],
+            null,
+            null,
+            Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_apikey"),
+            true
+        );
+
+        Authentication baseApiKeyAuthApiKey = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(
+                dummyApiKeyUserForApiKey,
+                Map.of(AuthenticationField.API_KEY_ID_KEY, "api_id_apikey")
+            ),
+            "node_fulfilling_apikey"
+        );
+
+        Authentication outerCrossClusterAccessAuthApiKey = baseApiKeyAuthApiKey.toCrossClusterAccess(ccasiApiKey);
+
+        serializer.writeToContext(outerCrossClusterAccessAuthApiKey, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+        assertThat(authContext.get("user.name"), equalTo("original_api_key_principal"));
+        // API key realm name from the original authentication (AuthenticationField.API_KEY_REALM_NAME)
+        assertThat(authContext.get("user.realm"), equalTo(AuthenticationField.API_KEY_REALM_NAME));
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.API_KEY.name()));
+        assertThat(authContext.get("apikey.id"), equalTo("original_api_key_id_xyz"));
+        assertThat(authContext.get("apikey.name"), equalTo("Original Remote API Key Name"));
+        assertFalse(authContext.containsKey("user.effective.name"));
+    }
+
+    /**
+     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
+     * where the original user on the querying cluster was a Run-As user.
+     */
+    public void testAuthContextForSlowLog_CCA_OriginalRunAsUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        // Authenticating user on querying cluster (who performs the run-as)
+        User authenticatingRemoteUser = new User(
+            "authenticating_remote",
+            new String[]{"power_user"},
+            "Authenticating Remote User",
+            null,
+            Collections.emptyMap(),
+            true
+        );
+
+        Authentication.RealmRef authenticatingRemoteRealm = new Authentication.RealmRef(
+            "remote_auth_realm",
+            "ldap",
+            "node_querying_auth"
+        );
+
+        Authentication baseAuthenticationRemote = Authentication.newRealmAuthentication(authenticatingRemoteUser, authenticatingRemoteRealm);
+
+        // Effective user (the one being run-as) on querying cluster
+        User effectiveRemoteUser = new User(
+            "effective_remote",
+            new String[]{"readonly"},
+            "Effective Remote User",
+            null,
+            Collections.emptyMap(),
+            true
+        );
+
+        Authentication.RealmRef effectiveRemoteRealm = new Authentication.RealmRef(
+            "remote_effective_realm",
+            "file",
+            "node_querying_effective"
+        );
+
+        // Create the run-as authentication for the original user
+        Authentication originalAuthenticationRunAs = baseAuthenticationRemote.runAs(effectiveRemoteUser, effectiveRemoteRealm);
+        assertTrue(originalAuthenticationRunAs.isRunAs()); // Verify it's a run-as type
+
+        // Build the CrossClusterAccessSubjectInfo wrapping the original Authentication
+        CrossClusterAccessSubjectInfo ccasiRunAs = new CrossClusterAccessSubjectInfo(
+            originalAuthenticationRunAs,
+            RoleDescriptorsIntersection.EMPTY
+        );
+
+        User dummyApiKeyUserForRunAs = new User(
+            "dummy_api_key_id_runas",
+            new String[0],
+            null,
+            null,
+            Map.of(
+                AuthenticationField.API_KEY_ID_KEY,
+                "api_id_runas"
+            ),
+            true);
+        Authentication baseApiKeyAuthRunAs = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(
+                dummyApiKeyUserForRunAs,
+                Map.of(
+                    AuthenticationField.API_KEY_ID_KEY,
+                    "api_id_runas"
+                )
+            ),
+            "node_fulfilling_runas"
+        );
+
+        // Convert to the outer Cross-Cluster Access Authentication (what the fulfilling cluster sees)
+        Authentication outerCrossClusterAccessAuthRunAs = baseApiKeyAuthRunAs.toCrossClusterAccess(ccasiRunAs);
+
+        serializer.writeToContext(outerCrossClusterAccessAuthRunAs, threadContext);
+
+        // Call the method under test
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        // Assert the results
+        assertNotNull(authContext);
+        // user.name/realm should reflect the AUTHENTICATING user from querying cluster
+        assertThat(authContext.get("user.name"), equalTo("authenticating_remote"));
+        assertThat(authContext.get("user.realm"), equalTo("remote_auth_realm"));
+        assertThat(authContext.get("user.full_name"), equalTo("Authenticating Remote User"));
+
+        // user.effective.* should reflect the EFFECTIVE user from querying cluster
+        assertThat(authContext.get("user.effective.name"), equalTo("effective_remote"));
+        assertThat(authContext.get("user.effective.realm"), equalTo("remote_effective_realm"));
+        assertThat(authContext.get("user.effective.full_name"), equalTo("Effective Remote User"));
+
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name())); // Type based on base auth
+        assertFalse(authContext.containsKey("apikey.id")); // Not an API key
+        assertFalse(authContext.containsKey("apikey.name"));
+    }
+
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));

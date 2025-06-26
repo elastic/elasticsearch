@@ -157,8 +157,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     public void testIndicesDontExistWithRemotePattern() throws IOException {
-        // TODO: add 8.19 if this is merged to 8.x
-        assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.1.0")));
+        assumeTrue("Only works with remote LOOKUP JOIN support", Clusters.localClusterVersion().onOrAfter(Version.fromString("9.2.0")));
 
         int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");

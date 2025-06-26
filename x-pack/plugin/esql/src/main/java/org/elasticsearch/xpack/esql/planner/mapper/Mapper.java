@@ -230,12 +230,13 @@ public class Mapper {
                 }
             }
             if (f instanceof UnaryExec unaryExec) {
-                if (f instanceof AggregateExec || f instanceof TopNExec) {
+                if (f instanceof AggregateExec) {
                     // We can't make a fragment here...
+                    assert logical.isRemote() == false : "Unexpected Aggregate inside remote join";
                     forceLocal.set(true);
                     return f;
                 }
-                if (f instanceof LimitExec || f instanceof ExchangeExec) {
+                if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
                     return f;
                 } else {
                     return unaryExec.child();

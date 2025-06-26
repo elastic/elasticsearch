@@ -55,8 +55,7 @@ public class ExpressionQuery extends Query {
         }
 
         ExpressionQuery other = (ExpressionQuery) obj;
-        return Objects.equals(targetFieldName, other.targetFieldName)
-            && Objects.equals(expression, other.expression);
+        return Objects.equals(targetFieldName, other.targetFieldName) && Objects.equals(expression, other.expression);
     }
 
     @Override

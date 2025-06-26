@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.WildcardLikeQueryBuilder;
-import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
-
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
 public class WildcardQuery extends Query {
 

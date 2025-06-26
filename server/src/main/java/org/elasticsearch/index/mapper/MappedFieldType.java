@@ -328,14 +328,16 @@ public abstract class MappedFieldType {
     public final Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         return wildcardQuery(value, method, false, context);
     }
+
     public Query wildcardLikeQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitve,
         SearchExecutionContext context
-    ){
+    ) {
         return wildcardQuery(value, method, caseInsensitve, context);
     }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,

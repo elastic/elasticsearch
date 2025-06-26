@@ -8,14 +8,21 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
@@ -32,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -69,6 +77,24 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         Source source = Source.fromMap(Collections.singletonMap(field, sourceValue), randomFrom(XContentType.values()));
         return fetcher.fetchValues(source, -1, new ArrayList<>());
+    }
+
+    public static List<?> fetchDocValues(MappedFieldType fieldType, Supplier<Document> documentSupplier) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
+            iw.addDocument(documentSupplier.get());
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+                SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+                when(searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH)).thenReturn(
+                    fieldType.fielddataBuilder(null).build(null, null)
+                );
+                ValueFetcher valueFetcher = fieldType.valueFetcher(searchExecutionContext, null);
+                valueFetcher.setNextReader(context);
+                return valueFetcher.fetchValues(null, 0, new ArrayList<>());
+            }
+        }
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {

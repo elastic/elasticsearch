@@ -47,6 +47,7 @@ dependencies {
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   implementation project(path: ':libs:simdvec')
+  implementation project(':x-pack:plugin:mapper-patterned-text')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   nativeLib(project(':libs:native'))

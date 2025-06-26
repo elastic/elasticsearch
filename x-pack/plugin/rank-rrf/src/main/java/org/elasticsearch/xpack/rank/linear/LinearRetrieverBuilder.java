@@ -176,6 +176,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         ScoreNormalizer normalizer,
         int rankWindowSize,
         float[] weights,
+        ScoreNormalizer[] normalizers
+    ) {
+        this(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers, false);
+    }
+
+    public LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        List<String> fields,
+        String query,
+        ScoreNormalizer normalizer,
+        int rankWindowSize,
+        float[] weights,
         ScoreNormalizer[] normalizers,
         boolean explicitNormalizer
     ) {
@@ -462,8 +474,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             && Arrays.equals(normalizers, that.normalizers)
             && Objects.equals(fields, that.fields)
             && Objects.equals(query, that.query)
-            && Objects.equals(normalizer, that.normalizer)
-            && explicitNormalizer == that.explicitNormalizer;
+            && Objects.equals(normalizer, that.normalizer);
     }
 
     @Override
@@ -474,8 +485,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             Arrays.hashCode(normalizers),
             fields,
             query,
-            normalizer,
-            explicitNormalizer
+            normalizer
         );
     }
 }

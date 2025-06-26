@@ -3229,7 +3229,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = new String[] { "FROM", "METRICS" };
+        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";

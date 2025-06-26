@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.math.BigDecimal;
@@ -310,6 +311,9 @@ final class TypeConverter {
         throw e != null ? new SQLException(message, e) : new SQLException(message);
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     private static Boolean asBoolean(Object val, EsType columnType, String typeString) throws SQLException {
         switch (columnType) {
             case BOOLEAN:

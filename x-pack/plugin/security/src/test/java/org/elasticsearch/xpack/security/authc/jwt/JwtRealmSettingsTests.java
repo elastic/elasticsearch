@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -233,7 +234,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
             final RealmConfig realmConfig = buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final Boolean actualValue = realmConfig.getSetting(setting);
-            assertThat(actualValue, equalTo(Boolean.valueOf(acceptedValue)));
+            assertThat(actualValue, equalTo(Booleans.parseBoolean(acceptedValue)));
         }
     }
 

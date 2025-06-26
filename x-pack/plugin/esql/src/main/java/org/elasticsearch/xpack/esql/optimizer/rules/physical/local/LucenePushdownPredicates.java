@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -47,9 +48,15 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    /**
+     * Can the synthetic _source delegate perform {@code ==} on the provided string?
+     */
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
-    // NOCOMMIT javadoc this and above
+    /**
+     * Does a {@link MatchQueryBuilder} produce a complete list of all possible documents
+     * that <strong>might</strong> be {@code ==} to the value passed to the query.
+     */
     boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr);
 
     /**

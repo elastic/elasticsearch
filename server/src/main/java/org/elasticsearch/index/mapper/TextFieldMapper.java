@@ -67,6 +67,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -714,7 +715,10 @@ public final class TextFieldMapper extends FieldMapper {
          */
         private final KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate;
 
-        // NOCOMMIT docs
+        /**
+         * Does a {@link MatchQueryBuilder} produce <strong>all</strong> documents
+         * that <strong>might</strong> have equal text to the query's value.
+         */
         private final boolean matchQueryYieldsCandidateMatchesForEquality;
 
         public TextFieldType(

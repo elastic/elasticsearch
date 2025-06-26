@@ -204,8 +204,21 @@ public class Regex {
             return false;
         }
         if (caseInsensitive) {
-            pattern = Strings.toLowercaseAscii(pattern);
-            str = Strings.toLowercaseAscii(str);
+            // FIXME: attempting to address this bug: https://github.com/elastic/elasticsearch/issues/109385
+            // but really would like regex case insensitive handling to be consistent everywhere rather than a hodge podge that's unclear
+            // in the docs so need to reconcile Lucene RegExp, Pattern, and simpleMatch in ES + their docs
+            // FIXME: reconcile this behavior and add tests that validate it behaves the same as RegExp for case insensitivity
+            // FIXME: add documentation or at least reference lucene docs for this
+            // FIXME: consider adding a flag for UNICODE_CASE
+            // FIXME: search for and reconcile usages of Strings.toLowerCaseASCII for if they need to use normalizeCase instead
+            // FIXME: search for and reconcile usages of java.util.regex.Pattern for if they need to use Lucene RegExp instead
+            // or some variant of ES CaseFolding since Lucene RegExp PR is not in place yet (https://github.com/apache/lucene/pull/14192)
+            // FIXME: search for and reconcile usages of simpleMatch make sure that supporting broad Unicode support is ok
+            // FIXME: search for and reconcile usages of RegExp in ES and make sure they pass the new UNICODE_CASE flag
+            // when the Lucene RegExp PR is in place: https://github.com/apache/lucene/pull/14192
+
+            pattern = CaseFolding.normalizeCase(pattern);
+            str = CaseFolding.normalizeCase(str);
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }

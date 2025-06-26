@@ -209,6 +209,14 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Integer> MAX_SOURCE_SIZE_BYTES_SETTING = Setting.intSetting(
+        "index.max_source_size_bytes",
+        500000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Index setting describing the maximum number of terms that can be used in Terms Query.
      * The default maximum of 65536 terms is defensive, as extra processing and memory is involved
@@ -919,6 +927,7 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
+    private volatile int maxSourceSizeBytes;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
@@ -1091,6 +1100,7 @@ public final class IndexSettings {
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         weightMatchesEnabled = scopedSettings.get(WEIGHT_MATCHES_MODE_ENABLED_SETTING);
+        maxSourceSizeBytes = scopedSettings.get(MAX_SOURCE_SIZE_BYTES_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
@@ -1202,6 +1212,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(WEIGHT_MATCHES_MODE_ENABLED_SETTING, this::setWeightMatchesEnabled);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SOURCE_SIZE_BYTES_SETTING, this::setMaxSourceSizeBytes);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -1601,6 +1612,17 @@ public final class IndexSettings {
 
     private void setWeightMatchesEnabled(boolean value) {
         this.weightMatchesEnabled = value;
+    }
+
+    /**
+     *  Returns the maximum number of terms that can be used in a Terms Query request
+     */
+    public int getMaxSourceSizeBytes() {
+        return this.maxSourceSizeBytes;
+    }
+
+    private void setMaxSourceSizeBytes(int maxSourceSizeBytes) {
+        this.maxSourceSizeBytes = maxSourceSizeBytes;
     }
 
     /**

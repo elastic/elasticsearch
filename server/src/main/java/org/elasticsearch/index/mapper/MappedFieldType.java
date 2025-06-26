@@ -25,6 +25,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -328,14 +329,16 @@ public abstract class MappedFieldType {
     public final Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         return wildcardQuery(value, method, false, context);
     }
+
     public Query wildcardLikeQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitve,
         SearchExecutionContext context
-    ){
+    ) {
         return wildcardQuery(value, method, caseInsensitve, context);
     }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -374,6 +377,15 @@ public abstract class MappedFieldType {
         throw new QueryShardException(
             context,
             "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    public Query automatonQuery(Automaton automaton,
+                                @Nullable MultiTermQuery.RewriteMethod method,
+                                SearchExecutionContext context, String description){
+        throw new QueryShardException(
+            context,
+            "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 

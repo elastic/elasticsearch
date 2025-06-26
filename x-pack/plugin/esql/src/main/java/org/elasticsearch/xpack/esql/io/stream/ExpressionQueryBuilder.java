@@ -9,20 +9,20 @@ package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
-import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AutomatonTranslatable;
 import org.elasticsearch.index.query.MultiTermQueryBuilder;
@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Objects;
+
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 /**
  * Implements an Automaton query, which matches documents based on a Lucene Automaton.
@@ -102,8 +104,12 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (expression instanceof AutomatonTranslatable automatonTranslatable) {
             Automaton automaton = automatonTranslatable.getAutomaton();
+            MappedFieldType fieldType = context.getFieldType(fieldName);
+            if (fieldType == null) {
+                return new MatchNoDocsQuery("Field [" + fieldName + "] does not exist");
+            }
             String description = automatonTranslatable.getAutomatonDescription();
-            return new AutomatonQueryWithDescription(new Term(fieldName), automaton, description);
+            return fieldType.automatonQuery(automaton, CONSTANT_SCORE_REWRITE, context, description);
         } else {
             throw new UnsupportedOperationException("ExpressionQueryBuilder does not support non-automaton expressions");
         }

@@ -428,7 +428,8 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(localDocs.size(), localIndex));
-
+        String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
+        System.out.println(resultString);
         assertResultMap(includeCCSMetadata, result, columns, values, false);
     }
 

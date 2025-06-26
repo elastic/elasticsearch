@@ -15,6 +15,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
@@ -143,5 +145,25 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final boolean fieldHasValue(FieldInfos fieldInfos) {
         // We consider constant field types to always have value.
         return true;
+    }
+
+    public abstract String getConstantFieldValue(SearchExecutionContext context);
+
+    @Override
+    public Query automatonQuery(
+        Automaton automaton,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        CharacterRunAutomaton compiled = new CharacterRunAutomaton(automaton);
+        boolean matches = compiled.run(getConstantFieldValue(context));
+        if (matches) {
+            return new MatchAllDocsQuery();
+        } else {
+            return new MatchNoDocsQuery(
+                "The \"" + context.getFullyQualifiedIndex().getName() + "\" query was rewritten to a \"match_none\" query."
+            );
+        }
     }
 }

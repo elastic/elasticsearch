@@ -89,21 +89,4 @@ public class AutomatonQueryBuilder extends AbstractQueryBuilder<AutomatonQueryBu
     public TransportVersion getMinimalSupportedVersion() {
         throw new UnsupportedOperationException("AutomatonQueryBuilder does not support getMinimalSupportedVersion");
     }
-
-    static class AutomatonQueryWithDescription extends AutomatonQuery {
-        private final String description;
-
-        AutomatonQueryWithDescription(Term term, Automaton automaton, String description) {
-            super(term, automaton);
-            this.description = description;
-        }
-
-        @Override
-        public String toString(String field) {
-            if (this.field.equals(field)) {
-                return description;
-            }
-            return this.field + ":" + description;
-        }
-    }
 }

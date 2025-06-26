@@ -1,5 +1,0 @@
-pr: 130114
-summary: Fix ES818BinaryQuantizedVectorsReader to not use directIO during merge
-area: Vector Search
-type: bug
-issues: []

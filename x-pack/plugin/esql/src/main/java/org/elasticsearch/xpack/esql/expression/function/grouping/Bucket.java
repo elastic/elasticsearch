@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -235,8 +236,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
-        );
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EMIT_EMPTY_BUCKETS)
+                ? in.readOptionalNamedWriteable(Expression.class)
+                : null
+            );
     }
 
     private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to, Expression emitEmptyBuckets) {
@@ -262,7 +265,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         out.writeNamedWriteable(buckets);
         out.writeOptionalNamedWriteable(from);
         out.writeOptionalNamedWriteable(to);
-        out.writeOptionalNamedWriteable(emitEmptyBuckets);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EMIT_EMPTY_BUCKETS)) {
+            out.writeOptionalNamedWriteable(emitEmptyBuckets);
+        }
     }
 
     @Override

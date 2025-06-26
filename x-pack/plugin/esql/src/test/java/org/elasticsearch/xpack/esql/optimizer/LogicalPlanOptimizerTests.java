@@ -6912,8 +6912,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LIMIT 10
             """;
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
-        TopN topN = as(plan, TopN.class);
-        Aggregate finalAgg = as(topN.child(), Aggregate.class);
+        TopNAggregate finalAgg = as(plan, TopNAggregate.class);
         Eval eval = as(finalAgg.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         Add sum = as(Alias.unwrap(eval.fields().get(0)), Add.class);

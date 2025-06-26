@@ -1,0 +1,6 @@
+pr: 124352
+summary: Add `force_merge_max_num_segments` option to downsample api and downsample
+  ilm action
+area: Downsampling
+type: enhancement
+issues: []

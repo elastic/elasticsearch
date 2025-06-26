@@ -1239,6 +1239,7 @@ public class SecurityTests extends ESTestCase {
         assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
     }
 
+
     public void testAuthContextForSlowLog_LocalAccess_OriginalRealmUser() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
@@ -1570,7 +1571,9 @@ public class SecurityTests extends ESTestCase {
                 AuthenticationField.API_KEY_ID_KEY,
                 "api_id_runas"
             ),
-            true);
+            true
+        );
+
         Authentication baseApiKeyAuthRunAs = Authentication.newApiKeyAuthentication(
             AuthenticationResult.success(
                 dummyApiKeyUserForRunAs,
@@ -1587,23 +1590,19 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuthRunAs, threadContext);
 
-        // Call the method under test
         Map<String, String> authContext = security.getAuthContextForSlowLog();
 
-        // Assert the results
         assertNotNull(authContext);
-        // user.name/realm should reflect the AUTHENTICATING user from querying cluster
         assertThat(authContext.get("user.name"), equalTo("authenticating_remote"));
         assertThat(authContext.get("user.realm"), equalTo("remote_auth_realm"));
         assertThat(authContext.get("user.full_name"), equalTo("Authenticating Remote User"));
 
-        // user.effective.* should reflect the EFFECTIVE user from querying cluster
         assertThat(authContext.get("user.effective.name"), equalTo("effective_remote"));
         assertThat(authContext.get("user.effective.realm"), equalTo("remote_effective_realm"));
         assertThat(authContext.get("user.effective.full_name"), equalTo("Effective Remote User"));
 
-        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name())); // Type based on base auth
-        assertFalse(authContext.containsKey("apikey.id")); // Not an API key
+        assertThat(authContext.get("auth.type"), equalTo(Authentication.AuthenticationType.REALM.name()));
+        assertFalse(authContext.containsKey("apikey.id"));
         assertFalse(authContext.containsKey("apikey.name"));
     }
 

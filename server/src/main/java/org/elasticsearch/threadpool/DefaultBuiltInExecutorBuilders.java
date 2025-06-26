@@ -206,7 +206,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
                 true
             )
         );

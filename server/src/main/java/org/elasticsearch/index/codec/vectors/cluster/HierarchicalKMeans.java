@@ -21,7 +21,7 @@ public class HierarchicalKMeans {
 
     static final int MAXK = 128;
     static final int MAX_ITERATIONS_DEFAULT = 6;
-    static final int SAMPLES_PER_CLUSTER_DEFAULT = 256;
+    static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
     final int dimension;
@@ -67,8 +67,7 @@ public class HierarchicalKMeans {
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
-            int localSampleSize = (int) (f * vectors.size());
+            int localSampleSize = kMeansIntermediate.centroids().length * samplesPerCluster;
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
             kMeansLocal.cluster(vectors, kMeansIntermediate, true);
         }

@@ -9,8 +9,9 @@ plugins {
   id 'idea'
 }
 
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
-import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+
+import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -21,7 +22,7 @@ apply plugin: 'elasticsearch.publish'
 esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
-  classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
+  classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
   extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
 }
 
@@ -39,30 +40,39 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:h3")
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
   testImplementation(project('qa:testFixtures')) {
-    exclude(group:"org.elasticsearch.plugin", module: "esql")
+    exclude(group: "org.elasticsearch.plugin", module: "esql")
   }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('kql'))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
+  testImplementation project(path: ':modules:data-streams')
+  testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 def generatedPath = "src/main/generated"
@@ -79,70 +89,137 @@ idea.module {
 }
 
 interface Injected {
-  @Inject FileSystemOperations getFs()
+  @Inject
+  FileSystemOperations getFs()
 }
 
 tasks.named("test").configure {
   if (buildParams.ci == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
+    // Define the folder to delete and recreate
+    def tempDir = file("build/testrun/test/temp/esql")
+    def commandsExamplesFile = new File(tempDir, "commands.examples")
+    // Find all matching .md files for commands examples
+    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/esql/_snippets/commands/examples/") {
+      include("**/*.csv-spec/*.md")
+    }
     doFirst {
       injected.fs.delete {
-        it.delete("build/testrun/test/temp/esql/functions")
+        it.delete(tempDir)
       }
+      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
+      tempDir.mkdirs() // Recreate the folder
+
+      // Write directory name and filename of each .md file to the output file
+      commandsExamplesFile.withWriter { writer ->
+        mdFiles.each { file ->
+          writer.writeLine("${file.parentFile.name}/${file.name}")
+        }
+      }
+      println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
     }
-    File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File typesFolder = file("build/testrun/test/temp/esql/functions/types")
-    def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
-    def effectiveProjectDir = projectDir
+    File imagesFolder = file("build/testrun/test/temp/esql/images")
+    File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
+    File kibanaFolder = file("build/testrun/test/temp/esql/kibana")
+    def imagesDocFolder = file("${rootDir}/docs/reference/query-languages/esql/images")
+    def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
+    def kibanaDocFolder = file("${rootDir}/docs/reference/query-languages/esql/kibana")
+    def snippetsTree = fileTree(snippetsFolder).matching {
+      include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
+    def commandsExamplesTree = fileTree(snippetsFolder).matching {
+      include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
+    }
+    def imagesTree = fileTree(imagesFolder).matching {
+      include "**/*.svg"  // Recursively include all SVG files
+    }
+    def kibanaTree = fileTree(kibanaFolder).matching {
+      include "**/*.json"  // Recursively include all JSON files
+    }
 
     doLast {
-      List types = typesFolder.list().findAll {it.endsWith("asciidoc")}
-      int count = types == null ? 0 : types.size()
-      Closure readExample = line -> {
-        line.replaceAll(/read-example::([^\[]+)\[tag=([^,\]]+)(, ?json)?\]/, {
-          String file = it[1]
-          String tag = it[2]
-          boolean isJson = it[3]
-          String allExamples = new File("${effectiveProjectDir}/qa/testFixtures/src/main/resources/${file}").text
-            .replaceAll(System.lineSeparator(), "\n")
-          int start = allExamples.indexOf("tag::${tag}[]")
-          int end = allExamples.indexOf("end::${tag}[]", start)
-          if (start < 0 || end < 0) {
-              throw new IllegalAccessException("can't find example ${file}::${tag}")
-          }
-          // Slice out the newlines
-          start = allExamples.indexOf('\n', start) + 1
-          end = allExamples.lastIndexOf('\n', end)
-          String example = allExamples.substring(start, end)
-          if (isJson) {
-            example = example.replace("\"", "\\\"").replace("\n", "\\n")
-          }
-          return example;
-        })
-      }
-      if (count == 0) {
-        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
-      } else if (count == 1) {
-        logger.quiet("ESQL Docs: Only files related to $types, patching them into place")
-        injected.fs.sync {
-          from functionsFolder
-          into functionsDocFolder
-          include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
-          preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.json', '**/*.svg', 'README.md'
-          }
-          filter readExample
-        }
+      def snippets = snippetsTree.files.collect { it.name }
+      int countSnippets = snippets.size()
+      def commandsExamples = commandsExamplesTree.files.collect { it.name }
+      int countCommandsExamples = commandsExamples.size()
+      if (countSnippets == 0 && countCommandsExamples == 0) {
+        logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
       } else {
+        logger.quiet("ESQL Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
         injected.fs.sync {
-          from functionsFolder
-          into functionsDocFolder
-          include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
-          preserve {
-            include '/*.asciidoc', 'README.md'
+          from snippetsFolder
+          into snippetsDocFolder
+          include '**/*.md'
+          if (countSnippets <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
+            preserve {
+              // The snippets directory contains generated and static content, so we must preserve all MD files.
+              include '**/*.md'
+            }
+          } else {
+            // If we do run the full test of tests, be careful about what we need to preserve
+            preserve {
+              // The lists and commands are static, and the operators are a mix of generated and static content
+              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
+            }
           }
-          filter readExample
+        }
+      }
+
+      List images = imagesTree.files.collect { it.name }
+      int countImages = images.size()
+      Closure replaceFont = line -> {
+        // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
+        // We do not change the original SVG generator to use these because it requires the fonts to exist in the JVM running the code
+        line.replaceAll(
+          /font-family:\s*Roboto Mono[^;]*;/,
+          'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'
+        )
+      }
+      if (countImages == 0) {
+        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
+      } else {
+        logger.quiet("ESQL Docs: Found $countImages generated SVG files to patch into docs")
+        injected.fs.sync {
+          from imagesFolder
+          into imagesDocFolder
+          include '**/*.svg'
+          if (countImages <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
+            preserve {
+              // Some operator files are currently static, so we must preserve them all
+              include '**/*.svg'
+            }
+          }
+          filter replaceFont
+        }
+      }
+
+      List kibana = kibanaTree.files.collect { it.name }
+      int countKibana = kibana.size()
+      Closure replaceLinks = line -> {
+        // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
+        line.replaceAll(
+          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+          '](https://www.elastic.co/docs/reference/$1$2)'
+        )
+      }
+      if (countKibana == 0) {
+        logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
+      } else {
+        logger.quiet("ESQL Docs: Found $countKibana generated kibana markdown files to patch into docs")
+        injected.fs.sync {
+          from kibanaFolder
+          into kibanaDocFolder
+          include '**/*.md', '**/*.json'
+          if (countKibana <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
+            preserve {
+              include '**/*.md', '**/*.json'
+            }
+          }
+          filter replaceLinks
         }
       }
     }
@@ -180,6 +257,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }
@@ -281,27 +359,27 @@ tasks.register("regen") {
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 tasks.named('checkstyleMain').configure {
-  excludes = [ "**/*.java.st" ]
+  excludes = ["**/*.java.st"]
   exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
   exclude { normalize(it.file.toString()).contains("src/main/generated") }
 }
 
 def prop(Name, Type, type, TYPE, BYTES, Array) {
   return [
-    "Name" : Name,
-    "Type" : Type,
-    "type" : type,
-    "TYPE" : TYPE,
-    "BYTES" : BYTES,
-    "Array" : Array,
+    "Name"       : Name,
+    "Type"       : Type,
+    "type"       : type,
+    "TYPE"       : TYPE,
+    "BYTES"      : BYTES,
+    "Array"      : Array,
 
-    "int" : type == "int" ? "true" : "",
-    "long" : type == "long" ? "true" : "",
-    "double" : type == "double" ? "true" : "",
-    "BytesRef" : type == "BytesRef" ? "true" : "",
-    "boolean" : type == "boolean" ? "true" : "",
-    "nanosMillis" : Name == "NanosMillis" ? "true" : "",
-    "millisNanos" : Name == "MillisNanos" ? "true" : "",
+    "int"        : type == "int" ? "true" : "",
+    "long"       : type == "long" ? "true" : "",
+    "double"     : type == "double" ? "true" : "",
+    "BytesRef"   : type == "BytesRef" ? "true" : "",
+    "boolean"    : type == "boolean" ? "true" : "",
+    "nanosMillis": Name == "NanosMillis" ? "true" : "",
+    "millisNanos": Name == "MillisNanos" ? "true" : "",
   ]
 }
 
@@ -317,64 +395,81 @@ tasks.named('stringTemplates').configure {
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
     it.properties = booleanProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBooleanEvaluator.java"
   }
   template {
     it.properties = intProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InIntEvaluator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
   }
   template {
     it.properties = nanosMillisProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InNanosMillisEvaluator.java"
   }
   template {
     it.properties = millisNanosProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InMillisNanosEvaluator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
   }
   template {
     it.properties = bytesRefProperties
-    it.inputFile =  inInputFile
+    it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")
   template {
     it.properties = booleanProperties
-    it.inputFile =  coalesceInputFile
+    it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBooleanEvaluator.java"
   }
   template {
     it.properties = intProperties
-    it.inputFile =  coalesceInputFile
+    it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceIntEvaluator.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  coalesceInputFile
+    it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongEvaluator.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  coalesceInputFile
+    it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
   }
   template {
     it.properties = bytesRefProperties
-    it.inputFile =  coalesceInputFile
+    it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+
+  File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }

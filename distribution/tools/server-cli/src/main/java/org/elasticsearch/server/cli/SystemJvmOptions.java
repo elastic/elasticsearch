@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
@@ -25,11 +24,12 @@ import java.util.stream.Stream;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
+        String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
-        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
+
+        boolean useEntitlements = true;
         return Stream.of(
             Stream.of(
                 /*
@@ -61,13 +61,24 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
+                // temporary until we get off-heap vector stats in Lucene 10.3
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene90=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene91=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene92=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene94=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene95=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=CLDR",
-                // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
+                "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
+                // Pass through some properties
+                "-Des.path.home=" + esHome,
+                "-Des.distribution.type=" + distroType,
+                "-Des.java.type=" + javaType
             ),
             maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
@@ -75,7 +86,7 @@ final class SystemJvmOptions {
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
             maybeAllowSecurityManager(useEntitlements),
-            maybeAttachEntitlementAgent(useEntitlements)
+            maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
 
@@ -157,12 +168,12 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
+    private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
         if (useEntitlements == false) {
             return Stream.empty();
         }
 
-        Path dir = Path.of("lib", "entitlement-bridge");
+        Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }

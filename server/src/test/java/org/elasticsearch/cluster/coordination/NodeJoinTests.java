@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -196,7 +197,7 @@ public class NodeJoinTests extends ESTestCase {
                     );
                 } else if (action.equals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME)
                     || action.equals(JoinHelper.JOIN_PING_ACTION_NAME)) {
-                        handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+                        handleResponse(requestId, ActionResponse.Empty.INSTANCE);
                     } else {
                         super.onSendRequest(requestId, action, request, destination);
                     }

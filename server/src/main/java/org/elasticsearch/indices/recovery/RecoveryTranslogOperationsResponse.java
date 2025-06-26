@@ -23,7 +23,6 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
     }
 
     RecoveryTranslogOperationsResponse(final StreamInput in) throws IOException {
-        super(in);
         localCheckpoint = in.readZLong();
     }
 

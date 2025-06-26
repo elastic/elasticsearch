@@ -1,0 +1,5 @@
+pr: 124025
+summary: "[Inference API] Propagate product use case http header to EIS"
+area: Machine Learning
+type: enhancement
+issues: []

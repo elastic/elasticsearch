@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -66,7 +65,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -306,7 +304,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 "sink-" + i,
                 dc,
                 seqNoGenerator.get(dc),
-                new ExchangeSinkOperator(exchangeSink.get(), Function.identity())
+                new ExchangeSinkOperator(exchangeSink.get())
             );
             drivers.add(d);
         }
@@ -683,7 +681,6 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
-        namedWriteables.addAll(BlockWritables.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,

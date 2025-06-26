@@ -54,18 +54,15 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             + "For example, the 95th percentile is the value which is greater than 95% of the "
             + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
-            [discrete]
-            [[esql-percentile-approximate]]
-            ==== `PERCENTILE` is (usually) approximate
+            ### `PERCENTILE` is (usually) approximate [esql-percentile-approximate]
 
-            include::../../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]
+            :::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
+            :::
 
-            [WARNING]
-            ====
+            ::::{warning}
             `PERCENTILE` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====
-            """,
+            ::::""",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_percentile", tag = "percentile"),

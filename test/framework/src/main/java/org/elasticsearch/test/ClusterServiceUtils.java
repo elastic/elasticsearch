@@ -124,6 +124,15 @@ public class ClusterServiceUtils {
         return createClusterService(threadPool, localNode, Settings.EMPTY, clusterSettings);
     }
 
+    public static ClusterService createClusterService(ThreadPool threadPool, Settings providedSettings) {
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            providedSettings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
     public static ClusterService createClusterService(
         ThreadPool threadPool,
         DiscoveryNode localNode,
@@ -263,7 +272,33 @@ public class ClusterServiceUtils {
         );
     }
 
+    /**
+     * Creates a {@link ClusterStateListener} which subscribes to the given {@link ClusterService} and waits for it to apply a cluster state
+     * that satisfies {@code predicate}, at which point it unsubscribes itself.
+     *
+     * @return A {@link SubscribableListener} which is completed when the first cluster state matching {@code predicate} is applied by the
+     *         given {@code clusterService}. If the current cluster state already matches {@code predicate} then the returned listener is
+     *         already complete. If no matching cluster state is seen within {@link ESTestCase#SAFE_AWAIT_TIMEOUT} then the listener is
+     *         completed exceptionally on the scheduler thread that belongs to {@code clusterService}.
+     */
     public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
+        return addTemporaryStateListener(clusterService, predicate, ESTestCase.SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Creates a {@link ClusterStateListener} which subscribes to the given {@link ClusterService} and waits for it to apply a cluster state
+     * that satisfies {@code predicate}, at which point it unsubscribes itself.
+     *
+     * @return A {@link SubscribableListener} which is completed when the first cluster state matching {@code predicate} is applied by the
+     *         given {@code clusterService}. If the current cluster state already matches {@code predicate} then the returned listener is
+     *         already complete. If no matching cluster state is seen within the provided {@code timeout} then the listener is
+     *         completed exceptionally on the scheduler thread that belongs to {@code clusterService}.
+     */
+    public static SubscribableListener<Void> addTemporaryStateListener(
+        ClusterService clusterService,
+        Predicate<ClusterState> predicate,
+        TimeValue timeout
+    ) {
         final var listener = new SubscribableListener<Void>();
         final ClusterStateListener clusterStateListener = new ClusterStateListener() {
             @Override
@@ -287,8 +322,39 @@ public class ClusterServiceUtils {
         if (predicate.test(clusterService.state())) {
             listener.onResponse(null);
         } else {
-            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            listener.addTimeout(timeout, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
         return listener;
+    }
+
+    /**
+     * Creates a {@link ClusterStateListener} which subscribes to the {@link ClusterService} of one of the nodes in the
+     * {@link ESIntegTestCase#internalCluster()}. When the chosen {@link ClusterService} applies a state that satisfies {@code predicate}
+     * the listener unsubscribes itself.
+     *
+     * @return A {@link SubscribableListener} which is completed when the first cluster state matching {@code predicate} is applied by the
+     *         {@link ClusterService} belonging to one of the nodes in the {@link ESIntegTestCase#internalCluster()}. If the current cluster
+     *         state already matches {@code predicate} then the returned listener is already complete. If no matching cluster state is seen
+     *         within {@link ESTestCase#SAFE_AWAIT_TIMEOUT} then the listener is completed exceptionally on the scheduler thread that
+     *         belongs to the chosen node's {@link ClusterService}.
+     */
+    public static SubscribableListener<Void> addTemporaryStateListener(Predicate<ClusterState> predicate) {
+        return addTemporaryStateListener(ESIntegTestCase.internalCluster().clusterService(), predicate);
+    }
+
+    /**
+     * Creates a {@link ClusterStateListener} which subscribes to the {@link ClusterService} of the current elected master node in the
+     * {@link ESIntegTestCase#internalCluster()}. When this node's {@link ClusterService} applies a state that satisfies {@code predicate}
+     * the listener unsubscribes itself.
+     *
+     * @return A {@link SubscribableListener} which is completed when the first cluster state matching {@code predicate} is applied by the
+     *         {@link ClusterService} belonging to the node that was the elected master node in the
+     *         {@link ESIntegTestCase#internalCluster()} when this method was first called. If the current cluster state already matches
+     *         {@code predicate} then the returned listener is already complete. If no matching cluster state is seen within
+     *         {@link ESTestCase#SAFE_AWAIT_TIMEOUT} then the listener is completed exceptionally on the scheduler thread that belongs to
+     *         the elected master node's {@link ClusterService}.
+     */
+    public static SubscribableListener<Void> addMasterTemporaryStateListener(Predicate<ClusterState> predicate) {
+        return addTemporaryStateListener(ESIntegTestCase.internalCluster().getCurrentMasterNodeInstance(ClusterService.class), predicate);
     }
 }

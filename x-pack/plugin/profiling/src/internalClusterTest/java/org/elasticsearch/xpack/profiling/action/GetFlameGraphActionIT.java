@@ -26,10 +26,10 @@ public class GetFlameGraphActionIT extends ProfilingTestCase {
         );
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();
         // only spot-check top level properties - detailed tests are done in unit tests
-        assertEquals(994, response.getSize());
+        assertEquals(1008, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(46, response.getSelfCPU());
-        assertEquals(1903, response.getTotalCPU());
+        assertEquals(1995, response.getTotalCPU());
         assertEquals(46, response.getTotalSamples());
 
         // The root node's values are the same as the top-level values.

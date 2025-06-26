@@ -30,14 +30,17 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 return null
             }
         }
-        toolChain.builds = toolChain.builds + [
+        toolChain.builds = [
             new OracleOpenJdkToolchainResolver.ReleaseJdkBuild(
                 JavaLanguageVersion.of(20),
                 "download.oracle.com",
                 "20",
                 "36",
                 "bdc68b4b9cbc4ebcb30745c85038d91d"
-            )]
+            ),
+            OracleOpenJdkToolchainResolver.getBundledJdkBuild("24+36@1f9ff9062db4449d8ca828c504ffae90", "24"),
+            OracleOpenJdkToolchainResolver.getEarlyAccessBuild(JavaLanguageVersion.of(25), "3")
+        ]
         toolChain
     }
 
@@ -52,17 +55,28 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [20, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-x64_bin.tar.gz"],
          [20, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"],
          [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"],
-         // https://download.java.net/java/early_access/jdk23/23/GPL/openjdk-23-ea+23_macos-aarch64_bin.tar.gz
-         [24, ORACLE, MAC_OS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
-         [24, ORACLE, MAC_OS, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
-         [24, ORACLE, LINUX, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
-         [24, ORACLE, LINUX, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
-         [24, ORACLE, WINDOWS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
-         [24, anyVendor(), MAC_OS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
-         [24, anyVendor(), MAC_OS, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
-         [24, anyVendor(), WINDOWS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"]]
+         // bundled jdk
+         [24, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
+         [24, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
+         [24, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
+         [24, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
+         [24, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
+         [24, anyVendor(), MAC_OS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
+         [24, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
+         [24, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
+         // EA build
+         [25, ORACLE, MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
+         [25, ORACLE, MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
+         [25, ORACLE, LINUX, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
+         [25, ORACLE, LINUX, AARCH64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
+         [25, ORACLE, WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_windows-x64_bin.zip"],
+         [25, anyVendor(), MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_macos-x64_bin.tar.gz"],
+         [25, anyVendor(), MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_macos-aarch64_bin.tar.gz"],
+         [25, anyVendor(), LINUX, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_linux-x64_bin.tar.gz"],
+         [25, anyVendor(), LINUX, AARCH64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_linux-aarch64_bin.tar.gz"],
+         [25, anyVendor(), WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk25/3/GPL/openjdk-25-ea+3_windows-x64_bin.zip"]]
     }
 
     @RestoreSystemProperties

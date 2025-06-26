@@ -27,6 +27,7 @@ public class ExchangeSinkExec extends UnaryExec {
     );
 
     private final List<Attribute> output;
+    // TODO: remove this flag
     private final boolean intermediateAgg;
 
     public ExchangeSinkExec(Source source, List<Attribute> output, boolean intermediateAgg, PhysicalPlan child) {

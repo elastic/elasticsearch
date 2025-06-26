@@ -35,8 +35,10 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -63,6 +65,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -424,13 +427,10 @@ public final class RestoreService implements ClusterStateApplier {
                 .stream()
                 .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                 .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            Map<Boolean, Set<String>> failureIndices = Map.of();
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                failureIndices = dataStreamsToRestore.values()
-                    .stream()
-                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
-                    .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            }
+            Map<Boolean, Set<String>> failureIndices = dataStreamsToRestore.values()
+                .stream()
+                .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
             nonSystemDataStreamBackingIndices = backingIndices.getOrDefault(false, Set.of());
             nonSystemDataStreamFailureIndices = failureIndices.getOrDefault(false, Set.of());
@@ -482,6 +482,14 @@ public final class RestoreService implements ClusterStateApplier {
         ).flatMap(Collection::stream).distinct().toList();
 
         final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
+
+        @FixForMultiProject
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
+        if (projectBuilder == null) {
+            projectBuilder = ProjectMetadata.builder(projectId);
+            metadataBuilder.put(projectBuilder);
+        }
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
             if (snapshotIndexMetaData.isSystem()) {
@@ -489,7 +497,7 @@ public final class RestoreService implements ClusterStateApplier {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
                 }
             }
-            metadataBuilder.put(snapshotIndexMetaData, false);
+            projectBuilder.put(snapshotIndexMetaData, false);
         }
 
         assert explicitlyRequestedSystemIndices.size() == 0
@@ -538,9 +546,19 @@ public final class RestoreService implements ClusterStateApplier {
         Set<String> templatePatterns = streams.filter(cit -> cit.getDataStreamTemplate() != null)
             .flatMap(cit -> cit.indexPatterns().stream())
             .collect(Collectors.toSet());
+        warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+    }
 
-        for (String name : dataStreamsToRestore.keySet()) {
-            if (templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+    // Visible for testing
+    static void warnIfIndexTemplateMissing(
+        Map<String, DataStream> dataStreamsToRestore,
+        Set<String> templatePatterns,
+        SnapshotInfo snapshotInfo
+    ) {
+        for (var entry : dataStreamsToRestore.entrySet()) {
+            String name = entry.getKey();
+            DataStream dataStream = entry.getValue();
+            if (dataStream.isSystem() == false && templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
                 String warningMessage = format(
                     "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
                         + " rollover to fail until a matching index template is created",
@@ -584,7 +602,9 @@ public final class RestoreService implements ClusterStateApplier {
                 return;
             }
 
-            for (Repository repository : repositoriesService.getRepositories().values()) {
+            @FixForMultiProject(description = "resolve the actual projectId, ES-10228")
+            final var projectId = ProjectId.DEFAULT;
+            for (Repository repository : repositoriesService.getProjectRepositories(projectId).values()) {
                 // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we
                 // only care about ones with missing UUIDs. It's possible to have the UUID change from under us if, e.g., the repository was
                 // wiped by an external force, but in this case any searchable snapshots are lost anyway so it doesn't really matter.
@@ -620,7 +640,7 @@ public final class RestoreService implements ClusterStateApplier {
         Collection<String> featureStateDataStreams,
         boolean includeAliases
     ) {
-        Map<String, DataStream> dataStreams;
+        Map<String, DataStream> allDataStreams;
         Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
@@ -628,20 +648,21 @@ public final class RestoreService implements ClusterStateApplier {
             IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
-            dataStreams = Map.of();
+            allDataStreams = Map.of();
             dataStreamAliases = Map.of();
         } else {
             if (globalMetadata == null) {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.getProject().dataStreams();
-            dataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
+            allDataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
+            Map<String, DataStream> systemDataStreams = new HashMap<>();
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
 
                 if (dataStreamInSnapshot.isSystem() == false) {
-                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    allDataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
                         format(
@@ -650,7 +671,8 @@ public final class RestoreService implements ClusterStateApplier {
                         )
                     );
                 } else if (featureStateDataStreams.contains(requestedDataStream)) {
-                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    allDataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    systemDataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else {
                     logger.debug(
                         "omitting system data stream [{}] from snapshot restoration because its feature state was not requested",
@@ -658,11 +680,12 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
             }
-            if (includeAliases) {
+            if (includeAliases || systemDataStreams.isEmpty() == false) {
                 dataStreamAliases = new HashMap<>();
                 final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.getProject().dataStreamAliases();
+                Map<String, DataStream> dataStreamsWithAliases = includeAliases ? allDataStreams : systemDataStreams;
                 for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                    DataStreamAlias copy = alias.intersect(dataStreams.keySet()::contains);
+                    DataStreamAlias copy = alias.intersect(dataStreamsWithAliases.keySet()::contains);
                     if (copy.getDataStreams().isEmpty() == false) {
                         dataStreamAliases.put(alias.getName(), copy);
                     }
@@ -671,7 +694,7 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamAliases = Map.of();
             }
         }
-        return new Tuple<>(dataStreams, dataStreamAliases);
+        return new Tuple<>(allDataStreams, dataStreamAliases);
     }
 
     private Map<String, List<String>> getFeatureStatesToRestore(
@@ -765,6 +788,29 @@ public final class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Resolves a set of datastream names that currently exist in the cluster that are part of a feature state which is
+     * about to be restored, and should therefore be removed prior to restoring those feature states from the snapshot.
+     *
+     * @param currentState           The current cluster state
+     * @param featureStatesToRestore A set of feature state names that are about to be restored
+     * @return A set of datastream names that should be removed based on the feature states being restored
+     */
+    private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Set<String> featureStatesToRestore) {
+        if (featureStatesToRestore == null) {
+            return Collections.emptySet();
+        }
+
+        return featureStatesToRestore.stream()
+            .map(systemIndices::getFeature)
+            .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .filter(datastreamName -> currentState.metadata().getProject().dataStreams().containsKey(datastreamName))
+            .map(dataStreamName -> currentState.metadata().getProject().dataStreams().get(dataStreamName))
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
     // visible for testing
     static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
         String dataStreamName = dataStream.getName();
@@ -775,13 +821,11 @@ public final class RestoreService implements ClusterStateApplier {
             .stream()
             .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
-        List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? dataStream.getFailureComponent()
-                .getIndices()
-                .stream()
-                .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
-                .toList()
-            : List.of();
+        List<Index> updatedFailureIndices = dataStream.getFailureComponent()
+            .getIndices()
+            .stream()
+            .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
+            .toList();
         return dataStream.copy()
             .setName(dataStreamName)
             .setBackingIndices(dataStream.getDataComponent().copy().setIndices(updatedIndices).build())
@@ -1336,11 +1380,20 @@ public final class RestoreService implements ClusterStateApplier {
                 settings
             );
 
+            // Clear out all existing system data streams
+            currentState = MetadataDataStreamsService.deleteDataStreams(
+                currentState.projectState(),
+                resolveSystemDataStreamsToDelete(currentState, featureStatesToRestore),
+                settings
+            );
+
             // List of searchable snapshots indices to restore
             final Set<Index> searchableSnapshotsIndices = new HashSet<>();
 
             // Updating cluster state
             final Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+            @FixForMultiProject
+            final ProjectMetadata project = currentState.metadata().getProject();
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             final RoutingTable.Builder rtBuilder = RoutingTable.builder(
                 allocationService.getShardRoutingRoleStrategy(),
@@ -1442,7 +1495,7 @@ public final class RestoreService implements ClusterStateApplier {
                     blocks.updateBlocks(updatedIndexMetadata);
                 }
 
-                mdBuilder.put(updatedIndexMetadata, true);
+                mdBuilder.getProject(project.id()).put(updatedIndexMetadata, true);
                 final Index renamedIndex = updatedIndexMetadata.getIndex();
                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                     shards.put(
@@ -1532,6 +1585,8 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {
+            @FixForMultiProject
+            final var projectBuilder = mdBuilder.getProject(ProjectId.DEFAULT);
             if (metadata.persistentSettings() != null) {
                 Settings settings = metadata.persistentSettings();
                 if (request.skipOperatorOnlyState()) {
@@ -1556,13 +1611,13 @@ public final class RestoreService implements ClusterStateApplier {
             if (metadata.getProject().templates() != null) {
                 // TODO: Should all existing templates be deleted first?
                 for (IndexTemplateMetadata cursor : metadata.getProject().templates().values()) {
-                    mdBuilder.put(cursor);
+                    projectBuilder.put(cursor);
                 }
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
             mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
-            mdBuilder.removeProjectCustomIf((key, value) -> value.isRestorable());
+            projectBuilder.removeCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
             if (metadata.customs() != null) {
@@ -1579,7 +1634,7 @@ public final class RestoreService implements ClusterStateApplier {
                 for (var entry : metadata.getProject().customs().entrySet()) {
                     if (entry.getValue().isRestorable()) {
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(entry.getKey(), entry.getValue());
+                        projectBuilder.putCustom(entry.getKey(), entry.getValue());
                     }
                 }
             }

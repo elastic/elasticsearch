@@ -5,7 +5,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait
@@ -14,7 +14,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part2
@@ -22,7 +22,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part3
@@ -30,7 +30,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part4
@@ -38,7 +38,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part5
@@ -46,9 +46,18 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-32
+      buildDirectory: /dev/shm/bk
+  - label: part6
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart6
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
+
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -56,14 +65,16 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.16.6", "8.17.4", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.17.9", "8.18.4", "8.19.0", "9.0.4", "9.1.0"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
+  - label: bc-upgrade
+    command: ".buildkite/scripts/run-bc-upgrade-tests.sh"
   - group: lucene-compat
     steps:
       - label: "{{matrix.LUCENE_VERSION}} / lucene-compat"
@@ -79,7 +90,7 @@ steps:
               - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -90,7 +101,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait

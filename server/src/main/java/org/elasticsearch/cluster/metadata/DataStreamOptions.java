@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -37,8 +38,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
-    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
-    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false));
+    public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true, null));
+    public static final DataStreamOptions FAILURE_STORE_DISABLED = new DataStreamOptions(new DataStreamFailureStore(false, null));
     public static final DataStreamOptions EMPTY = new DataStreamOptions(null);
 
     public static final ConstructingObjectParser<DataStreamOptions, Void> PARSER = new ConstructingObjectParser<>(
@@ -72,7 +73,16 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(failureStore);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+            || failureStore == null
+            || failureStore().enabled() != null) {
+            out.writeOptionalWriteable(failureStore);
+        } else {
+            // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            // If the enabled flag is not defined, we treat it as null.
+            out.writeOptionalWriteable(null);
+        }
     }
 
     @Override
@@ -96,8 +106,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     /**
      * This class is only used in template configuration. It wraps the fields of {@link DataStreamOptions} with {@link ResettableValue}
-     * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
-     * provides the {@link Template.Builder} that dictates how two templates can be composed.
+     * to allow a user to signal when they want to reset any previously encountered values during template composition.
      */
     public record Template(ResettableValue<DataStreamFailureStore.Template> failureStore) implements Writeable, ToXContentObject {
         public static final Template EMPTY = new Template(ResettableValue.undefined());
@@ -120,13 +129,29 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             );
         }
 
+        public Template(DataStreamFailureStore.Template template) {
+            this(ResettableValue.create(template));
+        }
+
         public Template {
             assert failureStore != null : "Template does not accept null values, please use Resettable.undefined()";
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                || failureStore.get() == null
+                || failureStore().mapAndGet(DataStreamFailureStore.Template::enabled).get() != null) {
+                ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
+                // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
+            } else {
+                // If the enabled flag is not defined, we treat failure store as not defined, if reset we treat the failure store as reset
+                ResettableValue<DataStreamFailureStore.Template> bwcFailureStore = failureStore.get().enabled().shouldReset()
+                    ? ResettableValue.reset()
+                    : ResettableValue.undefined();
+                ResettableValue.write(out, bwcFailureStore, (o, v) -> v.writeTo(o));
+            }
         }
 
         public static Template read(StreamInput in) throws IOException {
@@ -150,43 +175,65 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             return builder;
         }
 
-        public DataStreamOptions toDataStreamOptions() {
-            return new DataStreamOptions(failureStore.mapAndGet(DataStreamFailureStore.Template::toFailureStore));
-        }
-
-        public static Builder builder(Template template) {
-            return new Builder(template);
-        }
-
-        /**
-         * Builds and composes a data stream template.
-         */
-        public static class Builder {
-            private ResettableValue<DataStreamFailureStore.Template> failureStore = ResettableValue.undefined();
-
-            public Builder(Template template) {
-                if (template != null) {
-                    failureStore = template.failureStore();
-                }
-            }
-
-            /**
-             * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
-             * instance contain data the configurations are merged.
-             */
-            public Builder updateFailureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
-                failureStore = ResettableValue.merge(failureStore, newFailureStore, DataStreamFailureStore.Template::merge);
-                return this;
-            }
-
-            public Template build() {
-                return new Template(failureStore);
-            }
-        }
-
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
+        }
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    /**
+     * Builds and composes the data stream options or the respective template.
+     */
+    public static class Builder {
+        private DataStreamFailureStore.Builder failureStore = null;
+
+        public Builder(Template template) {
+            if (template != null && template.failureStore().get() != null) {
+                failureStore = DataStreamFailureStore.builder(template.failureStore().get());
+            }
+        }
+
+        public Builder(DataStreamOptions options) {
+            if (options != null && options.failureStore() != null) {
+                failureStore = DataStreamFailureStore.builder(options.failureStore());
+            }
+        }
+
+        /**
+         * Composes this builder with the values of the provided template. This is not a replacement necessarily, the
+         * inner values will be merged.
+         */
+        public Builder composeTemplate(DataStreamOptions.Template options) {
+            return failureStore(options.failureStore());
+        }
+
+        /**
+         * Composes the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+         * instance contain data the configurations are merged.
+         */
+        public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
+            if (newFailureStore.shouldReset()) {
+                failureStore = null;
+            } else if (newFailureStore.isDefined()) {
+                if (failureStore == null) {
+                    failureStore = DataStreamFailureStore.builder(newFailureStore.get());
+                } else {
+                    failureStore.composeTemplate(newFailureStore.get());
+                }
+            }
+            return this;
+        }
+
+        public Template buildTemplate() {
+            return new Template(failureStore == null ? null : failureStore.buildTemplate());
+        }
+
+        public DataStreamOptions build() {
+            return new DataStreamOptions(failureStore == null ? null : failureStore.build());
         }
     }
 }

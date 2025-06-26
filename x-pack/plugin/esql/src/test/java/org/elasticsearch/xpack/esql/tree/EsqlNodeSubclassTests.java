@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -58,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -146,7 +146,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, Merge.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -312,7 +312,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * {@code ctor} that make sense when {@code ctor}
      * builds subclasses of {@link Node}.
      */
-    private Object[] ctorArgs(Constructor<? extends Node<?>> ctor) throws Exception {
+    public static Object[] ctorArgs(Constructor<? extends Node<?>> ctor) {
         Type[] argTypes = ctor.getGenericParameterTypes();
         Object[] args = new Object[argTypes.length];
         for (int i = 0; i < argTypes.length; i++) {
@@ -351,7 +351,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
@@ -448,7 +448,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, Merge.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+        } else if (List.of(Fork.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
             // limit recursion of plans, in order to prevent stackoverflow errors
             return randomEsRelation();
         }
@@ -503,6 +503,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == Configuration.class) {
             return randomConfiguration();
         }
+        if (argClass == EsField.class) {
+            return EsFieldTests.randomEsField(4);
+        }
         if (argClass == EsIndex.class) {
             return randomEsIndex();
         }
@@ -522,11 +525,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -534,11 +537,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -546,7 +549,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
@@ -557,9 +560,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return map;
     }
 
-    private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
-        int maxCollectionLength = 10;
+        int maxCollectionLength = 8;
 
         if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;
@@ -581,7 +584,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     }
 
-    public <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+    public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             nodeClass = randomFrom(innerSubclassesOf(nodeClass));
         }
@@ -663,7 +666,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return longest;
     }
 
-    private boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
+    private static boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
@@ -671,7 +674,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return PhysicalPlan.class.isAssignableFrom(toBuildClass) || LogicalPlan.class.isAssignableFrom(toBuildClass);
     }
 
-    Expression randomResolvedExpression(Class<?> argClass) throws Exception {
+    static Expression randomResolvedExpression(Class<?> argClass) throws Exception {
         assert Expression.class.isAssignableFrom(argClass);
         @SuppressWarnings("unchecked")
         Class<? extends Expression> asNodeSubclass = (Class<? extends Expression>) argClass;
@@ -737,7 +740,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 
-    private <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
+    private static <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 

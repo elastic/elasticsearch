@@ -31,7 +31,7 @@ def supportedVersion = bwcVersion -> {
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
-    usesDefaultDistribution()
+    usesDefaultDistribution("BWC tests require full distribution for now")
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs

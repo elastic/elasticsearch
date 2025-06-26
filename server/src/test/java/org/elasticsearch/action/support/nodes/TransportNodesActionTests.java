@@ -38,8 +38,8 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -507,7 +507,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
+    private static class TestNodeRequest extends AbstractTransportRequest {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         TestNodeRequest() {}

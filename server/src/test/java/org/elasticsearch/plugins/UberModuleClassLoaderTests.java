@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static final String MODULE_NAME = "synthetic";

@@ -110,11 +110,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
         this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        assert (shardRouting.recoverySource().getType() == RecoverySource.Type.PEER) == (sourceNode != null)
-            : "peer recovery requires source node, recovery type: "
-                + shardRouting.recoverySource().getType()
-                + " source node: "
-                + sourceNode;
+        assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
+            : "peer recovery requires source node but it is null";
+        assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
+            : "reshard split target recovery requires source node but it is null";
         timer.start();
     }
 
@@ -642,9 +641,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
-                recoveredFromSnapshot = in.readLong();
-            }
+            recoveredFromSnapshot = in.readLong();
         }
 
         @Override
@@ -653,9 +650,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
-                out.writeLong(recoveredFromSnapshot);
-            }
+            out.writeLong(recoveredFromSnapshot);
         }
 
         void addRecoveredBytes(long bytes) {

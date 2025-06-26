@@ -33,12 +33,12 @@ query
     ;
 
 sourceCommand
-    : explainCommand
-    | fromCommand
+    : fromCommand
     | rowCommand
     | showCommand
     // in development
-    | {this.isDevVersion()}? metricsCommand
+    | {this.isDevVersion()}? timeSeriesCommand
+    | {this.isDevVersion()}? explainCommand
     ;
 
 processingCommand
@@ -55,12 +55,16 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
+    | completionCommand
+    | sampleCommand
+    | forkCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? rerankCommand
+    | {this.isDevVersion()}? rrfCommand
     ;
 
 whereCommand
@@ -83,17 +87,42 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
+    ;
+
 fromCommand
-    : FROM indexPattern (COMMA indexPattern)* metadata?
+    : FROM indexPatternAndMetadataFields
+    ;
+
+timeSeriesCommand
+    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    ;
+
+indexPatternAndMetadataFields:
+    indexPattern (COMMA indexPattern)* metadata?
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+selectorString
+    : UNQUOTED_SOURCE
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -103,10 +132,6 @@ indexString
 
 metadata
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
-    ;
-
-metricsCommand
-    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=aggFields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -145,6 +170,7 @@ identifier
 identifierPattern
     : ID_PATTERN
     | parameter
+    | doubleParameter
     ;
 
 parameter
@@ -152,13 +178,19 @@ parameter
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
+doubleParameter
+    : DOUBLE_PARAMS                        #inputDoubleParams
+    | NAMED_OR_POSITIONAL_DOUBLE_PARAMS    #inputNamedOrPositionalDoubleParams
+    ;
+
 identifierOrParameter
     : identifier
     | parameter
+    | doubleParameter
     ;
 
 limitCommand
-    : LIMIT INTEGER_LITERAL
+    : LIMIT constant
     ;
 
 sortCommand
@@ -183,6 +215,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -206,11 +239,11 @@ commandOption
     ;
 
 explainCommand
-    : EXPLAIN subqueryExpression
+    : DEV_EXPLAIN subqueryExpression
     ;
 
 subqueryExpression
-    : OPENING_BRACKET query CLOSING_BRACKET
+    : LP query RP
     ;
 
 showCommand
@@ -225,6 +258,10 @@ enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
+sampleCommand
+    : SAMPLE probability=constant
+    ;
+
 //
 // In development
 //
@@ -237,7 +274,7 @@ inlinestatsCommand
     ;
 
 changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
 insistCommand
@@ -245,7 +282,7 @@ insistCommand
     ;
 
 forkCommand
-    : DEV_FORK forkSubQueries
+    : FORK forkSubQueries
     ;
 
 forkSubQueries
@@ -262,7 +299,30 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : whereCommand
-    | sortCommand
-    | limitCommand
+    : processingCommand
+    ;
+
+rrfCommand
+   : DEV_RRF
+   ;
+
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    ;
+
+completionCommand
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;

@@ -1,7 +1,0 @@
-pr: 124001
-summary: Use a must boolean statement when pushing down to Lucene when scoring is
-  also needed
-area: ES|QL
-type: bug
-issues:
- - 123967

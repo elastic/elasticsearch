@@ -8,6 +8,11 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -18,7 +23,7 @@ import java.util.Optional;
 /**
  * Context of each shard we're operating against.
  */
-public interface ShardContext {
+public interface ShardContext extends RefCounted {
     /**
      * The index of this shard in the list of shards being processed.
      */
@@ -39,4 +44,20 @@ public interface ShardContext {
      * {@code _cat/shards}.
      */
     String shardIdentifier();
+
+    /**
+     * Build something to load source {@code _source}.
+     */
+    SourceLoader newSourceLoader();
+
+    /**
+     * Returns something to load values from this field into a {@link Block}.
+     */
+    BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+
+    /**
+     * Returns the {@link MappedFieldType} for the given field name.
+     * By default, this delegate to {@link org.elasticsearch.index.query.SearchExecutionContext#getFieldType(String)}
+     */
+    MappedFieldType fieldType(String name);
 }

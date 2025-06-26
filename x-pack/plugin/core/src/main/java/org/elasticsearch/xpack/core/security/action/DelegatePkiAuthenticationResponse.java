@@ -41,7 +41,6 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     }
 
     public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
-        super(input);
         accessToken = input.readString();
         expiresIn = input.readTimeValue();
         authentication = new Authentication(input);

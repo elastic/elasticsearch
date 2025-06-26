@@ -122,7 +122,6 @@ public class GetConnectorAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.connector = new ConnectorSearchResult(in);
         }
 

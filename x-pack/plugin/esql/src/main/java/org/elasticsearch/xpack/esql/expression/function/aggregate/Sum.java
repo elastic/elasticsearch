@@ -54,7 +54,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
             @Example(file = "stats", tag = "sum"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate "
-                    + "the sum of each employee's maximum salary changes, apply the "
+                    + "the sum of each employee’s maximum salary changes, apply the "
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"
@@ -143,8 +143,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
-            : null;
+        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD))) : null;
     }
 }

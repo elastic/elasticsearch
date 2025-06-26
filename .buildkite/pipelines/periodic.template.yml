@@ -6,7 +6,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: encryption-at-rest
@@ -14,7 +14,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: eql-correctness
@@ -22,7 +22,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: example-plugins
@@ -33,7 +33,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - group: java-fips-matrix
@@ -51,10 +51,11 @@ steps:
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -70,7 +71,7 @@ steps:
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -78,8 +79,8 @@ steps:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: java-matrix
     steps:
-      - label: "{{matrix.ES_RUNTIME_JAVA}} / entitlements={{matrix.ENTITLEMENTS_ENABLED}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline="-Des.entitlements.enabled=$$ENTITLEMENTS_ENABLED" $$GRADLE_TASK
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -93,19 +94,16 @@ steps:
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
               - checkRestCompat
-            ENTITLEMENTS_ENABLED:
-              - "true"
-              - "false"
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-          ENTITLEMENTS_ENABLED: "{{matrix.ENTITLEMENTS_ENABLED}}"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -117,7 +115,7 @@ steps:
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -128,7 +126,7 @@ steps:
     timeout_in_minutes: 360
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
@@ -136,7 +134,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - group: third-party tests
@@ -152,7 +150,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / azure
@@ -166,7 +164,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / gcs
@@ -180,7 +178,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / geoip
@@ -189,7 +187,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / s3
@@ -203,7 +201,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
   - group: lucene-compat
@@ -218,10 +216,10 @@ steps:
             ES_VERSION:
               - "9.0.0"
             ES_COMMIT:
-              - "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
+              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -234,16 +232,16 @@ steps:
     timeout_in_minutes: 20
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.19" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-2
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

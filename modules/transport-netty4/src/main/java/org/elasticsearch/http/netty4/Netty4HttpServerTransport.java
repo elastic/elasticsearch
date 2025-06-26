@@ -24,11 +24,11 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.flow.FlowControlHandler;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -38,7 +38,6 @@ import io.netty.util.ResourceLeakDetector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -99,7 +99,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
-    private final IncrementalBulkService.Enabled enabled;
     private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
@@ -138,7 +137,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
         this.threadWatchdog = networkService.getThreadWatchdog();
-        this.enabled = new IncrementalBulkService.Enabled(clusterSettings);
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -284,7 +282,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator, enabled);
+        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -297,26 +295,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
         private final HttpValidator httpValidator;
-        private final IncrementalBulkService.Enabled enabled;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpValidator httpValidator,
-            IncrementalBulkService.Enabled enabled
+            @Nullable final HttpValidator httpValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
             this.httpValidator = httpValidator;
-            this.enabled = enabled;
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            // auto-read must be disabled all the time
+            ch.config().setAutoRead(false);
+
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             if (acceptChannelPredicate != null) {
@@ -364,6 +362,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
+
+            // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
+            if (Assertions.ENABLED) {
+                // missing reads are hard to catch, but we can detect absence of reads within interval
+                long missingReadIntervalMs = 10_000;
+                ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
+            }
+
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
@@ -376,15 +382,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
-                handlingSettings.maxContentLength(),
-                httpPreRequest -> enabled.get() == false
-                    || ((httpPreRequest.rawPath().endsWith("/_bulk") == false)
-                        || httpPreRequest.rawPath().startsWith("/_xpack/monitoring/_bulk")),
-                decoder
-            );
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
@@ -399,7 +397,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         return super.isContentAlwaysEmpty(msg);
                     }
                 })
-                .addLast("aggregator", aggregator);
+                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
                     @Override
@@ -415,12 +414,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());
             }
+            // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
+            // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
+            // resolved we must add another flow controller here:
+            ch.pipeline().addLast(new FlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",
                     new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
+
+            // make very first read call, since auto-read is disabled; following reads must come from the handlers
+            ch.read();
         }
 
         @Override

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportResponse;
@@ -17,11 +19,13 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
-    private final List<DriverProfile> profiles;
+    private final DriverCompletionInfo completionInfo;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
     private final TimeValue took;  // overall took time for a specific cluster in a cross-cluster search
@@ -29,37 +33,41 @@ final class ComputeResponse extends TransportResponse {
     public final int successfulShards;
     public final int skippedShards;
     public final int failedShards;
+    public final List<ShardSearchFailure> failures;
 
-    ComputeResponse(List<DriverProfile> profiles) {
-        this(profiles, null, null, null, null, null);
+    ComputeResponse(DriverCompletionInfo completionInfo) {
+        this(completionInfo, null, null, null, null, null, List.of());
     }
 
     ComputeResponse(
-        List<DriverProfile> profiles,
+        DriverCompletionInfo completionInfo,
         TimeValue took,
         Integer totalShards,
         Integer successfulShards,
         Integer skippedShards,
-        Integer failedShards
+        Integer failedShards,
+        List<ShardSearchFailure> failures
     ) {
-        this.profiles = profiles;
+        this.completionInfo = completionInfo;
         this.took = took;
         this.totalShards = totalShards == null ? 0 : totalShards.intValue();
         this.successfulShards = successfulShards == null ? 0 : successfulShards.intValue();
         this.skippedShards = skippedShards == null ? 0 : skippedShards.intValue();
         this.failedShards = failedShards == null ? 0 : failedShards.intValue();
+        this.failures = failures;
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+        if (in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            completionInfo = DriverCompletionInfo.readFrom(in);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+                completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
             } else {
-                profiles = null;
+                completionInfo = DriverCompletionInfo.EMPTY;
             }
         } else {
-            profiles = null;
+            completionInfo = DriverCompletionInfo.EMPTY;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.took = in.readOptionalTimeValue();
@@ -74,17 +82,21 @@ final class ComputeResponse extends TransportResponse {
             this.skippedShards = 0;
             this.failedShards = 0;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+            this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
+        } else {
+            this.failures = List.of();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            if (profiles == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeCollection(profiles);
-            }
+        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            completionInfo.writeTo(out);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeBoolean(true);
+            out.writeCollection(completionInfo.driverProfiles());
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalTimeValue(took);
@@ -93,10 +105,14 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(skippedShards);
             out.writeVInt(failedShards);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_FAILURE_FROM_REMOTE_8_19)) {
+            out.writeCollection(failures, (o, v) -> v.writeTo(o));
+        }
     }
 
-    public List<DriverProfile> getProfiles() {
-        return profiles;
+    public DriverCompletionInfo getCompletionInfo() {
+        return completionInfo;
     }
 
     public TimeValue getTook() {
@@ -117,5 +133,9 @@ final class ComputeResponse extends TransportResponse {
 
     public int getFailedShards() {
         return failedShards;
+    }
+
+    public List<ShardSearchFailure> getFailures() {
+        return failures;
     }
 }

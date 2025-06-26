@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record ErrorResult(String error) implements ToXContentObject {
+public record ErrorResult(String error, boolean isStopping) implements ToXContentObject {
 
     public static final ParseField ERROR = new ParseField("error");
 
@@ -22,6 +22,10 @@ public record ErrorResult(String error) implements ToXContentObject {
         "error",
         a -> new ErrorResult((String) a[0])
     );
+
+    public ErrorResult(String error) {
+        this(error, false);
+    }
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ERROR);

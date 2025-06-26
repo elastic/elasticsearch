@@ -11,8 +11,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -29,24 +31,23 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionCreator;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -75,6 +76,13 @@ public class AlibabaCloudSearchService extends SenderService {
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,
         TaskType.COMPLETION
+    );
+
+    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
     );
 
     public AlibabaCloudSearchService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -272,7 +280,6 @@ public class AlibabaCloudSearchService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -284,14 +291,37 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
+        var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
+    protected void validateRerankParameters(Boolean returnDocuments, Integer topN, ValidationException validationException) {
+        if (returnDocuments != null) {
+            validationException.addValidationError(
+                Strings.format(
+                    "Invalid return_documents [%s]. The return_documents option is not supported by this service",
+                    returnDocuments
+                )
+            );
+        }
+
+        if (topN != null) {
+            validationException.addValidationError(
+                Strings.format("Invalid top_n [%s]. The top_n option is not supported by this service", topN)
+            );
+        }
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -305,29 +335,16 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings);
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
         }
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

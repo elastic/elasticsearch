@@ -11,8 +11,8 @@ import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -20,17 +20,20 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -44,69 +47,41 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
-import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
-import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
-import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
-import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -120,30 +95,6 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class for function tests.
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
-    /**
-     * Operators are unregistered functions.
-     */
-    private static final Map<String, Class<?>> OPERATORS = Map.ofEntries(
-        entry("in", In.class),
-        entry("like", WildcardLike.class),
-        entry("rlike", RLike.class),
-        entry("equals", Equals.class),
-        entry("not_equals", NotEquals.class),
-        entry("greater_than", GreaterThan.class),
-        entry("greater_than_or_equal", GreaterThanOrEqual.class),
-        entry("less_than", LessThan.class),
-        entry("less_than_or_equal", LessThanOrEqual.class),
-        entry("add", Add.class),
-        entry("sub", Sub.class),
-        entry("mul", Mul.class),
-        entry("div", Div.class),
-        entry("mod", Mod.class),
-        entry("neg", Neg.class),
-        entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class),
-        // Match operator is both a function and an operator
-        entry("match_operator", MatchOperator.class)
-    );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
 
@@ -172,7 +123,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      *
      * @param entirelyNullPreservesType should a test case that only contains parameters
-     *                                  with the {@code null} type keep it's expected type?
+     *                                  with the {@code null} type keep it’s expected type?
      *                                  This is <strong>mostly</strong> going to be {@code true}
      *                                  except for functions that base their type entirely
      *                                  on input types like {@link Greatest} or {@link Coalesce}.
@@ -210,7 +161,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          *
          * Also, if this was the first time we saw the signature we copy it
          * *again*, replacing the argument with null, but annotating the
-         * argument's type as `null` explicitly.
+         * argument’s type as `null` explicitly.
          */
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier original : testCaseSuppliers) {
@@ -470,7 +421,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
                 /*
                  * Types under construction aren't checked because we're actively
-                 * adding support for them to functions. That's *why* they are
+                 * adding support for them to functions. That’s *why* they are
                  * under construction.
                  */
                 return false;
@@ -478,7 +429,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (t.isCounter()) {
                 /*
                  * For now, we're assuming no functions take counters
-                 * as parameters. That's not true - some do. But we'll
+                 * as parameters. That’s not true - some do. But we'll
                  * need to update the tests to handle that.
                  */
                 return false;
@@ -538,11 +489,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private Expression randomSerializeDeserialize(Expression expression) {
-        if (randomBoolean()) {
+        if (canSerialize() == false || randomBoolean()) {
             return expression;
         }
 
         return serializeDeserializeExpression(expression);
+    }
+
+    /**
+     * The expression being tested be serialized? The <strong>vast</strong>
+     * majority of expressions can be serialized.
+     */
+    protected boolean canSerialize() {
+        return true;
     }
 
     /**
@@ -565,7 +524,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // Fields use synthetic sources, which can't be serialized. So we replace with the originals instead.
         var dummyChildren = newExpression.children()
             .stream()
-            .<Expression>map(c -> new Literal(Source.EMPTY, "anything that won't match any test case", c.dataType()))
+            .<Expression>map(c -> new Literal(Source.EMPTY, BytesRefs.toBytesRef("anything that won't match any test case"), c.dataType()))
             .toList();
         // We first replace them with other unrelated expressions to force a replace, as some replaceChildren() will check for equality
         return newExpression.replaceChildrenSameSize(dummyChildren).replaceChildrenSameSize(expression.children());
@@ -599,6 +558,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
+        if (e instanceof SurrogateExpression s) {
+            Expression surrogate = s.surrogate();
+            if (surrogate != null) {
+                e = surrogate;
+            }
+        }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();
@@ -609,7 +574,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
+        return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
+    }
+
+    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+        boolean anyBytesRef = false;
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
+                anyBytesRef = true;
+                break;
+            }
+        }
+        return anyBytesRef && randomBoolean() ? BlockTestUtils.convertBytesRefsToOrdinals(page) : page;
     }
 
     /**
@@ -661,7 +637,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
 
-            pages.add(new Page(pageSize, blocks));
+            pages.add(maybeConvertBytesRefsToOrdinals(new Page(pageSize, blocks)));
             initialRow += pageSize;
             pageSize = randomIntBetween(1, 100);
         }
@@ -748,6 +724,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
+        assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
     }
 
@@ -757,7 +734,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     @AfterClass
     public static void testFunctionInfo() {
-        Logger log = LogManager.getLogger(getTestClass());
+        Class<?> testClass = getTestClass();
+        Logger log = LogManager.getLogger(testClass);
         FunctionDefinition definition = definition(functionName());
         if (definition == null) {
             log.info("Skipping function info checks because the function isn't registered");
@@ -780,7 +758,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
+        for (Map.Entry<List<DataType>, DataType> entry : signatures(testClass).entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
@@ -824,6 +802,101 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * This test is meant to validate that the license checks documented match those enforced.
+     * The expectations are set in the test class using a method with this signature:
+     * <code>
+     *     public static License.OperationMode licenseRequirement(List&lt;DataType&gt; fieldTypes);
+     * </code>
+     * License enforcement in the function class is achieved using the interface <code>LicenseAware</code>.
+     * This test will make sure the two are in agreement, and does not require that the function class actually
+     * report its license level. If we add license checks to any function, but fail to also add the expected
+     * license level to the test class, this test will fail.
+     */
+    @AfterClass
+    public static void testFunctionLicenseChecks() throws Exception {
+        Class<?> testClass = getTestClass();
+        Logger log = LogManager.getLogger(testClass);
+        FunctionDefinition definition = definition(functionName());
+        if (definition == null) {
+            log.info("Skipping function info checks because the function isn't registered");
+            return;
+        }
+        log.info("Running function license checks");
+        DocsV3Support.LicenseRequirementChecker licenseChecker = new DocsV3Support.LicenseRequirementChecker(testClass);
+        License.OperationMode functionLicense = licenseChecker.invoke(null);
+        Constructor<?> ctor = constructorWithFunctionInfo(definition.clazz());
+        if (LicenseAware.class.isAssignableFrom(definition.clazz()) == false) {
+            // Perform simpler no-signature tests
+            assertThat(
+                "Function " + definition.name() + " should be licensed under " + functionLicense,
+                functionLicense,
+                equalTo(License.OperationMode.BASIC)
+            );
+            return;
+        }
+        // For classes with LicenseAware, we need to check that the license is correct
+        TestCheckLicense checkLicense = new TestCheckLicense();
+
+        // Go through all signatures and assert that the license is as expected
+        signatures(testClass).forEach((signature, returnType) -> {
+            try {
+                License.OperationMode license = licenseChecker.invoke(signature);
+                assertNotNull("License should not be null", license);
+
+                // Construct an instance of the class and then call it's licenseCheck method, and compare the results
+                Object[] args = new Object[ctor.getParameterCount()];
+                args[0] = Source.EMPTY;
+                for (int i = 0; i < signature.size(); i++) {
+                    args[i + 1] = new Literal(Source.EMPTY, null, signature.get(i));
+                }
+                Object instance = ctor.newInstance(args);
+                // Check that object implements the LicenseAware interface
+                if (LicenseAware.class.isAssignableFrom(instance.getClass())) {
+                    LicenseAware licenseAware = (LicenseAware) instance;
+                    switch (license) {
+                        case BASIC -> checkLicense.assertLicenseCheck(licenseAware, signature, true, true, true);
+                        case PLATINUM -> checkLicense.assertLicenseCheck(licenseAware, signature, false, true, true);
+                        case ENTERPRISE -> checkLicense.assertLicenseCheck(licenseAware, signature, false, false, true);
+                    }
+                } else {
+                    fail("Function " + definition.name() + " does not implement LicenseAware");
+                }
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
+    }
+
+    private static class TestCheckLicense {
+        XPackLicenseState basicLicense = makeLicenseState(License.OperationMode.BASIC);
+        XPackLicenseState platinumLicense = makeLicenseState(License.OperationMode.PLATINUM);
+        XPackLicenseState enterpriseLicense = makeLicenseState(License.OperationMode.ENTERPRISE);
+
+        private void assertLicenseCheck(
+            LicenseAware licenseAware,
+            List<DataType> signature,
+            boolean allowsBasic,
+            boolean allowsPlatinum,
+            boolean allowsEnterprise
+        ) {
+            boolean basic = licenseAware.licenseCheck(basicLicense);
+            boolean platinum = licenseAware.licenseCheck(platinumLicense);
+            boolean enterprise = licenseAware.licenseCheck(enterpriseLicense);
+            assertThat("Basic license should be accepted for " + signature, basic, equalTo(allowsBasic));
+            assertThat("Platinum license should be accepted for " + signature, platinum, equalTo(allowsPlatinum));
+            assertThat("Enterprise license should be accepted for " + signature, enterprise, equalTo(allowsEnterprise));
+        }
+
+        private void assertLicenseCheck(List<DataType> signature, boolean allowed, boolean expected) {
+            assertThat("Basic license should " + (expected ? "" : "not ") + "be accepted for " + signature, allowed, equalTo(expected));
+        }
+    }
+
+    private static XPackLicenseState makeLicenseState(License.OperationMode mode) {
+        return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(mode, true, ""));
+    }
+
+    /**
      * Asserts the result of a test case matches the expected result and warnings.
      * <p>
      * The {@code result} parameter should be an object as returned by {@link #toJavaObjectUnsignedLongAware}.
@@ -856,51 +929,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
     }
 
-    @AfterClass
-    public static void renderSignature() throws IOException {
-        // Temporarily turn off docs generation during docs freeze
-        // TODO: Only turn this back on once this generates the correct MD files
-        if (System.getProperty("generateDocs") == null || true) {
-            return;
-        }
-        String name = functionName();
-        String rendered = buildSignatureSvg(name);
-        if (rendered == null) {
-            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
-        } else {
-            LogManager.getLogger(getTestClass()).info("Writing function signature");
-            writeToTempDir("signature", name, "svg", rendered);
-        }
-    }
-
-    private static String buildSignatureSvg(String name) throws IOException {
-        String binaryOperator = binaryOperator(name);
-        if (binaryOperator != null) {
-            return RailRoadDiagram.binaryOperator(binaryOperator);
-        }
-        String unaryOperator = unaryOperator(name);
-        if (unaryOperator != null) {
-            return RailRoadDiagram.unaryOperator(unaryOperator);
-        }
-        String searchOperator = searchOperator(name);
-        if (searchOperator != null) {
-            return RailRoadDiagram.searchOperator(searchOperator);
-        }
-        FunctionDefinition definition = definition(name);
-        if (definition != null) {
-            return RailRoadDiagram.functionSignature(definition);
-        }
-        return null;
-    }
-
     private static Class<?> classGeneratingSignatures = null;
     /**
-     * Unique signatures in this test's parameters.
+     * Unique signatures in this test’s parameters.
      */
     private static Map<List<DataType>, DataType> signatures;
 
-    private static Map<List<DataType>, DataType> signatures() {
-        Class<?> testClass = getTestClass();
+    public static Map<List<DataType>, DataType> signatures(Class<?> testClass) {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
@@ -930,250 +965,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws IOException {
-        renderDocs(functionName());
-    }
-
-    protected static void renderDocs(String name) throws IOException {
-        // Temporarily turn off docs generation during docs freeze
-        // TODO: Only turn this back on once this generates the correct MD files
-        if (System.getProperty("generateDocs") == null || true) {
+    public static void renderDocs() throws Exception {
+        if (System.getProperty("generateDocs") == null) {
             return;
         }
-        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
-            renderDocsForOperators(name);
-            return;
-        }
-        FunctionDefinition definition = definition(name);
-        if (definition != null) {
-            EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
-            if (name.equals("case")) {
-                /*
-                 * Hack the description, so we render a proper one for case.
-                 */
-                // TODO build the description properly *somehow*
-                EsqlFunctionRegistry.ArgSignature trueValue = description.args().get(1);
-                EsqlFunctionRegistry.ArgSignature falseValue = new EsqlFunctionRegistry.ArgSignature(
-                    "elseValue",
-                    trueValue.type(),
-                    "The value that's returned when no condition evaluates to `true`.",
-                    true
-                );
-                description = new EsqlFunctionRegistry.FunctionDescription(
-                    description.name(),
-                    List.of(description.args().get(0), trueValue, falseValue),
-                    description.returnType(),
-                    description.description(),
-                    description.variadic(),
-                    description.type()
-                );
-            }
-            renderTypes(name, description.args());
-            renderParametersList(name, description.argNames(), description.argDescriptions());
-            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(name, description.description(), info.detailedDescription(), info.note());
-            Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
-                .stream()
-                .filter(EsqlFunctionRegistry.ArgSignature::mapArg)
-                .findFirst();
-            boolean hasFunctionOptions = mapArgSignature.isPresent();
-            if (hasFunctionOptions) {
-                renderFunctionNamedParams(name, (EsqlFunctionRegistry.MapArgSignature) mapArgSignature.get());
-            }
-            boolean hasExamples = renderExamples(name, info);
-            boolean hasAppendix = renderAppendix(name, info.appendix());
-            renderFullLayout(name, info.preview(), hasExamples, hasAppendix, hasFunctionOptions);
-            renderKibanaInlineDocs(name, info);
-            renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
-            return;
-        }
-        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
-    }
-
-    private static final String DOCS_WARNING =
-        "// This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
-
-    private static final String PREVIEW_CALLOUT =
-        "\npreview::[\"Do not use on production environments. This functionality is in technical preview and "
-            + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
-            + "are not subject to the support SLA of official GA features.\"]\n";
-
-    private static void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
-        StringBuilder header = new StringBuilder();
-        List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
-        for (String arg : argNames) {
-            header.append(arg).append(" | ");
-        }
-        header.append("result");
-
-        List<String> table = new ArrayList<>();
-        for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
-            if (shouldHideSignature(sig.getKey(), sig.getValue())) {
-                continue;
-            }
-            if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
-                continue;
-            }
-            StringBuilder b = new StringBuilder();
-            for (int i = 0; i < sig.getKey().size(); i++) {
-                DataType argType = sig.getKey().get(i);
-                EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
-                if (argSignature.mapArg()) {
-                    b.append("named parameters");
-                } else {
-                    b.append(argType.esNameIfPossible());
-                }
-                b.append(" | ");
-            }
-            b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-            b.append(sig.getValue().esNameIfPossible());
-            table.add(b.toString());
-        }
-        Collections.sort(table);
-        if (table.isEmpty()) {
-            table.add(signatures.values().iterator().next().esNameIfPossible());
-        }
-
-        String rendered = DOCS_WARNING + """
-            *Supported types*
-
-            [%header.monospaced.styled,format=dsv,separator=|]
-            |===
-            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
-        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", name, rendered);
-        writeToTempDir("types", name, "asciidoc", rendered);
-    }
-
-    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        builder.append(DOCS_WARNING);
-        builder.append("*Parameters*\n");
-        for (int a = 0; a < argNames.size(); a++) {
-            builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
-        }
-        String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
-        writeToTempDir("parameters", name, "asciidoc", rendered);
-    }
-
-    private static void renderDescription(String name, String description, String detailedDescription, String note) throws IOException {
-        String rendered = DOCS_WARNING + """
-            *Description*
-
-            """ + description + "\n";
-
-        if (Strings.isNullOrEmpty(detailedDescription) == false) {
-            rendered += "\n" + detailedDescription + "\n";
-        }
-
-        if (Strings.isNullOrEmpty(note) == false) {
-            rendered += "\nNOTE: " + note + "\n";
-        }
-        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", name, rendered);
-        writeToTempDir("description", name, "asciidoc", rendered);
-    }
-
-    private static boolean renderExamples(String name, FunctionInfo info) throws IOException {
-        if (info == null || info.examples().length == 0) {
-            return false;
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append(DOCS_WARNING);
-        if (info.examples().length == 1) {
-            builder.append("*Example*\n\n");
-        } else {
-            builder.append("*Examples*\n\n");
-        }
-        for (Example example : info.examples()) {
-            if (example.description().length() > 0) {
-                builder.append(example.description());
-                builder.append("\n");
-            }
-            builder.append("""
-                [source.merge.styled,esql]
-                ----
-                include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$]
-                ----
-                [%header.monospaced.styled,format=dsv,separator=|]
-                |===
-                include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
-                |===
-                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
-            if (example.explanation().length() > 0) {
-                builder.append("\n");
-                builder.append(example.explanation());
-                builder.append("\n\n");
-            }
-        }
-        builder.append('\n');
-        String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", name, rendered);
-        writeToTempDir("examples", name, "asciidoc", rendered);
-        return true;
-    }
-
-    private static boolean renderAppendix(String name, String appendix) throws IOException {
-        if (appendix.isEmpty()) {
-            return false;
-        }
-
-        String rendered = DOCS_WARNING + appendix + "\n";
-
-        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", name, rendered);
-        writeToTempDir("appendix", name, "asciidoc", rendered);
-        return true;
-    }
-
-    private static void renderFunctionNamedParams(String name, EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
-        String header = "name | types | description";
-
-        List<String> table = new ArrayList<>();
-        for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
-            StringBuilder builder = new StringBuilder();
-            EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
-            builder.append(arg.name()).append(" | ").append(arg.type()).append(" | ").append(arg.description());
-            table.add(builder.toString());
-        }
-
-        String rendered = DOCS_WARNING + """
-            *Supported function named parameters*
-
-            [%header.monospaced.styled,format=dsv,separator=|]
-            |===
-            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
-        LogManager.getLogger(getTestClass()).info("Writing function named parameters for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("functionNamedParams", name, "asciidoc", rendered);
-    }
-
-    private static void renderFullLayout(String name, boolean preview, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
-        throws IOException {
-        String rendered = DOCS_WARNING + """
-            [discrete]
-            [[esql-$NAME$]]
-            === `$UPPER_NAME$`
-            $PREVIEW_CALLOUT$
-            *Syntax*
-
-            [.text-center]
-            image::esql/functions/signature/$NAME$.svg[Embedded,opts=inline]
-
-            include::../parameters/$NAME$.asciidoc[]
-            include::../description/$NAME$.asciidoc[]
-            include::../types/$NAME$.asciidoc[]
-            """.replace("$NAME$", name)
-            .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
-            .replace("$PREVIEW_CALLOUT$", preview ? PREVIEW_CALLOUT : "");
-        if (hasFunctionOptions) {
-            rendered += "include::../functionNamedParams/" + name + ".asciidoc[]\n";
-        }
-        if (hasExamples) {
-            rendered += "include::../examples/" + name + ".asciidoc[]\n";
-        }
-        if (hasAppendix) {
-            rendered += "include::../appendix/" + name + ".asciidoc[]\n";
-        }
-        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", name, rendered);
-        writeToTempDir("layout", name, "asciidoc", rendered);
+        DocsV3Support.renderDocs(functionName(), getTestClass());
     }
 
     protected static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
@@ -1186,185 +982,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return null;
     }
 
-    private static void renderDocsForOperators(String name) throws IOException {
-        Constructor<?> ctor = constructorWithFunctionInfo(OPERATORS.get(name));
-        assert ctor != null;
-        FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
-        assert functionInfo != null;
-        renderDocsForOperators(name, ctor, functionInfo);
-    }
-
-    protected static void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo) throws IOException {
-        renderKibanaInlineDocs(name, functionInfo);
-
-        var params = ctor.getParameters();
-
-        List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
-        for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-            if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
-                if (mapParamInfo != null) {
-                    args.add(mapParam(mapParamInfo));
-                } else {
-                    Param paramInfo = params[i].getAnnotation(Param.class);
-                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
-                }
-            }
-        }
-        renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
-        renderTypes(name, args);
-    }
-
-    private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        builder.append("""
-            <!--
-            This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
-            -->
-
-            """);
-        builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
-        builder.append(removeAsciidocLinks(info.description())).append("\n\n");
-
-        if (info.examples().length > 0) {
-            Example example = info.examples()[0];
-            builder.append("```\n");
-            builder.append("read-example::").append(example.file()).append(".csv-spec[tag=").append(example.tag()).append("]\n");
-            builder.append("```\n");
-        }
-        if (Strings.isNullOrEmpty(info.note()) == false) {
-            builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
-        }
-        String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
-        writeToTempDir("kibana/docs", name, "md", rendered);
-    }
-
-    private static void renderKibanaFunctionDefinition(
-        String name,
-        FunctionInfo info,
-        List<EsqlFunctionRegistry.ArgSignature> args,
-        boolean variadic
-    ) throws IOException {
-
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject();
-        builder.field(
-            "comment",
-            "This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
-        );
-        if (false == info.operator().isEmpty()) {
-            builder.field("type", "operator");
-            builder.field("operator", info.operator());
-            assertThat(isAggregation(), equalTo(false));
-        } else {
-            builder.field("type", switch (info.type()) {
-                case SCALAR -> "scalar";
-                case AGGREGATE -> "agg";
-                case GROUPING -> "grouping";
-            });
-        }
-        builder.field("name", name);
-        builder.field("description", removeAsciidocLinks(info.description()));
-        if (Strings.isNullOrEmpty(info.note()) == false) {
-            builder.field("note", removeAsciidocLinks(info.note()));
-        }
-        // TODO aliases
-
-        builder.startArray("signatures");
-        if (args.isEmpty()) {
-            builder.startObject();
-            builder.startArray("params");
-            builder.endArray();
-            // There should only be one return type so just use that as the example
-            builder.field("returnType", signatures().values().iterator().next().esNameIfPossible());
-            builder.endObject();
-        } else {
-            int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
-            for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
-                if (variadic && sig.getKey().size() > args.size()) {
-                    // For variadic functions we test much longer signatures, let's just stop at the last one
-                    continue;
-                }
-                if (sig.getKey().size() < minArgCount) {
-                    throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
-                }
-                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
-                    continue;
-                }
-                builder.startObject();
-                builder.startArray("params");
-                for (int i = 0; i < sig.getKey().size(); i++) {
-                    EsqlFunctionRegistry.ArgSignature arg = args.get(i);
-                    builder.startObject();
-                    builder.field("name", arg.name());
-                    if (arg.mapArg()) {
-                        builder.field("type", "function_named_parameters");
-                        builder.field(
-                            "mapParams",
-                            arg.mapParams()
-                                .values()
-                                .stream()
-                                .map(mapArgSignature -> "{" + mapArgSignature + "}")
-                                .collect(Collectors.joining(", "))
-                        );
-                    } else {
-                        builder.field("type", sig.getKey().get(i).esNameIfPossible());
-                    }
-                    builder.field("optional", arg.optional());
-                    builder.field("description", arg.description());
-                    builder.endObject();
-                }
-                builder.endArray();
-                builder.field("variadic", variadic);
-                builder.field("returnType", sig.getValue().esNameIfPossible());
-                builder.endObject();
-            }
-        }
-        builder.endArray();
-
-        if (info.examples().length > 0) {
-            builder.startArray("examples");
-            for (Example example : info.examples()) {
-                builder.value("read-example::" + example.file() + ".csv-spec[tag=" + example.tag() + ", json]");
-            }
-            builder.endArray();
-        }
-        builder.field("preview", info.preview());
-        builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
-
-        String rendered = Strings.toString(builder.endObject());
-        LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", name, rendered);
-        writeToTempDir("kibana/definition", name, "json", rendered);
-    }
-
-    private static String removeAsciidocLinks(String asciidoc) {
-        return asciidoc.replaceAll("[^ ]+\\[([^\\]]+)\\]", "$1");
-    }
-
-    private static List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures().entrySet());
-        Collections.sort(sortedSignatures, new Comparator<>() {
-            @Override
-            public int compare(Map.Entry<List<DataType>, DataType> lhs, Map.Entry<List<DataType>, DataType> rhs) {
-                int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
-                for (int i = 0; i < maxlen; i++) {
-                    if (lhs.getKey().size() <= i) {
-                        return -1;
-                    }
-                    if (rhs.getKey().size() <= i) {
-                        return 1;
-                    }
-                    int c = lhs.getKey().get(i).esNameIfPossible().compareTo(rhs.getKey().get(i).esNameIfPossible());
-                    if (c != 0) {
-                        return c;
-                    }
-                }
-                return lhs.getValue().esNameIfPossible().compareTo(rhs.getValue().esNameIfPossible());
-            }
-        });
-        return sortedSignatures;
-    }
-
     protected static String functionName() {
         Class<?> testClass = getTestClass();
         if (testClass.isAnnotationPresent(FunctionName.class)) {
@@ -1375,80 +992,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    private static FunctionDefinition definition(String name) {
+    static boolean functionRegistered(String name) {
+        return functionRegistry.functionExists(name);
+    }
+
+    static FunctionDefinition definition(String name) {
         if (functionRegistry.functionExists(name)) {
             return functionRegistry.resolveFunction(name);
         }
         return null;
-    }
-
-    /**
-     * If this test is a for a binary operator return its symbol, otherwise return {@code null}.
-     * This is functionally the reverse of the combination of
-     * {@link ExpressionBuilder#visitArithmeticBinary} and {@link ExpressionBuilder#visitComparison}.
-     */
-    private static String binaryOperator(String name) {
-        return switch (name) {
-            case "add" -> "+";
-            case "div" -> "/";
-            case "equals" -> "==";
-            case "greater_than" -> ">";
-            case "greater_than_or_equal" -> ">=";
-            case "less_than" -> "<";
-            case "less_than_or_equal" -> "<=";
-            case "mod" -> "%";
-            case "mul" -> "*";
-            case "not_equals" -> "!=";
-            case "sub" -> "-";
-            default -> null;
-        };
-    }
-
-    /**
-     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
-     */
-    private static String searchOperator(String name) {
-        return switch (name) {
-            case "match_operator" -> ":";
-            default -> null;
-        };
-    }
-
-    /**
-     * If this tests is for a unary operator return its symbol, otherwise return {@code null}.
-     * This is functionally the reverse of {@link ExpressionBuilder#visitArithmeticUnary}.
-     */
-    private static String unaryOperator(String name) {
-        return switch (name) {
-            case "neg" -> "-";
-            default -> null;
-        };
-    }
-
-    /**
-     * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
-     */
-    private static boolean likeOrInOperator(String name) {
-        return switch (name.toLowerCase(Locale.ENGLISH)) {
-            case "rlike", "like", "in", "not_rlike", "not_like", "not_in" -> true;
-            default -> false;
-        };
-    }
-
-    /**
-     * Write some text to a tempdir so we can copy it to the docs later.
-     * <p>
-     * We need to write to a tempdir instead of the docs because the tests
-     * don't have write permission to the docs.
-     * </p>
-     */
-    private static void writeToTempDir(String subdir, String name, String extension, String str) throws IOException {
-        // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
-        Files.createDirectories(dir);
-        Path file = dir.resolve(name + "." + extension);
-        Files.writeString(file, str);
-        LogManager.getLogger(getTestClass()).info("Wrote to file: {}", file);
     }
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
@@ -1478,7 +1030,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Returns true if the current test case is for an aggregation function.
      * <p>
-     *     This method requires reflection, as it's called from a static context (@AfterClass documentation rendering).
+     *     This method requires reflection, as it’s called from a static context (@AfterClass documentation rendering).
      * </p>
      */
     private static boolean isAggregation() {
@@ -1488,7 +1040,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Should this particular signature be hidden from the docs even though we test it?
      */
-    private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
+    static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
             if (returnType == dt || argTypes.contains(dt)) {
                 return true;

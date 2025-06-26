@@ -1,6 +1,0 @@
-pr: 123010
-summary: Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)`
-area: Engine
-type: bug
-issues:
- - 122974

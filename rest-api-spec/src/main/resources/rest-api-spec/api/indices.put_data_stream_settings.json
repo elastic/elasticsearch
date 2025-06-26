@@ -1,0 +1,48 @@
+{
+  "indices.put_data_stream_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Updates a data stream's settings"
+    },
+    "stability":"stable",
+    "visibility": "public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/{name}/_settings",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"Comma-separated list of data streams or data stream patterns"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "dry_run":{
+        "type":"boolean",
+        "description":"Whether this request should only be a dry run rather than actually applying settings",
+        "default":false
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Period to wait for a response"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Period to wait for a connection to the master node"
+      }
+    },
+    "body":{
+      "description":"The data stream settings to be updated",
+      "required":true
+    }
+  }
+}

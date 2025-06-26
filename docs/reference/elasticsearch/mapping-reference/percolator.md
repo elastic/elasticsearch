@@ -7,7 +7,7 @@ mapped_pages:
 # Percolator field type [percolator]
 
 
-The `percolator` field type parses a json structure into a native query and stores that query, so that the [percolate query](/reference/query-languages/query-dsl-percolate-query.md) can use it to match provided documents.
+The `percolator` field type parses a json structure into a native query and stores that query, so that the [percolate query](/reference/query-languages/query-dsl/query-dsl-percolate-query.md) can use it to match provided documents.
 
 Any field that contains a json object can be configured to be a percolator field. The percolator field type has no settings. Just configuring the `percolator` field type is sufficient to instruct Elasticsearch to treat a field as a query.
 

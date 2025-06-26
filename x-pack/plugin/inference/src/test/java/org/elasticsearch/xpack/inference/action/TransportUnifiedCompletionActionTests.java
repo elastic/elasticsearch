@@ -69,7 +69,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
 
     @Override
     protected UnifiedCompletionAction.Request createRequest() {
-        return mock();
+        return mock(UnifiedCompletionAction.Request.class);
     }
 
     public void testThrows_IncompatibleTaskTypeException_WhenUsingATextEmbeddingInferenceEndpoint() {

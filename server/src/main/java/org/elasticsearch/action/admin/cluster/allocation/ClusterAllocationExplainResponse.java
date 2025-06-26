@@ -26,7 +26,6 @@ public class ClusterAllocationExplainResponse extends ActionResponse implements 
     private final ClusterAllocationExplanation cae;
 
     public ClusterAllocationExplainResponse(StreamInput in) throws IOException {
-        super(in);
         this.cae = new ClusterAllocationExplanation(in);
     }
 

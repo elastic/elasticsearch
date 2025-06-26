@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -53,7 +52,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
@@ -61,8 +60,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
-        Map.entry(TEXT, (fieldEval, source) -> fieldEval),
-        Map.entry(SEMANTIC_TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(TEXT, (source, fieldEval) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),

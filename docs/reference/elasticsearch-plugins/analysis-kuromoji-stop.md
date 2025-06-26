@@ -5,7 +5,7 @@ mapped_pages:
 
 # ja_stop token filter [analysis-kuromoji-stop]
 
-The `ja_stop` token filter filters out Japanese stopwords (`_japanese_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_japanese_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) instead.
+The `ja_stop` token filter filters out Japanese stopwords (`_japanese_`), and any other custom stopwords specified by the user. This filter only supports the predefined `_japanese_` stopwords list. If you want to use a different predefined list, then use the [`stop` token filter](/reference/text-analysis/analysis-stop-tokenfilter.md) instead.
 
 ```console
 PUT kuromoji_sample

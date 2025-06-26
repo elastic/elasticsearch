@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,6 +47,8 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @FunctionInfo(
         returnType = { "geo_point", "cartesian_point" },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Calculate the spatial centroid over a field with spatial point geometry type.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
@@ -104,11 +108,11 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };

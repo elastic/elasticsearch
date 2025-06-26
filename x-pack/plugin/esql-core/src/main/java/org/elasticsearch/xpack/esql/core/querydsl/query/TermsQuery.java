@@ -26,7 +26,7 @@ public class TermsQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return termsQuery(term, values);
     }
 

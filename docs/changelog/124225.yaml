@@ -1,5 +1,0 @@
-pr: 124225
-summary: "[Inference API] Fix output stream ordering in `InferenceActionProxy`"
-area: Machine Learning
-type: bug
-issues: []

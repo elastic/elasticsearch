@@ -1,5 +1,0 @@
-pr: 124149
-summary: Retry ILM async action after reindexing data stream
-area: Data streams
-type: enhancement
-issues: []

@@ -13,10 +13,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -35,6 +34,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,7 +45,7 @@ public class ParsingTests extends ESTestCase {
 
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
-        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution()),
+        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution(), emptyInferenceResolution()),
         TEST_VERIFIER
     );
 
@@ -79,7 +79,11 @@ public class ParsingTests extends ESTestCase {
      */
     public void testInlineCast() throws IOException {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve("kibana");
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("query-languages")
+            .resolve("esql")
+            .resolve("kibana")
+            .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
         try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
@@ -95,9 +99,9 @@ public class ParsingTests extends ESTestCase {
                 LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
-                Expression functionCall = row.fields().get(0).child();
+                Function functionCall = (Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, functionName(registry, functionCall));
+                report.field(nameOrAlias, registry.functionName(functionCall.getClass()));
             }
             report.endObject();
         }
@@ -152,13 +156,29 @@ public class ParsingTests extends ESTestCase {
         );
     }
 
-    private String functionName(EsqlFunctionRegistry registry, Expression functionCall) {
-        for (FunctionDefinition def : registry.listFunctions()) {
-            if (functionCall.getClass().equals(def.clazz())) {
-                return def.name();
-            }
-        }
-        throw new IllegalArgumentException("can't find name for " + functionCall);
+    public void testInvalidLimit() {
+        assertEquals("1:13: Invalid value for LIMIT [foo: String], expecting a non negative integer", error("row a = 1 | limit \"foo\""));
+        assertEquals("1:13: Invalid value for LIMIT [1.2: Double], expecting a non negative integer", error("row a = 1 | limit 1.2"));
+        assertEquals("1:13: Invalid value for LIMIT [-1], expecting a non negative integer", error("row a = 1 | limit -1"));
+    }
+
+    public void testInvalidSample() {
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [foo], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample \"foo\"")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [-1.0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample -1.0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [0], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 0")
+        );
+        assertEquals(
+            "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive",
+            error("row a = 1 | sample 1")
+        );
     }
 
     private String error(String query) {

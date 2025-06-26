@@ -45,7 +45,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            || in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             contentLength = in.readVInt();
         } else {
             BytesReference content = in.readBytesReference();
@@ -105,7 +106,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
+            || out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             out.writeVInt(contentLength);
         } else {
             // generate a bytes reference of the correct size (the content isn't actually used in 8.18)

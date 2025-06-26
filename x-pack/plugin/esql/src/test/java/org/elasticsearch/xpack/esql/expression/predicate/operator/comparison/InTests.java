@@ -13,20 +13,25 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLikeTests;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.junit.AfterClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -40,6 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -79,6 +85,16 @@ public class InTests extends AbstractFunctionTestCase {
 
     private static Literal L(Object value) {
         return of(EMPTY, value);
+    }
+
+    public void testConvertedNull() {
+        In in = new In(
+            EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            Arrays.asList(ONE, new Literal(Source.EMPTY, null, randomFrom(DataType.types())), THREE)
+        );
+        var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertEquals(new TermsQuery(EMPTY, "field", Set.of(1, 3)), query);
     }
 
     @ParametersFactory
@@ -302,12 +318,13 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     @AfterClass
-    public static void renderNotIn() throws IOException {
-        WildcardLikeTests.renderNot(
+    public static void renderNotIn() throws Exception {
+        renderNegatedOperator(
             constructorWithFunctionInfo(In.class),
             "IN",
             d -> "The `NOT IN` operator allows testing whether a field or expression does *not* equal any element "
-                + "in a list of literals, fields or expressions."
+                + "in a list of literals, fields or expressions.",
+            getTestClass()
         );
     }
 }

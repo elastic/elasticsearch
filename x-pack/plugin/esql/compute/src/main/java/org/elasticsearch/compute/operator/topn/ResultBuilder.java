@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -34,6 +36,12 @@ interface ResultBuilder extends Releasable {
     void decodeValue(BytesRef values);
 
     /**
+     * Sets the RefCounted value, which was extracted by {@link ValueExtractor#getRefCountedForShard(int)}. By default, this is a no-op,
+     * since most builders do not the shard ref counter.
+     */
+    default void setNextRefCounted(@Nullable RefCounted nextRefCounted) { /* no-op */ }
+
+    /**
      * Build the result block.
      */
     Block build();
@@ -54,6 +62,7 @@ interface ResultBuilder extends Releasable {
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, positions);
+            case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";
                 throw new UnsupportedOperationException("Result builder for [" + elementType + "]");

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
@@ -67,10 +68,14 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
+                parseFromSource(parser, consumer);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        private void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
+            parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
         }
 
         /**
@@ -187,6 +192,80 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         protected abstract Object nullValueAsSource(T nullValue);
+
+        protected BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
+            return new FallbackSyntheticSourceBlockLoader(new GeometriesFallbackSyntheticSourceReader(), name()) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
+        }
+
+        private class GeometriesFallbackSyntheticSourceReader implements FallbackSyntheticSourceBlockLoader.Reader<BytesRef> {
+            private final Function<List<T>, List<Object>> formatter;
+
+            private GeometriesFallbackSyntheticSourceReader() {
+                this.formatter = getFormatter(GeometryFormatterFactory.WKB);
+            }
+
+            @Override
+            public void convertValue(Object value, List<BytesRef> accumulator) {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.fetchFromSource(value, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.parseFromSource(parser, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                for (var value : values) {
+                    bytesRefBuilder.appendBytesRef(value);
+                }
+            }
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;

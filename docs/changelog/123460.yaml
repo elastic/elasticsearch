@@ -1,0 +1,6 @@
+pr: 123460
+summary: "ES|QL: Support `::date` in inline cast"
+area: ES|QL
+type: enhancement
+issues:
+  - 116746

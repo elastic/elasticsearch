@@ -17,20 +17,26 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -41,18 +47,24 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.defaultEndpointId;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceTests.mockModelRegistry;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase {
+public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNodeTestCase {
     private DeterministicTaskQueue taskQueue;
+    private ModelRegistry modelRegistry;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateInferencePlugin.class);
+    }
 
     @Before
     public void init() throws Exception {
         taskQueue = new DeterministicTaskQueue();
+        modelRegistry = getInstanceFromNode(ModelRegistry.class);
     }
 
     public void testSendsAnAuthorizationRequestTwice() throws Exception {
@@ -104,7 +116,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         handlerRef.set(
             new ElasticInferenceServiceAuthorizationHandler(
                 createWithEmptySettings(taskQueue.getThreadPool()),
-                mockModelRegistry(taskQueue.getThreadPool()),
+                modelRegistry,
                 requestHandler,
                 initDefaultEndpoints(),
                 EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),
@@ -124,7 +136,15 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         assertThat(handler.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
         assertThat(
             handler.defaultConfigIds(),
-            is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), null)))
+            is(
+                List.of(
+                    new InferenceService.DefaultConfigId(
+                        ".rainbow-sprinkles-elastic",
+                        MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                        null
+                    )
+                )
+            )
         );
         assertThat(handler.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
 
@@ -166,7 +186,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     EmptySecretSettings.INSTANCE,
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE
                 ),
-                MinimalServiceSettings.chatCompletion()
+                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME)
             ),
             "elser-v2",
             new DefaultModelConfig(
@@ -177,9 +197,10 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
-                MinimalServiceSettings.sparseEmbedding()
+                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME)
             )
         );
     }

@@ -12,7 +12,6 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -264,9 +263,8 @@ public class ClusterStateChanges {
                 return indexMetadata;
             }
         };
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(
             TransportVerifyShardBeforeCloseAction.TYPE,
             new TransportVerifyShardBeforeCloseAction(

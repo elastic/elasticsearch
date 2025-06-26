@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -39,6 +40,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
@@ -50,6 +52,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -92,6 +95,10 @@ public class ValuesSourceReaderBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
+        selfTest();
+    }
+
+    static void selfTest() {
         try {
             ValuesSourceReaderBenchmark benchmark = new ValuesSourceReaderBenchmark();
             benchmark.setupIndex();
@@ -263,7 +270,42 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false
-        ).blockLoader(null);
+        ).blockLoader(new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                return "benchmark";
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+        });
     }
 
     /**
@@ -296,7 +338,7 @@ public class ValuesSourceReaderBenchmark {
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
-            })),
+            }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             0
         );
         long sum = 0;
@@ -436,6 +478,7 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
+                                    ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
@@ -471,7 +514,14 @@ public class ValuesSourceReaderBenchmark {
                         if (size >= BLOCK_LENGTH) {
                             pages.add(
                                 new Page(
-                                    new DocVector(blockFactory.newConstantIntVector(0, size), leafs.build(), docs.build(), null).asBlock()
+                                    new DocVector(
+
+                                        ShardRefCounted.ALWAYS_REFERENCED,
+                                        blockFactory.newConstantIntVector(0, size),
+                                        leafs.build(),
+                                        docs.build(),
+                                        null
+                                    ).asBlock()
                                 )
                             );
                             docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
@@ -484,6 +534,8 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
+
+                                ShardRefCounted.ALWAYS_REFERENCED,
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
@@ -510,6 +562,8 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
+
+                                    ShardRefCounted.ALWAYS_REFERENCED,
                                     blockFactory.newConstantIntVector(0, 1),
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),

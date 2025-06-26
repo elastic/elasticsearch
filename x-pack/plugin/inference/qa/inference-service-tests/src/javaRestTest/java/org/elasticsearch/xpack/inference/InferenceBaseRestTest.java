@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -118,12 +119,12 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType, apiKey, temperature);
     }
 
-    static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+    static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody, String service) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
             {
               %s
-              "service": "streaming_completion_test_service",
+              "service": "%s",
               "service_settings": {
                 "model": "my_model",
                 "api_key": "abc64"
@@ -132,7 +133,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 "temperature": 3
               }
             }
-            """, taskType);
+            """, taskType, service);
     }
 
     static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
@@ -163,6 +164,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 "model": "my_dense_vector_model",
                 "api_key": "abc64",
                 "dimensions": 246
+              },
+              "task_settings": {
+              }
+            }
+            """;
+    }
+
+    static String mockRerankServiceModelConfig() {
+        return """
+            {
+              "service": "test_reranking_service",
+              "service_settings": {
+                 "model_id": "my_model",
+                 "api_key": "abc64"
               },
               "task_settings": {
               }
@@ -483,6 +498,10 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         switch (taskType) {
+            case RERANK -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.RERANK.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
             case SPARSE_EMBEDDING -> {
                 var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
                 assertThat(results, hasSize(expectedNumberOfResults));
@@ -513,5 +532,14 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
         return entityAsMap(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Map<String, Object>> getMinimalConfigs() throws IOException {
+        var endpoint = "_cluster/state?filter_path=metadata.model_registry";
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return (Map<String, Map<String, Object>>) XContentMapValues.extractValue("metadata.model_registry.models", entityAsMap(response));
     }
 }

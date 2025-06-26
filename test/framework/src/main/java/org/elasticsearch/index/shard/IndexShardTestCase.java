@@ -54,9 +54,13 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -152,6 +156,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
+    protected NodeEnvironment nodeEnvironment;
+    protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected Executor writeExecutor;
     protected long primaryTerm;
 
@@ -166,20 +172,27 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = setUpThreadPool();
+        Settings settings = threadPoolSettings();
+        threadPool = setUpThreadPool(settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
     }
 
-    protected ThreadPool setUpThreadPool() {
-        return new TestThreadPool(getClass().getName(), threadPoolSettings());
+    protected ThreadPool setUpThreadPool(Settings settings) {
+        return new TestThreadPool(getClass().getName(), settings);
     }
 
     @Override
     public void tearDown() throws Exception {
         try {
-            tearDownThreadPool();
+            IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
         } finally {
             super.tearDown();
         }
@@ -203,7 +216,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public Settings threadPoolSettings() {
-        return Settings.EMPTY;
+        return Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean()).build();
     }
 
     protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
@@ -537,6 +550,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 indexEventListener,
                 indexReaderWrapper,
                 threadPool,
+                threadPoolMergeExecutorService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 warmer,
                 Collections.emptyList(),
@@ -547,7 +561,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
                 null,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+                new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+                MergeMetrics.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

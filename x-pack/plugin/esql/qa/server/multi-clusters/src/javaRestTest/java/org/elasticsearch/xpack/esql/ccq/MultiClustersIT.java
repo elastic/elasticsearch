@@ -159,7 +159,11 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
-        MapMatcher mapMatcher = getResultMatcher(ccsMetadataAvailable(), result.containsKey("is_partial"));
+        MapMatcher mapMatcher = getResultMatcher(
+            ccsMetadataAvailable(),
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found")
+        );
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
         }

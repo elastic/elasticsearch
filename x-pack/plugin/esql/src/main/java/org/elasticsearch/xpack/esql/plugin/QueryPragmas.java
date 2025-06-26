@@ -15,13 +15,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -29,19 +32,22 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 3);
+    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
-    private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
+    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
         ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
 
-    public static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
-        DataPartitioning.class,
-        "data_partitioning",
-        DataPartitioning.SEGMENT
-    );
+    /**
+     * How to cut {@link LuceneSliceQueue slices} to cut each shard into. Is parsed to
+     * the enum {@link DataPartitioning} which has more documentation. Not an
+     * {@link Setting#enumSetting} because those can't have {@code null} defaults.
+     * {@code null} here means "use the default from the cluster setting
+     * named {@link EsqlPlugin#DEFAULT_DATA_PARTITIONING}."
+     */
+    public static final Setting<String> DATA_PARTITIONING = Setting.simpleString("data_partitioning");
 
     /**
      * Size of a page in entries with {@code 0} being a special value asking
@@ -55,11 +61,23 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
-    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_NODES_PER_CLUSTER = //
+        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1);
+    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
+        Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+
+    public static final Setting<Integer> UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS = //
+        Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
+
+    public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
+        MappedFieldType.FieldExtractPreference.class,
+        "field_extract_preference",
+        MappedFieldType.FieldExtractPreference.NONE
+    );
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -90,8 +108,12 @@ public final class QueryPragmas implements Writeable {
         return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
     }
 
-    public DataPartitioning dataPartitioning() {
-        return DATA_PARTITIONING.get(settings);
+    public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
+        String partitioning = DATA_PARTITIONING.get(settings);
+        if (partitioning.isEmpty()) {
+            return defaultDataPartitioning;
+        }
+        return DataPartitioning.valueOf(partitioning.toUpperCase(Locale.ROOT));
     }
 
     public int taskConcurrency() {
@@ -123,11 +145,26 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * The maximum number of nodes to be queried at once by this query. This is safeguard to avoid overloading the cluster.
+     */
+    public int maxConcurrentNodesPerCluster() {
+        return MAX_CONCURRENT_NODES_PER_CLUSTER.get(settings);
+    }
+
+    /**
      * The maximum number of shards can be executed concurrently on a single node by this query. This is a safeguard to avoid
      * opening and holding many shards (equivalent to many file descriptors) or having too many field infos created by a single query.
      */
     public int maxConcurrentShardsPerNode() {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
+    }
+
+    /**
+     * Amount of attempts moved shards could be retried.
+     * This setting is protecting query from endlessly chasing moving shards.
+     */
+    public int unavailableShardResolutionAttempts() {
+        return UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS.get(settings);
     }
 
     /**
@@ -147,6 +184,16 @@ public final class QueryPragmas implements Writeable {
      */
     public ByteSizeValue foldLimit() {
         return FOLD_LIMIT.get(settings);
+    }
+
+    /**
+     * The default preference for extracting fields, defaults to {@code NONE}. Some fields must
+     * be extracted in some special way because of how they are used in the plan. But most fields
+     * can be loaded in many ways so they pick the ways that they think are most efficient in their
+     * {@link MappedFieldType#blockLoader} method. This can influence their choice.
+     */
+    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+        return FIELD_EXTRACT_PREFERENCE.get(settings);
     }
 
     public boolean isEmpty() {

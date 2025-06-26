@@ -109,7 +109,7 @@ public abstract class Node<T extends Node<T>> {
     protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
-            if (prop != children && children.contains(prop) == false && typeToken.isInstance(prop)) {
+            if (prop != children && typeToken.isInstance(prop) && children.contains(prop) == false) {
                 rule.accept((E) prop);
             }
         }
@@ -202,20 +202,21 @@ public abstract class Node<T extends Node<T>> {
     protected <R extends Function<? super T, ? extends T>> T transformChildren(Function<T, ? extends T> traversalOperation) {
         boolean childrenChanged = false;
 
-        // stream() could be used but the code is just as complicated without any advantages
-        // further more, it would include bring in all the associated stream/collector object creation even though in
-        // most cases the immediate tree would be quite small (0,1,2 elements)
-        List<T> transformedChildren = new ArrayList<>(children().size());
+        // Avoid creating a new array of children if no change is needed.
+        // And when it happens, look at using replacement to minimize the amount of method invocations.
+        List<T> transformedChildren = null;
 
-        for (T child : children) {
+        for (int i = 0, s = children.size(); i < s; i++) {
+            T child = children.get(i);
             T next = traversalOperation.apply(child);
-            if (child.equals(next)) {
-                // use the initial value
-                next = child;
-            } else {
-                childrenChanged = true;
+            if (child.equals(next) == false) {
+                // lazy copy + replacement in place
+                if (childrenChanged == false) {
+                    childrenChanged = true;
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
             }
-            transformedChildren.add(next);
         }
 
         return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);

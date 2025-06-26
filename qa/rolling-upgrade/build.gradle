@@ -7,12 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.fwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 testArtifacts {
   registerTestArtifactFromSourceSet(sourceSets.javaRestTest)

@@ -48,7 +48,7 @@ GET my-index-000001/_search
 2. Searching for documents with a JSON `true`.
 
 
-Aggregations like the [`terms` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md)  use `1` and `0` for the `key`, and the strings `"true"` and `"false"` for the `key_as_string`. Boolean fields when used in scripts, return `true` and `false`:
+Aggregations like the [`terms` aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md)  use `1` and `0` for the `key`, and the strings `"true"` and `"false"` for the `key_as_string`. Boolean fields when used in scripts, return `true` and `false`:
 
 ```console
 POST my-index-000001/_doc/1?refresh
@@ -125,11 +125,6 @@ The following parameters are accepted by `boolean` fields:
 
 
 ## Synthetic `_source` [boolean-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `boolean` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

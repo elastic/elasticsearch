@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregator.Factory;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -135,6 +137,7 @@ public class OrdinalsGroupingOperator implements Operator {
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         final int shardIndex = docVector.shards().getInt(0);
+        RefCounted shardRefCounter = docVector.shardRefCounted().get(shardIndex);
         final var blockLoader = blockLoaders.apply(shardIndex);
         boolean pagePassed = false;
         try {
@@ -149,7 +152,8 @@ public class OrdinalsGroupingOperator implements Operator {
                                 driverContext.blockFactory(),
                                 this::createGroupingAggregators,
                                 () -> blockLoader.ordinals(shardContexts.get(k.shardIndex).reader().leaves().get(k.segmentIndex)),
-                                driverContext.bigArrays()
+                                driverContext.bigArrays(),
+                                shardRefCounter
                             );
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
@@ -292,7 +296,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 try (IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), driverContext.blockFactory())) {
                     int offset = 1;
                     for (int i = 0; i < aggregators.size(); i++) {
-                        aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
+                        aggregators.get(i).evaluate(blocks, offset, selected, new GroupingAggregatorEvaluationContext(driverContext));
                         offset += aggBlockCounts[i];
                     }
                 }
@@ -342,15 +346,19 @@ public class OrdinalsGroupingOperator implements Operator {
         private final List<GroupingAggregator> aggregators;
         private final CheckedSupplier<SortedSetDocValues, IOException> docValuesSupplier;
         private final BitArray visitedOrds;
+        private final RefCounted shardRefCounted;
         private BlockOrdinalsReader currentReader;
 
         OrdinalSegmentAggregator(
             BlockFactory blockFactory,
             Supplier<List<GroupingAggregator>> aggregatorsSupplier,
             CheckedSupplier<SortedSetDocValues, IOException> docValuesSupplier,
-            BigArrays bigArrays
+            BigArrays bigArrays,
+            RefCounted shardRefCounted
         ) throws IOException {
             boolean success = false;
+            this.shardRefCounted = shardRefCounted;
+            this.shardRefCounted.mustIncRef();
             List<GroupingAggregator> groupingAggregators = null;
             BitArray bitArray = null;
             try {
@@ -367,6 +375,9 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (success == false) {
                     if (bitArray != null) Releasables.close(bitArray);
                     if (groupingAggregators != null) Releasables.close(groupingAggregators);
+                    // There is no danger of double decRef here, since this decRef is called only if the constructor throws, so it would be
+                    // impossible to call close on the instance.
+                    shardRefCounted.decRef();
                 }
             }
         }
@@ -446,7 +457,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public void close() {
-            Releasables.close(visitedOrds, () -> Releasables.close(aggregators));
+            Releasables.close(visitedOrds, () -> Releasables.close(aggregators), Releasables.fromRefCounted(shardRefCounted));
         }
     }
 

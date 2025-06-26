@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -65,6 +66,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -213,7 +215,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public SlowLogFields create() {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
@@ -226,6 +228,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 }
             };
         }
+
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
+        }
+
     }
 
     public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
@@ -237,7 +245,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public SlowLogFields create() {
             return new SlowLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
@@ -249,6 +257,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                     return fields;
                 }
             };
+        }
+
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
     }
 
@@ -312,7 +325,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             test.getIndexSettings().customDataPath()
         );
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata, randomReason()));
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
@@ -342,7 +355,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata, randomReason()));
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -373,13 +386,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
             }
-            indicesService.addPendingDelete(index, indexSettings);
+            indicesService.addPendingDelete(index, indexSettings, randomReason());
         }
 
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -399,9 +412,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings, randomReason());
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }
@@ -534,8 +547,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).indexGraveyard(graveyard).build();
-        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metadata(metadata).build();
+        @FixForMultiProject // Use random project-id
+        final var project = ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).putProjectMetadata(project).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }
@@ -872,5 +886,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {
         return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
+    }
+
+    private IndexRemovalReason randomReason() {
+        return randomFrom(IndexRemovalReason.values());
     }
 }

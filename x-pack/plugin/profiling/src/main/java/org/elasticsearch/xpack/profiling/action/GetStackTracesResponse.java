@@ -29,7 +29,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Nullable
     private final Map<String, String> executables;
     @Nullable
-    private final Map<String, TraceEvent> stackTraceEvents;
+    private final Map<TraceEventID, TraceEvent> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;
@@ -38,7 +38,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, TraceEvent> stackTraceEvents,
+        Map<TraceEventID, TraceEvent> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
@@ -69,7 +69,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return executables;
     }
 
-    public Map<String, TraceEvent> getStackTraceEvents() {
+    public Map<TraceEventID, TraceEvent> getStackTraceEvents() {
         return stackTraceEvents;
     }
 
@@ -96,22 +96,24 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             optional(
                 "stack_trace_events",
                 stackTraceEvents,
-                (n, v) -> ChunkedToXContentHelper.object(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
+                (n, v) -> ChunkedToXContentHelper.object(
+                    n,
+                    Iterators.map(v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count))
+                )
             ),
-            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
+            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate).endObject())
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
             //
             // * start
             // * end
             // * totalSamples
-            ChunkedToXContentHelper.endObject()
         );
     }
 
-    private static <T> Iterator<? extends ToXContent> optional(
+    private static <K, T> Iterator<? extends ToXContent> optional(
         String name,
-        Map<String, T> values,
-        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
+        Map<K, T> values,
+        BiFunction<String, Map<K, T>, Iterator<? extends ToXContent>> supplier
     ) {
         return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
     }

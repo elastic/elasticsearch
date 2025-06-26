@@ -1,0 +1,5 @@
+pr: 126956
+summary: Temporarily bypass competitive iteration for filters aggregation
+area: Aggregations
+type: bug
+issues: []

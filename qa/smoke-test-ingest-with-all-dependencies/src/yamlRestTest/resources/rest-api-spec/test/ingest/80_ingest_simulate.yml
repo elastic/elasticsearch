@@ -840,9 +840,9 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+        - "index template [foo_index_template] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [foo_index_template] will take precedence during new index creation"
       indices.put_index_template:
-        name: test-composable-1
+        name: foo_index_template
         body:
           index_patterns:
             - foo*

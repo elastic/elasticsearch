@@ -171,7 +171,6 @@ public class ListConnectorSyncJobsAction {
         final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
         }
 

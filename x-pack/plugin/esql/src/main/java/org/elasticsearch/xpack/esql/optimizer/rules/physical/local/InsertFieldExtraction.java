@@ -11,13 +11,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,10 +34,10 @@ import java.util.Set;
  *
  * @see ProjectAwayColumns
  */
-public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
+public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
     @Override
-    public PhysicalPlan apply(PhysicalPlan plan) {
+    public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         // apply the plan locally, adding a field extractor right before data is loaded
         // by going bottom-up
         plan = plan.transformUp(p -> {
@@ -67,7 +68,12 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
                         if (child.outputSet().stream().anyMatch(EsQueryExec::isSourceAttribute)) {
                             found = true;
                             // collect source attributes and add the extractor
-                            child = new FieldExtractExec(p.source(), child, List.copyOf(missing));
+                            child = new FieldExtractExec(
+                                p.source(),
+                                child,
+                                List.copyOf(missing),
+                                context.configuration().pragmas().fieldExtractPreference()
+                            );
                         }
                     }
                     newChildren.add(child);

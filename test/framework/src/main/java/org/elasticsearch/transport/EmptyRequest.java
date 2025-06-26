@@ -17,7 +17,7 @@ import java.io.IOException;
  * A transport request with an empty payload. Not really entirely empty: all transport requests include the parent task ID, a request ID,
  * and the remote address (if applicable).
  */
-public final class EmptyRequest extends TransportRequest {
+public final class EmptyRequest extends AbstractTransportRequest {
     public EmptyRequest() {}
 
     public EmptyRequest(StreamInput in) throws IOException {

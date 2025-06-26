@@ -1552,4 +1552,35 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(ser.getMessage(), equalTo(rootException.getMessage()));
         assertArrayEquals(ser.getStackTrace(), rootException.getStackTrace());
     }
+
+    static class ExceptionSubclass extends ElasticsearchException {
+        @Override
+        public boolean isTimeout() {
+            return true;
+        }
+
+        ExceptionSubclass(String message) {
+            super(message);
+        }
+    }
+
+    public void testTimeout() throws IOException {
+        var e = new ExceptionSubclass("some timeout");
+        assertThat(e.getHeaderKeys(), hasItem(ElasticsearchException.TIMED_OUT_HEADER));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        e.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "exception_subclass",
+              "reason": "some timeout",
+              "timed_out": true,
+              "header": {
+                "X-Timed-Out": "?1"
+              }
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+    }
 }

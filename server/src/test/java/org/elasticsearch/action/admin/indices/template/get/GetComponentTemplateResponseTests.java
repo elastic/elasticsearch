@@ -39,7 +39,7 @@ public class GetComponentTemplateResponseTests extends ESTestCase {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
         if (randomBoolean()) {
             settings = randomSettings();
@@ -68,9 +68,9 @@ public class GetComponentTemplateResponseTests extends ESTestCase {
             response.toXContent(builder, EMPTY_PARAMS);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(null, randomBoolean()))
-                .getConditions()
-                .keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(
+                lifecycle.toDataStreamLifecycle().getEffectiveDataRetention(null, randomBoolean())
+            ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

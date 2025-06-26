@@ -13,15 +13,15 @@ Documents using this type can be used:
 
 * to find geoshapes within:
 
-    * a [bounding box](/reference/query-languages/query-dsl-geo-bounding-box-query.md)
-    * a certain [distance](/reference/query-languages/query-dsl-geo-distance-query.md) of a central point
-    * a [`geo_shape` query](/reference/query-languages/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
+    * a [bounding box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md)
+    * a certain [distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) of a central point
+    * a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
 
 * to aggregate documents by geographic grids:
 
-    * either [`geo_hash`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md)
-    * or [`geo_tile`](/reference/data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md)
-    * or [`geo_hex`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md)
+    * either [`geo_hash`](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md)
+    * or [`geo_tile`](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md)
+    * or [`geo_hex`](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md)
 
 
 
@@ -359,18 +359,9 @@ POST /example/_doc
 
 #### Circle [_circle]
 
-Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/ingestion-tools/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
+Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
 
 
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]
 
 Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field.
-
-## Synthetic source [geo-shape-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
-

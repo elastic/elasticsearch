@@ -126,6 +126,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -142,6 +143,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     );
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
+        private final boolean isSyntheticSource;
 
         public ShapeFieldType(
             String name,
@@ -149,9 +151,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean hasDocValues,
             Orientation orientation,
             Parser<Geometry> parser,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -193,9 +197,16 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
-                ? new CartesianBoundsBlockLoader(name())
-                : blockLoaderFromSource(blContext);
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new CartesianBoundsBlockLoader(name());
+            }
+
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
 
         static class CartesianBoundsBlockLoader extends BoundsBlockLoader {

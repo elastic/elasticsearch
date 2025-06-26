@@ -17,25 +17,34 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-final class OutboundHandler {
+public final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
@@ -85,7 +94,7 @@ final class OutboundHandler {
      *                 thread.
      */
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        internalSend(channel, bytes, null, listener);
+        internalSend(channel, bytes, () -> "raw bytes", listener);
     }
 
     /**
@@ -104,18 +113,15 @@ final class OutboundHandler {
         final boolean isHandshake
     ) throws IOException, TransportException {
         assert assertValidTransportVersion(transportVersion);
-        final OutboundMessage.Request message = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            request,
-            transportVersion,
-            action,
-            requestId,
-            isHandshake,
-            compressionScheme
-        );
         sendMessage(
             channel,
-            message,
+            MessageDirection.REQUEST,
+            action,
+            request,
+            requestId,
+            isHandshake,
+            compressionScheme,
+            transportVersion,
             ResponseStatsConsumer.NONE,
             () -> messageListener.onRequestSent(node, requestId, action, request, options)
         );
@@ -138,17 +144,20 @@ final class OutboundHandler {
         final ResponseStatsConsumer responseStatsConsumer
     ) {
         assert assertValidTransportVersion(transportVersion);
-        OutboundMessage.Response message = new OutboundMessage.Response(
-            threadPool.getThreadContext(),
-            response,
-            transportVersion,
-            requestId,
-            isHandshake,
-            compressionScheme
-        );
         assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, response));
+            sendMessage(
+                channel,
+                MessageDirection.RESPONSE,
+                action,
+                response,
+                requestId,
+                isHandshake,
+                compressionScheme,
+                transportVersion,
+                responseStatsConsumer,
+                () -> messageListener.onResponseSent(requestId, action)
+            );
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(
@@ -159,6 +168,7 @@ final class OutboundHandler {
                     ),
                     ex
                 );
+                channel.setCloseException(ex);
                 channel.close();
             } else {
                 sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
@@ -178,46 +188,66 @@ final class OutboundHandler {
         final Exception error
     ) {
         assert assertValidTransportVersion(transportVersion);
-        OutboundMessage.Response message = new OutboundMessage.Response(
-            threadPool.getThreadContext(),
-            new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error),
-            transportVersion,
-            requestId,
-            false,
-            null
-        );
+        var msg = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+            sendMessage(
+                channel,
+                MessageDirection.RESPONSE_ERROR,
+                action,
+                msg,
+                requestId,
+                false,
+                null,
+                transportVersion,
+                responseStatsConsumer,
+                () -> messageListener.onResponseSent(requestId, action, error)
+            );
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
             logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.setCloseException(sendException);
             channel.close();
         }
     }
 
+    public enum MessageDirection {
+        REQUEST,
+        RESPONSE,
+        RESPONSE_ERROR
+    }
+
     private void sendMessage(
         TcpChannel channel,
-        OutboundMessage networkMessage,
+        MessageDirection messageDirection,
+        String action,
+        Writeable writeable,
+        long requestId,
+        boolean isHandshake,
+        Compression.Scheme possibleCompressionScheme,
+        TransportVersion version,
         ResponseStatsConsumer responseStatsConsumer,
         Releasable onAfter
     ) throws IOException {
-        final RecyclerBytesStreamOutput byteStreamOutput;
-        boolean bufferSuccess = false;
-        try {
-            byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
-            bufferSuccess = true;
-        } finally {
-            if (bufferSuccess == false) {
-                Releasables.closeExpectNoException(onAfter);
-            }
-        }
+        assert action != null;
+        final var compressionScheme = writeable instanceof BytesTransportMessage ? null : possibleCompressionScheme;
         final BytesReference message;
         boolean serializeSuccess = false;
+        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
         try {
-            message = networkMessage.serialize(byteStreamOutput);
+            message = serialize(
+                messageDirection,
+                action,
+                requestId,
+                isHandshake,
+                version,
+                compressionScheme,
+                writeable,
+                threadPool.getThreadContext(),
+                byteStreamOutput
+            );
             serializeSuccess = true;
         } catch (Exception e) {
-            logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
+            logger.warn(() -> "failed to serialize outbound message [" + writeable + "]", e);
             throw e;
         } finally {
             if (serializeSuccess == false) {
@@ -225,10 +255,23 @@ final class OutboundHandler {
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
+        final var messageType = writeable.getClass();
         internalSend(
             channel,
             message,
-            networkMessage,
+            () -> (messageDirection == MessageDirection.REQUEST ? "Request{" : "Response{")
+                + action
+                + "}{id="
+                + requestId
+                + "}{err="
+                + (messageDirection == MessageDirection.RESPONSE_ERROR)
+                + "}{cs="
+                + compressionScheme
+                + "}{hs="
+                + isHandshake
+                + "}{t="
+                + messageType
+                + "}",
             ActionListener.releasing(
                 message instanceof ReleasableBytesReference r
                     ? Releasables.wrap(byteStreamOutput, onAfter, r)
@@ -237,10 +280,108 @@ final class OutboundHandler {
         );
     }
 
+    // public for tests
+    public static BytesReference serialize(
+        MessageDirection messageDirection,
+        String action,
+        long requestId,
+        boolean isHandshake,
+        TransportVersion version,
+        Compression.Scheme compressionScheme,
+        Writeable writeable,
+        ThreadContext threadContext,
+        RecyclerBytesStreamOutput byteStreamOutput
+    ) throws IOException {
+        assert action != null;
+        assert byteStreamOutput.position() == 0;
+        byteStreamOutput.setTransportVersion(version);
+        byteStreamOutput.skip(TcpHeader.HEADER_SIZE);
+        threadContext.writeTo(byteStreamOutput);
+        if (messageDirection == MessageDirection.REQUEST) {
+            if (version.before(TransportVersions.V_8_0_0)) {
+                // empty features array
+                byteStreamOutput.writeStringArray(Strings.EMPTY_ARRAY);
+            }
+            byteStreamOutput.writeString(action);
+        }
+
+        final int variableHeaderLength = Math.toIntExact(byteStreamOutput.position() - TcpHeader.HEADER_SIZE);
+        BytesReference message = serializeMessageBody(writeable, compressionScheme, version, byteStreamOutput);
+        byte status = 0;
+        if (messageDirection != MessageDirection.REQUEST) {
+            status = TransportStatus.setResponse(status);
+        }
+        if (isHandshake) {
+            status = TransportStatus.setHandshake(status);
+        }
+        if (messageDirection == MessageDirection.RESPONSE_ERROR) {
+            status = TransportStatus.setError(status);
+        }
+        if (compressionScheme != null) {
+            status = TransportStatus.setCompress(status);
+        }
+        byteStreamOutput.seek(0);
+        TcpHeader.writeHeader(byteStreamOutput, requestId, status, version, message.length() - TcpHeader.HEADER_SIZE, variableHeaderLength);
+        return message;
+    }
+
+    private static BytesReference serializeMessageBody(
+        Writeable writeable,
+        Compression.Scheme compressionScheme,
+        TransportVersion version,
+        RecyclerBytesStreamOutput byteStreamOutput
+    ) throws IOException {
+        // The compressible bytes stream will not close the underlying bytes stream
+        final StreamOutput stream = compressionScheme != null ? wrapCompressed(compressionScheme, byteStreamOutput) : byteStreamOutput;
+        final ReleasableBytesReference zeroCopyBuffer;
+        try {
+            stream.setTransportVersion(version);
+            if (writeable instanceof BytesTransportMessage bRequest) {
+                assert stream == byteStreamOutput;
+                assert compressionScheme == null;
+                bRequest.writeThin(stream);
+                zeroCopyBuffer = bRequest.bytes();
+            } else if (writeable instanceof RemoteTransportException remoteTransportException) {
+                stream.writeException(remoteTransportException);
+                zeroCopyBuffer = ReleasableBytesReference.empty();
+            } else {
+                writeable.writeTo(stream);
+                zeroCopyBuffer = ReleasableBytesReference.empty();
+            }
+        } finally {
+            // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
+            // are written.
+            if (compressionScheme != null) {
+                stream.close();
+            }
+        }
+        final BytesReference msg = byteStreamOutput.bytes();
+        if (zeroCopyBuffer.length() == 0) {
+            return msg;
+        }
+        zeroCopyBuffer.mustIncRef();
+        return new ReleasableBytesReference(CompositeBytesReference.of(msg, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
+    }
+
+    // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
+    // resources and write EOS marker bytes but must not yet release the bytes themselves
+    private static StreamOutput wrapCompressed(Compression.Scheme compressionScheme, RecyclerBytesStreamOutput bytesStream)
+        throws IOException {
+        if (compressionScheme == Compression.Scheme.DEFLATE) {
+            return new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(org.elasticsearch.core.Streams.noCloseStream(bytesStream))
+            );
+        } else if (compressionScheme == Compression.Scheme.LZ4) {
+            return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+        } else {
+            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
+        }
+    }
+
     private void internalSend(
         TcpChannel channel,
         BytesReference reference,
-        @Nullable OutboundMessage message,
+        Supplier<String> messageDescription,
         ActionListener<Void> listener
     ) {
         final long startTime = threadPool.rawRelativeTimeInMillis();
@@ -275,12 +416,12 @@ final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-                        handlingTimeTracker.addHandlingTime(took);
+                        handlingTimeTracker.addObservation(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "
                                     + "threshold of [{}ms] with success [{}]",
-                                message,
+                                messageDescription.get(),
                                 messageSize,
                                 channel,
                                 took,
@@ -292,6 +433,7 @@ final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 /**
@@ -29,9 +30,9 @@ public final class TranslatorHandler {
 
     private TranslatorHandler() {}
 
-    public Query asQuery(Expression e) {
+    public Query asQuery(LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
-            Query query = ta.asQuery(this);
+            Query query = ta.asQuery(predicates, this);
             return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 
@@ -39,9 +40,13 @@ public final class TranslatorHandler {
     }
 
     private static Query wrapFunctionQuery(Expression field, Query query) {
+        if (query instanceof SingleValueQuery) {
+            // Already wrapped
+            return query;
+        }
         if (field instanceof FieldAttribute fa) {
             fa = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
-            return new SingleValueQuery(query, fa.name());
+            return new SingleValueQuery(query, fa.name(), false);
         }
         if (field instanceof MetadataAttribute) {
             return query; // MetadataAttributes are always single valued

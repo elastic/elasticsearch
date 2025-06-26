@@ -1,0 +1,5 @@
+pr: 121885
+summary: Introduce batched query execution and data-node side reduce
+area: Search
+type: enhancement
+issues: []

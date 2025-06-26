@@ -135,8 +135,8 @@ public class ForceMergeAction implements LifecycleAction {
             preForceMergeBranchingKey,
             checkNotWriteIndexKey,
             nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     String policyName = indexMetadata.getLifecyclePolicyName();

@@ -1,0 +1,5 @@
+pr: 124825
+summary: Check alias during update
+area: Transform
+type: bug
+issues: []

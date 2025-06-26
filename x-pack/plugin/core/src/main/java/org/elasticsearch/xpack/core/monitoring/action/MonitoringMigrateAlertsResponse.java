@@ -30,7 +30,6 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
     }
 
     public MonitoringMigrateAlertsResponse(StreamInput in) throws IOException {
-        super(in);
         this.exporters = in.readCollectionAsList(ExporterMigrationResult::new);
     }
 

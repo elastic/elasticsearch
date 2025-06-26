@@ -75,8 +75,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
-         * It's useful to specialize this from {@link #evalNullable} because it knows
-         * that it's producing an "array vector" because it only ever emits single
+         * It’s useful to specialize this from {@link #evalNullable} because it knows
+         * that it’s producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
          *

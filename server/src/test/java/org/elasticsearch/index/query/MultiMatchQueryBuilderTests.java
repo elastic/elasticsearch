@@ -16,6 +16,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -170,7 +171,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(PhraseQuery.class),
                     instanceOf(PointRangeQuery.class),
                     instanceOf(IndexOrDocValuesQuery.class),
-                    instanceOf(PrefixQuery.class)
+                    instanceOf(PrefixQuery.class),
+                    instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class)
                 )
             )
         );

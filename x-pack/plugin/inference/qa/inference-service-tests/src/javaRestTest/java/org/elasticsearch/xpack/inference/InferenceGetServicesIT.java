@@ -12,160 +12,184 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
-    @SuppressWarnings("unchecked")
+    @BeforeClass
+    public static void init() {
+        // Ensure the mock EIS server has an authorized response ready
+        mockEISServer.enqueueAuthorizeAllModelsResponse();
+    }
+
     public void testGetServicesWithoutTaskType() throws IOException {
-        List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(20));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "elastic",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "jinaai",
-                "mistral",
-                "openai",
-                "streaming_completion_test_service",
-                "test_reranking_service",
-                "test_service",
-                "text_embedding_test_service",
-                "voyageai",
-                "watsonxai"
-            ).toArray(),
-            providers
+        assertThat(
+            allProviders(),
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "anthropic",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "deepseek",
+                    "elastic",
+                    "elasticsearch",
+                    "googleaistudio",
+                    "googlevertexai",
+                    "hugging_face",
+                    "jinaai",
+                    "mistral",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "completion_test_service",
+                    "test_reranking_service",
+                    "test_service",
+                    "text_embedding_test_service",
+                    "voyageai",
+                    "watsonxai",
+                    "amazon_sagemaker"
+                ).toArray()
+            )
         );
     }
 
+    private Iterable<String> allProviders() throws IOException {
+        return providers(getAllServices());
+    }
+
     @SuppressWarnings("unchecked")
+    private Iterable<String> providers(List<Object> services) {
+        return services.stream().map(service -> {
+            var serviceConfig = (Map<String, Object>) service;
+            return (String) serviceConfig.get("service");
+        }).toList();
+    }
+
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(15));
+        assertThat(services.size(), equalTo(18));
 
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "elasticsearch",
-                "googleaistudio",
-                "googlevertexai",
-                "hugging_face",
-                "jinaai",
-                "mistral",
-                "openai",
-                "text_embedding_test_service",
-                "voyageai",
-                "watsonxai"
-            ).toArray(),
-            providers
+        assertThat(
+            providersFor(TaskType.TEXT_EMBEDDING),
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "amazon_sagemaker",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "elastic",
+                    "elasticsearch",
+                    "googleaistudio",
+                    "googlevertexai",
+                    "hugging_face",
+                    "jinaai",
+                    "mistral",
+                    "openai",
+                    "text_embedding_test_service",
+                    "voyageai",
+                    "watsonxai"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
+    private Iterable<String> providersFor(TaskType taskType) throws IOException {
+        return providers(getServices(taskType));
+    }
+
     public void testGetServicesWithRerankTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(7));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "jinaai", "test_reranking_service", "voyageai")
-                .toArray(),
-            providers
+        assertThat(
+            providersFor(TaskType.RERANK),
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "cohere",
+                    "custom",
+                    "elasticsearch",
+                    "googlevertexai",
+                    "jinaai",
+                    "test_reranking_service",
+                    "voyageai",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "elastic"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithCompletionTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.COMPLETION);
-        assertThat(services.size(), equalTo(9));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(
-            List.of(
-                "alibabacloud-ai-search",
-                "amazonbedrock",
-                "anthropic",
-                "azureaistudio",
-                "azureopenai",
-                "cohere",
-                "googleaistudio",
-                "openai",
-                "streaming_completion_test_service"
-            ).toArray(),
-            providers
+        assertThat(
+            providersFor(TaskType.COMPLETION),
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "amazonbedrock",
+                    "anthropic",
+                    "azureaistudio",
+                    "azureopenai",
+                    "cohere",
+                    "custom",
+                    "deepseek",
+                    "googleaistudio",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "mistral"
+                ).toArray()
+            )
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithChatCompletionTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.CHAT_COMPLETION);
-        assertThat(services.size(), equalTo(3));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(List.of("elastic", "openai", "streaming_completion_test_service").toArray(), providers);
+        assertThat(
+            providersFor(TaskType.CHAT_COMPLETION),
+            containsInAnyOrder(
+                List.of(
+                    "deepseek",
+                    "elastic",
+                    "openai",
+                    "streaming_completion_test_service",
+                    "hugging_face",
+                    "amazon_sagemaker",
+                    "googlevertexai",
+                    "mistral"
+                ).toArray()
+            )
+        );
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(5));
-
-        String[] providers = new String[services.size()];
-        for (int i = 0; i < services.size(); i++) {
-            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
-            providers[i] = (String) serviceConfig.get("service");
-        }
-
-        assertArrayEquals(
-            List.of("alibabacloud-ai-search", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
-            providers
+        assertThat(
+            providersFor(TaskType.SPARSE_EMBEDDING),
+            containsInAnyOrder(
+                List.of(
+                    "alibabacloud-ai-search",
+                    "custom",
+                    "elastic",
+                    "elasticsearch",
+                    "hugging_face",
+                    "streaming_completion_test_service",
+                    "test_service",
+                    "amazon_sagemaker"
+                ).toArray()
+            )
         );
     }
 

@@ -70,7 +70,7 @@ A multi-field mapping is completely separate from the parent field’s mapping. 
 
 ## Multi-fields with multiple analyzers [_multi_fields_with_multiple_analyzers]
 
-Another use case of multi-fields is to analyze the same field in different ways for better relevance. For instance we could index a field with the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md) which breaks text up into words, and again with the [`english` analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#english-analyzer) which stems words into their root form:
+Another use case of multi-fields is to analyze the same field in different ways for better relevance. For instance we could index a field with the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md) which breaks text up into words, and again with the [`english` analyzer](/reference/text-analysis/analysis-lang-analyzer.md#english-analyzer) which stems words into their root form:
 
 ```console
 PUT my-index-000001

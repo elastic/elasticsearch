@@ -23,6 +23,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -36,7 +37,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
         true,
         "bucket",
         "base_path_integration_tests",
-        fixedAccessKey(ACCESS_KEY)
+        fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

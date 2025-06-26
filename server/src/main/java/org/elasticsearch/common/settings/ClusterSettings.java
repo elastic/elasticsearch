@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundSummaryService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
@@ -88,6 +89,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -136,12 +141,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -212,7 +213,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Stream.of(
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -227,6 +228,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING,
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS,
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_LOAD_METRIC,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_LOAD_METRIC,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
@@ -290,6 +293,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
         DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+        InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
         SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
         InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
         InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
@@ -479,6 +483,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.ALLOW_EXPENSIVE_QUERIES,
         SearchService.CCS_VERSION_CHECK_SETTING,
         SearchService.CCS_COLLECT_TELEMETRY,
+        SearchService.BATCHED_QUERY_PHASE,
+        SearchService.PREWARMING_THRESHOLD_THREADPOOL_SIZE_FACTOR_POOL_SIZE,
         MultiBucketConsumerService.MAX_BUCKET_SETTING,
         SearchService.LOW_LEVEL_CANCELLATION_SETTING,
         SearchService.MAX_OPEN_SCROLL_CONTEXT,
@@ -524,6 +530,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
         IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
         IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+        IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE,
         ResourceWatcherService.ENABLED,
         ResourceWatcherService.RELOAD_INTERVAL_HIGH,
         ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
@@ -625,10 +632,24 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TDigestExecutionHint.SETTING,
         MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING,
+        ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING,
+        ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING,
+        ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_MAX_HEADROOM_SETTING,
+        ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING,
         TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
+        DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
-        DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null
-    ).filter(Objects::nonNull).collect(toSet());
+        DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
+        IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
+        SearchStatsSettings.RECENT_READ_LOAD_HALF_LIFE_SETTING,
+        TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_POLLING_INTERVAL_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING
+    );
 }

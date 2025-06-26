@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,10 +29,15 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
     }
 
     public static class Request extends BaseInferenceActionRequest {
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, TimeValue timeout, XContentParser parser)
-            throws IOException {
+        public static Request parseRequest(
+            String inferenceEntityId,
+            TaskType taskType,
+            TimeValue timeout,
+            InferenceContext context,
+            XContentParser parser
+        ) throws IOException {
             var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest, timeout);
+            return new Request(inferenceEntityId, taskType, unifiedRequest, context, timeout);
         }
 
         private final String inferenceEntityId;
@@ -40,6 +46,17 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         private final TimeValue timeout;
 
         public Request(String inferenceEntityId, TaskType taskType, UnifiedCompletionRequest unifiedCompletionRequest, TimeValue timeout) {
+            this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.EMPTY_INSTANCE, timeout);
+        }
+
+        public Request(
+            String inferenceEntityId,
+            TaskType taskType,
+            UnifiedCompletionRequest unifiedCompletionRequest,
+            InferenceContext context,
+            TimeValue timeout
+        ) {
+            super(context);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.unifiedCompletionRequest = Objects.requireNonNull(unifiedCompletionRequest);

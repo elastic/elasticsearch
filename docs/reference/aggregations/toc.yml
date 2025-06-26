@@ -1,0 +1,96 @@
+toc:
+  - file: index.md
+  - file: bucket.md
+    children:
+      - file: search-aggregations-bucket-adjacency-matrix-aggregation.md
+      - file: search-aggregations-bucket-autodatehistogram-aggregation.md
+      - file: search-aggregations-bucket-categorize-text-aggregation.md
+      - file: search-aggregations-bucket-children-aggregation.md
+      - file: search-aggregations-bucket-composite-aggregation.md
+      - file: search-aggregations-bucket-datehistogram-aggregation.md
+      - file: search-aggregations-bucket-daterange-aggregation.md
+      - file: search-aggregations-bucket-diversified-sampler-aggregation.md
+      - file: search-aggregations-bucket-filter-aggregation.md
+      - file: search-aggregations-bucket-filters-aggregation.md
+      - file: search-aggregations-bucket-frequent-item-sets-aggregation.md
+      - file: search-aggregations-bucket-geodistance-aggregation.md
+      - file: search-aggregations-bucket-geohashgrid-aggregation.md
+      - file: search-aggregations-bucket-geohexgrid-aggregation.md
+      - file: search-aggregations-bucket-geotilegrid-aggregation.md
+      - file: search-aggregations-bucket-global-aggregation.md
+      - file: search-aggregations-bucket-histogram-aggregation.md
+      - file: search-aggregations-bucket-ipprefix-aggregation.md
+      - file: search-aggregations-bucket-iprange-aggregation.md
+      - file: search-aggregations-bucket-missing-aggregation.md
+      - file: search-aggregations-bucket-multi-terms-aggregation.md
+      - file: search-aggregations-bucket-nested-aggregation.md
+      - file: search-aggregations-bucket-parent-aggregation.md
+      - file: search-aggregations-random-sampler-aggregation.md
+      - file: search-aggregations-bucket-range-aggregation.md
+      - file: search-aggregations-bucket-rare-terms-aggregation.md
+      - file: search-aggregations-bucket-reverse-nested-aggregation.md
+      - file: search-aggregations-bucket-sampler-aggregation.md
+      - file: search-aggregations-bucket-significantterms-aggregation.md
+      - file: search-aggregations-bucket-significanttext-aggregation.md
+      - file: search-aggregations-bucket-terms-aggregation.md
+      - file: search-aggregations-bucket-time-series-aggregation.md
+      - file: search-aggregations-bucket-variablewidthhistogram-aggregation.md
+      - file: search-aggregations-bucket-range-field-note.md
+  - file: metrics.md
+    children:
+      - file: search-aggregations-metrics-avg-aggregation.md
+      - file: search-aggregations-metrics-boxplot-aggregation.md
+      - file: search-aggregations-metrics-cardinality-aggregation.md
+      - file: search-aggregations-metrics-extendedstats-aggregation.md
+      - file: search-aggregations-metrics-geobounds-aggregation.md
+      - file: search-aggregations-metrics-geocentroid-aggregation.md
+      - file: search-aggregations-metrics-geo-line.md
+      - file: search-aggregations-metrics-cartesian-bounds-aggregation.md
+      - file: search-aggregations-metrics-cartesian-centroid-aggregation.md
+      - file: search-aggregations-matrix-stats-aggregation.md
+      - file: search-aggregations-metrics-max-aggregation.md
+      - file: search-aggregations-metrics-median-absolute-deviation-aggregation.md
+      - file: search-aggregations-metrics-min-aggregation.md
+      - file: search-aggregations-metrics-percentile-rank-aggregation.md
+      - file: search-aggregations-metrics-percentile-aggregation.md
+      - file: search-aggregations-metrics-rate-aggregation.md
+      - file: search-aggregations-metrics-scripted-metric-aggregation.md
+      - file: search-aggregations-metrics-stats-aggregation.md
+      - file: search-aggregations-metrics-string-stats-aggregation.md
+      - file: search-aggregations-metrics-sum-aggregation.md
+      - file: search-aggregations-metrics-ttest-aggregation.md
+      - file: search-aggregations-metrics-top-hits-aggregation.md
+      - file: search-aggregations-metrics-top-metrics.md
+      - file: search-aggregations-metrics-valuecount-aggregation.md
+      - file: search-aggregations-metrics-weight-avg-aggregation.md
+  # TO DO: Figure out how to pull these in... separate TOCs?
+  # - file: data-analysis/observability/metrics-reference.md
+  # - file: data-analysis/serverless/metrics-reference.md
+  #   children:
+  #     - file: data-analysis/serverless/observability-host-metrics.md
+  #     - file: data-analysis/serverless/observability-container-metrics.md
+  #     - file: data-analysis/serverless/observability-kubernetes-pod-metrics.md
+  #     - file: data-analysis/serverless/observability-aws-metrics.md
+  - file: pipeline.md
+    children:
+      - file: search-aggregations-pipeline-avg-bucket-aggregation.md
+      - file: search-aggregations-pipeline-bucket-script-aggregation.md
+      - file: search-aggregations-bucket-count-ks-test-aggregation.md
+      - file: search-aggregations-bucket-correlation-aggregation.md
+      - file: search-aggregations-pipeline-bucket-selector-aggregation.md
+      - file: search-aggregations-pipeline-bucket-sort-aggregation.md
+      - file: search-aggregations-change-point-aggregation.md
+      - file: search-aggregations-pipeline-cumulative-cardinality-aggregation.md
+      - file: search-aggregations-pipeline-cumulative-sum-aggregation.md
+      - file: search-aggregations-pipeline-derivative-aggregation.md
+      - file: search-aggregations-pipeline-extended-stats-bucket-aggregation.md
+      - file: search-aggregations-pipeline-inference-bucket-aggregation.md
+      - file: search-aggregations-pipeline-max-bucket-aggregation.md
+      - file: search-aggregations-pipeline-min-bucket-aggregation.md
+      - file: search-aggregations-pipeline-movfn-aggregation.md
+      - file: search-aggregations-pipeline-moving-percentiles-aggregation.md
+      - file: search-aggregations-pipeline-normalize-aggregation.md
+      - file: search-aggregations-pipeline-percentiles-bucket-aggregation.md
+      - file: search-aggregations-pipeline-serialdiff-aggregation.md
+      - file: search-aggregations-pipeline-stats-bucket-aggregation.md
+      - file: search-aggregations-pipeline-sum-bucket-aggregation.md

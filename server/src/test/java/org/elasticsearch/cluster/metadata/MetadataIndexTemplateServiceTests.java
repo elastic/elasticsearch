@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -1488,30 +1489,33 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
-        DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template emptyLifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
-        DataStreamLifecycle lifecycle30d = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
+        DataStreamLifecycle.Template lifecycle30d = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(30))
+            .buildTemplate();
         String ct30d = "ct_30d";
         project = addComponentTemplate(service, project, ct30d, lifecycle30d);
 
-        DataStreamLifecycle lifecycle45d = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle45d = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(TimeValue.timeValueDays(45))
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("3h"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueDays(30),
+                        new DownsampleConfig(new DateHistogramInterval("3h"))
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);
 
-        DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
-            .build();
+        DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.createDataLifecycleTemplate(
+            true,
+            ResettableValue.reset(),
+            ResettableValue.undefined()
+        );
         String ctNullRetention = "ct_null_retention";
         project = addComponentTemplate(service, project, ctNullRetention, lifecycleNullRetention);
 
@@ -1519,10 +1523,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         project = addComponentTemplate(service, project, ctEmptyLifecycle, emptyLifecycle);
 
         String ctDisabledLifecycle = "ct_disabled_lifecycle";
-        project = addComponentTemplate(service, project, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
+        project = addComponentTemplate(
+            service,
+            project,
+            ctDisabledLifecycle,
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate()
+        );
 
         String ctNoLifecycle = "ct_no_lifecycle";
-        project = addComponentTemplate(service, project, ctNoLifecycle, (DataStreamLifecycle) null);
+        project = addComponentTemplate(service, project, ctNoLifecycle, (DataStreamLifecycle.Template) null);
 
         // Component A: -
         // Component B: "lifecycle": {"enabled": true}
@@ -1551,23 +1560,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycle30d,
-            DataStreamLifecycle.newBuilder()
-                .dataRetention(lifecycle30d.getDataRetention())
-                .downsampling(lifecycle45d.getDownsampling())
-                .build()
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle30d.dataRetention())
+                .downsampling(lifecycle45d.downsampling())
+                .buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": null}
         // Composable Z: -
-        // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
+        // Result: "lifecycle": {"enabled": true}, here the result of the composition is with retention explicitly
         // nullified, but effectively this is equivalent to infinite retention.
-        assertLifecycleResolution(service, project, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
+        assertLifecycleResolution(service, project, List.of(ct30d, ctNullRetention), null, DataStreamLifecycle.Template.DATA_DEFAULT);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": null}
-        // Result: "lifecycle": {"enabled": true, "retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
+        // Result: "lifecycle": {"enabled": true, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
         // here the result of the composition is with retention explicitly nullified, but effectively this is equivalent to infinite
         // retention.
         assertLifecycleResolution(
@@ -1575,10 +1584,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
-            DataStreamLifecycle.newBuilder()
-                .dataRetention(DataStreamLifecycle.Retention.NULL)
-                .downsampling(lifecycle45d.getDownsampling())
-                .build()
+            DataStreamLifecycle.dataLifecycleBuilder().downsampling(lifecycle45d.downsampling()).buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1589,12 +1595,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             service,
             project,
             List.of(ct30d, ct45d),
-            DataStreamLifecycle.newBuilder().enabled(false).build(),
-            DataStreamLifecycle.newBuilder()
-                .dataRetention(lifecycle45d.getDataRetention())
-                .downsampling(lifecycle45d.getDownsampling())
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate(),
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle45d.dataRetention())
+                .downsampling(lifecycle45d.downsampling())
                 .enabled(false)
-                .build()
+                .buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1606,7 +1612,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             project,
             List.of(ct30d, ctDisabledLifecycle),
             null,
-            DataStreamLifecycle.newBuilder().dataRetention(lifecycle30d.getDataRetention()).enabled(false).build()
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(lifecycle30d.dataRetention()).enabled(false).buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1713,11 +1719,81 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testSystemDataStreamsIgnoredByValidateIndexTemplateV2() throws Exception {
+        /*
+         * This test makes sure that system data streams (which do not have named templates) do not appear in the list of data streams
+         * without named templates when validateIndexTemplateV2 fails due to another non-system data stream not having a named template.
+         */
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        final String dataStreamTemplateName = "data_stream_template";
+        final String indexTemplateName = "index_template";
+        final String systemDataStreamName = "system_ds";
+        final String ordinaryDataStreamName = "my_ds";
+        final String ordinaryDataStreamIndexPattern = "my_ds*";
+        ComposableIndexTemplate highPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(275L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        ComposableIndexTemplate highPriorityIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(200L)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(
+                Map.of(
+                    systemDataStreamName,
+                    DataStreamTestHelper.randomInstance(systemDataStreamName, System::currentTimeMillis, randomBoolean(), true),
+                    ordinaryDataStreamName,
+                    DataStreamTestHelper.randomInstance(ordinaryDataStreamName, System::currentTimeMillis, randomBoolean(), false)
+                ),
+                Map.of()
+            )
+            .indexTemplates(Map.of(dataStreamTemplateName, highPriorityDataStreamTemplate, indexTemplateName, highPriorityIndexTemplate))
+            .build();
+        ComposableIndexTemplate lowPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        /*
+         * Here we attempt to change the priority of a template that matches an existing non-system data stream so that it is so low that
+         * the data stream matches the index (non data-stream) template instead. We expect an error, but that the error only mentions the
+         * non-system data stream.
+         */
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, dataStreamTemplateName, lowPriorityDataStreamTemplate)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                Strings.format(
+                    "composable template [%s] with index patterns [%s], priority [1] would cause data streams [%s] to no longer "
+                        + "match a data stream template",
+                    dataStreamTemplateName,
+                    ordinaryDataStreamIndexPattern,
+                    ordinaryDataStreamName
+                )
+            )
+        );
+        ComposableIndexTemplate mediumPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(201L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        /*
+         * We have now corrected the problem -- the priority of the new template is lower than the old data stream template but still higher
+         * than the non-data-stream index template. So we expect no validation errors.
+         */
+        metadataIndexTemplateService.validateIndexTemplateV2(project, dataStreamTemplateName, mediumPriorityDataStreamTemplate);
+    }
+
     private ProjectMetadata addComponentTemplate(
         MetadataIndexTemplateService service,
         ProjectMetadata project,
         String name,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle.Template lifecycle
     ) throws Exception {
         return addComponentTemplate(service, project, name, null, lifecycle);
     }
@@ -1736,7 +1812,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata project,
         String name,
         DataStreamOptions.Template dataStreamOptions,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle.Template lifecycle
     ) throws Exception {
         ComponentTemplate ct = new ComponentTemplate(
             Template.builder().dataStreamOptions(dataStreamOptions).lifecycle(lifecycle).build(),
@@ -1750,8 +1826,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ProjectMetadata project,
         List<String> composeOf,
-        DataStreamLifecycle lifecycleZ,
-        DataStreamLifecycle expected
+        DataStreamLifecycle.Template lifecycleZ,
+        DataStreamLifecycle.Template expected
     ) throws Exception {
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
@@ -1763,7 +1839,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(project, "my-template");
+        DataStreamLifecycle.Builder resolvedLifecycleBuilder = MetadataIndexTemplateService.resolveLifecycle(project, "my-template");
+        DataStreamLifecycle.Template resolvedLifecycle = resolvedLifecycleBuilder == null ? null : resolvedLifecycleBuilder.buildTemplate();
         assertThat(resolvedLifecycle, equalTo(expected));
     }
 
@@ -1784,8 +1861,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(project, "my-template")
-            .mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        DataStreamOptions.Builder builder = MetadataIndexTemplateService.resolveDataStreamOptions(project, "my-template");
+        DataStreamOptions resolvedDataStreamOptions = builder == null ? null : builder.build();
         assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 
@@ -2006,7 +2083,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
 
         ComponentTemplate ct = new ComponentTemplate(
-            Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999())).build(),
+            Template.builder().lifecycle(DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue())).build(),
             null,
             null
         );
@@ -2593,6 +2670,59 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
+        );
+    }
+
+    public void testComposableTemplateWithSubobjectsFalseObjectAndSubfield() throws Exception {
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "foo": {
+                   "type": "object",
+                   "subobjects": false
+                 },
+                 "foo.bar": {
+                   "type": "keyword"
+                 }
+              }
+            }
+            """), null), null, null);
+
+        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(null, null, null))
+            .componentTemplates(List.of("subobjects", "field_mapping"))
+            .priority(0L)
+            .version(1L)
+            .build();
+        project = service.addIndexTemplateV2(project, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(1));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(
+            parsedMappings.get(0),
+            equalTo(
+                Map.of(
+                    "_doc",
+                    Map.of("properties", Map.of("foo.bar", Map.of("type", "keyword"), "foo", Map.of("type", "object", "subobjects", false)))
+                )
+            )
         );
     }
 

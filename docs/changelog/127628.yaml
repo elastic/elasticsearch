@@ -1,0 +1,5 @@
+pr: 127628
+summary: Ensure config reload on ..data symlink switch for CSI driver support
+area: Infra/Settings
+type: enhancement
+issues: []

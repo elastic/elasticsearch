@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -512,6 +513,15 @@ public final class ExceptionsHelper {
         }
         // doesn't look like any of the known remote exceptions
         return false;
+    }
+
+    /**
+     * Utility method to check if an Exception is/was caused by TaskCancelledException.
+     * @param e Exception we're interested in evaluating.
+     * @return true if the Exception is/was caused by TaskCancelledException, else false.
+     */
+    public static boolean isTaskCancelledException(Exception e) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
     }
 
     private static class GroupBy {

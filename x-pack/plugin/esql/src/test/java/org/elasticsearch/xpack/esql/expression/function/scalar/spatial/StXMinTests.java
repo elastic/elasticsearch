@@ -35,8 +35,8 @@ public class StXMinTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StXMinFromWKBGeoEvaluator[field=Attribute[channel=0]]";
-        String expectedCartesian = "StXMinFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StXMinFromWKBGeoEvaluator[wkb=Attribute[channel=0]]";
+        String expectedCartesian = "StXMinFromWKBEvaluator[wkb=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StXMinTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMinTests::valueOfCartesian, List.of());

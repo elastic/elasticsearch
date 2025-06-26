@@ -1,0 +1,67 @@
+project: 'Search connectors reference'
+toc:
+- file: index.md
+- file: connector-reference.md
+  children:
+    - file: es-connectors-azure-blob.md
+    - file: es-connectors-box.md
+    - file: es-connectors-confluence.md
+    - file: es-connectors-dropbox.md
+    - file: es-connectors-github.md
+    - file: es-connectors-gmail.md
+    - file: es-connectors-google-cloud.md
+    - file: es-connectors-google-drive.md
+    - file: es-connectors-graphql.md
+    - file: es-connectors-jira.md
+    - file: es-connectors-ms-sql.md
+    - file: es-connectors-mongodb.md
+    - file: es-connectors-mysql.md
+    - file: es-connectors-network-drive.md
+    - file: es-connectors-notion.md
+    - file: es-connectors-onedrive.md
+    - file: es-connectors-opentext.md
+    - file: es-connectors-oracle.md
+    - file: es-connectors-outlook.md
+    - file: es-connectors-postgresql.md
+    - file: es-connectors-redis.md
+    - file: es-connectors-s3.md
+    - file: es-connectors-salesforce.md
+    - file: es-connectors-servicenow.md
+    - file: es-connectors-sharepoint-online.md
+    - file: es-connectors-sharepoint.md
+    - file: es-connectors-slack.md
+    - file: es-connectors-teams.md
+    - file: es-connectors-zoom.md
+- file: self-managed-connectors.md
+  children:
+    - file: es-connectors-run-from-docker.md
+    - file: es-connectors-run-from-source.md
+    - file: es-connectors-docker-compose-quickstart.md
+    - file: es-postgresql-connector-client-tutorial.md
+- file: elastic-managed-connectors.md # TODO: I should be deleted
+- file: build-customize-connectors.md
+- file: connectors-ui-in-kibana.md
+# TO DO: Do we want this page? (It's not in the inventory.)
+- file: es-connectors-apis.md
+  children:
+    - file: api-tutorial.md
+- file: content-syncs.md
+- file: extract-transform.md
+  children:
+    - file: es-connectors-content-extraction.md
+    - file: es-sync-rules.md
+- file: document-level-security.md
+  children:
+    - file: es-dls-overview.md
+    - file: es-dls-e2e-guide.md
+- file: management.md
+  children:
+    - file: es-connectors-scalability.md
+    - file: es-connectors-security.md
+    - file: es-connectors-troubleshooting.md
+    - file: es-connectors-logs.md
+- file: use-cases.md
+  children:
+  - file: es-connectors-overview-architecture.md
+- file: es-connectors-known-issues.md
+- file: release-notes.md

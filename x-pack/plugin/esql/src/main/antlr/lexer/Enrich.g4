@@ -14,10 +14,12 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow ENRICH in FORK branches
+ENRICH_RP : RP -> type(RP), popMode, popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
-ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
-WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
+ENRICH_ON : ON -> type(ON), pushMode(ENRICH_FIELD_MODE);
+ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
@@ -49,6 +51,7 @@ ENRICH_WS
 // submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+ENRICH_FIELD_RP : RP -> type(RP), popMode, popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);
 ENRICH_FIELD_COMMA : COMMA -> type(COMMA);
 ENRICH_FIELD_DOT: DOT -> type(DOT);
@@ -65,6 +68,8 @@ ENRICH_FIELD_QUOTED_IDENTIFIER
 
 ENRICH_FIELD_PARAM : PARAM -> type(PARAM);
 ENRICH_FIELD_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+ENRICH_FIELD_DOUBLE_PARAMS : DOUBLE_PARAMS -> type(DOUBLE_PARAMS);
+ENRICH_FIELD_NAMED_OR_POSITIONAL_DOUBLE_PARAMS : NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> type(NAMED_OR_POSITIONAL_DOUBLE_PARAMS);
 
 ENRICH_FIELD_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)

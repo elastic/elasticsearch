@@ -147,25 +147,39 @@ public class ExplainDataStreamLifecycleAction {
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable
-        private final DataStreamGlobalRetention globalRetention;
+        private final DataStreamGlobalRetention dataGlobalRetention;
+        @Nullable
+        private final DataStreamGlobalRetention failureGlobalRetention;
 
         public Response(
             List<ExplainIndexDataStreamLifecycle> indices,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention dataGlobalRetention,
+            @Nullable DataStreamGlobalRetention failureGlobalRetention
         ) {
             this.indices = indices;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
+            this.dataGlobalRetention = dataGlobalRetention;
+            this.failureGlobalRetention = failureGlobalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                : null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+                var defaultRetention = in.readOptionalTimeValue();
+                var maxRetention = in.readOptionalTimeValue();
+                var defaultFailuresRetention = in.readOptionalTimeValue();
+                dataGlobalRetention = DataStreamGlobalRetention.create(defaultRetention, maxRetention);
+                failureGlobalRetention = DataStreamGlobalRetention.create(defaultFailuresRetention, maxRetention);
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+                failureGlobalRetention = dataGlobalRetention;
+            } else {
+                dataGlobalRetention = null;
+                failureGlobalRetention = null;
+            }
         }
 
         public List<ExplainIndexDataStreamLifecycle> getIndices() {
@@ -176,16 +190,32 @@ public class ExplainDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+        public DataStreamGlobalRetention getDataGlobalRetention() {
+            return dataGlobalRetention;
+        }
+
+        public DataStreamGlobalRetention getFailuresGlobalRetention() {
+            return failureGlobalRetention;
+        }
+
+        private DataStreamGlobalRetention getGlobalRetentionForLifecycle(DataStreamLifecycle lifecycle) {
+            if (lifecycle == null) {
+                return null;
+            }
+            return lifecycle.targetsFailureStore() ? failureGlobalRetention : dataGlobalRetention;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_DEFAULT_RETENTION_BACKPORT_8_19)) {
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
+                out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
+                out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }
 
@@ -200,12 +230,13 @@ public class ExplainDataStreamLifecycleAction {
             Response response = (Response) o;
             return Objects.equals(indices, response.indices)
                 && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
-                && Objects.equals(globalRetention, response.globalRetention);
+                && Objects.equals(dataGlobalRetention, response.dataGlobalRetention)
+                && Objects.equals(failureGlobalRetention, response.failureGlobalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, rolloverConfiguration, globalRetention);
+            return Objects.hash(indices, rolloverConfiguration, dataGlobalRetention, failureGlobalRetention);
         }
 
         @Override
@@ -220,7 +251,7 @@ public class ExplainDataStreamLifecycleAction {
                     builder,
                     DataStreamLifecycle.addEffectiveRetentionParams(outerParams),
                     rolloverConfiguration,
-                    globalRetention
+                    getGlobalRetentionForLifecycle(explainIndexDataLifecycle.getLifecycle())
                 );
                 return builder;
             }), Iterators.single((builder, params) -> {

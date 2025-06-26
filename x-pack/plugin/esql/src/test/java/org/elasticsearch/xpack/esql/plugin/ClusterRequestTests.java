@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -56,7 +57,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-        writeables.addAll(new EsqlPlugin().getNamedWriteables());
+        writeables.addAll(new EsqlPlugin(Settings.EMPTY).getNamedWriteables());
         return new NamedWriteableRegistry(writeables);
     }
 
@@ -191,7 +192,13 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
+            new AnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                getIndexResult,
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
             TEST_VERIFIER
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));

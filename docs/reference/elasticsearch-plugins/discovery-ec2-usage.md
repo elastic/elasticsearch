@@ -22,29 +22,28 @@ discovery.seed_providers: ec2
 
 ## Configuring EC2 discovery [_configuring_ec2_discovery]
 
-EC2 discovery supports a number of settings. Some settings are sensitive and must be stored in the [{{es}} keystore](docs-content://deploy-manage/security/secure-settings.md). For example, to authenticate using a particular access key and secret key, add these keys to the keystore by running the following commands:
+EC2 discovery supports a number of settings. Some settings are sensitive and must be stored in the {{es}} keystore. For example, to authenticate using a particular access key and secret key, add these keys to the keystore by running the following commands:
 
 ```sh
 bin/elasticsearch-keystore add discovery.ec2.access_key
 bin/elasticsearch-keystore add discovery.ec2.secret_key
 ```
 
+All **secure** settings of this plugin are reloadable, allowing you to update the secure settings for this plugin without needing to restart each node. For more information about secure and reloadable settings, go to [Secure your settings](docs-content://deploy-manage/security/secure-settings.md).
+
 The available settings for the EC2 discovery plugin are as follows.
 
-`discovery.ec2.access_key` ({{ref}}/secure-settings.html[Secure], [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`discovery.ec2.access_key` (Secure, reloadable)
 :   An EC2 access key. If set, you must also set `discovery.ec2.secret_key`. If unset, `discovery-ec2` will instead use the instance role. This setting is sensitive and must be stored in the {{es}} keystore.
 
-`discovery.ec2.secret_key` ({{ref}}/secure-settings.html[Secure], [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`discovery.ec2.secret_key` (Secure, reloadable)
 :   An EC2 secret key. If set, you must also set `discovery.ec2.access_key`. This setting is sensitive and must be stored in the {{es}} keystore.
 
-`discovery.ec2.session_token` ({{ref}}/secure-settings.html[Secure], [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`discovery.ec2.session_token` (Secure, reloadable)
 :   An EC2 session token. If set, you must also set `discovery.ec2.access_key` and `discovery.ec2.secret_key`. This setting is sensitive and must be stored in the {{es}} keystore.
 
 `discovery.ec2.endpoint`
 :   The EC2 service endpoint to which to connect. See [https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region](https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region) to find the appropriate endpoint for the region. This setting defaults to `ec2.us-east-1.amazonaws.com` which is appropriate for clusters running in the `us-east-1` region.
-
-`discovery.ec2.protocol`
-:   The protocol to use to connect to the EC2 service endpoint, which may be either `http` or `https`. Defaults to `https`.
 
 `discovery.ec2.proxy.host`
 :   The address or host name of an HTTP proxy through which to connect to EC2. If not set, no proxy is used.
@@ -55,10 +54,10 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.proxy.scheme`
 :   The scheme to use when connecting to the EC2 service endpoint through proxy specified in `discovery.ec2.proxy.host`. Valid values are `http` or `https`. Defaults to `http`.
 
-`discovery.ec2.proxy.username` ({{ref}}/secure-settings.html[Secure], [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`discovery.ec2.proxy.username` (Secure, reloadable)
 :   When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`, this setting determines the username to use to connect to the proxy. When not set, no username is used. This setting is sensitive and must be stored in the {{es}} keystore.
 
-`discovery.ec2.proxy.password` ({{ref}}/secure-settings.html[Secure], [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`discovery.ec2.proxy.password` (Secure, reloadable)
 :   When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`, this setting determines the password to use to connect to the proxy. When not set, no password is used. This setting is sensitive and must be stored in the {{es}} keystore.
 
 `discovery.ec2.read_timeout`
@@ -99,9 +98,6 @@ The names of tags used for discovery may only contain ASCII letters, numbers, hy
 
 `discovery.ec2.node_cache_time`
 :   Sets the length of time for which the collection of discovered instances is cached. {{es}} waits at least this long between requests for discovery information from the EC2 API. AWS may reject discovery requests if they are made too often, and this would cause discovery to fail. Defaults to `10s`.
-
-All **secure** settings of this plugin are [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings), allowing you to update the secure settings for this plugin without needing to restart each node.
-
 
 ## Recommended EC2 permissions [discovery-ec2-permissions]
 

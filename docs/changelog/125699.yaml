@@ -1,0 +1,5 @@
+pr: 125699
+summary: Adding `NormalizeForStreamProcessor`
+area: Ingest Node
+type: feature
+issues: []

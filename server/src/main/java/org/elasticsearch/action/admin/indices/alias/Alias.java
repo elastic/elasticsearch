@@ -42,6 +42,14 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final Set<String> KNOWN_FIELDS = Set.of(
+        FILTER.getPreferredName(),
+        ROUTING.getPreferredName(),
+        INDEX_ROUTING.getPreferredName(),
+        SEARCH_ROUTING.getPreferredName(),
+        IS_WRITE_INDEX.getPreferredName(),
+        IS_HIDDEN.getPreferredName()
+    );
 
     private String name;
 
@@ -234,15 +242,7 @@ public class Alias implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 // check if there are any unknown fields
-                Set<String> knownFieldNames = Set.of(
-                    FILTER.getPreferredName(),
-                    ROUTING.getPreferredName(),
-                    INDEX_ROUTING.getPreferredName(),
-                    SEARCH_ROUTING.getPreferredName(),
-                    IS_WRITE_INDEX.getPreferredName(),
-                    IS_HIDDEN.getPreferredName()
-                );
-                if (knownFieldNames.contains(currentFieldName) == false) {
+                if (KNOWN_FIELDS.contains(currentFieldName) == false) {
                     throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -257,12 +257,32 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported String type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported boolean type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
             } else {
                 throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");

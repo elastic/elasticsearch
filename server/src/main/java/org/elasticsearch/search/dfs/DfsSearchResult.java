@@ -39,7 +39,6 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
-        super(in);
         contextId = new ShardSearchContextId(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {

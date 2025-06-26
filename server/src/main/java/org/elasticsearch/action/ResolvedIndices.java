@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -175,6 +176,18 @@ public class ResolvedIndices {
         Index[] concreteLocalIndices = localIndices == null
             ? Index.EMPTY_ARRAY
             : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
+
+        // prevent using selectors with remote cluster patterns
+        for (final var indicesPerRemoteClusterAlias : remoteClusterIndices.entrySet()) {
+            final String[] indices = indicesPerRemoteClusterAlias.getValue().indices();
+            if (indices != null) {
+                for (final String index : indices) {
+                    if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
+                        throw new InvalidIndexNameException(index, "Selectors are not yet supported on remote cluster patterns");
+                    }
+                }
+            }
+        }
 
         return new ResolvedIndices(
             remoteClusterIndices,

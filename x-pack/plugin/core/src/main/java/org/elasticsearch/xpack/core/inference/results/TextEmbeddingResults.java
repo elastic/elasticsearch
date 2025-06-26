@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C>>
-    extends
-        EmbeddingResults<C, E> {
+public interface TextEmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends EmbeddingResults<E> {
 
     /**
      * Returns the first text embedding entry in the result list's array size.

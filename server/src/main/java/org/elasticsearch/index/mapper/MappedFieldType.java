@@ -196,6 +196,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
+        return false;
+    }
+
+    /**
      * @return true if field has script values.
      */
     public boolean hasScriptValues() {
@@ -692,8 +701,13 @@ public abstract class MappedFieldType {
         /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE;
-
+        NONE,
+        /**
+         * Prefer loading from stored fields like {@code _source} because we're
+         * loading many fields. The {@link MappedFieldType} can chose a different
+         * method to load the field if it needs to.
+         */
+        STORED;
     }
 
     /**

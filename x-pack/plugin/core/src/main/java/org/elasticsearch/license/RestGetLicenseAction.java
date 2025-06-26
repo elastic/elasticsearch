@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,14 +55,13 @@ public class RestGetLicenseAction extends BaseRestHandler {
      * The licenses are sorted by latest issue_date
      */
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // remove support for accept_enterprise param
+    @UpdateForV10(owner = UpdateForV10.Owner.SECURITY) // remove support for accept_enterprise param
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final Map<String, String> overrideParams = Maps.newMapWithExpectedSize(2);
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
 
-        // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
-        // TODO Remove this from 9.0
+        // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0+ the flag is deprecated and can only be true
         if (request.hasParam("accept_enterprise")) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
@@ -70,7 +69,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"
             );
-            if (request.paramAsBoolean("accept_enterprise", true) == false) {
+            if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }
         }

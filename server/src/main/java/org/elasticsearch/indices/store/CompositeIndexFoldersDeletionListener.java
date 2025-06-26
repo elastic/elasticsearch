@@ -12,6 +12,7 @@ package org.elasticsearch.indices.store;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.nio.file.Path;
@@ -31,10 +32,10 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
-                listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths);
+                listener.beforeIndexFoldersDeleted(index, indexSettings, indexPaths, reason);
             } catch (Exception e) {
                 assert false : new AssertionError(e);
                 throw e;
@@ -43,10 +44,10 @@ public class CompositeIndexFoldersDeletionListener implements IndexStorePlugin.I
     }
 
     @Override
-    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason) {
         for (IndexStorePlugin.IndexFoldersDeletionListener listener : listeners) {
             try {
-                listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths);
+                listener.beforeShardFoldersDeleted(shardId, indexSettings, shardPaths, reason);
             } catch (Exception e) {
                 assert false : new AssertionError(e);
                 throw e;

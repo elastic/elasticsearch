@@ -16,6 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,12 +109,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
+    private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
+
+    static final String TIMED_OUT_HEADER = "X-Timed-Out";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -123,8 +127,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -136,8 +142,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param msg  the detail message
      * @param args the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -151,8 +159,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param cause the nested exception
      * @param args  the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
+        maybePutTimeoutHeader();
     }
 
     @SuppressWarnings("this-escape")
@@ -161,6 +171,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
+    }
+
+    private void maybePutTimeoutHeader() {
+        if (isTimeout()) {
+            // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
+            headers.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
     }
 
     /**
@@ -254,6 +271,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
+     * Returns whether this exception represents a timeout.
+     */
+    public boolean isTimeout() {
+        return false;
+    }
+
+    /**
      * Unwraps the actual cause from the exception for cases when the exception is a
      * {@link ElasticsearchWrapperException}.
      *
@@ -270,7 +294,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public String getDetailedMessage() {
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
-            sb.append(toString()).append("; ");
+            sb.append(this).append("; ");
             if (getCause() instanceof ElasticsearchException) {
                 sb.append(((ElasticsearchException) getCause()).getDetailedMessage());
             } else {
@@ -329,7 +353,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded)
+                || Arrays.stream(elasticsearchExceptionHandle.patchVersions).anyMatch(version::isPatchFrom);
         }
         return false;
     }
@@ -359,7 +384,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (ex != this) {
             generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, headers, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -368,8 +393,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         XContentBuilder builder,
         Params params,
         Throwable throwable,
-        String type,
-        String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
         Throwable cause,
@@ -383,8 +406,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return;
         }
 
-        builder.field(TYPE, type);
-        builder.field(REASON, message);
+        builder.field(TYPE, throwable instanceof ElasticsearchException e ? e.getExceptionName() : getExceptionName(throwable));
+        builder.field(REASON, throwable.getMessage());
+
+        // TODO: we could walk the exception chain to see if _any_ causes are timeouts?
+        if (throwable instanceof ElasticsearchException exception && exception.isTimeout()) {
+            builder.field(TIMED_OUT, true);
+        }
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
@@ -394,13 +422,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
-            if (cause != null) {
-                builder.field(CAUSED_BY);
-                builder.startObject();
-                generateThrowableXContent(builder, params, cause, nestedLevel + 1);
-                builder.endObject();
-            }
+        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
+            builder.startObject(CAUSED_BY);
+            generateThrowableXContent(builder, params, cause, nestedLevel + 1);
+            builder.endObject();
         }
 
         if (headers.isEmpty() == false) {
@@ -573,7 +598,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, int)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, Map, Map, Throwable, int)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
@@ -593,7 +618,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (t instanceof ElasticsearchException) {
             ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), nestedLevel);
+            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel);
         }
     }
 
@@ -689,8 +714,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public ElasticsearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).guessRootCauses();
+        if (cause instanceof ElasticsearchException ese) {
+            return ese.guessRootCauses();
         }
         return new ElasticsearchException[] { this };
     }
@@ -739,35 +764,28 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static String getExceptionName(Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();
-        if (simpleName.startsWith("Elasticsearch")) {
-            simpleName = simpleName.substring("Elasticsearch".length());
-        }
         // TODO: do we really need to make the exception name in underscore casing?
-        return toUnderscoreCase(simpleName);
+        return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }
 
     static String buildMessage(String type, String reason, String stack) {
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type);
-        message.append(", ").append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-        return message.toString();
+        return "Elasticsearch exception ["
+            + TYPE
+            + "="
+            + type
+            + ", "
+            + REASON
+            + "="
+            + reason
+            + (stack == null ? "" : (", " + STACK_TRACE + "=" + stack))
+            + "]";
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (metadata.containsKey(INDEX_METADATA_KEY)) {
-            builder.append(getIndex());
-            if (metadata.containsKey(SHARD_METADATA_KEY)) {
-                builder.append('[').append(getShardId()).append(']');
-            }
-            builder.append(' ');
-        }
-        return builder.append(super.toString().trim()).toString();
+        return (metadata.containsKey(INDEX_METADATA_KEY)
+            ? (getIndex() + (metadata.containsKey(SHARD_METADATA_KEY) ? "[" + getShardId() + "] " : " "))
+            : "") + super.toString().trim();
     }
 
     /**
@@ -1949,24 +1967,35 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
             TransportVersions.V_8_16_0
+        ),
+        REMOTE_EXCEPTION(
+            RemoteException.class,
+            RemoteException::new,
+            184,
+            TransportVersions.REMOTE_EXCEPTION,
+            TransportVersions.REMOTE_EXCEPTION_8_19
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final TransportVersion versionAdded;
+        private final TransportVersion versionAdded;
+        private final TransportVersion[] patchVersions;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            TransportVersion versionAdded
+            TransportVersion versionAdded,
+            TransportVersion... patchVersions
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.versionAdded = versionAdded;
+
             this.id = id;
+            this.versionAdded = versionAdded;
+            this.patchVersions = patchVersions;
         }
     }
 
@@ -2061,19 +2090,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     // lower cases and adds underscores to transitions in a name
-    private static String toUnderscoreCase(String value) {
+    private static String toUnderscoreCase(String value, final int offset) {
         StringBuilder sb = new StringBuilder();
         boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
+        for (int i = offset; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
                 if (changed == false) {
                     // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
+                    sb.append(value, offset, i);
                     changed = true;
-                    if (i == 0) {
+                    if (i == offset) {
                         sb.append(Character.toLowerCase(c));
                     } else {
                         sb.append('_');
@@ -2090,7 +2117,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
         if (changed == false) {
-            return value;
+            return offset == 0 ? value : value.substring(offset);
         }
         return sb.toString();
     }

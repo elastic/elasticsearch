@@ -1,3 +1,5 @@
-* [preview] [`KQL`](../../esql-functions-operators.md#esql-kql)
-* [preview] [`MATCH`](../../esql-functions-operators.md#esql-match)
-* [preview] [`QSTR`](../../esql-functions-operators.md#esql-qstr)
+* [`KQL`](../../functions-operators/search-functions.md#esql-kql)
+* [`MATCH`](../../functions-operators/search-functions.md#esql-match)
+* [`MATCH_PHRASE`](../../functions-operators/search-functions.md#esql-match_phrase)
+* [`QSTR`](../../functions-operators/search-functions.md#esql-qstr)
+% * [preview] [`TERM`](../../functions-operators/search-functions.md#esql-term)

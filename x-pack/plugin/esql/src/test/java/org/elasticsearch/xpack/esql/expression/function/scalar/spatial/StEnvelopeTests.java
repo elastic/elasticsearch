@@ -36,8 +36,8 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[field=Attribute[channel=0]]";
-        String expectedCartesian = "StEnvelopeFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[wkb=Attribute[channel=0]]";
+        String expectedCartesian = "StEnvelopeFromWKBEvaluator[wkb=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(

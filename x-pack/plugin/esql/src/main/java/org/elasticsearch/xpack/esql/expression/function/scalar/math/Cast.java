@@ -59,7 +59,7 @@ public class Cast {
     }
 
     private static EsqlIllegalArgumentException cantCast(DataType current, DataType required) {
-        return new EsqlIllegalArgumentException("can't process [" + current.typeName() + " -> " + required.typeName() + "]");
+        return new EsqlIllegalArgumentException("can’t process [" + current.typeName() + " -> " + required.typeName() + "]");
     }
 
     @Evaluator(extraName = "IntToLong")

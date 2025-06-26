@@ -35,7 +35,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -513,7 +513,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             assertEquals((long) i + 1, bucket.getKeyAsNumber());
             assertEquals(1L, bucket.getDocCount());
 
-            Filter filter = bucket.getAggregations().get("filter");
+            SingleBucketAggregation filter = bucket.getAggregations().get("filter");
             assertNotNull(filter);
             assertEquals(0L, filter.getDocCount());
 

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -53,9 +52,7 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingFloatResults(List<Embedding> embeddings)
-    implements
-        TextEmbeddingResults<TextEmbeddingFloatResults.Chunk, TextEmbeddingFloatResults.Embedding> {
+public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingFloatResults.Embedding> {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
@@ -125,16 +122,6 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         return embeddings.stream().map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING, embedding.asDoubleArray(), false)).toList();
     }
 
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
-        );
-
-        return List.of(legacyEmbedding);
-    }
-
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(TEXT_EMBEDDING, embeddings);
@@ -155,8 +142,18 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(float[] values, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Embedding> {
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(float[] values) {
+            this(values, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readFloatArray());
@@ -221,25 +218,21 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toChunk(ChunkedInference.TextOffset offset) {
-            return new Chunk(values, offset);
-        }
-    }
-
-    public record Chunk(float[] embedding, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
-
-        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, embedding));
+        public Embedding merge(Embedding embedding) {
+            float[] mergedValues = new float[values.length];
+            for (int i = 0; i < values.length; i++) {
+                mergedValues[i] = (numberOfMergedEmbeddings * values[i] + embedding.numberOfMergedEmbeddings * embedding.values[i])
+                    / (numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
+            }
+            return new Embedding(mergedValues, numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
         }
 
-        /**
-         * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-         */
-        private static BytesReference toBytesReference(XContent xContent, float[] value) throws IOException {
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
             XContentBuilder b = XContentBuilder.builder(xContent);
             b.startArray();
-            for (float v : value) {
-                b.value(v);
+            for (float value : values) {
+                b.value(value);
             }
             b.endArray();
             return BytesReference.bytes(b);

@@ -38,11 +38,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ResolvedRepositories;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
@@ -513,7 +513,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().getProject().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
         assertNotNull(initialRepoMetadata);
@@ -545,7 +545,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
-                    ShardGenerations.EMPTY,
+                    UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,

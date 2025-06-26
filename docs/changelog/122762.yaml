@@ -1,6 +1,0 @@
-pr: 122762
-summary: "ESQL: Remove estimated row size assertion"
-area: ES|QL
-type: bug
-issues:
-  - 121535

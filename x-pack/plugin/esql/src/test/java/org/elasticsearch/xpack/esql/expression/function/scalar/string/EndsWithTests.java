@@ -11,15 +11,23 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -97,5 +105,35 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new EndsWith(source, args.get(0), args.get(1));
+    }
+
+    public void testLuceneQuery_AllLiterals_NonTranslatable() {
+        var function = new EndsWith(Source.EMPTY, Literal.keyword(Source.EMPTY, "test"), Literal.keyword(Source.EMPTY, "test"));
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
+    public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
+        var function = new EndsWith(
+            Source.EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+        );
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
+    public void testLuceneQuery_NonFoldableSuffix_Translatable() {
+        var function = new EndsWith(
+            Source.EMPTY,
+            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            Literal.keyword(Source.EMPTY, "a*b?c\\")
+        );
+
+        assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+
+        var query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\")));
     }
 }

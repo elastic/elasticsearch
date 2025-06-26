@@ -148,15 +148,17 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    "TS time_series_idx | LIMIT 10",
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
                     Map.ofEntries(),
                     Build.current().isSnapshot()
                 ) },
             new Object[] {
                 new Test(
-                    "METRICS idx max(id) BY host | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    "TS time_series_idx | STATS max(id) BY host | LIMIT 10",
+                    Build.current().isSnapshot()
+                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
+                        : Collections.emptyMap(),
                     Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot()
                 ) }
@@ -311,6 +313,22 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 )
                 .setMapping("ip", "type=ip", "host", "type=keyword")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("time_series_idx")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build())
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "id",
+                    "type=keyword",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
         );
     }
 

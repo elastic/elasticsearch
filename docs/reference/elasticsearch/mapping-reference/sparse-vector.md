@@ -7,7 +7,7 @@ mapped_pages:
 # Sparse vector field type [sparse-vector]
 
 
-A `sparse_vector` field can index features and weights so that they can later be used to query documents in queries with a [`sparse_vector`](/reference/query-languages/query-dsl-sparse-vector-query.md). This field can also be used with a legacy [`text_expansion`](/reference/query-languages/query-dsl-text-expansion-query.md) query.
+A `sparse_vector` field can index features and weights so that they can later be used to query documents in queries with a [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md). This field can also be used with a legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) query.
 
 `sparse_vector` is the field type that should be used with [ELSER mappings](docs-content://solutions/search/semantic-search/semantic-search-elser-ingest-pipelines.md#elser-mappings).
 
@@ -18,6 +18,33 @@ PUT my-index
     "properties": {
       "text.tokens": {
         "type": "sparse_vector"
+      }
+    }
+  }
+}
+```
+
+## Token pruning
+```{applies_to}
+stack: preview 9.1
+```
+
+With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
+
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "text.tokens": {
+        "type": "sparse_vector",
+        "index_options": {
+          "prune": true,
+          "pruning_config": {
+            "tokens_freq_ratio_threshold": 5,
+            "tokens_weight_threshold": 0.4
+          }
+        }
       }
     }
   }
@@ -36,6 +63,38 @@ The following parameters are accepted by `sparse_vector` fields:
     * Exclude the field from [_source](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering).
     * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
 
+index_options {applies_to}`stack: preview 9.1`
+:   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
+
+Parameters for `index_options` are:
+
+`prune` {applies_to}`stack: preview 9.1`
+:   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
+
+`pruning_config` {applies_to}`stack: preview 9.1`
+:   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false but `pruning_config` is specified, an exception will occur.
+
+    Parameters for `pruning_config` include:
+
+    `tokens_freq_ratio_threshold` {applies_to}`stack: preview 9.1`
+    :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+
+    `tokens_weight_threshold` {applies_to}`stack: preview 9.1`
+    :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+
+    ::::{note}
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the most optimal results.
+    ::::
+
+When token pruning is applied, non-significant tokens will be pruned from the query.
+Non-significant tokens can be defined as tokens that meet both of the following criteria:
+* The token appears much more frequently than most tokens, indicating that it is a very common word and may not benefit the overall search results much.
+* The weight/score is so low that the token is likely not very relevant to the original term
+
+Both the token frequency threshold and weight threshold must show the token is non-significant in order for the token to be pruned.
+This ensures that:
+* The tokens that are kept are frequent enough and have significant scoring.
+* Very infrequent tokens that may not have as high of a score are removed.
 
 
 ## Multi-value sparse vectors [index-multi-value-sparse-vectors]
@@ -102,7 +161,7 @@ GET my-index-000001/_search
 
 
 ::::{note}
-`sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl-text-expansion-query.md) queries.
+`sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) queries.
 ::::
 
 

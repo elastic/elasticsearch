@@ -41,4 +41,4 @@ else
 fi
 
 set -e
-$GRADLEW -S --max-workers=$MAX_WORKERS $@
+$GRADLEW -S --max-workers=$MAX_WORKERS "$@"

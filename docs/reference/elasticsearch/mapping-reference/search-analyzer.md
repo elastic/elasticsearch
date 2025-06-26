@@ -7,7 +7,7 @@ mapped_pages:
 
 Usually, the same [analyzer](/reference/elasticsearch/mapping-reference/analyzer.md) should be applied at index time and at search time, to ensure that the terms in the query are in the same format as the terms in the inverted index.
 
-Sometimes, though, it can make sense to use a different analyzer at search time, such as when using the  [`edge_ngram`](/reference/data-analysis/text-analysis/analysis-edgengram-tokenizer.md) tokenizer for autocomplete or when using search-time synonyms.
+Sometimes, though, it can make sense to use a different analyzer at search time, such as when using the  [`edge_ngram`](/reference/text-analysis/analysis-edgengram-tokenizer.md) tokenizer for autocomplete or when using search-time synonyms.
 
 By default, queries will use the `analyzer` defined in the field mapping, but this can be overridden with the `search_analyzer` setting:
 

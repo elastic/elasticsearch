@@ -30,6 +30,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FAILURES_ALLOWED_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
+
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
  */
@@ -72,7 +78,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
+            || in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
@@ -96,14 +103,25 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
+            || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
         }
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException("This should not be XContent serialized");
+        // this object is not parsed, but it sometimes needs to be output as xcontent
+        // rankWindowSize serialization is handled by the parent class RankBuilder
+        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+        builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (failuresAllowed) {
+            builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
+        }
     }
 
     @Override

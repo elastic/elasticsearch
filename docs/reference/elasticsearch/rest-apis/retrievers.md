@@ -41,6 +41,9 @@ The following retrievers are available:
 `text_similarity_reranker`
 :   A [retriever](#text-similarity-reranker-retriever) that enhances search results by re-ranking documents based on semantic similarity to a specified inference text, using a machine learning model.
 
+`pinned` {applies_to}`stack: GA 9.1`
+:   A [retriever](#pinned-retriever) that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
 `rule`
 :   A [retriever](#rule-retriever) that applies contextual [Searching with query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries.
 
@@ -60,7 +63,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
 
 
 `search_after`
@@ -84,7 +87,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `min_score`
 :   (Optional, `float`)
 
-    Minimum [`_score`](/reference/query-languages/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 
 `collapse`
@@ -198,7 +201,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `rescore_vector`
-:   (Optional, object) Functionality in [preview]. Apply oversampling and rescoring to quantized vectors.
+:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}
 Rescoring only makes sense for quantized vectors; when [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) is not used, the original vectors are used for scoring. Rescore option will be ignored for non-quantized `dense_vector` fields.
@@ -263,17 +266,20 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 Each entry specifies the following parameters:
 
-* `retriever`:: (Required, a `retriever` object)
+`retriever`
+:   (Required, a `retriever` object)
 
     Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
 
-* `weight`:: (Optional, float)
+`weight`
+:   (Optional, float)
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-* `normalizer`:: (Optional, String)
+`normalizer`
+:   (Optional, String)
 
-    Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
+    - Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
@@ -282,6 +288,7 @@ Each entry specifies the following parameters:
         score = (score - min) / (max - min)
         ```
 
+    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
@@ -294,7 +301,7 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -326,7 +333,7 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -463,7 +470,7 @@ When using the `rescorer`, an error is returned if the following conditions are 
 `filter`
 :   (Optional. [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
 
 
 
@@ -560,11 +567,11 @@ Refer to [*Semantic re-ranking*](docs-content://solutions/search/ranking/semanti
 
 ### Prerequisites [_prerequisites_15]
 
-To use `text_similarity_reranker` you must first set up an inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be set up with a machine learning model that can compute text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
+To use `text_similarity_reranker`, you can rely on the preconfigured `.rerank-v1-elasticsearch` inference endpoint, which uses the [Elastic Rerank model](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) and serves as the default if no `inference_id` is provided. This model is optimized for reranking based on text similarity. If you'd like to use a different model, you can set up a custom inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be configured with a machine learning model capable of computing text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
 
 You have the following options:
 
-* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service.
+* Use the built-in [Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) cross-encoder model via the inference API’s {{es}} service. See [this example](https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html#inference-example-elastic-reranker) for creating an endpoint using the Elastic Rerank model.
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
@@ -606,9 +613,9 @@ score = ln(score), if score < 0
 
 
 `inference_id`
-:   (Required, `string`)
+:   (Optional, `string`)
 
-    Unique identifier of the inference endpoint created using the {{infer}} API.
+    Unique identifier of the inference endpoint created using the {{infer}} API. If you don’t specify an inference endpoint, the `inference_id` field defaults to `.rerank-v1-elasticsearch`, a preconfigured endpoint for the elasticsearch `.rerank-v1` model.
 
 
 `inference_text`
@@ -632,7 +639,7 @@ score = ln(score), if score < 0
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 
 
@@ -666,7 +673,7 @@ Follow these steps:
     }
     ```
 
-    1. [Adaptive allocations](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-auto-scale.md#nlp-model-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
+    1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
 2. Define a `text_similarity_rerank` retriever:
 
@@ -800,7 +807,7 @@ Follow these steps to load the model and create a semantic re-ranker.
 
 ## Query Rules Retriever [rule-retriever]
 
-The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl-rule-query.md), but works out of the box with other retrievers.
+The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md), but works out of the box with other retrievers.
 
 ### Prerequisites [_prerequisites_16]
 
@@ -917,7 +924,57 @@ GET movies/_search
 1. The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 2. The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
+## Pinned Retriever [pinned-retriever]
+```yaml {applies_to}
+stack: ga 9.1
+```
 
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the [pinned query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md), but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
+
+#### Parameters [pinned-retriever-parameters]
+
+`ids`
+:   (Optional, array of strings)
+
+    A list of document IDs to pin at the top of the results, in the order provided.
+
+`docs`
+:   (Optional, array of objects)
+
+    A list of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`retriever`
+:   (Optional, retriever object)
+
+    A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+Either `ids` or `docs` must be specified.
+
+### Example using `docs` [pinned-retriever-example-documents]
+
+```console
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 ## Common usage guidelines [retriever-common-parameters]
 
@@ -929,7 +986,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl-bool-query.md).
+[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]
@@ -942,6 +999,3 @@ When a retriever is specified as part of a search, the following elements are no
 * [`terminate_after`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-terminate-after)
 * [`sort`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
 * [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) use a [rescorer retriever](#rescorer-retriever) instead
-
-
-

@@ -37,6 +37,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("test-multi-project")
         .module("lang-mustache")
         .module("parent-join")
+        .module("streams")
         .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
@@ -46,7 +47,6 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .user(USER, PASS)
         .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .nodes(2)
         .build();
 

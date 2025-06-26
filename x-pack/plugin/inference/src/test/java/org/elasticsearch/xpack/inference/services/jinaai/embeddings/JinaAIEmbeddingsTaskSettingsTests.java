@@ -24,7 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
-import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<JinaAIEmbeddingsTaskSettings> {
@@ -93,7 +93,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -112,7 +112,7 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -130,34 +130,15 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
-    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
+    public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull() {
         var taskSettings = new JinaAIEmbeddingsTaskSettings(InputType.INGEST);
-        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
-            taskSettings,
-            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            InputType.UNSPECIFIED
-        );
+        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
     public void testOf_UsesRequestTaskSettings() {
         var taskSettings = new JinaAIEmbeddingsTaskSettings((InputType) null);
-        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
-            taskSettings,
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            InputType.UNSPECIFIED
-        );
-
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
-    }
-
-    public void testOf_UsesRequestTaskSettings_AndRequestInputType() {
-        var taskSettings = new JinaAIEmbeddingsTaskSettings(InputType.SEARCH);
-        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
-            taskSettings,
-            new JinaAIEmbeddingsTaskSettings((InputType) null),
-            InputType.INGEST
-        );
+        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, new JinaAIEmbeddingsTaskSettings(InputType.INGEST));
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
     }

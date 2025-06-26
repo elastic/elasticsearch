@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -13,7 +14,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
@@ -71,7 +75,10 @@ public class WatcherPluginTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            List.of()
+            List.of(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

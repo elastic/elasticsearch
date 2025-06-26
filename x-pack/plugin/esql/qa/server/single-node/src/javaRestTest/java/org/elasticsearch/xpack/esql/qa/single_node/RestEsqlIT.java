@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.Build;
@@ -17,38 +18,60 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.tools.ProfileParser;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
+import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 
@@ -96,7 +119,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             request.setJsonEntity("{\"f\":" + i + "}");
             assertOK(client().performRequest(request));
         }
-        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
+        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f").allowPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -284,7 +307,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Map<String, Object> result = runEsql(builder);
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
             equalTo(List.of(List.of(499.5d)))
         );
@@ -328,6 +351,116 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+    }
+
+    private final String PROCESS_NAME = "process_name";
+    private final String THREAD_NAME = "thread_name";
+
+    @SuppressWarnings("unchecked")
+    public void testProfileParsing() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = new RequestObjectBuilder(XContentType.JSON).query(fromIndex() + " | stats avg(value)").profile(true);
+        Request request = prepareRequestWithOptions(builder, SYNC);
+        HttpEntity response = performRequest(request).getEntity();
+
+        ProfileParser.Profile profile;
+        try (InputStream responseContent = response.getContent()) {
+            profile = readProfileFromResponse(responseContent);
+        }
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try (XContentBuilder jsonOutputBuilder = new XContentBuilder(JsonXContent.jsonXContent, os)) {
+            parseProfile(profile, jsonOutputBuilder);
+        }
+
+        // Read the written JSON again into a map, so we can make assertions on it
+        ByteArrayInputStream profileJson = new ByteArrayInputStream(os.toByteArray());
+        Map<String, Object> parsedProfile = XContentHelper.convertToMap(JsonXContent.jsonXContent, profileJson, true);
+
+        assertEquals("ns", parsedProfile.get("displayTimeUnit"));
+        List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
+        // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
+        assertThat(events.size(), greaterThanOrEqualTo(7));
+
+        String clusterName = "test-cluster";
+        Set<String> expectedProcessNames = new HashSet<>();
+        for (int i = 0; i < cluster.getNumNodes(); i++) {
+            expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
+        }
+
+        int seenNodes = 0;
+        int seenDrivers = 0;
+        // Declaration of each node as a "process" via a metadata event (phase `ph` is `M`)
+        // First event has to declare the first seen node.
+        Map<String, Object> nodeMetadata = events.get(0);
+        assertProcessMetadataForNextNode(nodeMetadata, expectedProcessNames, seenNodes++);
+
+        // The rest should be pairs of 2 events: first, a metadata event, declaring 1 "thread" per driver in the profile, then
+        // a "complete" event (phase `ph` is `X`) with a timestamp, duration `dur`, thread duration `tdur` (cpu time) and additional
+        // arguments obtained from the driver.
+        // Except when run as part of the Serverless tests, which can involve more than 1 node - in which case, there will be more node
+        // metadata events.
+        for (int i = 1; i < events.size() - 1;) {
+            String eventName = (String) events.get(i).get("name");
+            assertTrue(Set.of(THREAD_NAME, PROCESS_NAME).contains(eventName));
+            if (eventName.equals(THREAD_NAME)) {
+                Map<String, Object> metadataEventForDriver = events.get(i);
+                Map<String, Object> eventForDriver = events.get(i + 1);
+                assertDriverData(metadataEventForDriver, eventForDriver, seenNodes, seenDrivers);
+                i = i + 2;
+                seenDrivers++;
+            } else if (eventName.equals(PROCESS_NAME)) {
+                Map<String, Object> metadataEventForNode = events.get(i);
+                assertProcessMetadataForNextNode(metadataEventForNode, expectedProcessNames, seenNodes);
+                i++;
+                seenNodes++;
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertProcessMetadataForNextNode(Map<String, Object> nodeMetadata, Set<String> expectedNamesForNodes, int seenNodes) {
+        assertEquals("M", nodeMetadata.get("ph"));
+        assertEquals(PROCESS_NAME, nodeMetadata.get("name"));
+        assertEquals(seenNodes, nodeMetadata.get("pid"));
+
+        Map<String, Object> nodeMetadataArgs = (Map<String, Object>) nodeMetadata.get("args");
+        assertTrue(expectedNamesForNodes.contains((String) nodeMetadataArgs.get("name")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertDriverData(Map<String, Object> driverMetadata, Map<String, Object> driverEvent, int seenNodes, int seenDrivers) {
+        assertEquals("M", driverMetadata.get("ph"));
+        assertEquals(THREAD_NAME, driverMetadata.get("name"));
+        assertTrue((int) driverMetadata.get("pid") < seenNodes);
+        assertEquals(seenDrivers, driverMetadata.get("tid"));
+        Map<String, Object> driverMetadataArgs = (Map<String, Object>) driverMetadata.get("args");
+        String driverType = (String) driverMetadataArgs.get("name");
+        assertThat(driverType, oneOf("data", "node_reduce", "final"));
+
+        assertEquals("X", driverEvent.get("ph"));
+        assertThat((String) driverEvent.get("name"), startsWith(driverType));
+        // Category used to implicitly colour-code and group drivers
+        assertEquals(driverType, driverEvent.get("cat"));
+        assertTrue((int) driverEvent.get("pid") < seenNodes);
+        assertEquals(seenDrivers, driverEvent.get("tid"));
+        long timestampMillis = (long) driverEvent.get("ts");
+        double durationMicros = (double) driverEvent.get("dur");
+        double cpuDurationMicros = (double) driverEvent.get("tdur");
+        assertTrue(timestampMillis >= 0);
+        assertTrue(durationMicros >= 0);
+        assertTrue(cpuDurationMicros >= 0);
+        assertTrue(durationMicros >= cpuDurationMicros);
+
+        // This should contain the essential information from a driver, like its operators, and will be just attached to the slice/
+        // visible when clicking on it.
+        Map<String, Object> driverSliceArgs = (Map<String, Object>) driverEvent.get("args");
+        assertNotNull(driverSliceArgs.get("cpu_nanos"));
+        assertNotNull(driverSliceArgs.get("took_nanos"));
+        assertNotNull(driverSliceArgs.get("iterations"));
+        assertNotNull(driverSliceArgs.get("sleeps"));
+        assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {
@@ -377,7 +510,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
@@ -480,7 +613,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(
             result,
-            getResultMatcher(result).entry("profile", matchesMap().entry("drivers", instanceOf(List.class))),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
                 .item(matchesMap().entry("name", "MAX(value)").entry("type", "long"))
                 .item(matchesMap().entry("name", "MIN(value)").entry("type", "long"))
@@ -500,6 +633,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String operators = p.get("operators").toString();
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
+                .entry("thread_name", Matchers.containsString("[esql_worker]")) // NB: this doesn't run in the test thread
                 .entry("wake_millis", greaterThan(0L));
             String description = p.get("description").toString();
             switch (description) {
@@ -522,7 +656,137 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    private MapMatcher commonProfile() {
+    public void testSuggestedCast() throws IOException {
+        // TODO: Figure out how best to make sure we don't leave out new types
+        Map<DataType, String> typesAndValues = Map.ofEntries(
+            Map.entry(DataType.BOOLEAN, "\"true\""),
+            Map.entry(DataType.LONG, "-1234567890234567"),
+            Map.entry(DataType.INTEGER, "123"),
+            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+            Map.entry(DataType.DOUBLE, "12.4"),
+            Map.entry(DataType.KEYWORD, "\"keyword\""),
+            Map.entry(DataType.TEXT, "\"some text\""),
+            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+            Map.entry(DataType.IP, "\"192.168.30.1\""),
+            Map.entry(DataType.VERSION, "\"8.19.0\""),
+            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+            Map.entry(DataType.GEO_SHAPE, """
+                {
+                  "type": "Point",
+                  "coordinates": [-77.03653, 38.897676]
+                }
+                """)
+        );
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()) {
+            typesAndValues = new HashMap<>(typesAndValues);
+            typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
+                {
+                  "max": 14983.1
+                }
+                """);
+        }
+        Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
+        shouldBeSupported.remove(DataType.CARTESIAN_POINT);
+        shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.NULL);
+        shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
+        shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
+        shouldBeSupported.remove(DataType.DENSE_VECTOR);
+        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
+        }
+        for (DataType type : shouldBeSupported) {
+            assertTrue(typesAndValues.containsKey(type));
+        }
+        assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
+
+        for (DataType type : typesAndValues.keySet()) {
+            String additionalProperties = "";
+            if (type == DataType.AGGREGATE_METRIC_DOUBLE) {
+                additionalProperties += """
+                        ,
+                        "metrics": ["max"],
+                        "default_metric": "max"
+                    """;
+            }
+            createIndex("index-" + type.esType(), null, String.format(Locale.ROOT, """
+                 "properties": {
+                   "my_field": {
+                     "type": "%s" %s
+                   }
+                 }
+                """, type.esType(), additionalProperties));
+            Request doc = new Request("PUT", "index-" + type.esType() + "/_doc/1");
+            doc.setJsonEntity("{\"my_field\": " + typesAndValues.get(type) + "}");
+            client().performRequest(doc);
+        }
+
+        List<DataType> listOfTypes = new ArrayList<>(typesAndValues.keySet());
+        listOfTypes.sort(Comparator.comparing(DataType::typeName));
+
+        for (int i = 0; i < listOfTypes.size(); i++) {
+            for (int j = i + 1; j < listOfTypes.size(); j++) {
+                String query = String.format(Locale.ROOT, """
+                    {
+                        "query": "FROM index-%s,index-%s | LIMIT 100 | KEEP my_field"
+                    }
+                    """, listOfTypes.get(i).esType(), listOfTypes.get(j).esType());
+                Request request = new Request("POST", "/_query");
+                request.setJsonEntity(query);
+                Response resp = client().performRequest(request);
+                Map<String, Object> results = entityAsMap(resp);
+                List<?> columns = (List<?>) results.get("columns");
+                DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
+                if (IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled()
+                    && isMillisOrNanos(listOfTypes.get(i))
+                    && isMillisOrNanos(listOfTypes.get(j))) {
+                    // datetime and date_nanos are casted to date_nanos implicitly
+                    assertThat(columns, equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", "date_nanos")))));
+                } else {
+                    assertThat(
+                        columns,
+                        equalTo(
+                            List.of(
+                                Map.ofEntries(
+                                    Map.entry("name", "my_field"),
+                                    Map.entry("type", "unsupported"),
+                                    Map.entry("original_types", List.of(listOfTypes.get(i).typeName(), listOfTypes.get(j).typeName())),
+                                    Map.entry("suggested_cast", suggestedCast.typeName())
+                                )
+                            )
+                        )
+                    );
+                }
+
+                String castedQuery = String.format(
+                    Locale.ROOT,
+                    """
+                        {
+                            "query": "FROM index-%s,index-%s | LIMIT 100 | EVAL my_field = my_field::%s"
+                        }
+                        """,
+                    listOfTypes.get(i).esType(),
+                    listOfTypes.get(j).esType(),
+                    suggestedCast == DataType.KEYWORD ? "STRING" : suggestedCast.nameUpper()
+                );
+                Request castedRequest = new Request("POST", "/_query");
+                castedRequest.setJsonEntity(castedQuery);
+                Response castedResponse = client().performRequest(castedRequest);
+                Map<String, Object> castedResults = entityAsMap(castedResponse);
+                List<?> castedColumns = (List<?>) castedResults.get("columns");
+                assertThat(
+                    castedColumns,
+                    equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", suggestedCast.typeName()))))
+                );
+            }
+        }
+        for (DataType type : typesAndValues.keySet()) {
+            deleteIndex("index-" + type.esType());
+        }
+    }
+
+    static MapMatcher commonProfile() {
         return matchesMap() //
             .entry("description", any(String.class))
             .entry("cluster_name", any(String.class))
@@ -533,7 +797,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("cpu_nanos", greaterThan(0L))
             .entry("took_nanos", greaterThan(0L))
             .entry("operators", instanceOf(List.class))
-            .entry("sleeps", matchesMap().extraOk());
+            .entry("sleeps", matchesMap().extraOk())
+            .entry("documents_found", greaterThanOrEqualTo(0))
+            .entry("values_loaded", greaterThanOrEqualTo(0));
     }
 
     /**
@@ -541,7 +807,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
      * come back as integers and sometimes longs. This just promotes
      * them to long every time.
      */
-    private void fixTypesOnProfile(Map<String, Object> profile) {
+    static void fixTypesOnProfile(Map<String, Object> profile) {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
@@ -561,8 +827,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"));
-            case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
+                .entry("processed_queries", List.of("*:*"))
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+            case "ValuesSourceReaderOperator" -> basicProfile().entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))

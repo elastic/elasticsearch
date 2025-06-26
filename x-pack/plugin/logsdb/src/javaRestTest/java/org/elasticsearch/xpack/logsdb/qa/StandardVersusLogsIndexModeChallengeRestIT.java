@@ -15,9 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.datageneration.matchers.MatchResult;
+import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
-import org.elasticsearch.logsdb.datageneration.matchers.Matcher;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -65,12 +65,12 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
+        dataGenerationHelper.writeStandardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 
     @Override
@@ -130,7 +130,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -148,7 +148,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -218,7 +218,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         final String query = "FROM $index METADATA _source, _id | KEEP _source, _id | LIMIT " + numberOfDocuments;
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getEsqlSourceResults(esqlBaseline(query)))
             .ignoringSort(true)

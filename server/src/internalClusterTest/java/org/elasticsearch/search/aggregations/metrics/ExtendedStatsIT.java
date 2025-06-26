@@ -14,10 +14,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 
@@ -285,7 +283,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             response -> {
                 assertHitCount(response, 10);
 
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
@@ -804,7 +802,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 for (Terms.Bucket bucket : terms.getBuckets()) {
                     assertThat(bucket.getDocCount(), equalTo(1L));
 
-                    Missing missing = bucket.getAggregations().get("values");
+                    SingleBucketAggregation missing = bucket.getAggregations().get("values");
                     assertThat(missing, notNullValue());
                     assertThat(missing.getDocCount(), equalTo(0L));
 
@@ -856,7 +854,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                     assertThat(bucket, notNullValue());
                     assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
                     assertThat(bucket.getDocCount(), equalTo(1L));
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertThat(filter.getDocCount(), equalTo(0L));
                     ExtendedStats extendedStats = filter.getAggregations().get("extendedStats");

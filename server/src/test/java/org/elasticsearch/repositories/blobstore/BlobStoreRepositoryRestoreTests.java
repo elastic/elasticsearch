@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -170,16 +173,19 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 repository.getMetadata().name(),
                 new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
             );
-            final ShardGenerations shardGenerations = ShardGenerations.builder().put(indexId, 0, shardGen).build();
+            final var snapshotShardGenerations = new UpdatedShardGenerations(
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                ShardGenerations.EMPTY
+            );
             final RepositoryData ignoredRepositoryData = safeAwait(
                 listener -> repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
-                        shardGenerations,
+                        snapshotShardGenerations,
                         RepositoryData.EMPTY_REPO_GEN,
                         Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                         new SnapshotInfo(
                             snapshot,
-                            shardGenerations.indices().stream().map(IndexId::getName).toList(),
+                            snapshotShardGenerations.liveIndices().indices().stream().map(IndexId::getName).toList(),
                             Collections.emptyList(),
                             Collections.emptyList(),
                             null,
@@ -215,10 +221,13 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
     /** Create a {@link Repository} with a random name **/
     private Repository createRepository() {
+        @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
+        final ProjectId projectId = ProjectId.DEFAULT;
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            projectId,
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),

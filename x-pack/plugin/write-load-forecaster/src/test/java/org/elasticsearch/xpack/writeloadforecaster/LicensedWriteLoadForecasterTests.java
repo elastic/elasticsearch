@@ -128,11 +128,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 0),
             numberOfShards,
             IndexWriteLoad.builder(numberOfShards)
-                .withShardWriteLoad(0, 12, 80)
-                .withShardWriteLoad(1, 24, 5)
-                .withShardWriteLoad(2, 24, 5)
-                .withShardWriteLoad(3, 24, 5)
-                .withShardWriteLoad(4, 24, 5)
+                .withShardWriteLoad(0, 12, 999, 999, 80)
+                .withShardWriteLoad(1, 24, 999, 999, 5)
+                .withShardWriteLoad(2, 24, 999, 999, 5)
+                .withShardWriteLoad(3, 24, 999, 999, 5)
+                .withShardWriteLoad(4, 24, 999, 999, 5)
                 .build(),
             System.currentTimeMillis() - (maxIndexAge.millis() / 2)
         );
@@ -234,7 +234,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
 
         {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
-                List.of(IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 100).build())
+                List.of(IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 999, 999, 100).build())
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
             assertThat(writeLoadForecast.getAsDouble(), is(equalTo(12.0)));
@@ -244,11 +244,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(5)
-                        .withShardWriteLoad(0, 12, 80)
-                        .withShardWriteLoad(1, 24, 5)
-                        .withShardWriteLoad(2, 24, 5)
-                        .withShardWriteLoad(3, 24, 5)
-                        .withShardWriteLoad(4, 24, 5)
+                        .withShardWriteLoad(0, 12, 999, 999, 80)
+                        .withShardWriteLoad(1, 24, 999, 999, 5)
+                        .withShardWriteLoad(2, 24, 999, 999, 5)
+                        .withShardWriteLoad(3, 24, 999, 999, 5)
+                        .withShardWriteLoad(4, 24, 999, 999, 5)
                         .build()
                 )
             );
@@ -260,14 +260,14 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(5)
-                        .withShardWriteLoad(0, 12, 80)
-                        .withShardWriteLoad(1, 24, 5)
-                        .withShardWriteLoad(2, 24, 5)
-                        .withShardWriteLoad(3, 24, 5)
-                        .withShardWriteLoad(4, 24, 4)
+                        .withShardWriteLoad(0, 12, 999, 999, 80)
+                        .withShardWriteLoad(1, 24, 999, 999, 5)
+                        .withShardWriteLoad(2, 24, 999, 999, 5)
+                        .withShardWriteLoad(3, 24, 999, 999, 5)
+                        .withShardWriteLoad(4, 24, 999, 999, 4)
                         .build(),
                     // Since this shard uptime is really low, it doesn't add much to the avg
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 1).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 120, 999, 999, 1).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -277,9 +277,9 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
-                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 12, 25).withShardWriteLoad(1, 12, 25).build(),
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 12, 999, 999, 25).withShardWriteLoad(1, 12, 999, 999, 25).build(),
 
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 50).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 12, 999, 999, 50).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -291,14 +291,14 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
             OptionalDouble writeLoadForecast = forecastIndexWriteLoad(
                 List.of(
                     IndexWriteLoad.builder(3)
-                        .withShardWriteLoad(0, 25, 1)
-                        .withShardWriteLoad(1, 18, 1)
-                        .withShardWriteLoad(2, 23, 1)
+                        .withShardWriteLoad(0, 25, 999, 999, 1)
+                        .withShardWriteLoad(1, 18, 999, 999, 1)
+                        .withShardWriteLoad(2, 23, 999, 999, 1)
                         .build(),
 
-                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 6, 1).withShardWriteLoad(1, 8, 1).build(),
+                    IndexWriteLoad.builder(2).withShardWriteLoad(0, 6, 999, 999, 1).withShardWriteLoad(1, 8, 999, 999, 1).build(),
 
-                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 15, 1).build()
+                    IndexWriteLoad.builder(1).withShardWriteLoad(0, 15, 999, 999, 1).build()
                 )
             );
             assertThat(writeLoadForecast.isPresent(), is(true));
@@ -309,7 +309,13 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     private IndexWriteLoad randomIndexWriteLoad(int numberOfShards) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            builder.withShardWriteLoad(shardId, randomDoubleBetween(0, 64, true), randomLongBetween(1, 10));
+            builder.withShardWriteLoad(
+                shardId,
+                randomDoubleBetween(0, 64, true),
+                randomDoubleBetween(0, 64, true),
+                randomDoubleBetween(0, 64, true),
+                randomLongBetween(1, 10)
+            );
         }
         return builder.build();
     }

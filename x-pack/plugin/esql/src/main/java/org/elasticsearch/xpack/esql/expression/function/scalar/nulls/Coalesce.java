@@ -170,16 +170,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public Nullability nullable() {
-        // If any of the children aren't nullable then this isn't.
+        // If any of the children aren’t nullable then this isn’t .
         for (Expression c : children()) {
             if (c.nullable() == Nullability.FALSE) {
                 return Nullability.FALSE;
             }
         }
         /*
-         * Otherwise let's call this one "unknown". If we returned TRUE here
+         * Otherwise let’s call this one "unknown". If we returned TRUE here
          * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don't want that at all.
+         * fold to null. We don’t want that at all.
          */
         return Nullability.UNKNOWN;
     }
@@ -206,12 +206,12 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
             case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG -> CoalesceLongEvaluator.toEvaluator(toEvaluator, children());
-            case KEYWORD, TEXT, SEMANTIC_TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION ->
-                CoalesceBytesRefEvaluator.toEvaluator(toEvaluator, children());
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
+                .toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
-                    dataType() + " can't be coalesced"
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
+                    dataType() + " can’t be coalesced"
                 );
         };
     }

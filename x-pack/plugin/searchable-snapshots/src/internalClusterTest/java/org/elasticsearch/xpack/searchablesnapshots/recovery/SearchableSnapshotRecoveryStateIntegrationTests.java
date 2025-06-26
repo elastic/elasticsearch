@@ -248,7 +248,15 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         ) {
             return Collections.singletonMap(
                 "test-fs",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new FsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }

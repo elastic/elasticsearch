@@ -37,6 +37,8 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
+        .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
+        .feature(FeatureFlag.IVF_FORMAT)
         .build();
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

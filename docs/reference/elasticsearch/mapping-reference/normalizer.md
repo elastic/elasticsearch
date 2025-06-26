@@ -7,7 +7,7 @@ mapped_pages:
 
 The `normalizer` property of [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields is similar to [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md) except that it guarantees that the analysis chain produces a single token.
 
-The `normalizer` is applied prior to indexing the keyword, as well as at search-time when the `keyword` field is searched via a query parser such as the [`match`](/reference/query-languages/query-dsl-match-query.md) query or via a term-level query such as the [`term`](/reference/query-languages/query-dsl-term-query.md) query.
+The `normalizer` is applied prior to indexing the keyword, as well as at search-time when the `keyword` field is searched via a query parser such as the [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md) query or via a term-level query such as the [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query.
 
 A simple normalizer called `lowercase` ships with elasticsearch and can be used. Custom normalizers can be defined as part of analysis settings as follows.
 

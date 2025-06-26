@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -110,7 +110,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         return new NodeCapability(supported, transportService.getLocalNode());
     }
 
-    public static class NodeCapabilitiesRequest extends TransportRequest {
+    public static class NodeCapabilitiesRequest extends AbstractTransportRequest {
         private final RestRequest.Method method;
         private final String path;
         private final Set<String> parameters;

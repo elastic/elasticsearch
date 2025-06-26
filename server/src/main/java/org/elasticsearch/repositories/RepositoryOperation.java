@@ -8,10 +8,23 @@
  */
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Coordinates of an operation that modifies a repository, assuming that repository at a specific generation.
  */
 public interface RepositoryOperation {
+
+    /**
+     * Project for which repository belongs to.
+     */
+    ProjectId projectId();
 
     /**
      * Name of the repository affected.
@@ -22,4 +35,47 @@ public interface RepositoryOperation {
      * The repository state id at the time the operation began.
      */
     long repositoryStateId();
+
+    /**
+     * A project qualified repository
+     * @param projectId The project that the repository belongs to
+     * @param name Name of the repository
+     */
+    record ProjectRepo(ProjectId projectId, String name) implements Writeable {
+
+        public ProjectRepo(StreamInput in) throws IOException {
+            this(ProjectId.readFrom(in), in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            projectId.writeTo(out);
+            out.writeString(name);
+        }
+
+        @Override
+        public String toString() {
+            return projectRepoString(projectId, name);
+        }
+    }
+
+    static ProjectRepo projectRepo(ProjectId projectId, String repositoryName) {
+        return new ProjectRepo(projectId, repositoryName);
+    }
+
+    static String projectRepoString(ProjectId projectId, String repositoryName) {
+        return "[" + projectId + "][" + repositoryName + "]";
+    }
+
+    DiffableUtils.KeySerializer<ProjectRepo> PROJECT_REPO_SERIALIZER = new DiffableUtils.KeySerializer<>() {
+        @Override
+        public void writeKey(ProjectRepo key, StreamOutput out) throws IOException {
+            key.writeTo(out);
+        }
+
+        @Override
+        public ProjectRepo readKey(StreamInput in) throws IOException {
+            return new ProjectRepo(in);
+        }
+    };
 }

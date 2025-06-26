@@ -80,7 +80,7 @@ public class StateStreamerTests extends ESTestCase {
         StateStreamer stateStreamer = new StateStreamer(clientBuilder.build());
         stateStreamer.restoreStateToStream(JOB_ID, modelSnapshot, stream);
 
-        String[] restoreData = stream.toString(StandardCharsets.UTF_8.name()).split("\0");
+        String[] restoreData = stream.toString(StandardCharsets.UTF_8).split("\0");
         assertEquals(3, restoreData.length);
         assertEquals("{\"modName1\":\"modVal1\"}", restoreData[0]);
         assertEquals("{\"modName2\":\"modVal2\"}", restoreData[1]);

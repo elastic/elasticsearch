@@ -38,6 +38,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -115,5 +116,20 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertThat(source.getValue("models.2.service"), is("openai"));
         assertThat(source.getValue("models.2.task_type"), is("TEXT_EMBEDDING"));
         assertThat(source.getValue("models.2.count"), is(3));
+    }
+
+    public void testFailureReturnsEmptyUsage() {
+        doAnswer(invocation -> {
+            ActionListener<GetInferenceModelAction.Response> listener = invocation.getArgument(2);
+            listener.onFailure(new IllegalArgumentException("invalid field"));
+            return Void.TYPE;
+        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+
+        var future = new PlainActionFuture<XPackUsageFeatureResponse>();
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+
+        var usage = future.actionGet(TIMEOUT);
+        var inferenceUsage = (InferenceFeatureSetUsage) usage.getUsage();
+        assertThat(inferenceUsage, is(InferenceFeatureSetUsage.EMPTY));
     }
 }

@@ -515,9 +515,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
         return new InternalDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets,
             order,
             minDocCount,
             offset,

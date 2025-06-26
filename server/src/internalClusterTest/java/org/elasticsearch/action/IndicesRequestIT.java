@@ -24,8 +24,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
@@ -36,8 +34,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -516,16 +512,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndices(deleteIndexRequest, TransportDeleteIndexAction.TYPE.name());
     }
 
-    public void testGetMappings() {
-        interceptTransportActions(GetMappingsAction.NAME);
-
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(getMappingsRequest, GetMappingsAction.NAME);
-    }
-
     public void testPutMapping() {
         interceptTransportActions(TransportPutMappingAction.TYPE.name());
 
@@ -534,16 +520,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(putMappingRequest, TransportPutMappingAction.TYPE.name());
-    }
-
-    public void testGetSettings() {
-        interceptTransportActions(GetSettingsAction.NAME);
-
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(getSettingsRequest, GetSettingsAction.NAME);
     }
 
     public void testUpdateSettings() {
@@ -574,11 +550,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         );
 
         clearInterceptedActions();
-        assertIndicesSubset(
-            Arrays.asList(searchRequest.indices()),
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME
-        );
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), true, SearchTransportService.QUERY_ACTION_NAME);
+        assertIndicesSubset(Arrays.asList(searchRequest.indices()), SearchTransportService.FETCH_ID_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
@@ -629,10 +602,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     private static void assertIndicesSubset(List<String> indices, String... actions) {
         assertIndicesSubset(indices, false, actions);
-    }
-
-    private static void assertIndicesSubsetOptionalRequests(List<String> indices, String... actions) {
-        assertIndicesSubset(indices, true, actions);
     }
 
     private static void assertIndicesSubset(List<String> indices, boolean optional, String... actions) {

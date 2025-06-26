@@ -29,9 +29,9 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiEmbeddingsTaskSettings> {
@@ -120,7 +120,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -139,7 +139,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -152,23 +152,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         var requestAutoTruncate = originalAutoTruncate == false;
         var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(requestAutoTruncate, null);
 
-        assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, null).autoTruncate(),
-            is(requestAutoTruncate)
-        );
-    }
-
-    public void testOf_UseRequestSettings_AndRequestInputType() {
-        var originalAutoTruncate = true;
-        var originalSettings = new GoogleVertexAiEmbeddingsTaskSettings(originalAutoTruncate, InputType.SEARCH);
-
-        var requestAutoTruncate = originalAutoTruncate == false;
-        var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(requestAutoTruncate, null);
-
-        assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, InputType.INGEST).getInputType(),
-            is(InputType.INGEST)
-        );
+        assertThat(GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings).autoTruncate(), is(requestAutoTruncate));
     }
 
     public void testOf_UseOriginalSettings() {
@@ -177,10 +161,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
         var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(null, null);
 
-        assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, null).autoTruncate(),
-            is(originalAutoTruncate)
-        );
+        assertThat(GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings).autoTruncate(), is(originalAutoTruncate));
     }
 
     public void testOf_UseOriginalSettings_WithInputType() {
@@ -189,10 +170,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
 
         var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(null, null);
 
-        assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, null).autoTruncate(),
-            is(originalAutoTruncate)
-        );
+        assertThat(GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings).autoTruncate(), is(originalAutoTruncate));
     }
 
     public void testToXContent_WritesAutoTruncateIfNotNull() throws IOException {

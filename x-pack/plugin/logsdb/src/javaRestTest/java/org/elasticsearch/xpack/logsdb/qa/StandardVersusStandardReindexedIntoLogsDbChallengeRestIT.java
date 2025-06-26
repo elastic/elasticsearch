@@ -38,11 +38,11 @@ public class StandardVersusStandardReindexedIntoLogsDbChallengeRestIT extends Re
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
+        dataGenerationHelper.writeStandardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 }

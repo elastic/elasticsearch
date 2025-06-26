@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,6 +30,9 @@ configurations {
   dependencyInfos {
     attributes {
       attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+    }
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, DependenciesInfoPlugin.USAGE_ATTRIBUTE))
     }
   }
   featuresMetadata {
@@ -261,7 +265,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsEntitlementBridge'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -272,10 +276,26 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    libsEntitlementBridge {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+      }
+    }
     all {
       resolutionStrategy.dependencySubstitution {
         substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup class"}
     }
+  }
+
+  // Register artifact transform for filtering entitlements-bridge jar
+  FilteringJarTransform.registerTransform(dependencies) { spec ->
+    spec.exclude('module-info.class')
+    spec.exclude('META-INF/versions/**')
   }
 
   dependencies {
@@ -514,7 +534,6 @@ subprojects {
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
-    final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
     if (isTestDistro) {
@@ -558,23 +577,6 @@ subprojects {
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
-      ],
-      'loggc': [
-        'deb': packagingLoggc,
-        'rpm': packagingLoggc,
-        'def': 'logs/gc.log'
-      ],
-
-      'heap.dump.path': [
-        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'def': "-XX:HeapDumpPath=data"
-      ],
-
-      'error.file': [
-        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
       'scripts.footer': [

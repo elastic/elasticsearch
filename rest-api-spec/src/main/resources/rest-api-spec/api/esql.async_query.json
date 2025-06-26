@@ -34,6 +34,11 @@
         "type": "boolean",
         "description": "Should entirely null columns be removed from the results? Their name and type will be returning in a new `all_columns` section.",
         "default": false
+      },
+      "allow_partial_results": {
+        "type": "boolean",
+        "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.\nIf `false`, the entire query will fail if there are\nany failures.",
+        "default": true
       }
     },
     "body":{

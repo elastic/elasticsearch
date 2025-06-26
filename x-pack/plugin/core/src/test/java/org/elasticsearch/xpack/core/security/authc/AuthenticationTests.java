@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
@@ -114,9 +115,15 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
         );
 
+        // realms are different, it's not the same owner
+        assertCannotAccessResources(randomAuthentication(user1, realm1), randomCloudApiKeyAuthentication(user1));
+
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         assertCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+
+        // cloud API key is the user subject it represents, it's not tied to an owner (creator user)
+        assertCanAccessResources(randomCloudApiKeyAuthentication(user1), randomCloudApiKeyAuthentication(user1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
@@ -124,6 +131,8 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
         );
+        assertCannotAccessResources(randomCloudApiKeyAuthentication(apiKeyId1), randomCloudApiKeyAuthentication(apiKeyId2));
+
         final User user3 = randomValueOtherThanMany(
             u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
             AuthenticationTests::randomUser
@@ -759,6 +768,9 @@ public class AuthenticationTests extends ESTestCase {
 
         // Remote access cannot run-as
         assertThat(AuthenticationTestHelper.builder().crossClusterAccess().build().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud API key cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -776,7 +788,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
 
@@ -796,7 +813,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
     }
@@ -853,7 +875,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,  // the minimum compatible version of 8.x
+            TransportVersions.V_8_0_0,
             versionBeforeCrossClusterAccessRealm
         );
 
@@ -958,7 +980,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

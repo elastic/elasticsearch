@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -136,7 +137,7 @@ public class IndexResolver {
                 ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
-                    firstUnsupportedParent.getOriginalType(),
+                    firstUnsupportedParent.getOriginalTypes(),
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
@@ -152,6 +153,13 @@ public class IndexResolver {
             fieldCapsResponse.getFailures()
         );
 
+        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
+        for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
+            if (failure.getException() instanceof NoShardAvailableActionException e) {
+                unavailableShards.add(e);
+            }
+        }
+
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
@@ -163,7 +171,7 @@ public class IndexResolver {
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
-        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableRemotes);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
@@ -235,7 +243,7 @@ public class IndexResolver {
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(name, originalType);
+        return new UnsupportedEsField(name, List.of(originalType));
     }
 
     private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

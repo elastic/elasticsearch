@@ -26,12 +26,18 @@ public class TranslationAwareExpressionQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return queryBuilder;
     }
 
     @Override
     protected String innerToString() {
         return queryBuilder.toString();
+    }
+
+    @Override
+    public boolean scorable() {
+        // All Full Text Functions are translated to queries using this method
+        return true;
     }
 }

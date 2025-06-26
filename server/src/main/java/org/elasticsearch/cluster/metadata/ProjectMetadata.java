@@ -10,10 +10,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Strings;
@@ -23,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ProjectSecrets;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
@@ -37,8 +42,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -62,6 +70,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -98,6 +107,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
+
+    public static final ClusterBlock PROJECT_UNDER_DELETION_BLOCK = new ClusterBlock(
+        15,
+        "project is under deletion",
+        false,
+        false,
+        false,
+        RestStatus.NOT_FOUND,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
 
     @SuppressWarnings("this-escape")
     private ProjectMetadata(
@@ -1078,7 +1097,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
+        // Only data streams can be managed by data stream lifecycle
+        if (parentDataStream == null) {
+            return true;
+        }
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        if (lifecycle != null && lifecycle.enabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
@@ -1096,12 +1120,22 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         return true;
     }
 
+    public Optional<SecureString> getSecret(String key) {
+        return Optional.ofNullable(this.<ProjectSecrets>custom(ProjectSecrets.TYPE)).map(secrets -> secrets.getSettings().getString(key));
+    }
+
     public static ProjectMetadata.Builder builder(ProjectId id) {
         return new ProjectMetadata.Builder().id(id);
     }
 
     public static ProjectMetadata.Builder builder(ProjectMetadata projectMetadata) {
         return new ProjectMetadata.Builder(projectMetadata);
+    }
+
+    public ProjectMetadata copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
     }
 
     public static class Builder {
@@ -1919,11 +1953,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
-                || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.getFailureComponent()
-                        .getIndices()
-                        .stream()
-                        .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
+                || parent.getFailureComponent()
+                    .getIndices()
+                    .stream()
+                    .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -1945,10 +1978,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dataStream);
-                    }
+                for (Index i : dataStream.getFailureIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
             }
         }
@@ -2088,6 +2119,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                                 projectBuilder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
                             }
                         }
+                        case "settings" -> {
+                            Settings.fromXContent(parser);
+                        }
                         default -> Metadata.Builder.parseCustomObject(
                             parser,
                             currentFieldName,
@@ -2111,14 +2145,18 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ? ChunkedToXContentHelper.object("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        Iterator<ToXContent> customs = Iterators.flatMap(
-            customs().entrySet().iterator(),
-            entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                : Collections.emptyIterator()
-        );
-
         final var multiProject = p.paramAsBoolean("multi-project", false);
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context)
+                // Include persistent tasks in the output only when multi-project=true.
+                // In single-project-mode (multi-project=false), we already output them in Metadata.
+                && (multiProject || PersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false)) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+
         return Iterators.concat(
             ChunkedToXContentHelper.object(
                 "templates",
@@ -2163,6 +2201,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.put(ReservedStateMetadata.readFrom(in));
         }
 
+        if (in.getTransportVersion()
+            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            Settings.readSettingsFromStream(in);
+        }
+
         return builder.build();
     }
 
@@ -2193,6 +2236,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
         out.writeCollection(reservedStateMetadata.values());
+
+        if (out.getTransportVersion()
+            .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+            Settings.EMPTY.writeTo(out);
+        }
     }
 
     // this needs to be package accessible for bwc serialization in Metadata.java
@@ -2257,6 +2305,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 DiffableUtils.getStringKeySerializer(),
                 RESERVED_DIFF_VALUE_READER
             );
+            if (in.getTransportVersion()
+                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+                Settings.readSettingsDiffFromStream(in);
+            }
         }
 
         Diff<ImmutableOpenMap<String, IndexMetadata>> indices() {
@@ -2281,6 +2333,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             templates.writeTo(out);
             customs.writeTo(out);
             reservedStateMetadata.writeTo(out);
+            if (out.getTransportVersion()
+                .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {
+                Settings.EMPTY_DIFF.writeTo(out);
+            }
         }
 
         @Override

@@ -13,7 +13,7 @@ The keyword family includes the following field types:
 * [`constant_keyword`](#constant-keyword-field-type) for keyword fields that always contain the same value.
 * [`wildcard`](#wildcard-field-type) for unstructured machine-generated content. The `wildcard` type is optimized for fields with large values or high cardinality.
 
-Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/data-analysis/aggregations/index.md), and [term-level queries](/reference/query-languages/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl-term-query.md).
+Keyword fields are often used in [sorting](/reference/elasticsearch/rest-apis/sort-search-results.md), [aggregations](/reference/aggregations/index.md), and [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), such as [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md).
 
 ::::{tip}
 Avoid using keyword fields for full-text search. Use the [`text`](/reference/elasticsearch/mapping-reference/text.md) field type instead.
@@ -41,13 +41,13 @@ PUT my-index-000001
 ::::{admonition} Mapping numeric identifiers
 :class: tip
 
-Not all numeric data should be mapped as a [numeric](/reference/elasticsearch/mapping-reference/number.md) field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl-range-query.md) queries. However, `keyword` fields are better for [`term`](/reference/query-languages/query-dsl-term-query.md) and other [term-level](/reference/query-languages/term-level-queries.md) queries.
+Not all numeric data should be mapped as a [numeric](/reference/elasticsearch/mapping-reference/number.md) field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries. However, `keyword` fields are better for [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) and other [term-level](/reference/query-languages/query-dsl/term-level-queries.md) queries.
 
 Identifiers, such as an ISBN or a product ID, are rarely used in `range` queries. However, they are often retrieved using term-level queries.
 
 Consider mapping a numeric identifier as a `keyword` if:
 
-* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl-range-query.md) queries.
+* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries.
 * Fast retrieval is important. `term` query searches on `keyword` fields are often faster than `term` searches on numeric fields.
 
 If you’re unsure which to use, you can use a [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md) to map the data as both a `keyword` *and* a numeric data type.
@@ -70,7 +70,7 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.
@@ -103,7 +103,7 @@ The following parameters are accepted by `keyword` fields:
 :   How to pre-process the keyword prior to indexing. Defaults to `null`, meaning the keyword is kept as-is.
 
 `split_queries_on_whitespace`
-:   Whether [full text queries](/reference/query-languages/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default).
+:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default).
 
 `time_series_dimension`
 :   (Optional, Boolean)
@@ -113,19 +113,11 @@ The following parameters are accepted by `keyword` fields:
     The `index.mapping.dimension_fields.limit` [index setting](/reference/elasticsearch/index-settings/time-series.md) limits the number of dimensions in an index.
 
     Dimension fields have the following constraints:
-
     * The `doc_values` and `index` mapping parameters must be `true`.
-    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints:
-
-        * The field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
+    * Dimension values are used to identify a document’s time series. If dimension values are altered in any way during indexing, the document will be stored as belonging to different from intended time series. As a result there are additional constraints: the field cannot use a [`normalizer`](/reference/elasticsearch/mapping-reference/normalizer.md).
 
 
 ## Synthetic `_source` [keyword-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Synthetic source may sort `keyword` fields and remove duplicates. For example:
 
@@ -235,6 +227,42 @@ Will become:
 }
 ```
 
+If `null_value` is configured, `null` values are replaced with the `null_value` in synthetic source:
+
+$$$synthetic-source-keyword-example-null-value$$$
+
+```console
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "kwd": { "type": "keyword", "null_value": "NA" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "kwd": ["foo", null, "bar"]
+}
+```
+
+Will become:
+
+```console-result
+{
+  "kwd": ["NA", "bar", "foo"]
+}
+```
+
 
 ## Constant keyword field type [constant-keyword-field-type]
 
@@ -267,14 +295,14 @@ It is both allowed to submit documents that don’t have a value for the field o
 ```console
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch",
   "level": "debug"
 }
 
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch"
 }
 ```
@@ -283,7 +311,7 @@ However providing a value that is different from the one configured in the mappi
 
 In case no `value` is provided in the mappings, the field will automatically configure itself based on the value contained in the first indexed document. While this behavior can be convenient, note that it means that a single poisonous document can cause all other documents to be rejected if it had a wrong value.
 
-Before a value has been provided (either through the mappings or from a document), queries on the field will not match any documents. This includes [`exists`](/reference/query-languages/query-dsl-exists-query.md) queries.
+Before a value has been provided (either through the mappings or from a document), queries on the field will not match any documents. This includes [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md) queries.
 
 The `value` of the field cannot be changed after it has been set.
 
@@ -301,7 +329,7 @@ The following mapping parameters are accepted:
 
 ## Wildcard field type [wildcard-field-type]
 
-The `wildcard` field type is a specialized keyword field for unstructured machine-generated content you plan to search using grep-like [`wildcard`](/reference/query-languages/query-dsl-wildcard-query.md) and [`regexp`](/reference/query-languages/query-dsl-regexp-query.md) queries. The `wildcard` type is optimized for fields with large values or high cardinality.
+The `wildcard` field type is a specialized keyword field for unstructured machine-generated content you plan to search using grep-like [`wildcard`](/reference/query-languages/query-dsl/query-dsl-wildcard-query.md) and [`regexp`](/reference/query-languages/query-dsl/query-dsl-regexp-query.md) queries. The `wildcard` type is optimized for fields with large values or high cardinality.
 
 ::::{admonition} Mapping unstructured content
 :name: mapping-unstructured-content
@@ -311,16 +339,16 @@ You can map a field containing unstructured content to either a `text` or keywor
 Use the `text` field type if:
 
 * The content is human-readable, such as an email body or product description.
-* You plan to search the field for individual words or phrases, such as `the brown fox jumped`, using [full text queries](/reference/query-languages/full-text-queries.md). {{es}} [analyzes](docs-content://manage-data/data-store/text-analysis.md) `text` fields to return the most relevant results for these queries.
+* You plan to search the field for individual words or phrases, such as `the brown fox jumped`, using [full text queries](/reference/query-languages/query-dsl/full-text-queries.md). {{es}} [analyzes](docs-content://manage-data/data-store/text-analysis.md) `text` fields to return the most relevant results for these queries.
 
 Use a keyword family field type if:
 
 * The content is machine-generated, such as a log message or HTTP request information.
-* You plan to search the field for exact full values, such as `org.foo.bar`, or partial character sequences, such as `org.foo.*`, using [term-level queries](/reference/query-languages/term-level-queries.md).
+* You plan to search the field for exact full values, such as `org.foo.bar`, or partial character sequences, such as `org.foo.*`, using [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md).
 
 **Choosing a keyword family field type**
 
-If you choose a keyword family field type, you can map the field as a `keyword` or `wildcard` field depending on the cardinality and size of the field’s values. Use the `wildcard` type if you plan to regularly search the field using a [`wildcard`](/reference/query-languages/query-dsl-wildcard-query.md) or [`regexp`](/reference/query-languages/query-dsl-regexp-query.md) query and meet one of the following criteria:
+If you choose a keyword family field type, you can map the field as a `keyword` or `wildcard` field depending on the cardinality and size of the field’s values. Use the `wildcard` type if you plan to regularly search the field using a [`wildcard`](/reference/query-languages/query-dsl/query-dsl-wildcard-query.md) or [`regexp`](/reference/query-languages/query-dsl/query-dsl-regexp-query.md) query and meet one of the following criteria:
 
 * The field contains more than a million unique values.<br> AND<br> You plan to regularly search the field using a pattern with leading wildcards, such as `*foo` or `*baz`.
 * The field contains values larger than 32KB.<br> AND<br> You plan to regularly search the field using any wildcard pattern.
@@ -329,7 +357,7 @@ Otherwise, use the `keyword` field type for faster searches, faster indexing, an
 
 **Switching from a `text` field to a keyword field**
 
-If you previously used a `text` field to index unstructured machine-generated content, you can [reindex to update the mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md#update-mapping) to a `keyword` or `wildcard` field. We also recommend you update your application or workflow to replace any word-based [full text queries](/reference/query-languages/full-text-queries.md) on the field to equivalent [term-level queries](/reference/query-languages/term-level-queries.md).
+If you previously used a `text` field to index unstructured machine-generated content, you can [reindex to update the mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md#update-mapping) to a `keyword` or `wildcard` field. We also recommend you update your application or workflow to replace any word-based [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) on the field to equivalent [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md).
 
 ::::
 
@@ -376,7 +404,7 @@ The following parameters are accepted by `wildcard` fields:
 :   Accepts a string value which is substituted for any explicit `null` values. Defaults to `null`, which means the field is treated as missing.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` so that all values would be accepted.
+:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`.
 
 
 ### Limitations [_limitations]

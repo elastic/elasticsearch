@@ -1,5 +1,0 @@
-pr: 122431
-summary: Upgrade AWS SDK to v1.12.746
-area: Snapshot/Restore
-type: upgrade
-issues: []

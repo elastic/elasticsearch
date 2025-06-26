@@ -64,7 +64,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
         if (script.needs_termStats()) {
             assert termStatsFactory != null;
-            leafScript._setTermStats(termStatsFactory.apply(ctx, leafScript::docId));
+            leafScript._setTermStats(termStatsFactory.apply(ctx, leafScript::_getDocId));
         }
 
         return new LeafScoreFunction() {

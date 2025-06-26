@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.0.3 [elasticsearch-9.0.3-release-notes]
-```{applies_to}
-stack: coming 9.0.3
-```
 
 ### Features and enhancements [elasticsearch-9.0.3-features-enhancements]
 
@@ -91,7 +88,6 @@ Searchable Snapshots:
 
 Security:
 * Fix error message when changing the password for a user in the file realm [#127621](https://github.com/elastic/elasticsearch/pull/127621)
-
 
 ## 9.0.2 [elasticsearch-9.0.2-release-notes]
 

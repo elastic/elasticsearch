@@ -1,7 +1,8 @@
 setup:
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
+      cluster_features: [ "search.vectors.mappers.default_bbq_hnsw" ]
+      reason: "Test cluster feature 'search.vectors.mappers.default_bbq_hnsw' is required for using bbq as default
+      indexing for vector fields."
   - skip:
       features: headers
 
@@ -13,7 +14,7 @@ setup:
             index.number_of_shards: 2
           mappings:
             properties:
-              vector1:
+              vector_hnsw_explicit:
                 type: dense_vector
                 dims: 768
                 index: true
@@ -23,12 +24,16 @@ setup:
                   type: hnsw
                   m: 16
                   ef_construction: 100
-              vector2:
+              vector_bbq_default:
                 type: dense_vector
                 dims: 1024
                 index: true
                 similarity: dot_product
-              vector3:
+              vector_int8_hnsw_default:
+                type: dense_vector
+                dims: 100
+                index: true
+              vector_no_index:
                 type: dense_vector
                 dims: 100
                 index: false
@@ -52,10 +57,10 @@ setup:
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }
-  - match: { indices.mappings.field_types.0.count: 4 }
+  - match: { indices.mappings.field_types.0.count: 5 }
   - match: { indices.mappings.field_types.0.index_count: 2 }
-  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
-  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_count: 4 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 100 }
   - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
 ---
 "Field mapping stats with field details":
@@ -70,15 +75,16 @@ setup:
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }
   - match: { indices.mappings.field_types.0.name: dense_vector }
-  - match: { indices.mappings.field_types.0.count: 4 }
+  - match: { indices.mappings.field_types.0.count: 5 }
   - match: { indices.mappings.field_types.0.index_count: 2 }
-  - match: { indices.mappings.field_types.0.indexed_vector_count: 3 }
-  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 768 }
+  - match: { indices.mappings.field_types.0.indexed_vector_count: 4 }
+  - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 100 }
   - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1024 }
   - match: { indices.mappings.field_types.0.vector_index_type_count.hnsw: 1 }
-  - match: { indices.mappings.field_types.0.vector_index_type_count.int8_hnsw: 2 }
+  - match: { indices.mappings.field_types.0.vector_index_type_count.int8_hnsw: 1 }
+  - match: { indices.mappings.field_types.0.vector_index_type_count.bbq_hnsw: 2 }
   - match: { indices.mappings.field_types.0.vector_index_type_count.not_indexed: 1 }
   - match: { indices.mappings.field_types.0.vector_similarity_type_count.l2_norm: 2 }
   - match: { indices.mappings.field_types.0.vector_similarity_type_count.dot_product: 1 }
-  - match: { indices.mappings.field_types.0.vector_element_type_count.float: 3 }
+  - match: { indices.mappings.field_types.0.vector_element_type_count.float: 4 }
   - match: { indices.mappings.field_types.0.vector_element_type_count.byte: 1 }

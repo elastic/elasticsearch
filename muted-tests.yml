@@ -182,9 +182,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testHistoryIsWrittenWithFailure
-  issue: https://github.com/elastic/elasticsearch/issues/123203
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437

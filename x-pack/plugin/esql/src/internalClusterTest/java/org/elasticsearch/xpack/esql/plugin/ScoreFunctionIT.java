@@ -86,7 +86,7 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Condition expression needs to be boolean, found [DOUBLE]"));
     }
 
-    public void testScoreMeaninglessFunction() {
+    public void testScoreNonFullTextFunction() {
         var query = """
             FROM test
             | EVAL meaningless = score(abs(-0.1))

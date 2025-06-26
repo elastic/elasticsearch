@@ -13,11 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
+import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
@@ -48,6 +51,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     List<DatabaseConfigurationMetadata>> {
 
     private final DatabaseNodeService databaseNodeService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetDatabaseConfigurationAction(
@@ -55,7 +59,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DatabaseNodeService databaseNodeService
+        DatabaseNodeService databaseNodeService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetDatabaseConfigurationAction.NAME,
@@ -66,6 +71,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.databaseNodeService = databaseNodeService;
+        this.projectResolver = projectResolver;
     }
 
     protected List<DatabaseConfigurationMetadata> createActionContext(Task task, GetDatabaseConfigurationAction.Request request) {
@@ -82,14 +88,15 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
                 "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
             );
         }
-
+        ProjectId projectId = projectResolver.getProjectId();
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            clusterService.state()
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(
+            clusterService.state().metadata().getProject(projectId)
         );
+        String geoIpTaskId = GeoIpDownloaderTaskExecutor.getTaskId(projectId, projectResolver.supportsMultipleProjects());
         for (String id : ids) {
-            results.addAll(getWebDatabases(tasksMetadata, id));
-            results.addAll(getMaxmindDatabases(clusterService, id));
+            results.addAll(getWebDatabases(geoIpTaskId, tasksMetadata, id));
+            results.addAll(getMaxmindDatabases(projectId, clusterService, id));
         }
         return results;
     }
@@ -97,10 +104,14 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     /*
      * This returns read-only database information about the databases managed by the standard downloader
      */
-    private static Collection<DatabaseConfigurationMetadata> getWebDatabases(PersistentTasksCustomMetadata tasksMetadata, String id) {
+    private static Collection<DatabaseConfigurationMetadata> getWebDatabases(
+        String geoIpTaskId,
+        PersistentTasksCustomMetadata tasksMetadata,
+        String id
+    ) {
         List<DatabaseConfigurationMetadata> webDatabases = new ArrayList<>();
         if (tasksMetadata != null) {
-            PersistentTasksCustomMetadata.PersistentTask<?> maybeGeoIpTask = tasksMetadata.getTask("geoip-downloader");
+            PersistentTasksCustomMetadata.PersistentTask<?> maybeGeoIpTask = tasksMetadata.getTask(geoIpTaskId);
             if (maybeGeoIpTask != null) {
                 GeoIpTaskState geoIpTaskState = (GeoIpTaskState) maybeGeoIpTask.getState();
                 if (geoIpTaskState != null) {
@@ -137,11 +148,15 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     /*
      * This returns information about databases that are downloaded from maxmind.
      */
-    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ClusterService clusterService, String id) {
+    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(
+        ProjectId projectId,
+        ClusterService clusterService,
+        String id
+    ) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
         final IngestGeoIpMetadata geoIpMeta = clusterService.state()
             .metadata()
-            .getProject()
+            .getProject(projectId)
             .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {

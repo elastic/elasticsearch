@@ -479,13 +479,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
     @Override
     public int doHashCode() {
-        return Objects.hash(
-            super.doHashCode(),
-            Arrays.hashCode(weights),
-            Arrays.hashCode(normalizers),
-            fields,
-            query,
-            normalizer
-        );
+        return Objects.hash(super.doHashCode(), Arrays.hashCode(weights), Arrays.hashCode(normalizers), fields, query, normalizer);
     }
 }

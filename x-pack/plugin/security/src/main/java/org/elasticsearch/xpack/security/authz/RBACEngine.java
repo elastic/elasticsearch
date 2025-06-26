@@ -999,8 +999,9 @@ public class RBACEngine implements AuthorizationEngine {
             }
             return predicate.test(indexAbstraction, selector);
         }, name -> {
-            // just some bogus predicate that lets us differentiate between roles
-            return Arrays.asList(role.names()).contains("remote_searcher");
+            // just some bogus predicate that lets us differentiate between roles, not at all
+            // how this will work in the end
+            return Arrays.asList(role.names()).contains("_es_test_root");
         });
     }
 

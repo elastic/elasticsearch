@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """

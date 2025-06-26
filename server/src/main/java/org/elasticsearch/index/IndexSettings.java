@@ -211,7 +211,7 @@ public final class IndexSettings {
 
     public static final Setting<Integer> MAX_SOURCE_SIZE_BYTES_SETTING = Setting.intSetting(
         "index.max_source_size_bytes",
-        500000,
+        10000000,
         1,
         Property.Dynamic,
         Property.IndexScope

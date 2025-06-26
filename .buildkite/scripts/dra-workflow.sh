@@ -35,10 +35,10 @@ if [[ -n "${VERSION_QUALIFIER:-}" ]]; then
   echo "Version qualifier specified. ES_VERSION=${ES_VERSION}."
 fi
 
-BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$ES_VERSION" "$WORKFLOW")"
 echo "BEATS_BUILD_ID=$BEATS_BUILD_ID"
 
-ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$ES_VERSION" "$WORKFLOW")"
 echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
 LICENSE_KEY_ARG=""

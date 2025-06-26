@@ -11,21 +11,14 @@ fetch_build() {
 }
 
 ARTIFACT="${ARTIFACT:-$1}"
-BRANCH="${BRANCH:-$2}"
-ES_VERSION="${ES_VERSION:-$3}"
-WORKFLOW=${WORKFLOW:-$4}
+ES_VERSION="${ES_VERSION:-$2}"
+WORKFLOW=${WORKFLOW:-$3}
 
-LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $BRANCH)
+LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $ES_VERSION)
 LATEST_VERSION=$(strip_version $LATEST_BUILD)
 
-# If the latest artifact version doesn't match what we expect, try the corresponding version branch.
-# This can happen when the version of artifact has been bumped on the master branch.
 if [ "$LATEST_VERSION" != "$ES_VERSION" ]; then
-  echo "Latest build for '$ARTIFACT' is version $LATEST_VERSION but expected version $ES_VERSION." 1>&2
-  NEW_BRANCH=$(echo $ES_VERSION | sed -E "s/([0-9]+\.[0-9]+)\.[0-9]/\1/g")
-
-  echo "Using branch $NEW_BRANCH instead of $BRANCH." 1>&2
-  LATEST_BUILD=$(fetch_build $WORKFLOW $ARTIFACT $NEW_BRANCH)
+  echo "warning: Latest build for '$ARTIFACT' is version $LATEST_VERSION but expected version $ES_VERSION."
 fi
 
 echo $LATEST_BUILD

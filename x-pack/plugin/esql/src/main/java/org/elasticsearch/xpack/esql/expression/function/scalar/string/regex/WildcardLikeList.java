@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
-import org.elasticsearch.index.query.AutomatonTranslatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -35,7 +34,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.stream.Collectors;
 
-public class WildcardLikeList extends RegexMatch<WildcardPatternList> implements AutomatonTranslatable {
+public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLikeList",
@@ -130,23 +129,23 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> implements
         return translateField(targetFieldName);
     }
 
+    @Override
+    public Automaton asLuceneQuery() {
+        return pattern().createAutomaton(caseInsensitive());
+    }
+
+    @Override
+    public String getLuceneQueryDescription() {
+        // we use the information used to create the automaton to describe the query here
+        String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
+        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
+    }
+
     /**
      * Translates the field to a {@link WildcardQuery} using the first pattern in the list.
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
         return new ExpressionQuery(source(), targetFieldName, this, configuration);
-    }
-
-    @Override
-    public String getAutomatonDescription() {
-        // we use the information used to create the automaton to describe the query here
-        String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
-        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
-    }
-
-    @Override
-    public Automaton getAutomaton() {
-        return pattern().createAutomaton(caseInsensitive());
     }
 }

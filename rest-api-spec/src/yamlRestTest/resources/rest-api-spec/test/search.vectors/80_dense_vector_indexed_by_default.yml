@@ -156,6 +156,9 @@ setup:
   - requires:
       cluster_features: "gte_v8.14.0"
       reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
+  - requires:
+      cluster_features: [ "search.vectors.mappers.expose_hnsw_early_termination" ]
+      reason: "requires early termination for hnsw to be exposed"
   - do:
       indices.create:
         index: test_default_index_options

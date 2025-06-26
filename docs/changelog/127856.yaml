@@ -1,5 +1,0 @@
-pr: 127856
-summary: Fix services API Google Vertex AI Rerank location field requirement
-area: Machine Learning
-type: bug
-issues: []

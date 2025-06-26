@@ -22,11 +22,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -66,8 +70,16 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class RepositoriesServiceTests extends ESTestCase {
@@ -75,6 +87,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
     private ThreadPool threadPool;
+    private ProjectId projectId;
 
     @Override
     public void setUp() throws Exception {
@@ -92,9 +105,16 @@ public class RepositoriesServiceTests extends ESTestCase {
             Collections.emptySet()
         );
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        projectId = randomProjectIdOrDefault();
+        if (ProjectId.DEFAULT.equals(projectId) == false) {
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state()).putProjectMetadata(ProjectMetadata.builder(projectId)).build()
+            );
+        }
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         var actionFilters = new ActionFilters(Set.of());
         client.initialize(
             Map.of(
@@ -118,15 +138,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            TestRepository::new,
+            (projectId, metadata1) -> new TestRepository(projectId, metadata1),
             UnstableRepository.TYPE,
-            UnstableRepository::new,
+            (projectId, metadata2) -> new UnstableRepository(projectId, metadata2),
             VerificationFailRepository.TYPE,
-            VerificationFailRepository::new,
+            (projectId, metadata3) -> new VerificationFailRepository(projectId, metadata3),
             MeteredRepositoryTypeA.TYPE,
-            metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+            (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            metadata -> new MeteredRepositoryTypeB(metadata, clusterService)
+            (projectId, metadata) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
@@ -155,9 +175,9 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testRegisterInternalRepository() {
         String repoName = "name";
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
-        Repository repository = repositoriesService.repository(repoName);
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName));
+        repositoriesService.registerInternalRepository(projectId, repoName, TestRepository.TYPE);
+        Repository repository = repositoriesService.repository(projectId, repoName);
         assertEquals(repoName, repository.getMetadata().name());
         assertEquals(TestRepository.TYPE, repository.getMetadata().type());
         assertEquals(Settings.EMPTY, repository.getMetadata().settings());
@@ -166,24 +186,24 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     public void testUnregisterInternalRepository() {
         String repoName = "name";
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
-        Repository repository = repositoriesService.repository(repoName);
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName));
+        repositoriesService.registerInternalRepository(projectId, repoName, TestRepository.TYPE);
+        Repository repository = repositoriesService.repository(projectId, repoName);
         assertFalse(((TestRepository) repository).isClosed);
-        repositoriesService.unregisterInternalRepository(repoName);
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+        repositoriesService.unregisterInternalRepository(projectId, repoName);
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName));
         assertTrue(((TestRepository) repository).isClosed);
     }
 
     public void testRegisterWillNotUpdateIfInternalRepositoryWithNameExists() {
         String repoName = "name";
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
-        Repository repository = repositoriesService.repository(repoName);
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName));
+        repositoriesService.registerInternalRepository(projectId, repoName, TestRepository.TYPE);
+        Repository repository = repositoriesService.repository(projectId, repoName);
         assertFalse(((TestRepository) repository).isClosed);
-        repositoriesService.registerInternalRepository(repoName, TestRepository.TYPE);
+        repositoriesService.registerInternalRepository(projectId, repoName, TestRepository.TYPE);
         assertFalse(((TestRepository) repository).isClosed);
-        Repository repository2 = repositoriesService.repository(repoName);
+        Repository repository2 = repositoriesService.repository(projectId, repoName);
         assertSame(repository, repository2);
     }
 
@@ -201,11 +221,11 @@ public class RepositoriesServiceTests extends ESTestCase {
             .type(VerificationFailRepository.TYPE)
             .verify(true);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
-        repositoriesService.registerRepository(request, resultListener);
+        repositoriesService.registerRepository(projectId, request, resultListener);
         var failure = safeAwaitFailure(resultListener);
         assertThat(failure, isA(RepositoryVerificationException.class));
         // also make sure that cluster state does not include failed repo
-        assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
+        assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(projectId, repoName); });
     }
 
     public void testPutRepositoryVerificationFailsOnExisting() {
@@ -214,7 +234,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             .type(TestRepository.TYPE)
             .verify(true);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
-        repositoriesService.registerRepository(request, resultListener);
+        repositoriesService.registerRepository(projectId, request, resultListener);
         var ackResponse = safeAwait(resultListener);
         assertTrue(ackResponse.isAcknowledged());
 
@@ -223,10 +243,10 @@ public class RepositoriesServiceTests extends ESTestCase {
             .type(VerificationFailRepository.TYPE)
             .verify(true);
         resultListener = new SubscribableListener<>();
-        repositoriesService.registerRepository(request, resultListener);
+        repositoriesService.registerRepository(projectId, request, resultListener);
         var failure = safeAwaitFailure(resultListener);
         assertThat(failure, isA(RepositoryVerificationException.class));
-        var repository = repositoriesService.repository(repoName);
+        var repository = repositoriesService.repository(projectId, repoName);
         assertEquals(repository.getMetadata().type(), TestRepository.TYPE);
     }
 
@@ -236,14 +256,14 @@ public class RepositoriesServiceTests extends ESTestCase {
             .type(VerificationFailRepository.TYPE)
             .verify(false);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
-        repositoriesService.registerRepository(request, resultListener);
+        repositoriesService.registerRepository(projectId, request, resultListener);
         var ackResponse = safeAwait(resultListener);
         assertTrue(ackResponse.isAcknowledged());
     }
 
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
         String repoName = "name";
-        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName));
+        expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName));
 
         ClusterState clusterStateWithRepoTypeA = createClusterStateWithRepo(repoName, MeteredRepositoryTypeA.TYPE);
 
@@ -274,7 +294,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, "unknown");
         repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
 
-        var repo = repositoriesService.repository(repoName);
+        var repo = repositoriesService.repository(projectId, repoName);
         assertThat(repo, isA(UnknownTypeRepository.class));
     }
 
@@ -286,7 +306,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
 
         assertThat(
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName)).getMessage(),
             equalTo("[" + repoName + "] missing")
         );
     }
@@ -295,7 +315,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName).type("unknown");
 
-        repositoriesService.registerRepository(request, new ActionListener<>() {
+        repositoriesService.registerRepository(projectId, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 fail("Should not register unknown repository type");
@@ -304,7 +324,10 @@ public class RepositoriesServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, isA(RepositoryException.class));
-                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(
+                    e.getMessage(),
+                    equalTo("[" + repoName + "] repository type [unknown] does not exist for project [" + projectId + "]")
+                );
             }
         });
     }
@@ -316,7 +339,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
-        var repo = repositoriesService.repository(repoName);
+        var repo = repositoriesService.repository(projectId, repoName);
         assertThat(repo, isA(InvalidRepository.class));
     }
 
@@ -327,12 +350,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
-        var repo = repositoriesService.repository(repoName);
+        var repo = repositoriesService.repository(projectId, repoName);
         assertThat(repo, isA(InvalidRepository.class));
 
         clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
-        repo = repositoriesService.repository(repoName);
+        repo = repositoriesService.repository(projectId, repoName);
         assertThat(repo, isA(TestRepository.class));
     }
 
@@ -344,7 +367,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
         assertThat(
-            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(projectId, repoName)).getMessage(),
             equalTo("[" + repoName + "] missing")
         );
     }
@@ -368,17 +391,17 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
-        var repo = repositoriesService.repository(repoName);
+        var repo = repositoriesService.repository(projectId, repoName);
         assertThat(repo, isA(InvalidRepository.class));
 
         // 2. repository creation successfully when current node become master node and repository is put again
         var request = new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name(repoName).type(TestRepository.TYPE);
 
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
-        repositoriesService.registerRepository(request, resultListener);
+        repositoriesService.registerRepository(projectId, request, resultListener);
         var response = safeAwait(resultListener);
         assertTrue(response.isAcknowledged());
-        assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
+        assertThat(repositoriesService.repository(projectId, repoName), isA(TestRepository.class));
     }
 
     public void testCannotSetRepositoryReadonlyFlagDuringGenerationChange() {
@@ -391,19 +414,21 @@ public class RepositoriesServiceTests extends ESTestCase {
 
                 .newForked(
                     l -> repositoriesService.registerRepository(
+                        projectId,
                         new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE),
                         l.map(ignored -> null)
                     )
                 )
                 .andThen(l -> updateGenerations(repoName, originalGeneration, newGeneration, l))
                 .andThenAccept(ignored -> {
-                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    final var metadata = repositoriesService.repository(projectId, repoName).getMetadata();
                     assertEquals(originalGeneration, metadata.generation());
                     assertEquals(newGeneration, metadata.pendingGeneration());
                     assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
                 })
                 .andThen(
                     l -> repositoriesService.registerRepository(
+                        projectId,
                         new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE)
                             .settings(Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true)),
                         ActionTestUtils.assertNoSuccessListener(e -> {
@@ -423,20 +448,21 @@ public class RepositoriesServiceTests extends ESTestCase {
                     )
                 )
                 .andThenAccept(ignored -> {
-                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    final var metadata = repositoriesService.repository(projectId, repoName).getMetadata();
                     assertEquals(originalGeneration, metadata.generation());
                     assertEquals(newGeneration, metadata.pendingGeneration());
                     assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
                 })
                 .andThen(l -> updateGenerations(repoName, newGeneration, newGeneration, l))
                 .andThenAccept(ignored -> {
-                    final var metadata = repositoriesService.repository(repoName).getMetadata();
+                    final var metadata = repositoriesService.repository(projectId, repoName).getMetadata();
                     assertEquals(newGeneration, metadata.generation());
                     assertEquals(newGeneration, metadata.pendingGeneration());
                     assertNull(metadata.settings().getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
                 })
                 .andThen(
                     l -> repositoriesService.registerRepository(
+                        projectId,
                         new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).type(TestRepository.TYPE)
                             .settings(Settings.builder().put(BlobStoreRepository.READONLY_SETTING_KEY, true)),
                         l.map(ignored -> null)
@@ -444,7 +470,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 )
                 .andThenAccept(
                     ignored -> assertTrue(
-                        repositoriesService.repository(repoName)
+                        repositoriesService.repository(projectId, repoName)
                             .getMetadata()
                             .settings()
                             .getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null)
@@ -453,17 +479,120 @@ public class RepositoriesServiceTests extends ESTestCase {
         );
     }
 
+    public void testRepositoryUpdatesForMultipleProjects() {
+        assertThat(repositoriesService.getRepositories(), empty());
+        // 1. Initial project
+        final var repoName = "repo";
+        final var state0 = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("test", state0, emptyState()));
+        assertThat(repositoriesService.getProjectRepositories(projectId), aMapWithSize(1));
+        final var initialProjectRepo = (TestRepository) repositoriesService.getProjectRepositories(projectId).values().iterator().next();
+        assertThat(repositoriesService.getRepositories(), contains(initialProjectRepo));
+        if (ProjectId.DEFAULT.equals(projectId) == false) {
+            assertFalse(repositoriesService.hasRepositoryTrackingForProject(ProjectId.DEFAULT));
+        }
+
+        // 2. Add a new project
+        final var anotherProjectId = randomUniqueProjectId();
+        final var anotherRepoName = "another-repo";
+        final var state1 = ClusterState.builder(state0)
+            .putProjectMetadata(
+                ProjectMetadata.builder(anotherProjectId)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(
+                            List.of(
+                                new RepositoryMetadata(repoName, TestRepository.TYPE, Settings.EMPTY),
+                                new RepositoryMetadata(anotherRepoName, TestRepository.TYPE, Settings.EMPTY)
+                            )
+                        )
+                    )
+            )
+            .build();
+        repositoriesService.applyClusterState(new ClusterChangedEvent("test", state1, state0));
+        assertThat(repositoriesService.getProjectRepositories(anotherProjectId), aMapWithSize(2));
+        assertThat(repositoriesService.getRepositories(), hasSize(3));
+        assertThat(repositoriesService.getRepositories(), hasItem(initialProjectRepo));
+        final Collection<Repository> anotherProjectRepos = repositoriesService.getProjectRepositories(anotherProjectId).values();
+        assertThat(repositoriesService.getRepositories(), hasItems(anotherProjectRepos.toArray(Repository[]::new)));
+
+        // 3. Update existing project
+        assertFalse(initialProjectRepo.isClosed);
+        final var state2 = ClusterState.builder(state1)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(
+                            List.of(
+                                new RepositoryMetadata(repoName, TestRepository.TYPE, Settings.builder().put("foo", "bar").build()),
+                                new RepositoryMetadata(anotherRepoName, TestRepository.TYPE, Settings.EMPTY)
+                            )
+                        )
+                    )
+            )
+            .build();
+        repositoriesService.applyClusterState(new ClusterChangedEvent("test", state2, state1));
+        assertTrue(initialProjectRepo.isClosed);
+        assertThat(repositoriesService.getProjectRepositories(projectId), aMapWithSize(2));
+        assertThat(repositoriesService.getRepositories(), hasSize(4));
+        assertThat(
+            repositoriesService.getRepositories(),
+            hasItems(repositoriesService.getProjectRepositories(projectId).values().toArray(Repository[]::new))
+        );
+        assertThat(repositoriesService.getRepositories(), hasItems(anotherProjectRepos.toArray(Repository[]::new)));
+
+        // 4. Remove another project
+        anotherProjectRepos.forEach(repo -> assertFalse(((TestRepository) repo).isClosed));
+        final var state3 = ClusterState.builder(state2)
+            .metadata(Metadata.builder(state2.metadata()).removeProject(anotherProjectId))
+            .routingTable(GlobalRoutingTable.builder(state2.globalRoutingTable()).removeProject(anotherProjectId).build())
+            .build();
+        repositoriesService.applyClusterState(new ClusterChangedEvent("test", state3, state2));
+        anotherProjectRepos.forEach(repo -> assertTrue(((TestRepository) repo).isClosed));
+        assertFalse(repositoriesService.hasRepositoryTrackingForProject(anotherProjectId));
+        assertThat(repositoriesService.getRepositories(), hasSize(2));
+        assertThat(
+            repositoriesService.getRepositories(),
+            hasItems(repositoriesService.getProjectRepositories(projectId).values().toArray(Repository[]::new))
+        );
+    }
+
+    public void testInternalRepositoryForMultiProjects() {
+        assertThat(repositoriesService.getRepositories(), empty());
+        String repoName = "name";
+        repositoriesService.registerInternalRepository(projectId, repoName, TestRepository.TYPE);
+        final TestRepository initialProjectRepo = (TestRepository) repositoriesService.repository(projectId, repoName);
+
+        // Repo of the same name but different project is a different repository instance
+        final var anotherProjectId = randomUniqueProjectId();
+        repositoriesService.registerInternalRepository(anotherProjectId, repoName, TestRepository.TYPE);
+        final TestRepository anotherProjectRepo = (TestRepository) repositoriesService.repository(anotherProjectId, repoName);
+        assertThat(initialProjectRepo, not(sameInstance(anotherProjectRepo)));
+
+        // Remove the project repository, the repo should be closed and the project is removed from tracking
+        repositoriesService.unregisterInternalRepository(projectId, repoName);
+        assertFalse(repositoriesService.hasRepositoryTrackingForProject(projectId));
+        assertTrue(initialProjectRepo.isClosed);
+        assertThat(repositoriesService.repository(anotherProjectId, repoName), sameInstance(anotherProjectRepo));
+        assertTrue(anotherProjectRepo.isStarted);
+    }
+
     private void updateGenerations(String repositoryName, long safeGeneration, long pendingGeneration, ActionListener<?> listener) {
         clusterService.submitUnbatchedStateUpdateTask("update repo generations", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return new ClusterState.Builder(currentState).metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(
-                            RepositoriesMetadata.TYPE,
-                            RepositoriesMetadata.get(currentState).withUpdatedGeneration(repositoryName, safeGeneration, pendingGeneration)
-                        )
-                ).build();
+                final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(projectId);
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(projectMetadata)
+                            .putCustom(
+                                RepositoriesMetadata.TYPE,
+                                RepositoriesMetadata.get(projectMetadata)
+                                    .withUpdatedGeneration(repositoryName, safeGeneration, pendingGeneration)
+                            )
+                    )
+                    .build();
             }
 
             @Override
@@ -480,12 +609,13 @@ public class RepositoriesServiceTests extends ESTestCase {
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(
-            RepositoriesMetadata.TYPE,
-            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
+        state.putProjectMetadata(
+            ProjectMetadata.builder(projectId)
+                .putCustom(
+                    RepositoriesMetadata.TYPE,
+                    new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
+                )
         );
-        state.metadata(mdBuilder);
 
         return state.build();
     }
@@ -498,6 +628,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         expectThrows(
             RepositoryException.class,
             () -> repositoriesService.registerRepository(
+                projectId,
                 new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName),
                 null
             )
@@ -507,12 +638,19 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
+        private final ProjectId projectId;
         private RepositoryMetadata metadata;
         private boolean isClosed;
         private boolean isStarted;
 
-        private TestRepository(RepositoryMetadata metadata) {
+        private TestRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            this.projectId = projectId;
             this.metadata = metadata;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         @Override
@@ -616,7 +754,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void updateState(final ClusterState state) {
-            metadata = RepositoriesMetadata.get(state).repository(metadata.name());
+            metadata = RepositoriesMetadata.get(state.metadata().getProject(getProjectId())).repository(metadata.name());
         }
 
         @Override
@@ -662,8 +800,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class UnstableRepository extends TestRepository {
         private static final String TYPE = "unstable";
 
-        private UnstableRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private UnstableRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
@@ -671,8 +809,8 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class VerificationFailRepository extends TestRepository {
         public static final String TYPE = "verify-fail";
 
-        private VerificationFailRepository(RepositoryMetadata metadata) {
-            super(metadata);
+        private VerificationFailRepository(ProjectId projectId, RepositoryMetadata metadata) {
+            super(projectId, metadata);
         }
 
         @Override
@@ -685,8 +823,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", new BlobStoreActionStats(10, 13)));
 
-        private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeA(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
@@ -712,8 +851,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final String TYPE = "type-b";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", new BlobStoreActionStats(20, 25)));
 
-        private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
+        private MeteredRepositoryTypeB(ProjectId projectId, RepositoryMetadata metadata, ClusterService clusterService) {
             super(
+                projectId,
                 metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,

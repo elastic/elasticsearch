@@ -26,6 +26,11 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     public static MockElasticInferenceServiceAuthorizationServer enabledWithRainbowSprinklesAndElser() {
         var server = new MockElasticInferenceServiceAuthorizationServer();
 
+        server.enqueueAuthorizeAllModelsResponse();
+        return server;
+    }
+
+    public void enqueueAuthorizeAllModelsResponse() {
         String responseJson = """
             {
                 "models": [
@@ -36,26 +41,20 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                     {
                       "model_name": "elser-v2",
                       "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "multilingual-embed-v1",
+                      "task_types": ["embed/text/dense"]
+                    },
+                  {
+                      "model_name": "rerank-v1",
+                      "task_types": ["rerank/text/text-similarity"]
                     }
                 ]
             }
             """;
 
-        server.webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        return server;
-    }
-
-    public static MockElasticInferenceServiceAuthorizationServer disabled() {
-        var server = new MockElasticInferenceServiceAuthorizationServer();
-
-        String responseJson = """
-            {
-                "models": []
-            }
-            """;
-
-        server.webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        return server;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
     }
 
     public String getUrl() {

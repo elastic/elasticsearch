@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -545,7 +546,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
-                metadata -> new DisruptableRepository(
+                (projectId, metadata) -> new DisruptableRepository(
+                    projectId,
                     metadata,
                     namedXContentRegistry,
                     clusterService,
@@ -562,6 +564,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
         DisruptableRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
@@ -569,7 +572,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             BlobPath basePath
         ) {
-            super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         }
 
         void setBlobStore(BlobStore blobStore) {

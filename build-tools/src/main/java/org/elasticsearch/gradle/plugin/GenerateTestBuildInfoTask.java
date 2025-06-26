@@ -41,7 +41,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.CodeSource;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -209,6 +209,7 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * @return a {@link StringBuilder} with the {@code META-INF/versions/<version number>} if it exists; otherwise null
      */
     private static StringBuilder versionDirectoryIfExists(JarFile jarFile) {
+        Comparator<Integer> numericOrder = Integer::compareTo;
         List<Integer> versions = jarFile.stream()
             .filter(je -> je.getName().startsWith(META_INF_VERSIONS_PREFIX) && je.getName().endsWith("/module-info.class"))
             .map(
@@ -216,10 +217,8 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
                     je.getName().substring(META_INF_VERSIONS_PREFIX.length(), je.getName().length() - META_INF_VERSIONS_PREFIX.length())
                 )
             )
+            .sorted(numericOrder.reversed())
             .toList();
-        versions = new ArrayList<>(versions);
-        versions.sort(Integer::compareTo);
-        versions = versions.reversed();
         int major = Runtime.version().feature();
         StringBuilder path = new StringBuilder(META_INF_VERSIONS_PREFIX);
         for (int version : versions) {
@@ -300,7 +299,10 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
             public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) {
                 String name = candidate.getFileName().toString(); // Just the part after the last dir separator
                 if (name.endsWith(".class") && (name.equals("module-info.class") || name.contains("$")) == false) {
-                    result = candidate.toAbsolutePath().toString().substring(dir.getAbsolutePath().length() + 1);
+                    result = candidate.toAbsolutePath()
+                        .toString()
+                        .substring(dir.getAbsolutePath().length() + 1)
+                        .replace(File.separatorChar, '/');
                     return TERMINATE;
                 } else {
                     return CONTINUE;
@@ -316,20 +318,24 @@ public abstract class GenerateTestBuildInfoTask extends DefaultTask {
      * if it exists or the preset one derived from the jar task
      */
     private String extractModuleNameFromDirectory(File dir) throws IOException {
-        List<File> files = new ArrayList<>(List.of(dir));
-        while (files.isEmpty() == false) {
-            File find = files.removeFirst();
-            if (find.exists()) {
-                if (find.getName().equals("module-info.class")) {
-                    try (InputStream inputStream = new FileInputStream(find)) {
-                        return extractModuleNameFromModuleInfo(inputStream);
+        var visitor = new SimpleFileVisitor<Path>() {
+            private String result = getModuleName().getOrNull();
+
+            @Override
+            public @NotNull FileVisitResult visitFile(@NotNull Path candidate, @NotNull BasicFileAttributes attrs) throws IOException {
+                String name = candidate.getFileName().toString(); // Just the part after the last dir separator
+                if (name.equals("module-info.class")) {
+                    try (InputStream inputStream = new FileInputStream(candidate.toFile())) {
+                        result = extractModuleNameFromModuleInfo(inputStream);
+                        return TERMINATE;
                     }
-                } else if (find.isDirectory()) {
-                    files.addAll(Arrays.asList(find.listFiles()));
+                } else {
+                    return CONTINUE;
                 }
             }
-        }
-        return getModuleName().getOrNull();
+        };
+        Files.walkFileTree(dir.toPath(), visitor);
+        return visitor.result;
     }
 
     /**

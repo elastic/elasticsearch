@@ -10,13 +10,13 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -109,12 +109,13 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
+    private final List<? extends RefCounted> shardRefCounters;
     private final String fieldName;
     private final NumberType numberType;
 
     public LuceneMinFactory(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,
         String fieldName,
@@ -131,13 +132,22 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             false,
             ScoreMode.COMPLETE_NO_SCORES
         );
+        this.shardRefCounters = contexts;
         this.fieldName = fieldName;
         this.numberType = numberType;
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        return new LuceneMinMaxOperator(driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MAX_VALUE);
+        return new LuceneMinMaxOperator(
+            shardRefCounters,
+            driverContext.blockFactory(),
+            sliceQueue,
+            fieldName,
+            numberType,
+            limit,
+            Long.MAX_VALUE
+        );
     }
 
     @Override

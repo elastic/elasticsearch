@@ -19,11 +19,15 @@ import software.amazon.awssdk.services.s3.endpoints.internal.DefaultS3EndpointPr
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -41,7 +45,8 @@ public class S3ServiceTests extends ESTestCase {
     public void testCachedClientsAreReleased() throws IOException {
         final S3Service s3Service = new S3Service(
             mock(Environment.class),
-            Settings.EMPTY,
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of("es-test-region")
         );
@@ -49,17 +54,17 @@ public class S3ServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
-        final S3ClientSettings clientSettings = s3Service.settings(metadata2);
-        final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
+        final S3ClientSettings clientSettings = s3Service.settings(ProjectId.DEFAULT, metadata2);
+        final S3ClientSettings otherClientSettings = s3Service.settings(ProjectId.DEFAULT, metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonS3Reference reference = s3Service.client(metadata1);
+        final AmazonS3Reference reference = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         reference.close();
-        s3Service.doClose();
-        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        s3Service.onBlobStoreClose(ProjectId.DEFAULT);
+        final AmazonS3Reference referenceReloaded = s3Service.client(randomFrom(ProjectId.DEFAULT, null), metadata1);
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
-        s3Service.doClose();
-        final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
+        s3Service.onBlobStoreClose(ProjectId.DEFAULT);
+        final S3ClientSettings clientSettingsReloaded = s3Service.settings(ProjectId.DEFAULT, metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
         s3Service.close();
     }
@@ -94,10 +99,18 @@ public class S3ServiceTests extends ESTestCase {
     @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testGetClientRegionFromSetting() {
         final var regionRequested = new AtomicBoolean();
-        try (var s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class), () -> {
-            assertTrue(regionRequested.compareAndSet(false, true));
-            return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
-        })) {
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> {
+                    assertTrue(regionRequested.compareAndSet(false, true));
+                    return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                }
+            )
+        ) {
             s3Service.start();
             assertTrue(regionRequested.get());
 
@@ -124,10 +137,18 @@ public class S3ServiceTests extends ESTestCase {
     @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testGetClientRegionFromEndpointSettingGuess() {
         final var regionRequested = new AtomicBoolean();
-        try (var s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class), () -> {
-            assertTrue(regionRequested.compareAndSet(false, true));
-            return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
-        })) {
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> {
+                    assertTrue(regionRequested.compareAndSet(false, true));
+                    return randomFrom(randomFrom(Region.regions()), Region.of(randomIdentifier()), null);
+                }
+            )
+        ) {
             s3Service.start();
             assertTrue(regionRequested.get());
 
@@ -174,10 +195,18 @@ public class S3ServiceTests extends ESTestCase {
     public void testGetClientRegionFromDefault() {
         final var regionRequested = new AtomicBoolean();
         final var defaultRegion = randomBoolean() ? randomFrom(Region.regions()) : Region.of(randomIdentifier());
-        try (var s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class), () -> {
-            assertTrue(regionRequested.compareAndSet(false, true));
-            return defaultRegion;
-        })) {
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> {
+                    assertTrue(regionRequested.compareAndSet(false, true));
+                    return defaultRegion;
+                }
+            )
+        ) {
             s3Service.start();
             assertTrue(regionRequested.get());
 
@@ -201,10 +230,18 @@ public class S3ServiceTests extends ESTestCase {
     @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testGetClientRegionFallbackToUsEast1() {
         final var regionRequested = new AtomicBoolean();
-        try (var s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class), () -> {
-            assertTrue(regionRequested.compareAndSet(false, true));
-            return null;
-        })) {
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> {
+                    assertTrue(regionRequested.compareAndSet(false, true));
+                    return null;
+                }
+            )
+        ) {
             s3Service.start();
             assertTrue(regionRequested.get());
 
@@ -264,10 +301,11 @@ public class S3ServiceTests extends ESTestCase {
             See the breaking changes documentation for the next major version.""", clientName));
     }
 
-    private static URI getEndpointUri(Settings.Builder settings, String clientName) {
+    private URI getEndpointUri(Settings.Builder settings, String clientName) {
         return new S3Service(
             mock(Environment.class),
-            Settings.EMPTY,
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(ResourceWatcherService.class),
             () -> Region.of(randomIdentifier())
         ).buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))

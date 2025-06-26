@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -95,6 +94,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -257,7 +257,8 @@ public class InternalEngine extends Engine {
             mergeScheduler = createMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPoolMergeExecutorService()
+                engineConfig.getThreadPoolMergeExecutorService(),
+                engineConfig.getMergeMetrics()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle(pauseIndexingOnThrottle);
@@ -522,7 +523,7 @@ public class InternalEngine extends Engine {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
                 case "segments":
-                case "segments_stats":
+                case SEGMENTS_STATS_SOURCE:
                     break;
                 default:
                     assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
@@ -1811,7 +1812,10 @@ public class InternalEngine extends Engine {
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
-            final ParsedDocument tombstone = ParsedDocument.deleteTombstone(delete.id());
+            final ParsedDocument tombstone = ParsedDocument.deleteTombstone(
+                engineConfig.getIndexSettings().seqNoIndexOptions(),
+                delete.id()
+            );
             assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
             tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
             tombstone.version().setLongValue(plan.versionOfDeletion);
@@ -1970,7 +1974,10 @@ public class InternalEngine extends Engine {
                 markSeqNoAsSeen(noOp.seqNo());
                 if (hasBeenProcessedBefore(noOp) == false) {
                     try {
-                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(noOp.reason());
+                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(
+                            engineConfig.getIndexSettings().seqNoIndexOptions(),
+                            noOp.reason()
+                        );
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                         // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
                         // field. 1L is selected to optimize the compression because it might probably be the most common value in
@@ -2753,10 +2760,10 @@ public class InternalEngine extends Engine {
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
                 : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
-            softDeletesPolicy::getRetentionQuery,
+            () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
-                softDeletesPolicy::getRetentionQuery,
+                () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
                 new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
@@ -2823,19 +2830,27 @@ public class InternalEngine extends Engine {
 
     @Override
     public void activateThrottling() {
-        int count = throttleRequestCount.incrementAndGet();
-        assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
-        if (count == 1) {
-            throttle.activate();
+        // Synchronize on throttleRequestCount to make activateThrottling and deactivateThrottling
+        // atomic w.r.t each other
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.incrementAndGet();
+            assert count >= 1 : "invalid post-increment throttleRequestCount=" + count;
+            if (count == 1) {
+                throttle.activate();
+            }
         }
     }
 
     @Override
     public void deactivateThrottling() {
-        int count = throttleRequestCount.decrementAndGet();
-        assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
-        if (count == 0) {
-            throttle.deactivate();
+        // Synchronize on throttleRequestCount to make activateThrottling and deactivateThrottling
+        // atomic w.r.t each other
+        synchronized (throttleRequestCount) {
+            int count = throttleRequestCount.decrementAndGet();
+            assert count >= 0 : "invalid post-decrement throttleRequestCount=" + count;
+            if (count == 0) {
+                throttle.deactivate();
+            }
         }
     }
 
@@ -2894,10 +2909,11 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        MergeMetrics mergeMetrics
     ) {
         if (threadPoolMergeExecutorService != null) {
-            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
@@ -2907,9 +2923,10 @@ public class InternalEngine extends Engine {
         EngineThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+            MergeMetrics mergeMetrics
         ) {
-            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes);
+            super(shardId, indexSettings, threadPoolMergeExecutorService, InternalEngine.this::estimateMergeBytes, mergeMetrics);
         }
 
         @Override
@@ -2967,7 +2984,7 @@ public class InternalEngine extends Engine {
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
             int maxNumMerges = getMaxMergeCount();
-            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+            if (numMergesInFlight.decrementAndGet() <= maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
                     deactivateThrottling();
@@ -3215,12 +3232,7 @@ public class InternalEngine extends Engine {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
-            return LuceneChangesSnapshot.countOperations(
-                searcher,
-                fromSeqNo,
-                toSeqNo,
-                config().getIndexSettings().getIndexVersionCreated()
-            );
+            return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), fromSeqNo, toSeqNo);
         } catch (Exception e) {
             try {
                 maybeFailEngine("count changes", e);
@@ -3448,7 +3460,11 @@ public class InternalEngine extends Engine {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
-            LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
+            SeqNoFieldMapper.rangeQueryForSeqNo(
+                engineConfig.getIndexSettings().seqNoIndexOptions(),
+                getPersistedLocalCheckpoint() + 1,
+                Long.MAX_VALUE
+            ),
             BooleanClause.Occur.MUST
         )
             .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
@@ -3597,5 +3613,10 @@ public class InternalEngine extends Engine {
             // Can't estimate if the searcher is closed
             return 0L;
         }
+    }
+
+    // Used to clean up unowned documents. Client-visible deletes should always be soft deletes.
+    protected void deleteByQuery(ShardSplittingQuery query) throws Exception {
+        indexWriter.deleteDocuments(query);
     }
 }

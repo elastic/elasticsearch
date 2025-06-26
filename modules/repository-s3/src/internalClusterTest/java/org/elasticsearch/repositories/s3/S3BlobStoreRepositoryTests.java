@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -64,7 +65,6 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -180,15 +180,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return builder.build();
     }
 
-    @Override
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
-    public void testRequestStats() throws Exception {
-        super.testRequestStats();
-    }
-
     public void testAbortRequestStats() throws Exception {
         final String repository = createRepository(randomRepositoryName(), false);
 
@@ -232,10 +223,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -598,6 +585,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
@@ -605,7 +593,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             RecoverySettings recoverySettings,
             S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
+            return new S3Repository(
+                projectId,
+                metadata,
+                registry,
+                getService(),
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            ) {
 
                 @Override
                 public BlobStore blobStore() {

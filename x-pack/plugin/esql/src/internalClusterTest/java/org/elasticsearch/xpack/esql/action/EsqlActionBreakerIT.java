@@ -87,6 +87,10 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     }
 
     public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
+        public EsqlTestPluginWithMockBlockFactory(Settings settings) {
+            super(settings);
+        }
+
         @Override
         protected BlockFactoryProvider blockFactoryProvider(
             CircuitBreaker breaker,
@@ -112,7 +116,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         if (randomBoolean()) {
             request.allowPartialResults(randomBoolean());
         }

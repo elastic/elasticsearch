@@ -794,7 +794,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sample', 'sort'"));
         }
     }
 
@@ -1022,7 +1022,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(21, columns.size());
+            assertEquals(22, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }
@@ -1408,7 +1408,76 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "integer").entry("type", "integer")),
             values
         );
+    }
 
+    public void testReplaceStringCasingWithInsensitiveWildcardMatch() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "reserved": {
+                        "type": "keyword"
+                    },
+                    "optional": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+        doc.setJsonEntity("""
+            {
+                "reserved": "_\\"_$_(_)_+_._[_]_^_{_|_}___",
+                "optional": "_#_&_<_>___"
+            }
+            """);
+        client().performRequest(doc);
+        var query = "FROM " + testIndexName() + """
+            | WHERE TO_LOWER(reserved) LIKE "_\\"_$_(_)_+_._[_]_^_{_|_}*"
+            | WHERE TO_LOWER(optional) LIKE "_#_&_<_>*"
+            | KEEP reserved, optional
+            """;
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("_\"_$_(_)_+_._[_]_^_{_|_}___", "_#_&_<_>___"))));
+    }
+
+    public void testRLikeHandlingOfEmptyLanguagePattern() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "field": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        for (var val : List.of("#", "foo#bar")) {
+            Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "field": "%s"
+                }
+                """.formatted(val));
+            client().performRequest(doc);
+        }
+        // pushed down, matches nothing
+        var query = "FROM " + testIndexName() + " | WHERE TO_LOWER(field) RLIKE \"#\"";
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches nothing
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of()));
+
+        // matches one doc
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \"\\\\#\"";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"))));
+
+        // matches both docs
+        query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
+        answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
@@ -1581,7 +1650,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=6000s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {

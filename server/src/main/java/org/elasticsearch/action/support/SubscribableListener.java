@@ -32,15 +32,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is
- * completed it fans-out its result to the subscribed listeners.
+ * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
+ * fans-out its result to the subscribed listeners.
  * <p>
- * If this listener is complete, {@link #addListener} completes the subscribing listener immediately
- * with the result with which this listener was completed. Otherwise, the subscribing listener is retained
- * and completed when this listener is completed.
+ * If this listener is complete, {@link #addListener} completes the subscribing listener immediately with the result with which this
+ * listener was completed. Otherwise, the subscribing listener is retained and completed when this listener is completed.
  * <p>
- * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
- * classes that provide additional exception handling.
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are
+ * subclasses which modify the exceptions passed to subscribed listeners.
+ * <p>
+ * If this listener is completed more than once then all results other than the first (whether successful or otherwise) are silently
+ * discarded. All subscribed listeners will be notified of the same result, exactly once, even if several completions occur concurrently.
  * <p>
  * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
  * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the

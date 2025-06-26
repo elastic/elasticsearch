@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
@@ -107,6 +108,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
+    private static final ExecutorService writeCoordinationExecutor = new NamedDirectExecutorService("write_coordination");
     private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
     private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
@@ -160,7 +162,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
-                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
+                new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
@@ -293,6 +295,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(eq(ThreadPool.Names.WRITE_COORDINATION))).thenReturn(writeCoordinationExecutor);
         when(threadPool.executor(eq(ThreadPool.Names.WRITE))).thenReturn(writeExecutor);
         when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE))).thenReturn(systemWriteExecutor);
         MockitoAnnotations.openMocks(this);
@@ -350,6 +353,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
+        when(state.custom(eq(ProjectStateRegistry.TYPE), any())).thenReturn(
+            ProjectStateRegistry.builder().putProjectSettings(projectId, Settings.builder().build()).build()
+        );
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);

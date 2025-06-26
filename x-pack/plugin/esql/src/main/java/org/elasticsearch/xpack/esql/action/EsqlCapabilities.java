@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -54,6 +55,11 @@ public class EsqlCapabilities {
          * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
          */
         SPATIAL_SHAPES,
+
+        /**
+         * Do validation check on geo_point and geo_shape fields. Done in #128259.
+         */
+        GEO_VALIDATION,
 
         /**
          * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
@@ -313,6 +319,11 @@ public class EsqlCapabilities {
         STRING_LITERAL_AUTO_CASTING_TO_DATETIME_ADD_SUB,
 
         /**
+         * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
+         */
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+
+        /**
          * Support for named or positional parameters in EsqlQueryRequest.
          */
         NAMED_POSITIONAL_PARAMETER,
@@ -369,6 +380,11 @@ public class EsqlCapabilities {
         ST_ENVELOPE,
 
         /**
+         * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
+         */
+        SPATIAL_GRID(Build.current().isSnapshot()),
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */
@@ -422,6 +438,11 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
+         * Support for assignment in RENAME, besides the use of `AS` keyword.
+         */
+        RENAME_ALLOW_ASSIGNMENT,
 
         /**
          * Support for removing empty attribute in merging output.
@@ -580,6 +601,12 @@ public class EsqlCapabilities {
          * e.g. {@code WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")}
          */
         FIX_DATE_NANOS_MIXED_RANGE_PUSHDOWN_BUG(),
+
+        /**
+         * Support for date nanos in lookup join. Done in #127962
+         */
+        DATE_NANOS_LOOKUP_JOIN,
+
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -638,7 +665,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE_V5,
+        CATEGORIZE_V6,
 
         /**
          * Support for multiple groupings in "CATEGORIZE".
@@ -891,11 +918,6 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for FORK command
-         */
-        FORK(Build.current().isSnapshot()),
-
-        /**
          * Support for RERANK command
          */
         RERANK(Build.current().isSnapshot()),
@@ -903,7 +925,7 @@ public class EsqlCapabilities {
         /**
          * Support for COMPLETION command
          */
-        COMPLETION(Build.current().isSnapshot()),
+        COMPLETION,
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
@@ -1011,9 +1033,9 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
-         * Support streaming of sub plan results
+         * Support for FORK out of snapshot
          */
-        FORK_V4(Build.current().isSnapshot()),
+        FORK_V9,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1055,7 +1077,7 @@ public class EsqlCapabilities {
         /**
          * Support for the SAMPLE command
          */
-        SAMPLE(Build.current().isSnapshot()),
+        SAMPLE_V3,
 
         /**
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
@@ -1076,6 +1098,21 @@ public class EsqlCapabilities {
          * Support first_over_time aggregation that gets evaluated per time-series
          */
         FIRST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support sum_over_time aggregation that gets evaluated per time-series
+         */
+        SUM_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support count_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for count_distinct_over_time aggregation that gets evaluated per time-series
+         */
+        COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
          * Resolve groupings before resolving references to groupings in the aggregations.
@@ -1107,7 +1144,78 @@ public class EsqlCapabilities {
         /**
          * The {@code ROUND_TO} function.
          */
-        ROUND_TO;
+        ROUND_TO,
+
+        /**
+         * Support for the {@code COPY_SIGN} function.
+         */
+        COPY_SIGN,
+
+        /**
+         * Allow lookup join on mixed numeric fields, among byte, short, int, long, half_float, scaled_float, float and double.
+         */
+        LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
+
+        /**
+         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
+         */
+        LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
+
+        /**
+         * Support parameters for LIMIT command.
+         */
+        PARAMETER_FOR_LIMIT,
+
+        /**
+         * Dense vector field type support
+         */
+        DENSE_VECTOR_FIELD_TYPE(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Enable support for index aliases in lookup joins
+         */
+        ENABLE_LOOKUP_JOIN_ON_ALIASES,
+
+        /**
+         * Lookup error messages were updated to make them a bit easier to understand.
+         */
+        UPDATE_LOOKUP_JOIN_ERROR_MESSAGES,
+
+        /**
+         * Allows RLIKE to correctly handle the "empty language" flag, `#`.
+         */
+        RLIKE_WITH_EMPTY_LANGUAGE_PATTERN,
+
+        /**
+         * MATCH PHRASE function
+         */
+        MATCH_PHRASE_FUNCTION,
+
+        /**
+         * Support knn function
+         */
+        KNN_FUNCTION(Build.current().isSnapshot()),
+
+        LIKE_WITH_LIST_OF_PATTERNS,
+
+        /**
+         * Support parameters for SAMPLE command.
+         */
+        PARAMETER_FOR_SAMPLE,
+
+        /**
+         * From now, Literal only accepts strings as BytesRefs.
+         * No java.lang.String anymore.
+         *
+         * https://github.com/elastic/elasticsearch/issues/129322
+         */
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

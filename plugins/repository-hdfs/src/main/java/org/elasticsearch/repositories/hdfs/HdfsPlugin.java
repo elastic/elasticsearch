@@ -71,7 +71,15 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     ) {
         return Collections.singletonMap(
             "hdfs",
-            (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+            (projectId, metadata) -> new HdfsRepository(
+                projectId,
+                metadata,
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings
+            )
         );
     }
 }

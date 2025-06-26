@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -83,16 +82,12 @@ public class PlannerUtils {
     public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
         var subplans = new Holder<List<PhysicalPlan>>();
         PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
-            subplans.set(me.children().stream().map(child -> {
-                // TODO: we are adding a Project plan to force InsertFieldExtraction - we should remove this transformation
-                child = child.transformUp(FragmentExec.class, f -> {
-                    var logicalFragment = f.fragment();
-                    logicalFragment = new Project(logicalFragment.source(), logicalFragment, logicalFragment.output());
-                    return new FragmentExec(logicalFragment);
-                });
-
-                return (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child);
-            }).toList());
+            subplans.set(
+                me.children()
+                    .stream()
+                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
+                    .toList()
+            );
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
@@ -129,7 +124,7 @@ public class PlannerUtils {
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
         if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INITIAL); // force to emit intermediate outputs
+            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
         }
         return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
     }
@@ -303,6 +298,7 @@ public class PlannerUtils {
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
             case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
+            case DENSE_VECTOR -> ElementType.FLOAT;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

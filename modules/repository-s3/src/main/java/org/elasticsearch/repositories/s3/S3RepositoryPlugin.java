@@ -13,7 +13,9 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +59,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     // proxy method for testing
     protected S3Repository createRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
@@ -64,18 +67,34 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RecoverySettings recoverySettings,
         final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
+        return new S3Repository(
+            projectId,
+            metadata,
+            registry,
+            service.get(),
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            s3RepositoriesMetrics
+        );
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        service.set(
+            s3Service(services.environment(), services.clusterService(), services.projectResolver(), services.resourceWatcherService())
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service.get());
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    S3Service s3Service(
+        Environment environment,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ResourceWatcherService resourceWatcherService
+    ) {
+        return new S3Service(environment, clusterService, projectResolver, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
     }
 
     private static Region getDefaultRegion() {
@@ -99,7 +118,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics)
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            )
         );
     }
 

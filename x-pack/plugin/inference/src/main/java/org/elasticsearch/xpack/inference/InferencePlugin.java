@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
@@ -341,22 +342,24 @@ public class InferencePlugin extends Plugin
         }
         inferenceServiceRegistry.set(serviceRegistry);
 
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
+
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
             serviceRegistry,
             modelRegistry.get(),
             getLicenseState(),
-            services.indexingPressure()
+            services.indexingPressure(),
+            inferenceStats
         );
         shardBulkInferenceActionFilter.set(actionFilter);
-
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
         components.add(httpClientManager);
-        components.add(inferenceStats);
+        components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
         // if the rate limiting feature flags are enabled, otherwise provide noop implementation
@@ -396,7 +399,8 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
-            ElasticsearchInternalService::new
+            ElasticsearchInternalService::new,
+            context -> new CustomService(httpFactory.get(), serviceComponents.get())
         );
     }
 

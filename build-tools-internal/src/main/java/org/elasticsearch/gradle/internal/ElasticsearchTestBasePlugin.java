@@ -232,11 +232,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
-        configureImmutableCollectionsPatch(project);
+        configureJavaBasePatch(project);
         configureEntitlements(project);
     }
 
-    private void configureImmutableCollectionsPatch(Project project) {
+    private void configureJavaBasePatch(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
             return; // build tests may not have this project, just skip

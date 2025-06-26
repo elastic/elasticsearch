@@ -163,6 +163,6 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
-        return classEntitlementsMap.computeIfAbsent(requestingClass, c -> computeEntitlements(requestingClass));
+        return classEntitlementsMap.computeIfAbsent(requestingClass, this::computeEntitlements);
     }
 }

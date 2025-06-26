@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -64,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
 public class TransportUpdateInferenceModelAction extends TransportMasterNodeAction<
@@ -224,12 +226,17 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         if (settingsToUpdate.serviceSettings() != null && existingSecretSettings != null) {
             newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
         }
-        if (settingsToUpdate.serviceSettings() != null && settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)) {
+        if (settingsToUpdate.serviceSettings() != null
+            && (settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)
+                || settingsToUpdate.serviceSettings().containsKey(ADAPTIVE_ALLOCATIONS))) {
             // In cluster services can only have their num_allocations updated, so this is a special case
             if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
                 newServiceSettings = new ElasticsearchInternalServiceSettings(
                     elasticServiceSettings,
-                    (Integer) settingsToUpdate.serviceSettings().get(NUM_ALLOCATIONS)
+                    settingsToUpdate.serviceSettings().containsKey(NUM_ALLOCATIONS)
+                        ? (Integer) settingsToUpdate.serviceSettings().get(NUM_ALLOCATIONS)
+                        : null,
+                    getAdaptiveAllocationsSettingsFromMap(settingsToUpdate.serviceSettings())
                 );
             }
         }
@@ -263,10 +270,15 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         throwIfTrainedModelDoesntExist(request.getInferenceEntityId(), deploymentId);
 
         Map<String, Object> serviceSettings = request.getContentAsSettings().serviceSettings();
-        if (serviceSettings != null && serviceSettings.get(NUM_ALLOCATIONS) instanceof Integer numAllocations) {
+        if (serviceSettings != null
+            && (serviceSettings.get(NUM_ALLOCATIONS) instanceof Integer || serviceSettings.containsKey(ADAPTIVE_ALLOCATIONS))) {
+            var numAllocations = (Integer) serviceSettings.get(NUM_ALLOCATIONS);
+            var adaptiveAllocationsSettings = getAdaptiveAllocationsSettingsFromMap(serviceSettings);
+            // TODO: Figure out how to deep clonse the adaptive allocations settings as they are already removed at this point.
 
             UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
             updateRequest.setNumberOfAllocations(numAllocations);
+            updateRequest.setAdaptiveAllocationsSettings(adaptiveAllocationsSettings);
 
             var delegate = listener.<CreateTrainedModelAssignmentAction.Response>delegateFailure((l2, response) -> {
                 modelRegistry.updateModelTransaction(newModel, existingParsedModel, l2);
@@ -341,6 +353,36 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 listener.onFailure(e);
             }
         }));
+    }
+
+    @SuppressWarnings("unchecked")
+    private AdaptiveAllocationsSettings getAdaptiveAllocationsSettingsFromMap(Map<String, Object> settings) {
+        if (settings == null || settings.isEmpty() || settings.containsKey(ADAPTIVE_ALLOCATIONS) == false) {
+            return null;
+        }
+
+        var adaptiveAllocationsSettingsMap = (Map<String, Object>) settings.get(ADAPTIVE_ALLOCATIONS);
+
+        // TODO: Test invalid type being passed here. Also test if updating causes any issues with the UI
+        var adaptiveAllocationsSettingsBuilder = new AdaptiveAllocationsSettings.Builder();
+        adaptiveAllocationsSettingsBuilder.setEnabled(
+            (Boolean) adaptiveAllocationsSettingsMap.get(AdaptiveAllocationsSettings.ENABLED.getPreferredName())
+        );
+        adaptiveAllocationsSettingsBuilder.setMinNumberOfAllocations(
+            (Integer) adaptiveAllocationsSettingsMap.get(AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS.getPreferredName())
+        );
+        adaptiveAllocationsSettingsBuilder.setMaxNumberOfAllocations(
+            (Integer) adaptiveAllocationsSettingsMap.get(AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS.getPreferredName())
+        );
+
+        var adaptiveAllocationsSettings = adaptiveAllocationsSettingsBuilder.build();
+        var validationException = adaptiveAllocationsSettings.validate();
+
+        if (validationException != null) {
+            throw validationException;
+        }
+
+        return adaptiveAllocationsSettings;
     }
 
     private static XContentParser getParser(UpdateInferenceModelAction.Request request) throws IOException {

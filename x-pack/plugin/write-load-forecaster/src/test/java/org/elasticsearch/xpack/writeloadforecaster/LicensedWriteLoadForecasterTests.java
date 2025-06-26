@@ -77,7 +77,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final ProjectMetadata.Builder metadataBuilder = createMetadataBuilderWithDataStream(
             dataStreamName,
             numberOfBackingIndices,
-            randomIntBetween(1, 15),
+            randomIntBetween(1, 5),
             maxIndexAge
         );
         final DataStream dataStream = metadataBuilder.dataStream(dataStreamName);

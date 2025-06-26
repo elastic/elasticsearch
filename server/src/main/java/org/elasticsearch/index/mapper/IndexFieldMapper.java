@@ -134,6 +134,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             String indexName = context.getFullyQualifiedIndex().getName();
             return getWildcardLikeQuery(value, caseInsensitive, indexName);
         }
+
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getFullyQualifiedIndex().getName();
+        }
     }
 
     public IndexFieldMapper() {

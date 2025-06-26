@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
@@ -1041,6 +1043,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean hasDocValuesSkipper() {
             return hasDocValuesSkipper;
+        }
+
+        public Query automatonQuery(
+            Automaton automaton,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            return new AutomatonQueryWithDescription(new Term(name()), automaton, description);
         }
     }
 

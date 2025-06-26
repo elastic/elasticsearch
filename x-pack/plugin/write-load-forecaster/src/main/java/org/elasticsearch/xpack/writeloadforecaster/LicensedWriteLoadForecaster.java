@@ -134,14 +134,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
     }
 
-    // Visible for testing
-
     /**
      * This calculates the weighted average total write-load for all recent indices.
      *
      * @param indicesWriteLoadWithinMaxAgeRange The indices considered "recent"
      * @return The weighted average total write-load. To get the per-shard write load, this number must be divided by the number of shards
      */
+    // Visible for testing
     static OptionalDouble forecastIndexWriteLoad(List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange) {
         double allIndicesWriteLoad = 0;
         long allIndicesUptime = 0;

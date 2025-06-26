@@ -2522,7 +2522,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         threadPool,
                         clusterService,
-                        repositoriesService
+                        repositoriesService,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
                     )
                 );
                 actions.put(
@@ -2769,7 +2770,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportPutRepositoryAction.TYPE,
-                    new TransportPutRepositoryAction(transportService, clusterService, repositoriesService, threadPool, actionFilters)
+                    new TransportPutRepositoryAction(
+                        transportService,
+                        clusterService,
+                        repositoriesService,
+                        threadPool,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
                 );
                 actions.put(
                     TransportCleanupRepositoryAction.TYPE,

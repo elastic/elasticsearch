@@ -67,6 +67,8 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -83,11 +85,14 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,6 +105,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -580,6 +586,27 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
+    }
+
+    public void testRejectDocumentWithSourceExceedingSizeLimit() throws Exception {
+        String indexName = "source-limit-test";
+        int byteLimit = 10;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(IndexSettings.MAX_SOURCE_SIZE_BYTES_SETTING.getKey(), byteLimit).build()
+            )
+        );
+
+        byte[] data = new byte[80];
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+            doc.field("value", Base64.getEncoder().encodeToString(data));
+            doc.endObject();
+
+            Exception e = expectThrows(DocumentParsingException.class, () -> { client().prepareIndex(indexName).setSource(doc).get(); });
+            assertThat(e.getMessage(), containsString("failed to parse, document too large. Max allowed is " + byteLimit + " bytes"));
+        }
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

@@ -48,6 +48,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -433,7 +436,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testNotLikeIndex() throws Exception {
@@ -448,7 +451,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testLikeListIndex() throws Exception {
@@ -463,7 +466,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 
     public void testNotLikeListIndex() throws Exception {
@@ -478,7 +481,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 
     public void testRLikeIndex() throws Exception {
@@ -491,8 +494,7 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
-
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testNotRLikeIndex() throws Exception {
@@ -505,8 +507,7 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(localDocs.size(), localIndex));
-
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
         Map<String, Object> result = run("""
             FROM test-local-index,*:test-remote-index METADATA _index
             | WHERE _index RLIKE ".*remote.*"

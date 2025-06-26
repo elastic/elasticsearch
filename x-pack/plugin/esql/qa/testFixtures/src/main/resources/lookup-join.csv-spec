@@ -120,6 +120,22 @@ language_code:integer | language_name:keyword
 4                     | German
 ;
 
+selfJoinWithOffset
+required_capability: join_lookup_v12
+
+FROM languages_lookup
+| EVAL language_code = language_code + 2
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+3                     |Spanish
+4                     |German
+5                     |null
+6                     |null
+;
+
 nonUniqueLeftKeyOnTheDataNode
 required_capability: join_lookup_v12
 
@@ -4602,7 +4618,7 @@ required_capability: join_lookup_v12
 required_capability: date_nanos_lookup_join
 
 FROM sample_data_ts_nanos
-| LOOKUP JOIN lookup_sample_data_ts_nanos ON @timestamp
+| LOOKUP JOIN sample__data_ts_nanos_lookup ON @timestamp
 | KEEP @timestamp, client_ip, event_duration, message
 | SORT @timestamp DESC
 ;

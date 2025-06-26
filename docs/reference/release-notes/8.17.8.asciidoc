@@ -1,0 +1,45 @@
+[[release-notes-8.17.8]]
+== {es} version 8.17.8
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[bug-8.17.8]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Fix significant terms not finding background docuemnts for nested fields {es-pull}128472[#128472] (issue: {es-issue}101163[#101163])
+
+Authorization::
+* Prevent invalid privileges in manage roles privilege {es-pull}128532[#128532] (issue: {es-issue}127496[#127496])
+
+Codec::
+* Use new source loader when lower `docId` is accessed {es-pull}128320[#128320]
+
+Data streams::
+* Bump APM data resource version {es-pull}129539[#129539]
+
+Infra/Core::
+* Update AbstractXContentParser to support parsers that don't provide text characters {es-pull}129005[#129005]
+
+Infra/Scripting::
+* Register mustache size limit setting {es-pull}119291[#119291]
+
+Machine Learning::
+* Account for Java direct memory on machine learning nodes to prevent out-of-memory crashes. {es-pull}128742[#128742]
+* Ensure that anomaly detection job state update retries if master node is temoporarily unavailable {es-pull}129391[#129391] (issue: {es-issue}126148[#126148])
+
+Searchable Snapshots::
+* Adjust unpromotable shard refresh request validation to allow `RefreshResult.NO_REFRESH` {es-pull}129176[#129176] (issue: {es-issue}129036[#129036])
+
+Security::
+* Fix error message when changing the password for a user in the file realm {es-pull}127621[#127621]
+
+[[enhancement-8.17.8]]
+[float]
+=== Enhancements
+
+Authorization::
+* Fix unsupported privileges error message during role and API key creation {es-pull}129158[#129158] (issue: {es-issue}128132[#128132])
+
+

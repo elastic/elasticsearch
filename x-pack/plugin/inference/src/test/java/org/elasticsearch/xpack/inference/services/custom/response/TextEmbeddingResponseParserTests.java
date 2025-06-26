@@ -16,9 +16,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -26,6 +29,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE;
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19;
+import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -33,18 +39,25 @@ import static org.mockito.Mockito.mock;
 public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<TextEmbeddingResponseParser> {
 
     public static TextEmbeddingResponseParser createRandom() {
-        return new TextEmbeddingResponseParser("$." + randomAlphaOfLength(5));
+        return new TextEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomFrom(CustomServiceEmbeddingType.values()));
     }
 
     public void testFromMap() {
         var validation = new ValidationException();
         var parser = TextEmbeddingResponseParser.fromMap(
-            new HashMap<>(Map.of(TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result[*].embeddings")),
+            new HashMap<>(
+                Map.of(
+                    TEXT_EMBEDDING_PARSER_EMBEDDINGS,
+                    "$.result[*].embeddings",
+                    EMBEDDING_TYPE,
+                    CustomServiceEmbeddingType.BIT.toString()
+                )
+            ),
             "scope",
             validation
         );
 
-        assertThat(parser, is(new TextEmbeddingResponseParser("$.result[*].embeddings")));
+        assertThat(parser, is(new TextEmbeddingResponseParser("$.result[*].embeddings", CustomServiceEmbeddingType.BIT)));
     }
 
     public void testFromMap_ThrowsException_WhenRequiredFieldIsNotPresent() {
@@ -61,7 +74,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
     }
 
     public void testToXContent() throws IOException {
-        var entity = new TextEmbeddingResponseParser("$.result.path");
+        var entity = new TextEmbeddingResponseParser("$.result.path", CustomServiceEmbeddingType.BINARY);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         {
@@ -74,7 +87,8 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
         var expected = XContentHelper.stripWhitespace("""
             {
                 "json_parser": {
-                    "text_embeddings": "$.result.path"
+                    "text_embeddings": "$.result.path",
+                    "embedding_type": "binary"
                 }
             }
             """);
@@ -104,7 +118,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -113,6 +127,66 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             parsedResults,
             is(new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }))))
         );
+    }
+
+    public void testParseByte() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          1,
+                          -2
+                      ]
+                  }
+              ],
+              "model": "text-embedding-ada-002-v2",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BYTE);
+        TextEmbeddingByteResults parsedResults = (TextEmbeddingByteResults) parser.parse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, is(new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
+    }
+
+    public void testParseBit() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          1,
+                          -2
+                      ]
+                  }
+              ],
+              "model": "text-embedding-ada-002-v2",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.BIT);
+        TextEmbeddingBitResults parsedResults = (TextEmbeddingBitResults) parser.parse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, is(new TextEmbeddingBitResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { 1, -2 })))));
     }
 
     public void testParse_MultipleEmbeddings() throws IOException {
@@ -145,7 +219,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) parser.parse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -193,7 +267,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
@@ -227,7 +301,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
             }
             """;
 
-        var parser = new TextEmbeddingResponseParser("$.data[*].embedding");
+        var parser = new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT);
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
@@ -244,6 +318,10 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
 
     @Override
     protected TextEmbeddingResponseParser mutateInstanceForVersion(TextEmbeddingResponseParser instance, TransportVersion version) {
+        if (version.before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)
+            && version.isPatchFrom(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19) == false) {
+            return new TextEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
+        }
         return instance;
     }
 

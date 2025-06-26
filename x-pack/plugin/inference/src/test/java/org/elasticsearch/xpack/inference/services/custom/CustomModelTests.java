@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.custom;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +92,10 @@ public class CustomModelTests extends ESTestCase {
     }
 
     public static CustomModel getTestModel() {
-        return getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"));
+        return getTestModel(
+            TaskType.TEXT_EMBEDDING,
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
+        );
     }
 
     public static CustomModel getTestModel(TaskType taskType, CustomResponseParser responseParser) {
@@ -112,7 +114,7 @@ public class CustomModelTests extends ESTestCase {
                 SimilarityMeasure.DOT_PRODUCT,
                 dims,
                 maxInputTokens,
-                DenseVectorFieldMapper.ElementType.FLOAT
+                CustomServiceEmbeddingType.FLOAT
             ),
             url,
             headers,

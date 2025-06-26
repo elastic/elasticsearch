@@ -137,19 +137,14 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         );
     }
 
-    public record TextEmbeddingSettings(
-        @Nullable SimilarityMeasure similarityMeasure,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens,
-        @Nullable DenseVectorFieldMapper.ElementType elementType
-    ) implements ToXContentFragment, Writeable {
+    public static class TextEmbeddingSettings implements ToXContentFragment, Writeable {
 
         // This specifies float for the element type but null for all other settings
         public static final TextEmbeddingSettings DEFAULT_FLOAT = new TextEmbeddingSettings(
             null,
             null,
             null,
-            DenseVectorFieldMapper.ElementType.FLOAT
+            CustomServiceEmbeddingType.FLOAT
         );
         // This refers to settings that are not related to the text embedding task type (all the settings should be null)
         public static final TextEmbeddingSettings NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS = new TextEmbeddingSettings(null, null, null, null);
@@ -162,16 +157,33 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
             Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
             Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-            return new TextEmbeddingSettings(similarity, dims, maxInputTokens, DenseVectorFieldMapper.ElementType.FLOAT);
+            return new TextEmbeddingSettings(similarity, dims, maxInputTokens, null);
+        }
+
+        private final SimilarityMeasure similarityMeasure;
+        private final Integer dimensions;
+        private final Integer maxInputTokens;
+
+        public TextEmbeddingSettings(
+            @Nullable SimilarityMeasure similarityMeasure,
+            @Nullable Integer dimensions,
+            @Nullable Integer maxInputTokens,
+            @Nullable CustomServiceEmbeddingType embeddingType
+        ) {
+            this.similarityMeasure = similarityMeasure;
+            this.dimensions = dimensions;
+            this.maxInputTokens = maxInputTokens;
         }
 
         public TextEmbeddingSettings(StreamInput in) throws IOException {
-            this(
-                in.readOptionalEnum(SimilarityMeasure.class),
-                in.readOptionalVInt(),
-                in.readOptionalVInt(),
-                in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
-            );
+            this.similarityMeasure = in.readOptionalEnum(SimilarityMeasure.class);
+            this.dimensions = in.readOptionalVInt();
+            this.maxInputTokens = in.readOptionalVInt();
+
+            if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)
+                && in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19) == false) {
+                in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
+            }
         }
 
         @Override
@@ -179,7 +191,11 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             out.writeOptionalEnum(similarityMeasure);
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
-            out.writeOptionalEnum(elementType);
+
+            if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)
+                && out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE_8_19) == false) {
+                out.writeOptionalEnum(null);
+            }
         }
 
         @Override
@@ -193,7 +209,22 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             if (maxInputTokens != null) {
                 builder.field(MAX_INPUT_TOKENS, maxInputTokens);
             }
+
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            TextEmbeddingSettings that = (TextEmbeddingSettings) o;
+            return similarityMeasure == that.similarityMeasure
+                && Objects.equals(dimensions, that.dimensions)
+                && Objects.equals(maxInputTokens, that.maxInputTokens);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(similarityMeasure, dimensions, maxInputTokens);
         }
     }
 
@@ -300,7 +331,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return textEmbeddingSettings.elementType;
+        return responseJsonParser.getEmbeddingType().toElementType();
     }
 
     public Integer getMaxInputTokens() {

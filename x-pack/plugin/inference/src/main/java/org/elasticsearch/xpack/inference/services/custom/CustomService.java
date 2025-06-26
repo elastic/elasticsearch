@@ -333,12 +333,7 @@ public class CustomService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         return new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                similarityToUse,
-                embeddingSize,
-                serviceSettings.getMaxInputTokens(),
-                serviceSettings.elementType()
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(similarityToUse, embeddingSize, serviceSettings.getMaxInputTokens(), null),
             serviceSettings.getUrl(),
             serviceSettings.getHeaders(),
             serviceSettings.getQueryParameters(),

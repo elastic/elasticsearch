@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.InputTypeTranslator;
@@ -60,13 +60,13 @@ public class CustomRequestTests extends ESTestCase {
                 SimilarityMeasure.DOT_PRODUCT,
                 dims,
                 maxInputTokens,
-                DenseVectorFieldMapper.ElementType.FLOAT
+                CustomServiceEmbeddingType.FLOAT
             ),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -129,7 +129,7 @@ public class CustomRequestTests extends ESTestCase {
                 )
             ),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -186,13 +186,13 @@ public class CustomRequestTests extends ESTestCase {
                 SimilarityMeasure.DOT_PRODUCT,
                 dims,
                 maxInputTokens,
-                DenseVectorFieldMapper.ElementType.FLOAT
+                CustomServiceEmbeddingType.FLOAT
             ),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings"),
+            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000)
         );
 

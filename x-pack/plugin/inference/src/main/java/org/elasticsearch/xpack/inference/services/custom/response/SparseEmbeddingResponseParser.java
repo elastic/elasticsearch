@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class SparseEmbeddingResponseParser extends BaseCustomResponseParser<SparseEmbeddingResults> {
+public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
 
     public static final String NAME = "sparse_embedding_response_parser";
     public static final String SPARSE_EMBEDDING_TOKEN_PATH = "token_path";

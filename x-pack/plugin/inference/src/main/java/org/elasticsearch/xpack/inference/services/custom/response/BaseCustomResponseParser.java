@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-public abstract class BaseCustomResponseParser<T extends InferenceServiceResults> implements CustomResponseParser {
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.checkByteBounds;
+
+public abstract class BaseCustomResponseParser implements CustomResponseParser {
 
     @Override
     public InferenceServiceResults parse(HttpResult response) throws IOException {
@@ -36,7 +38,7 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
         }
     }
 
-    protected abstract T transform(Map<String, Object> extractedField);
+    protected abstract InferenceServiceResults transform(Map<String, Object> extractedField);
 
     static List<?> validateList(Object obj, String fieldName) {
         validateNonNull(obj, fieldName);
@@ -95,6 +97,21 @@ public abstract class BaseCustomResponseParser<T extends InferenceServiceResults
 
     static Float toFloat(Object obj, String fieldName) {
         return toNumber(obj, fieldName).floatValue();
+    }
+
+    static List<Byte> convertToListOfBits(Object obj, String fieldName) {
+        return convertToListOfBytes(obj, fieldName);
+    }
+
+    static List<Byte> convertToListOfBytes(Object obj, String fieldName) {
+        return castList(validateList(obj, fieldName), BaseCustomResponseParser::toByte, fieldName);
+    }
+
+    static Byte toByte(Object obj, String fieldName) {
+        var shortValue = toNumber(obj, fieldName).shortValue();
+        checkByteBounds(shortValue);
+
+        return (byte) shortValue;
     }
 
     private static Number toNumber(Object obj, String fieldName) {

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -223,7 +222,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     private static CustomModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure) {
         return createInternalEmbeddingModel(
             similarityMeasure,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             "http://www.abc.com"
         );
     }
@@ -244,7 +243,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, DenseVectorFieldMapper.ElementType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, CustomServiceEmbeddingType.FLOAT),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -271,7 +270,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, DenseVectorFieldMapper.ElementType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, CustomServiceEmbeddingType.FLOAT),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -318,7 +317,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJson));
 
-            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            var model = createInternalEmbeddingModel(
+                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                getUrl(webServer)
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -373,7 +375,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+            var model = createInternalEmbeddingModel(
+                new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+                getUrl(webServer)
+            );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -653,7 +658,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = createInternalEmbeddingModel(
             SimilarityMeasure.DOT_PRODUCT,
-            new TextEmbeddingResponseParser("$.data[*].embedding"),
+            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
             getUrl(webServer),
             ChunkingSettingsTests.createRandomChunkingSettings(),
             2
@@ -738,7 +743,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = createInternalEmbeddingModel(new TextEmbeddingResponseParser("$.data[*].embedding"), getUrl(webServer));
+        var model = createInternalEmbeddingModel(
+            new TextEmbeddingResponseParser("$.data[*].embedding", CustomServiceEmbeddingType.FLOAT),
+            getUrl(webServer)
+        );
         String responseJson = """
             {
               "object": "list",

@@ -9,16 +9,22 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link ClassFileTransformer} that applies an {@link Instrumenter} to the appropriate classes.
  */
 public class Transformer implements ClassFileTransformer {
+    private static final Logger logger = LogManager.getLogger(Transformer.class);
     private final Instrumenter instrumenter;
     private final Set<String> classesToTransform;
+    private final AtomicBoolean hadErrors = new AtomicBoolean(false);
 
     private boolean verifyClasses;
 
@@ -33,6 +39,10 @@ public class Transformer implements ClassFileTransformer {
         this.verifyClasses = true;
     }
 
+    public boolean hadErrors() {
+        return hadErrors.get();
+    }
+
     @Override
     public byte[] transform(
         ClassLoader loader,
@@ -42,13 +52,19 @@ public class Transformer implements ClassFileTransformer {
         byte[] classfileBuffer
     ) {
         if (classesToTransform.contains(className)) {
-            // System.out.println("Transforming " + className);
-            return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
+            logger.debug("Transforming " + className);
+            try {
+                return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
+            } catch (Throwable t) {
+                hadErrors.set(true);
+                logger.error("Failed to instrument class " + className, t);
+                // throwing an exception from a transformer results in the exception being swallowed,
+                // effectively the same as returning null anyways, so we instead log it here completely
+                return null;
+            }
         } else {
-            // System.out.println("Not transforming " + className);
+            logger.trace("Not transforming " + className);
             return null;
         }
     }
-
-    // private static final Logger LOGGER = LogManager.getLogger(Transformer.class);
 }

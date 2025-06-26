@@ -46,7 +46,6 @@ tasks.named("yamlRestTest").configure {
     '^esql/191_lookup_join_text/*',
     '^esql/192_lookup_join_on_aliases/*',
     '^health/10_usage/*',
-    '^ilm/60_operation_mode/*',
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',
     '^migration/10_get_feature_upgrade_status/*',

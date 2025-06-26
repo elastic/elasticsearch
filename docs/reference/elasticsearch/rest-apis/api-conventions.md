@@ -440,9 +440,9 @@ There are currently two selector suffixes supported by {{es}} APIs:
 As an example, [search]({{es-apis}}group/endpoint-search), [field capabilities]({{es-apis}}operation/operation-field-caps), and [index stats]({{es-apis}}operation/operation-indices-stats) APIs can all report results from a different component rather than from the default data.
 
 ```console
-# Search for regular data on a data stream
+# Search a data stream normally
 GET my-data-stream/_search
-# Search for failure data in a data stream
+# Search a data stream's failure data if present
 GET my-data-stream::failures/_search
 
 # Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)

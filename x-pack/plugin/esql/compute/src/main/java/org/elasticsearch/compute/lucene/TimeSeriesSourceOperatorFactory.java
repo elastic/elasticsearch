@@ -27,7 +27,7 @@ import java.util.function.Function;
  * in order to read tsdb indices in parallel.
  */
 public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
-
+    private final List<? extends ShardContext> contexts;
     private final int maxPageSize;
 
     private TimeSeriesSourceOperatorFactory(
@@ -47,12 +47,13 @@ public class TimeSeriesSourceOperatorFactory extends LuceneOperator.Factory {
             false,
             ScoreMode.COMPLETE_NO_SCORES
         );
+        this.contexts = contexts;
         this.maxPageSize = maxPageSize;
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        return new TimeSeriesSourceOperator(driverContext.blockFactory(), sliceQueue, maxPageSize, limit);
+        return new TimeSeriesSourceOperator(contexts, driverContext.blockFactory(), sliceQueue, maxPageSize, limit);
     }
 
     @Override

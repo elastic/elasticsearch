@@ -27,6 +27,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("logsdb")
         .distribution(DistributionType.DEFAULT)
         .user(USER, PASS, "superuser", false)
         .setting("xpack.security.autoconfiguration.enabled", "false")

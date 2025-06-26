@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +40,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -57,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -68,9 +74,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -121,10 +130,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     private static final String OLD_MODEL_ID_FIELD_NAME = "model_version";
 
     private final Settings settings;
+    private final ThreadPool threadPool;
+    private final RetrySettings retrySettings;
 
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(context);
         this.settings = context.settings();
+        this.threadPool = context.threadPool();
+        this.retrySettings = new RetrySettings(context.settings(), context.clusterService());
     }
 
     // for testing
@@ -134,6 +147,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     ) {
         super(context, platformArch);
         this.settings = context.settings();
+        this.threadPool = context.threadPool();
+        this.retrySettings = new RetrySettings(context.settings(), context.clusterService());
     }
 
     @Override
@@ -1131,9 +1146,149 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             if (maybeDeploy) {
                 listener = listener.delegateResponse((l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, l));
             }
-            client.execute(InferModelAction.INSTANCE, inferenceRequest, listener);
+
+            new BatchExecutor(retrySettings.getInitialDelay(), retrySettings.getTimeout(), inferenceRequest, listener, inferenceExecutor)
+                .run();
         }
     }
+
+    private static final Set<RestStatus> RETRYABLE_STATUS = Set.of(
+        RestStatus.INTERNAL_SERVER_ERROR,
+        RestStatus.TOO_MANY_REQUESTS,
+        RestStatus.REQUEST_TIMEOUT
+    );
+
+    private class BatchExecutor extends RetryableAction<InferModelAction.Response> {
+        private final RetryState state;
+
+        BatchExecutor(
+            TimeValue initialDelay,
+            TimeValue timeoutValue,
+            InferModelAction.Request request,
+            ActionListener<InferModelAction.Response> listener,
+            Executor executor
+        ) {
+            this(initialDelay, timeoutValue, new RetryState(request), listener, executor);
+        }
+
+        private BatchExecutor(
+            TimeValue initialDelay,
+            TimeValue timeoutValue,
+            RetryState state,
+            ActionListener<InferModelAction.Response> listener,
+            Executor executor
+        ) {
+            super(logger, threadPool, initialDelay, timeoutValue, new ActionListener<>() {
+                @Override
+                public void onResponse(InferModelAction.Response response) {
+                    listener.onResponse(state.getAccumulatedResponse(null));
+                }
+
+                @Override
+                public void onFailure(Exception exc) {
+                    if (state.hasPartialResponse()) {
+                        listener.onResponse(state.getAccumulatedResponse(exc instanceof RetryableException ? null : exc));
+                    } else {
+                        listener.onFailure(exc);
+                    }
+                }
+            }, executor);
+            this.state = state;
+        }
+
+        @Override
+        public void tryAction(ActionListener<InferModelAction.Response> listener) {
+            client.execute(InferModelAction.INSTANCE, state.getCurrentRequest(), new ActionListener<>() {
+                @Override
+                public void onResponse(InferModelAction.Response response) {
+                    if (state.consumeResponse(response)) {
+                        listener.onResponse(response);
+                    } else {
+                        listener.onFailure(new RetryableException());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception exc) {
+                    listener.onFailure(exc);
+                }
+            });
+        }
+
+        @Override
+        public boolean shouldRetry(Exception exc) {
+            return exc instanceof RetryableException
+                || RETRYABLE_STATUS.contains(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc)));
+        }
+    }
+
+    private static class RetryState {
+        private final InferModelAction.Request originalRequest;
+        private InferModelAction.Request currentRequest;
+
+        private IntUnaryOperator currentToOriginalIndex;
+        private final AtomicArray<InferenceResults> inferenceResults;
+        private final AtomicBoolean hasPartialResponse;
+
+        private RetryState(InferModelAction.Request originalRequest) {
+            this.originalRequest = originalRequest;
+            this.currentRequest = originalRequest;
+            this.currentToOriginalIndex = index -> index;
+            this.inferenceResults = new AtomicArray<>(originalRequest.getTextInput().size());
+            this.hasPartialResponse = new AtomicBoolean();
+        }
+
+        boolean hasPartialResponse() {
+            return hasPartialResponse.get();
+        }
+
+        InferModelAction.Request getCurrentRequest() {
+            return currentRequest;
+        }
+
+        InferModelAction.Response getAccumulatedResponse(@Nullable Exception exc) {
+            List<InferenceResults> finalResults = new ArrayList<>();
+            for (int i = 0; i < inferenceResults.length(); i++) {
+                var result = inferenceResults.get(i);
+                if (exc != null && result instanceof ErrorInferenceResults) {
+                    finalResults.add(new ErrorInferenceResults(exc));
+                } else {
+                    finalResults.add(result);
+                }
+            }
+            return new InferModelAction.Response(finalResults, originalRequest.getId(), originalRequest.isPreviouslyLicensed());
+        }
+
+        private boolean consumeResponse(InferModelAction.Response response) {
+            hasPartialResponse.set(true);
+            List<String> retryInputs = new ArrayList<>();
+            IntIntHashMap newIndexMap = new IntIntHashMap();
+            for (int i = 0; i < response.getInferenceResults().size(); i++) {
+                var result = response.getInferenceResults().get(i);
+                int index = currentToOriginalIndex.applyAsInt(i);
+                inferenceResults.set(index, result);
+                if (result instanceof ErrorInferenceResults error
+                    && RETRYABLE_STATUS.contains(ExceptionsHelper.status(ExceptionsHelper.unwrapCause(error.getException())))) {
+                    newIndexMap.put(retryInputs.size(), index);
+                    retryInputs.add(originalRequest.getTextInput().get(index));
+                }
+            }
+            if (retryInputs.isEmpty()) {
+                return true;
+            }
+            currentRequest = InferModelAction.Request.forTextInput(
+                originalRequest.getId(),
+                originalRequest.getUpdate(),
+                retryInputs,
+                originalRequest.isPreviouslyLicensed(),
+                originalRequest.getInferenceTimeout()
+            );
+            currentToOriginalIndex = newIndexMap::get;
+            return false;
+        }
+    }
+
+    private static class RetryableException extends Exception {}
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {

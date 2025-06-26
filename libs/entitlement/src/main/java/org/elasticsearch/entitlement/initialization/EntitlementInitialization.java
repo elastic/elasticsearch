@@ -75,7 +75,7 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) {
         try {
             manager = initChecker();
-            
+
             var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
             if (verifyBytecode) {
                 ensureClassesSensitiveToVerificationAreInitialized();

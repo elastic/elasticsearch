@@ -162,8 +162,13 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             }
             double weightedAverageShardWriteLoad = totalShardWriteLoad / totalShardUptimeInMillis;
             double totalIndexWriteLoad = weightedAverageShardWriteLoad * writeLoad.numberOfShards();
-            // We assume the index shards for a single index lived for approximately the same amount of time,
-            // so it's safe to weigh the index write load by the max shard uptime
+            // We need to weight the contribution from each index somehow, but we only know
+            // the write-load from the final allocation of each shard at rollover time. It's
+            // possible the index is much older than any of those shards, but we don't have
+            // any write-load data beyond their lifetime.
+            // To avoid making assumptions about periods for which we have no data, we'll weight
+            // each index's contribution to the forecast by the maximum shard uptime observed in
+            // that index.
             allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
             allIndicesUptime += maxShardUptimeInMillis;
         }

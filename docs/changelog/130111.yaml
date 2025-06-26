@@ -1,0 +1,5 @@
+pr: 130111
+summary: Plug TopN agg groupings filtering into the language
+area: ES|QL
+type: enhancement
+issues: []

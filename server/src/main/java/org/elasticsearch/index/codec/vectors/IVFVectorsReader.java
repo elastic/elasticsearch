@@ -292,9 +292,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
 
-            NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);;
+            NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
+            ;
             int parentsToExplore = 0;
-            while(parentCentroidQueue.size() > 0 && parentsToExplore < parentCentroidQueryScorer.size() * 0.5) {
+            while (parentCentroidQueue.size() > 0 && parentsToExplore < parentCentroidQueryScorer.size() * 0.5) {
                 int parentCentroidOrdinal = parentCentroidQueue.pop();
 
                 int childCentroidOrdinal;
@@ -310,7 +311,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 // FIXME: modify scorePostingLists to take a queue instead of creating one
                 centroidQueryScorer.bulkScore(centroidQueue, childCentroidOrdinal, childCentroidOrdinal + childCentroidCount);
 
-                if(parentCentroidOrdinal == -1) {
+                if (parentCentroidOrdinal == -1) {
                     break;
                 }
 

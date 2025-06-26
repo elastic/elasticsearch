@@ -379,8 +379,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
                     @Override
                     protected BytesRef toBytesRef(Object v) {
-                        if (v instanceof BytesRef) {
-                            return (BytesRef) v;
+                        if (v instanceof BytesRef b) {
+                            return b;
                         } else {
                             return BlockSourceReader.toBytesRef(scratch, (String) v);
                         }

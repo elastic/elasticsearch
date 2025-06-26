@@ -423,19 +423,20 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         );
 
         IndexMetadata originalWriteIndexMetadata = originalMetadata.getSafe(originalMetadata.dataStream(dataStreamName).getWriteIndex());
-        IndexMetadata moreShardsWriteIndexMetadata = changedShardCountMetadata.getSafe(
+        IndexMetadata changedShardCountWriteIndexMetadata = changedShardCountMetadata.getSafe(
             changedShardCountMetadata.dataStream(dataStreamName).getWriteIndex()
         );
 
         // The shard count changed
         assertThat(
-            moreShardsWriteIndexMetadata.getNumberOfShards(),
+            changedShardCountWriteIndexMetadata.getNumberOfShards(),
             shardCountChange.expectedChangeFromOriginal(originalWriteIndexMetadata.getNumberOfShards())
         );
         // But the total write-load did not
         assertThat(
-            moreShardsWriteIndexMetadata.getNumberOfShards() * writeLoadForecaster.getForecastedWriteLoad(moreShardsWriteIndexMetadata)
-                .getAsDouble(),
+            changedShardCountWriteIndexMetadata.getNumberOfShards() * writeLoadForecaster.getForecastedWriteLoad(
+                changedShardCountWriteIndexMetadata
+            ).getAsDouble(),
             closeTo(
                 originalWriteIndexMetadata.getNumberOfShards() * writeLoadForecaster.getForecastedWriteLoad(originalWriteIndexMetadata)
                     .getAsDouble(),

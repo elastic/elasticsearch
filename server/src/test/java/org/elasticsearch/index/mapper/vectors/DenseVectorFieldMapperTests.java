@@ -125,12 +125,18 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.startObject("rescore_vector");
                 b.field("oversample", DEFAULT_OVERSAMPLE);
                 b.endObject();
+                if (indexVersion.onOrAfter(DenseVectorFieldMapper.EXPOSE_EARLY_TERMINATION)) {
+                    b.field("early_termination", false);
+                }
                 b.endObject();
             } else {
                 b.startObject("index_options");
                 b.field("type", "int8_hnsw");
                 b.field("m", 16);
                 b.field("ef_construction", 100);
+                if (indexVersion.onOrAfter(DenseVectorFieldMapper.EXPOSE_EARLY_TERMINATION)) {
+                    b.field("early_termination", false);
+                }
                 b.endObject();
             }
         }

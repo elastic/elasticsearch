@@ -151,13 +151,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
-    @After
-    public void wipeInferenceEndpoints() throws IOException {
-        if (supportsAsync()) {
-            deleteInferenceEndpoints(adminClient());
-        }
-    }
-
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
@@ -168,6 +161,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+
+        deleteInferenceEndpoints(adminClient());
     }
 
     public boolean logResults() {

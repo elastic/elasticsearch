@@ -29,9 +29,9 @@ public class RestExecuteWatchActionTests extends ESTestCase {
 
     public void testThatFlagsCanBeSpecifiedViaParameters() throws Exception {
         String randomId = randomAlphaOfLength(10);
-        for (String recordExecution : Arrays.asList("true", "false")) {
-            for (String ignoreCondition : Arrays.asList("true", "false")) {
-                for (String debugCondition : Arrays.asList("true", "false")) {
+        for (String recordExecution : Arrays.asList("true", "false", null)) {
+            for (String ignoreCondition : Arrays.asList("true", "false", null)) {
+                for (String debugCondition : Arrays.asList("true", "false", null)) {
 
                     ExecuteWatchRequest request = RestExecuteWatchAction.parseRequest(
                         createFakeRestRequest(randomId, recordExecution, ignoreCondition, debugCondition),
@@ -39,9 +39,9 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                     );
 
                     assertThat(request.getId(), is(randomId));
-                    assertThat(request.isRecordExecution(), is(Booleans.parseBoolean(recordExecution)));
-                    assertThat(request.isIgnoreCondition(), is(Booleans.parseBoolean(ignoreCondition)));
-                    assertThat(request.isDebug(), is(Booleans.parseBoolean(debugCondition)));
+                    assertThat(request.isRecordExecution(), is(Booleans.parseBoolean(recordExecution, false)));
+                    assertThat(request.isIgnoreCondition(), is(Booleans.parseBoolean(ignoreCondition, false)));
+                    assertThat(request.isDebug(), is(Booleans.parseBoolean(debugCondition, false)));
                 }
             }
         }

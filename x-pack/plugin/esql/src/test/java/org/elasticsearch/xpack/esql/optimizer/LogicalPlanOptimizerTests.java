@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -7342,12 +7341,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testFunctionNamedParamsAsFunctionArgument1() {
         var query = """
             from test
-            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
+            | WHERE MATCH(first_name, last_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
         var plan = optimizedPlan(query);
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
-        MultiMatch match = as(filter.condition(), MultiMatch.class);
+        Match match = as(filter.condition(), Match.class);
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);

@@ -7,30 +7,11 @@
     {
       "params" : [
         {
-          "name" : "query",
-          "type" : "boolean",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
           "name" : "fields",
           "type" : "boolean",
           "optional" : false,
           "description" : "Fields to use for matching"
         },
-        {
-          "name" : "options",
-          "type" : "function_named_parameters",
-          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
-          "optional" : true,
-          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
-        }
-      ],
-      "variadic" : true,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
         {
           "name" : "query",
           "type" : "boolean",
@@ -38,10 +19,29 @@
           "description" : "Value to find in the provided fields."
         },
         {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
           "name" : "fields",
-          "type" : "keyword",
+          "type" : "boolean",
           "optional" : false,
           "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -56,6 +56,12 @@
     },
     {
       "params" : [
+        {
+          "name" : "fields",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Fields to use for matching"
+        },
         {
           "name" : "query",
           "type" : "date",
@@ -63,35 +69,29 @@
           "description" : "Value to find in the provided fields."
         },
         {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
           "name" : "fields",
           "type" : "date",
           "optional" : false,
           "description" : "Fields to use for matching"
         },
         {
-          "name" : "options",
-          "type" : "function_named_parameters",
-          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
-          "optional" : true,
-          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
-        }
-      ],
-      "variadic" : true,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
           "name" : "query",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
-          "name" : "fields",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -106,12 +106,6 @@
     },
     {
       "params" : [
-        {
-          "name" : "query",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
         {
           "name" : "fields",
           "type" : "date_nanos",
@@ -119,29 +113,35 @@
           "description" : "Fields to use for matching"
         },
         {
-          "name" : "options",
-          "type" : "function_named_parameters",
-          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
-          "optional" : true,
-          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
-        }
-      ],
-      "variadic" : true,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
           "name" : "query",
           "type" : "date_nanos",
           "optional" : false,
           "description" : "Value to find in the provided fields."
         },
         {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
           "name" : "fields",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -157,16 +157,16 @@
     {
       "params" : [
         {
-          "name" : "query",
-          "type" : "double",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
           "name" : "fields",
           "type" : "double",
           "optional" : false,
           "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -182,16 +182,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -207,16 +207,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -232,16 +232,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -257,16 +257,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -282,16 +282,16 @@
     {
       "params" : [
         {
-          "name" : "query",
-          "type" : "integer",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
           "name" : "fields",
           "type" : "integer",
           "optional" : false,
           "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -307,16 +307,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -332,18 +332,18 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "integer",
+          "optional" : false,
+          "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "long",
           "optional" : false,
           "description" : "Value to find in the provided fields."
         },
         {
-          "name" : "fields",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Fields to use for matching"
-        },
-        {
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
@@ -356,6 +356,12 @@
     },
     {
       "params" : [
+        {
+          "name" : "fields",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Fields to use for matching"
+        },
         {
           "name" : "query",
           "type" : "ip",
@@ -363,12 +369,6 @@
           "description" : "Value to find in the provided fields."
         },
         {
-          "name" : "fields",
-          "type" : "ip",
-          "optional" : false,
-          "description" : "Fields to use for matching"
-        },
-        {
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
@@ -382,30 +382,11 @@
     {
       "params" : [
         {
-          "name" : "query",
-          "type" : "ip",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
           "name" : "fields",
-          "type" : "keyword",
+          "type" : "ip",
           "optional" : false,
           "description" : "Fields to use for matching"
         },
-        {
-          "name" : "options",
-          "type" : "function_named_parameters",
-          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
-          "optional" : true,
-          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
-        }
-      ],
-      "variadic" : true,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
         {
           "name" : "query",
           "type" : "keyword",
@@ -413,10 +394,29 @@
           "description" : "Value to find in the provided fields."
         },
         {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for MultiMatch, passed as <<esql-function-named-params,function named parameters>>.\"  See <<query-dsl-multi-match-query,multi-match query>> for more information."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
           "name" : "fields",
           "type" : "keyword",
           "optional" : false,
           "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -432,16 +432,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -457,16 +457,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -482,16 +482,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -506,12 +506,6 @@
     },
     {
       "params" : [
-        {
-          "name" : "query",
-          "type" : "long",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
         {
           "name" : "fields",
           "type" : "long",
@@ -519,6 +513,12 @@
           "description" : "Fields to use for matching"
         },
         {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
+        },
+        {
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
@@ -532,16 +532,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "text",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -557,16 +557,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -582,16 +582,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -607,16 +607,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -632,16 +632,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -656,12 +656,6 @@
     },
     {
       "params" : [
-        {
-          "name" : "query",
-          "type" : "unsigned_long",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
         {
           "name" : "fields",
           "type" : "unsigned_long",
@@ -669,6 +663,12 @@
           "description" : "Fields to use for matching"
         },
         {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
+        },
+        {
           "name" : "options",
           "type" : "function_named_parameters",
           "mapParams" : "{name='fuzziness', values=[AUTO, 1, 2], description='Maximum edit distance allowed for matching.'}, {name='auto_generate_synonyms_phrase_query', values=[true, false], description='If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.'}, {name='minimum_should_match', values=[2], description='Minimum number of clauses that must match for a document to be returned.'}, {name='fuzzy_transpositions', values=[true, false], description='If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). Defaults to true.'}, {name='tie_breaker', values=[0], description='Controls how score is blended together between field groups. Defaults to 0 (best score from each group).'}, {name='type', values=['best_fields'], description='Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, `cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. See <<multi-match-types,multi_match types>>.'}, {name='lenient', values=[true, false], description='If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to true.'}, {name='operator', values=[AND, OR], description='Boolean logic used to interpret text in the query value. Defaults to OR.'}, {name='max_expansions', values=[50], description='Maximum number of terms to which the query will expand. Defaults to 50.'}, {name='analyzer', values=[standard], description='Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.'}, {name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query.'}, {name='fuzzy_rewrite', values=[constant_score_blended, constant_score, constant_score_boolean, top_terms_blended_freqs_N, top_terms_boost_N, top_terms_N], description='Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.'}, {name='prefix_length', values=[1], description='Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.'}",
@@ -682,16 +682,16 @@
     {
       "params" : [
         {
-          "name" : "query",
+          "name" : "fields",
           "type" : "version",
           "optional" : false,
-          "description" : "Value to find in the provided fields."
+          "description" : "Fields to use for matching"
         },
         {
-          "name" : "fields",
+          "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Fields to use for matching"
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",
@@ -707,16 +707,16 @@
     {
       "params" : [
         {
-          "name" : "query",
-          "type" : "version",
-          "optional" : false,
-          "description" : "Value to find in the provided fields."
-        },
-        {
           "name" : "fields",
           "type" : "version",
           "optional" : false,
           "description" : "Fields to use for matching"
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Value to find in the provided fields."
         },
         {
           "name" : "options",

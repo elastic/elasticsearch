@@ -21,7 +21,6 @@ public class FullTextWritables {
 
         entries.add(QueryString.ENTRY);
         entries.add(Match.ENTRY);
-        entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
         entries.add(MatchPhrase.ENTRY);
 

@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
@@ -2896,11 +2895,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testFunctionNamedParamsAsFunctionArgument2() {
         LogicalPlan plan = analyze("""
             from test
-            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 3.0})
+            | WHERE MATCH(first_name, last_name, "Anna Smith", {"minimum_should_match": 3.0})
             """);
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
-        MultiMatch mm = as(filter.condition(), MultiMatch.class);
+        Match mm = as(filter.condition(), Match.class);
         MapExpression me = as(mm.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);

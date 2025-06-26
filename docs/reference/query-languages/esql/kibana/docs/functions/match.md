@@ -6,5 +6,5 @@ Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Quer
 
 ```esql
 FROM books
-| WHERE MATCH(author, "Faulkner")
+| WHERE MATCH(author, description, "Faulkner")
 ```

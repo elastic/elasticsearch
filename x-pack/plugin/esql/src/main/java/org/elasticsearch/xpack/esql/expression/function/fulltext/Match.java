@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -39,6 +37,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -48,19 +47,24 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
-import static org.elasticsearch.index.query.MatchQueryBuilder.LENIENT_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
-import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.BOOST_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.OPERATOR_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.SLOP_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TIE_BREAKER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TYPE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -112,27 +116,31 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         UNSIGNED_LONG,
         VERSION
     );
-
-    protected final Expression field;
-
-    // Options for match function. They don’t need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
-
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, DataType> OPTIONS = Map.ofEntries(
+        entry(BOOST_FIELD.getPreferredName(), FLOAT),
+        entry(SLOP_FIELD.getPreferredName(), INTEGER),
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
-        entry(Fuzziness.FIELD.getPreferredName(), KEYWORD),
-        entry(BOOST_FIELD.getPreferredName(), FLOAT),
-        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
+        entry(FUZZINESS_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZY_REWRITE_FIELD.getPreferredName(), KEYWORD),
+        entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
         entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
         entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
         entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), KEYWORD),
         entry(OPERATOR_FIELD.getPreferredName(), KEYWORD),
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
+        entry(TIE_BREAKER_FIELD.getPreferredName(), FLOAT),
+        entry(TYPE_FIELD.getPreferredName(), KEYWORD),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
 
+    private static final Set<String> MULTIMATCH_SPECIFIC_OPTIONS = Set.of(
+        SLOP_FIELD.getPreferredName(),
+        TIE_BREAKER_FIELD.getPreferredName(),
+        TYPE_FIELD.getPreferredName()
+    );
+
+    // TODO: update descriptions and comments.
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = {
@@ -160,15 +168,15 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     public Match(
         Source source,
         @Param(
-            name = "field",
-            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Field that the query will target."
-        ) Expression field,
+            name = "fields",
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "text", "unsigned_long", "version" },
+            description = "Fields to use for matching"
+        ) List<Expression> fields,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
-        ) Expression matchQuery,
+            description = "Value to find in the provided fields."
+        ) Expression query,
         @MapParam(
             name = "options",
             description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>.",
@@ -224,7 +232,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     type = "boolean",
                     valueHint = { "true", "false" },
                     description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
-                        + "Defaults to false."
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",
@@ -251,6 +259,20 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     description = "Number of beginning characters left unchanged for fuzzy matching. Defaults to 0."
                 ),
                 @MapParam.MapParamEntry(
+                    name = "tie_breaker",
+                    type = "float",
+                    valueHint = { "0" },
+                    description = "Controls how score is blended together between field groups. Defaults to 0 (best score from each group)."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "type",
+                    type = "object",
+                    valueHint = { "'best_fields'" },
+                    description = "Controls the way multi_match is executed internally. Can be one of `best_fields`, `most_fields`, "
+                        + "`cross_fields`, `phrase`, `phrase_prefix` or `bool_prefix`. Defaults to 'best_fields'. "
+                        + "See <<multi-match-types,multi_match types>>."
+                ),
+                @MapParam.MapParamEntry(
                     name = "zero_terms_query",
                     type = "keyword",
                     valueHint = { "none", "all" },
@@ -260,13 +282,33 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             optional = true
         ) Expression options
     ) {
-        this(source, field, matchQuery, options, null);
+        this(source, fields, query, options, null);
     }
 
-    public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
-        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder);
-        this.field = field;
-        this.options = options;
+    // Due to current limitations, the options field may contain a field, in which case treat it as a field, and use "null" for actual
+    // options. We also remember the originally supplied arguments in order to make tests happy.
+    private final transient List<Expression> fields;
+    private final transient List<Expression> fieldsOriginal;
+    private final transient Expression options;
+    private final transient Expression optionsOriginal;
+
+    private static List<Expression> initChildren(Expression query, List<Expression> fields, Expression options) {
+        Stream<Expression> fieldsAndQuery = Stream.concat(Stream.of(query), fields.stream());
+        return (options == null ? fieldsAndQuery : Stream.concat(fieldsAndQuery, Stream.of(options))).toList();
+    }
+
+    protected Match(Source source, List<Expression> fields, Expression query, Expression options, QueryBuilder queryBuilder) {
+        super(source, query, initChildren(query, fields, options), queryBuilder);
+        this.fieldsOriginal = fields;
+        this.optionsOriginal = options;
+
+        if (options == null || options instanceof MapExpression) {
+            this.fields = fields;
+            this.options = options;
+        } else {
+            this.fields = Stream.concat(fields.stream(), Stream.of(options)).toList();
+            this.options = null;
+        }
     }
 
     @Override
@@ -276,41 +318,41 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        return new Match(source, field, query, null, queryBuilder);
+        List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        return new Match(source, fields, query, null, queryBuilder);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeNamedWriteableCollection(fields);
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
+        return resolveFields().and(resolveQuery()).and(resolveOptions(options(), THIRD)).and(checkParamCompatibility());
     }
 
-    private TypeResolution resolveField() {
-        return isNotNull(field, sourceText(), FIRST).and(
-            isType(
-                field,
-                FIELD_DATA_TYPES::contains,
-                sourceText(),
-                FIRST,
-                "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+    private TypeResolution resolveFields() {
+        return fields.stream()
+            .map(
+                (Expression field) -> isNotNull(field, sourceText(), FIRST).and(
+                    isType(
+                        field,
+                        FIELD_DATA_TYPES::contains,
+                        sourceText(),
+                        FIRST,
+                        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+                    )
+                )
             )
-        );
+            .reduce(TypeResolution::and)
+            .orElse(null);
     }
 
     private TypeResolution resolveQuery() {
@@ -324,22 +366,30 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     private TypeResolution checkParamCompatibility() {
-        DataType fieldType = field().dataType();
         DataType queryType = query().dataType();
 
-        // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD)) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
+        return fields.stream().map((Expression field) -> {
+            DataType fieldType = field.dataType();
 
-        if (fieldType.isNumeric() && queryType.isNumeric()) {
-            // When doing an unsigned long query, field must be an unsigned long
-            if ((queryType == UNSIGNED_LONG && fieldType != UNSIGNED_LONG) == false) {
+            // Field and query types should match. If the query is a string, then it can match any field type.
+            if ((fieldType == queryType) || (queryType == KEYWORD)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-        }
 
-        return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
+            if (fieldType.isNumeric() && queryType.isNumeric()) {
+                // When doing an unsigned long query, field must be an unsigned long
+                if ((queryType == UNSIGNED_LONG && fieldType != UNSIGNED_LONG) == false) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+            }
+
+            return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
+        }).reduce(TypeResolution::and).orElse(null);
+    }
+
+    @Override
+    public String functionName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -348,20 +398,17 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
+        Map<String, Object> options = new HashMap<>();
         if (options() == null) {
-            return Map.of(LENIENT_FIELD.getPreferredName(), true);
+            return options;
         }
 
-        Map<String, Object> matchOptions = new HashMap<>();
-        // Match is lenient by default to avoid failing on incompatible types
-        matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
-
-        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
-        return matchOptions;
+        Match.populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), OPTIONS);
+        return options;
     }
 
-    public Expression field() {
-        return field;
+    public List<Expression> fields() {
+        return fields;
     }
 
     public Expression options() {
@@ -370,40 +417,50 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field(), query(), options(), queryBuilder());
+        // Specifically create new instance with original arguments.
+        return NodeInfo.create(this, Match::new, fieldsOriginal, query(), optionsOriginal);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.size() > 2 ? newChildren.get(2) : null,
-            queryBuilder()
-        );
+        // "query" is the first child.
+        if (newChildren.getLast() instanceof MapExpression || newChildren.size() == children().size()) {
+            // if the last child is a MapExpression, it is the options map
+            return new Match(
+                source(),
+                newChildren.subList(1, newChildren.size() - 1),
+                newChildren.getFirst(),
+                newChildren.getLast(),
+                queryBuilder()
+            );
+        }
+
+        return new Match(source(), newChildren.subList(1, newChildren.size()), newChildren.getFirst(), null, queryBuilder());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Match(source(), field, query(), options(), queryBuilder);
+        // Specifically create new instance with original arguments.
+        return new Match(source(), fieldsOriginal, query(), optionsOriginal, queryBuilder);
     }
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            plan.forEachExpression(Match.class, m -> {
-                if (m.fieldAsFieldAttribute() == null) {
-                    failures.add(
-                        Failure.fail(
-                            m.field(),
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                            functionName(),
-                            functionType(),
-                            m.field().sourceText()
-                        )
-                    );
+            plan.forEachExpression(Match.class, match -> {
+                for (Expression field : fields) {
+                    if (fieldAsFieldAttribute(field) == null) {
+                        failures.add(
+                            Failure.fail(
+                                field,
+                                "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                                functionName(),
+                                functionType(),
+                                field.sourceText()
+                            )
+                        );
+                    }
                 }
             });
         };
@@ -437,15 +494,23 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        var fieldAttribute = fieldAsFieldAttribute();
-        Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
-    }
+        Map<String, Float> fieldsWithBoost = new HashMap<>();
+        for (Expression field : fields) {
+            var fieldAttribute = fieldAsFieldAttribute(field);
+            Check.notNull(fieldAttribute, "Match must have field attributes as arguments #1 to #N-1.");
+            String fieldName = getNameFromFieldAttribute(fieldAttribute);
+            fieldsWithBoost.put(fieldName, 1.0f);
+        }
 
-    private FieldAttribute fieldAsFieldAttribute() {
-        return fieldAsFieldAttribute(field);
+        var options = matchQueryOptions();
+        if (fieldsWithBoost.size() != 1 || options.keySet().stream().anyMatch(MULTIMATCH_SPECIFIC_OPTIONS::contains)) {
+            // For 0 or 2+ fields, or with multimatch-specific options, translate to multi_match.
+            return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, options);
+        } else {
+            // Translate to Match when having exactly one field.
+            options.put(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), true);
+            return new MatchQuery(source(), fieldsWithBoost.keySet().stream().findFirst().get(), queryAsObject(), options);
+        }
     }
 
     @Override
@@ -454,13 +519,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         // ignore options when comparing two Match functions
         if (o == null || getClass() != o.getClass()) return false;
         Match match = (Match) o;
-        return Objects.equals(field(), match.field())
+        return Objects.equals(fields(), match.fields())
             && Objects.equals(query(), match.query())
             && Objects.equals(queryBuilder(), match.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(fields(), query(), queryBuilder());
     }
 }

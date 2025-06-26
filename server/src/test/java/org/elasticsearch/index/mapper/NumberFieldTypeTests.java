@@ -201,7 +201,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
 
         for (OutOfRangeTermQueryTestCase testCase : testCases) {
-            assertTrue(testCase.type.termQuery("field", testCase.value, randomBoolean()) instanceof MatchNoDocsQuery);
+            assertTrue(testCase.type.termQuery("field", testCase.value, randomBoolean(), randomBoolean()) instanceof MatchNoDocsQuery);
         }
     }
 
@@ -625,6 +625,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
+        final boolean hasDocValues = randomBoolean();
         assertEquals(
             NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
             NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
@@ -638,9 +639,18 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
 
-        assertNotEquals(NumberType.DOUBLE.termQuery("field", -0d, isIndexed), NumberType.DOUBLE.termQuery("field", +0d, isIndexed));
-        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, isIndexed), NumberType.FLOAT.termQuery("field", +0f, isIndexed));
-        assertNotEquals(NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed), NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed));
+        assertNotEquals(
+            NumberType.DOUBLE.termQuery("field", -0d, isIndexed, hasDocValues),
+            NumberType.DOUBLE.termQuery("field", +0d, isIndexed, hasDocValues)
+        );
+        assertNotEquals(
+            NumberType.FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
+            NumberType.FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+        );
+        assertNotEquals(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+        );
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match

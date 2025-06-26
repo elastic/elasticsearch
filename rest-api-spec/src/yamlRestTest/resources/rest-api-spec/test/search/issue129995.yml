@@ -1,0 +1,121 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                id:
+                  type: keyword
+                long_no_dv:
+                  type: long
+                  doc_values: false
+                long_dv:
+                  type: long
+                  doc_values: true
+                scaled_float_no_dv:
+                  type: scaled_float
+                  doc_values: false
+                  scaling_factor: 1.0
+                scaled_float_dv:
+                  type: scaled_float
+                  doc_values: true
+                  scaling_factor: 1.0
+
+  - do:
+      index:
+          index:  test
+          body:
+              id: "1"
+              long_no_dv: 1
+
+  - do:
+      index:
+          index:  test
+          body:
+              id: "2"
+              long_dv: 2
+
+
+  - do:
+      index:
+        index:  test
+        body:
+          id: "3"
+          scaled_float_no_dv: 3.0
+
+
+  - do:
+      index:
+        index:  test
+        body:
+          id: "4"
+          scaled_float_dv: 4.0
+
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Test exact queries on long fields with doc_values":
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+              query:
+                  match:
+                      long_dv:
+                        query: 2
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.id: "2" }
+
+---
+"Test exact queries on scaled_float fields with doc_values":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              scaled_float_dv:
+                query: 4.0
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.id: "4" }
+
+---
+"Test exact queries on long fields without doc_values":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              long_no_dv:
+                query: 1
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.id: "1" }
+
+
+---
+"Test exact queries on sacled_float fields without doc_values":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              scaled_float_no_dv:
+                query: 3.0
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.id: "3" }

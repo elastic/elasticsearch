@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -119,8 +121,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.CustomServiceFeatureFlag.CUSTOM_SERVICE_FEATURE_FLAG;
-
 public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
@@ -184,10 +184,6 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        if (CUSTOM_SERVICE_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
-
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, CustomServiceSettings.NAME, CustomServiceSettings::new)
         );
@@ -554,6 +550,9 @@ public class InferenceNamedWriteablesProvider {
 
     private static void addChunkingSettingsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, NoneChunkingSettings.NAME, in -> NoneChunkingSettings.INSTANCE)
+        );
+        namedWriteables.add(
             new NamedWriteableRegistry.Entry(ChunkingSettings.class, WordBoundaryChunkingSettings.NAME, WordBoundaryChunkingSettings::new)
         );
         namedWriteables.add(
@@ -562,6 +561,9 @@ public class InferenceNamedWriteablesProvider {
                 SentenceBoundaryChunkingSettings.NAME,
                 SentenceBoundaryChunkingSettings::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
         );
     }
 

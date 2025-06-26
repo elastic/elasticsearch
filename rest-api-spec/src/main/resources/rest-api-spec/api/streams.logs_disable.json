@@ -1,0 +1,37 @@
+{
+  "streams.logs_disable": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-logs-disable.html",
+      "description": "Disable the Logs Streams feature for this cluster"
+    },
+    "stability": "stable",
+    "visibility": "feature_flag",
+    "feature_flag": "logs_stream",
+    "headers": {
+      "accept": [
+        "application/json",
+        "text/plain"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/logs/_disable",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error."
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Period to wait for a connection to the master node. If no response is received before the timeout expires, the request fails and returns an error."
+      }
+    }
+  }
+}

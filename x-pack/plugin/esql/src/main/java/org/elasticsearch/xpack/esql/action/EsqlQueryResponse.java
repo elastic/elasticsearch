@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -29,7 +30,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -122,7 +123,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            profile = in.readOptionalWriteable(Profile::new);
+            profile = in.readOptionalWriteable(Profile::readFrom);
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
@@ -224,75 +225,67 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return executionInfo;
     }
 
-    private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
+    @Override
+    @SuppressWarnings("unchecked")
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
+        var content = new ArrayList<Iterator<? extends ToXContent>>(25);
+        content.add(ChunkedToXContentHelper.startObject());
         if (isAsync) {
-            return ChunkedToXContentHelper.chunk((builder, params) -> {
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
                 if (asyncExecutionId != null) {
                     builder.field("id", asyncExecutionId);
                 }
                 builder.field("is_running", isRunning);
                 return builder;
-            });
-        } else {
-            return Collections.emptyIterator();
+            }));
         }
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
-        boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
-
-        Iterator<ToXContent> tookTime;
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            tookTime = ChunkedToXContentHelper.chunk(
-                (builder, p) -> builder.field("took", executionInfo.overallTook().millis())
-                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
+            content.add(
+                ChunkedToXContentHelper.chunk(
+                    (builder, p) -> builder //
+                        .field("took", executionInfo.overallTook().millis())
+                        .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
+                )
             );
-        } else {
-            tookTime = Collections.emptyIterator();
         }
-
-        Iterator<ToXContent> meta = ChunkedToXContentHelper.chunk((builder, p) -> {
-            builder.field("documents_found", documentsFound);
-            builder.field("values_loaded", valuesLoaded);
-            return builder;
-        });
-
-        Iterator<? extends ToXContent> columnHeadings = dropNullColumns
-            ? Iterators.concat(
-                ResponseXContentUtils.allColumns(columns, "all_columns"),
-                ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns")
+        content.add(
+            ChunkedToXContentHelper.chunk(
+                (builder, p) -> builder //
+                    .field("documents_found", documentsFound)
+                    .field("values_loaded", valuesLoaded)
             )
-            : ResponseXContentUtils.allColumns(columns, "columns");
-        Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
-        Iterator<ToXContent> executionInfoRender = executionInfo != null && executionInfo.hasMetadataToReport()
-            ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
-            : Collections.emptyIterator();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            asyncPropertiesOrEmpty(),
-            tookTime,
-            meta,
-            columnHeadings,
-            ChunkedToXContentHelper.array("values", valuesIt),
-            executionInfoRender,
-            profileRenderer(params),
-            ChunkedToXContentHelper.endObject()
         );
-    }
-
-    private Iterator<ToXContent> profileRenderer(ToXContent.Params params) {
-        if (profile == null) {
-            return Collections.emptyIterator();
+        if (dropNullColumns) {
+            content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
+            content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
+        } else {
+            content.add(ResponseXContentUtils.allColumns(columns, "columns"));
         }
-        return Iterators.concat(ChunkedToXContentHelper.startObject("profile"), ChunkedToXContentHelper.chunk((b, p) -> {
-            if (executionInfo != null) {
-                b.field("query", executionInfo.overallTimeSpan());
-                b.field("planning", executionInfo.planningTimeSpan());
-            }
-            return b;
-        }), ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params), ChunkedToXContentHelper.endObject());
+        content.add(
+            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns))
+        );
+        if (executionInfo != null && executionInfo.hasMetadataToReport()) {
+            content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));
+        }
+        if (profile != null) {
+            content.add(ChunkedToXContentHelper.startObject("profile"));
+            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
+                if (executionInfo != null) {
+                    b.field("query", executionInfo.overallTimeSpan());
+                    b.field("planning", executionInfo.planningTimeSpan());
+                }
+                return b;
+            }));
+            content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
+            content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
+            content.add(ChunkedToXContentHelper.endObject());
+        }
+        content.add(ChunkedToXContentHelper.endObject());
+
+        return Iterators.concat(content.toArray(Iterator[]::new));
     }
 
     public boolean[] nullColumns() {
@@ -396,41 +389,23 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public static class Profile implements Writeable {
-        private final List<DriverProfile> drivers;
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
 
-        public Profile(List<DriverProfile> drivers) {
-            this.drivers = drivers;
-        }
-
-        public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+        public static Profile readFrom(StreamInput in) throws IOException {
+            return new Profile(
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+                out.writeCollection(plans);
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Profile profile = (Profile) o;
-            return Objects.equals(drivers, profile.drivers);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(drivers);
-        }
-
-        List<DriverProfile> drivers() {
-            return drivers;
         }
     }
 }

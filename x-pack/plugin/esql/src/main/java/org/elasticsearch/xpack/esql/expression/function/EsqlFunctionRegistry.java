@@ -402,16 +402,7 @@ public class EsqlFunctionRegistry {
                 def(StYMax.class, StYMax::new, "st_ymax"),
                 def(StYMin.class, StYMin::new, "st_ymin"),
                 def(StX.class, StX::new, "st_x"),
-                def(StY.class, StY::new, "st_y"),
-                def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
-                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
-                def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
-                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
-                def(StGeohex.class, StGeohex::new, "st_geohex"),
-                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
-                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") },
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -467,7 +458,8 @@ public class EsqlFunctionRegistry {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
-                def(QueryString.class, bi(QueryString::new), "qstr") } };
+                def(QueryString.class, bi(QueryString::new), "qstr"),
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
 
     }
 
@@ -488,8 +480,16 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), Score.NAME),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
-                def(Knn.class, tri(Knn::new), "knn") } };
+                def(Knn.class, tri(Knn::new), "knn"),
+                def(StGeohash.class, StGeohash::new, "st_geohash"),
+                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
+                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
+                def(StGeotile.class, StGeotile::new, "st_geotile"),
+                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
+                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
+                def(StGeohex.class, StGeohex::new, "st_geohex"),
+                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
+                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

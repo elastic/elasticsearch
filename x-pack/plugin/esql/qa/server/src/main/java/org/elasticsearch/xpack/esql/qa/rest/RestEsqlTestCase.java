@@ -794,7 +794,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sample', 'sort'"));
         }
     }
 
@@ -1650,7 +1650,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=6000s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {

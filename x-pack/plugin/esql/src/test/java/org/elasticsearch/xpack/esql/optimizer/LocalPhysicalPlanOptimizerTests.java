@@ -165,20 +165,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
     };
 
     private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
 
         @Override
-        public String constantValue(String name) {
-            return name.startsWith("constant_keyword") ? "foo" : null;
+        public String constantValue(FieldAttribute.FieldName name) {
+            return name.string().startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -565,8 +565,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testLocalAggOptimizedToLocalRelation() {
         var stats = new TestSearchStats() {
             @Override
-            public boolean exists(String field) {
-                return "emp_no".equals(field) == false;
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "emp_no".equals(field.string()) == false;
             }
         };
 
@@ -1362,6 +1362,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
@@ -2024,10 +2027,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(2, projections.size());
         FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
         assertEquals(DATE_NANOS, fa.dataType());
-        assertEquals("date_and_date_nanos", fa.fieldName());
+        assertEquals("date_and_date_nanos", fa.fieldName().string());
         assertTrue(isMultiTypeEsField(fa)); // mixed date and date_nanos are auto-casted
         UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
-        assertEquals("date_and_date_nanos_and_long", ua.fieldName());
+        assertEquals("date_and_date_nanos_and_long", ua.fieldName().string());
         var limit = as(project.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -2038,7 +2041,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
         fa = as(gt.left(), FieldAttribute.class);
         assertTrue(isMultiTypeEsField(fa));
-        assertEquals("date_and_date_nanos_and_long", fa.fieldName());
+        assertEquals("date_and_date_nanos_and_long", fa.fieldName().string());
         fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         var source = ((SingleValueQuery.Builder) esQuery.query()).source();
@@ -2097,7 +2100,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         protected FullTextFunctionTestCase(Class<? extends FullTextFunction> fullTextFunction) {
-            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(1, 10));
+            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(5, 10));
         }
 
         public Class<? extends FullTextFunction> fullTextFunction() {

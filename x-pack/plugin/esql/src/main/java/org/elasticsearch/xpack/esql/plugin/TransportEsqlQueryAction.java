@@ -339,7 +339,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = configuration.profile()
-            ? new EsqlQueryResponse.Profile(result.completionInfo().collectedProfiles())
+            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
             : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
@@ -408,7 +408,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             originHeaders,
             asyncExecutionId,
             request.keepAlive()
-        );
+        ) {
+            @Override
+            public Status getStatus() {
+                return new EsqlQueryStatus(asyncExecutionId);
+            }
+        };
     }
 
     @Override

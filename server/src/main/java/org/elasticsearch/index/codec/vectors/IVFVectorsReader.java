@@ -291,9 +291,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         while (parentCentroidQueue.size() > 0 && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
-
             NeighborQueue centroidQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-            ;
             int parentsToExplore = 0;
             while (parentCentroidQueue.size() > 0 && parentsToExplore < parentCentroidQueryScorer.size() * 0.5) {
                 int parentCentroidOrdinal = parentCentroidQueue.pop();

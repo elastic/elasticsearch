@@ -578,6 +578,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: geoip.GeoIpMultiProjectIT
+  issue: https://github.com/elastic/elasticsearch/issues/130073
 
 # Examples:
 #

@@ -109,7 +109,7 @@ public class GetDataStreamMappingsAction extends ActionType<GetDataStreamMapping
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 Iterators.single((builder, params1) -> builder.startObject().startArray("data_streams")),
-                dataStreamMappingsResponses.stream().map(DataStreamMappingsResponse -> (ToXContent) DataStreamMappingsResponse).iterator(),
+                dataStreamMappingsResponses.stream().map(dataStreamMappingsResponse -> (ToXContent) dataStreamMappingsResponse).iterator(),
                 Iterators.single((builder, params1) -> builder.endArray().endObject())
             );
         }

@@ -188,7 +188,7 @@ public class MetadataDataStreamsService {
             }
         };
         this.updateMappingsTaskQueue = clusterService.createTaskQueue(
-            "update-data-stream-settings",
+            "update-data-stream-mappings",
             Priority.NORMAL,
             updateMappingsExecutor
         );

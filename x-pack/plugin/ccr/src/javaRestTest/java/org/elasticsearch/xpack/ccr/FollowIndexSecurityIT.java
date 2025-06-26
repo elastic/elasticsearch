@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -307,6 +309,8 @@ public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
         }
     }
 
+    @Repeat(iterations = 100)
+    @SuppressForbidden(reason = "run the test multiple times on CI")
     public void testCleanShardFollowTaskAfterDeleteFollower() throws Exception {
         final String cleanLeader = "clean-leader";
         final String cleanFollower = "clean-follower";

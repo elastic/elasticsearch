@@ -163,7 +163,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         deleteInferenceEndpoints(adminClient());
-
     }
 
     public boolean logResults() {
@@ -295,13 +294,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * not to emit duplicate warnings but for now it isn't worth fighting with. So! In
      * those environments we override this to deduplicate.
      * <p>
-     *     Note: This only applies to warnings declared as {@code warning:}. Those
-     *     declared as {@code warningRegex:} are always a list of
-     *     <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
-     *     warnings. There is no need to deduplicate because there's no expectation
-     *     of an exact match.
+     * Note: This only applies to warnings declared as {@code warning:}. Those
+     * declared as {@code warningRegex:} are always a list of
+     * <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
+     * warnings. There is no need to deduplicate because there's no expectation
+     * of an exact match.
      * </p>
-     *
      */
     protected boolean deduplicateExactWarnings() {
         return false;

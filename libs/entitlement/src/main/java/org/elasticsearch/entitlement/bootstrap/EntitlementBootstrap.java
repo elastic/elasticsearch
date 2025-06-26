@@ -122,7 +122,12 @@ public class EntitlementBootstrap {
             suppressFailureLogPackages
         );
         exportInitializationToAgent();
+
         loadAgent(findAgentJar());
+
+        if (EntitlementInitialization.getError() != null) {
+            throw EntitlementInitialization.getError();
+        }
     }
 
     private static Path getUserHome() {

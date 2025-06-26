@@ -6,7 +6,7 @@
 * [`GROK`](../../commands/processing-commands.md#esql-grok)
 * [`KEEP`](../../commands/processing-commands.md#esql-keep)
 * [`LIMIT`](../../commands/processing-commands.md#esql-limit)
-* [preview] [`LOOKUP JOIN`](../../commands/processing-commands.md#esql-lookup-join)
+* [`LOOKUP JOIN`](../../commands/processing-commands.md#esql-lookup-join)
 * [preview] [`MV_EXPAND`](../../commands/processing-commands.md#esql-mv_expand)
 * [`RENAME`](../../commands/processing-commands.md#esql-rename)
 * [preview] [`SAMPLE`](../../commands/processing-commands.md#esql-sample)

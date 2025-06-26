@@ -2690,7 +2690,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
                         snapshotIds.forEach(collector::appendItem);
                         collector.finish();
-                        sb.append("] deleted in repository [");
+                        sb.append("] deleted in repository ");
                         sb.append(projectRepoString(deleteEntry.projectId(), deleteEntry.repository()));
                         return sb;
                     });

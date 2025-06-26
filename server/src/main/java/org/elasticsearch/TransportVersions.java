@@ -142,6 +142,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_6 = def(8_797_0_06);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_7 = def(8_797_0_07);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_8 = def(8_797_0_08);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_9 = def(8_797_0_09);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -190,6 +191,7 @@ public class TransportVersions {
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_1 = def(8_840_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_2 = def(8_840_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_3 = def(8_840_0_05);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_4 = def(8_840_0_06);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -244,7 +246,14 @@ public class TransportVersions {
     public static final TransportVersion SETTINGS_IN_DATA_STREAMS_8_19 = def(8_841_0_51);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19 = def(8_841_0_52);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19 = def(8_841_0_53);
-    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_54);
+    public static final TransportVersion STREAMS_LOGS_SUPPORT_8_19 = def(8_841_0_54);
+    public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19 = def(8_841_0_55);
+    public static final TransportVersion RANDOM_SAMPLER_QUERY_BUILDER_8_19 = def(8_841_0_56);
+    public static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC_8_19 = def(8_841_0_57);
+    public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = def(8_841_0_58);
+    public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19 = def(8_841_0_59);
+    public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
+    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
 
     /*
      * STOP! READ THIS FIRST! No, really,

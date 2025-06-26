@@ -61,7 +61,8 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
             dims,
             maxInputTokens,
             model,
-            RateLimitSettingsTests.createRandom()
+            RateLimitSettingsTests.createRandom(),
+            randomFrom(CohereServiceSettings.CohereApiVersion.values())
         );
     }
 
@@ -91,7 +92,17 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(url),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    model,
+                    null,
+                    CohereServiceSettings.CohereApiVersion.V2
+                )
+            )
         );
     }
 
@@ -130,7 +141,8 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     dims,
                     maxInputTokens,
                     model,
-                    new RateLimitSettings(3)
+                    new RateLimitSettings(3),
+                    CohereServiceSettings.CohereApiVersion.V2
                 )
             )
         );
@@ -154,7 +166,9 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
                     CohereServiceSettings.MODEL_ID,
-                    model
+                    model,
+                    CohereServiceSettings.API_VERSION,
+                    CohereServiceSettings.CohereApiVersion.V1.toString()
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -162,8 +176,39 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(url),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    model,
+                    null,
+                    CohereServiceSettings.CohereApiVersion.V1
+                )
+            )
         );
+    }
+
+    public void testFromMap_MissingModelId() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> CohereServiceSettings.fromMap(
+                new HashMap<>(
+                    Map.of(
+                        ServiceFields.SIMILARITY,
+                        SimilarityMeasure.DOT_PRODUCT.toString(),
+                        ServiceFields.DIMENSIONS,
+                        1536,
+                        ServiceFields.MAX_INPUT_TOKENS,
+                        512
+                    )
+                ),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(e.validationErrors().get(0), containsString("The [service_settings.model_id] field is required for the Cohere V2 API."));
     }
 
     public void testFromMap_PrefersModelId_OverModel() {
@@ -194,7 +239,17 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             serviceSettings,
-            is(new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model, null))
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(url),
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    model,
+                    null,
+                    CohereServiceSettings.CohereApiVersion.V1
+                )
+            )
         );
     }
 
@@ -255,14 +310,22 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new CohereServiceSettings((String) null, null, null, null, "modelId", new RateLimitSettings(1));
+        var entity = new CohereServiceSettings(
+            (String) null,
+            null,
+            null,
+            null,
+            "modelId",
+            new RateLimitSettings(1),
+            CohereServiceSettings.CohereApiVersion.V2
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"modelId","rate_limit":{"requests_per_minute":1}}"""));
+            {"model_id":"modelId","rate_limit":{"requests_per_minute":1},"api_version":"V2"}"""));
     }
 
     @Override

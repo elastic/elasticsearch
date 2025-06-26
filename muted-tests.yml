@@ -40,9 +40,6 @@ tests:
   - class: org.elasticsearch.xpack.ml.integration.MlJobIT
     method: testDeleteJobAfterMissingIndex
     issue: https://github.com/elastic/elasticsearch/issues/112088
-  - class: org.elasticsearch.smoketest.WatcherYamlRestIT
-    method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
-    issue: https://github.com/elastic/elasticsearch/issues/112189
   - class: org.elasticsearch.xpack.test.rest.XPackRestIT
     method: test {p0=ml/inference_processor/Test create processor with missing mandatory fields}
     issue: https://github.com/elastic/elasticsearch/issues/112191
@@ -224,6 +221,9 @@ tests:
   - class: org.elasticsearch.discovery.ClusterDisruptionIT
     method: testAckedIndexing
     issue: https://github.com/elastic/elasticsearch/issues/117024
+  - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+    method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
+    issue: https://github.com/elastic/elasticsearch/issues/129845
 
   # Examples:
   #
@@ -353,8 +353,6 @@ tests:
   - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
     method: test {docs.testFilterToday}
     issue: https://github.com/elastic/elasticsearch/issues/121474
-  - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-    issue: https://github.com/elastic/elasticsearch/issues/121537
   - class: org.elasticsearch.xpack.test.rest.XPackRestIT
     method: test {p0=transform/*}
     issue: https://github.com/elastic/elasticsearch/issues/120816
@@ -452,9 +450,6 @@ tests:
   - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityFcActionAuthorizationIT
     method: testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions
     issue: https://github.com/elastic/elasticsearch/issues/127782
-  - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
-    method: testSearchWhileRelocating
-    issue: https://github.com/elastic/elasticsearch/issues/127188
   - class: org.elasticsearch.search.CCSDuelIT
     method: testTerminateAfter
     issue: https://github.com/elastic/elasticsearch/issues/126085

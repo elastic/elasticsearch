@@ -248,7 +248,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -863,6 +863,12 @@ public class EsqlCapabilities {
          * The {@code _query} API now reports the original types.
          */
         REPORT_ORIGINAL_TYPES,
+
+        /**
+         * Are the {@code documents_found} and {@code values_loaded} fields available
+         * in the response and profile?
+         */
+        DOCUMENTS_FOUND_AND_VALUES_LOADED,
 
         /**
          * When creating constant null blocks in {@link org.elasticsearch.compute.lucene.ValuesSourceReaderOperator}, we also handed off

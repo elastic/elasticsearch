@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -130,8 +130,8 @@ abstract class DataNodeRequestSender {
                     transportService.getThreadPool(),
                     runOnTaskFailure,
                     listener.map(
-                        profiles -> new ComputeResponse(
-                            profiles,
+                        completionInfo -> new ComputeResponse(
+                            completionInfo,
                             timeValueNanos(System.nanoTime() - startTimeInNanos),
                             targetShards.totalShards(),
                             targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
@@ -263,15 +263,15 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+        final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(List<DriverProfile> profiles) {
+            void onAfter(DriverCompletionInfo info) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
-                listener.onResponse(profiles);
+                listener.onResponse(info);
             }
 
             @Override
@@ -287,7 +287,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, false, e.getValue());
                     pendingShardIds.add(shardId);
                 }
-                onAfter(response.profiles());
+                onAfter(response.completionInfo());
             }
 
             @Override
@@ -296,7 +296,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(List.of());
+                onAfter(DriverCompletionInfo.EMPTY);
             }
 
             @Override
@@ -305,7 +305,7 @@ abstract class DataNodeRequestSender {
                 if (rootTask.isCancelled()) {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
-                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 }
             }
         });

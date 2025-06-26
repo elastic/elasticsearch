@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.custom;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
+import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -145,7 +147,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(CompletionResponseParser.class));
     }
 
-    private static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new CustomService(senderFactory, createWithEmptySettings(threadPool));
     }
@@ -276,7 +278,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 "{\"input\":${input}}",
                 parser,
                 new RateLimitSettings(10_000),
-                batchSize
+                batchSize,
+                InputTypeTranslator.EMPTY_TRANSLATOR
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
@@ -606,6 +609,42 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                             false
                         )
                     )
+                )
+            );
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsAValidationError_WhenReplacementDoesNotFillTemplate() throws Exception {
+        try (var service = createService(threadPool, clientManager)) {
+
+            var settingsMap = new HashMap<>(
+                Map.of(
+                    CustomServiceSettings.URL,
+                    "http://www.abc.com",
+                    CustomServiceSettings.HEADERS,
+                    Map.of("key", "value"),
+                    QueryParameters.QUERY_PARAMETERS,
+                    List.of(List.of("key", "value")),
+                    CustomServiceSettings.REQUEST,
+                    "request body ${some_template}",
+                    CustomServiceSettings.RESPONSE,
+                    new HashMap<>(Map.of(CustomServiceSettings.JSON_PARSER, createResponseParserMap(TaskType.COMPLETION)))
+                )
+            );
+
+            var config = getRequestConfigMap(settingsMap, createTaskSettingsMap(), createSecretSettingsMap());
+
+            var listener = new PlainActionFuture<Model>();
+            service.parseRequestConfig("id", TaskType.COMPLETION, config, listener);
+
+            var exception = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Failed to validate model configuration: Found placeholder "
+                        + "[${some_template}] in field [request] after replacement call, please check that all "
+                        + "templates have a corresponding field definition.;"
                 )
             );
         }

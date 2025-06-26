@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 
@@ -85,42 +84,16 @@ public class HierarchicalKMeans {
 
         // TODO: instead of creating a sub-cluster assignments reuse the parent array each time
         int[] assignments = new int[vectors.size()];
-
         KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
         kmeans.cluster(vectors, kMeansIntermediate);
 
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
-        float[][] nextCentroids = new float[centroids.length][dimension];
-        for (int i = 0; i < vectors.size(); i++) {
-            float smallest = Float.MAX_VALUE;
-            int centroidIdx = -1;
-            float[] vector = vectors.vectorValue(i);
-            for (int j = 0; j < centroids.length; j++) {
-                float[] centroid = centroids[j];
-                float d = VectorUtil.squareDistance(vector, centroid);
-                if (d < smallest) {
-                    smallest = d;
-                    centroidIdx = j;
-                }
-            }
-            centroidVectorCount[centroidIdx]++;
-            for (int j = 0; j < dimension; j++) {
-                nextCentroids[centroidIdx][j] += vector[j];
-            }
-            assignments[i] = centroidIdx;
-        }
-
-        // update centroids based on assignments of all vectors
-        for (int i = 0; i < centroids.length; i++) {
-            if (centroidVectorCount[i] > 0) {
-                for (int j = 0; j < dimension; j++) {
-                    centroids[i][j] = nextCentroids[i][j] / centroidVectorCount[i];
-                }
-            }
+        for (int assigment : assignments) {
+            centroidVectorCount[assigment]++;
         }
 
         int effectiveK = 0;
@@ -129,8 +102,6 @@ public class HierarchicalKMeans {
                 effectiveK++;
             }
         }
-
-        kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
 
         if (effectiveK == 1) {
             return kMeansIntermediate;

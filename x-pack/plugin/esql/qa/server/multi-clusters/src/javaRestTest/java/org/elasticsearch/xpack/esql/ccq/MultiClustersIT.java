@@ -30,6 +30,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +44,9 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -156,6 +160,36 @@ public class MultiClustersIT extends ESRestTestCase {
             return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject);
+        }
+    }
+
+    private <C, V> void assertResultMapForLike(
+        boolean includeCCSMetadata,
+        Map<String, Object> result,
+        C columns,
+        V values,
+        boolean remoteOnly,
+        boolean requireLikeListCapability
+    ) throws IOException {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_on_index_fields"));
+        if (requireLikeListCapability) {
+            requiredCapabilities.add("like_list_on_index_fields");
+        }
+        // the feature is completely supported if both local and remote clusters support it
+        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        try (RestClient remoteClient = remoteClusterClient()) {
+            isSupported = isSupported
+                && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        }
+
+        if (isSupported) {
+            assertResultMap(includeCCSMetadata, result, columns, values, remoteOnly);
+        } else {
+            logger.info("-->  skipping data check for like index test, cluster does not support like index feature");
+            // just verify that we did not get a partial result
+            var clusters = result.get("_clusters");
+            var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+            assertThat(reason, result.get("is_partial"), anyOf(nullValue(), is(false)));
         }
     }
 
@@ -385,7 +419,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testNotLikeIndex() throws Exception {
@@ -400,7 +434,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testLikeListIndex() throws Exception {
@@ -415,7 +449,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 
     public void testNotLikeListIndex() throws Exception {
@@ -430,7 +464,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
         System.out.println(resultString);
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 
     public void testRLikeIndex() throws Exception {
@@ -443,8 +477,7 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
-
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     public void testNotRLikeIndex() throws Exception {
@@ -457,8 +490,7 @@ public class MultiClustersIT extends ESRestTestCase {
             """, includeCCSMetadata);
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(localDocs.size(), localIndex));
-
-        assertResultMap(includeCCSMetadata, result, columns, values, false);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     private RestClient remoteClusterClient() throws IOException {

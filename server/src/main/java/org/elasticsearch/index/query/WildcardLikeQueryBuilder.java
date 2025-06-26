@@ -215,6 +215,6 @@ public class WildcardLikeQueryBuilder extends AbstractQueryBuilder<WildcardLikeQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersions.ESQL_FIXED_INDEX_LIKE;
     }
 }

@@ -19,7 +19,7 @@ This section includes:
 
 ## API endpoints
 
-### [Autoscaling](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-autoscaling)
+### [Autoscaling](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-autoscaling)
 
 The autoscaling APIs enable you to create and manage autoscaling policies and retrieve information about autoscaling capacity. Autoscaling adjusts resources based on demand. A deployment can use autoscaling to scale resources as needed, ensuring sufficient capacity to meet workload requirements.
 
@@ -30,7 +30,7 @@ The autoscaling APIs enable you to create and manage autoscaling policies and re
 | [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy) | Deletes an existing autoscaling policy. |
 | [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity) | Estimates autoscaling capacity for current cluster state. |
 
-### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-analytics)
+### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-analytics)
 
 ```{applies_to}
 stack: deprecated
@@ -45,7 +45,7 @@ The behavioral analytics APIs enable you to create and manage analytics collecti
 | [Delete Collection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-delete-behavioral-analytics) | Deletes a behavioral analytics collection. |
 | [Create Event](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-post-behavioral-analytics-event) | Sends a behavioral analytics event to a collection. |
 
-### [Compact and aligned text (CAT)](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-cat)
+### [Compact and aligned text (CAT)](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-cat)
 
 The compact and aligned text (CAT) APIs return human-readable text as a response, instead of a JSON object. The CAT APIs aim are intended only for human consumption using the Kibana console or command line. They are not intended for use by applications. For application consumption, it's recommend to use a corresponding JSON API.
 
@@ -54,57 +54,57 @@ The compact and aligned text (CAT) APIs return human-readable text as a response
 | [Cat aliases](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-aliases) | Get the cluster's index aliases, including filter and routing information in a compact, human-readable format. |
 | [Cat allocation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-allocation) | Provides a snapshot of the number of shards allocated to each data node and their disk space in a compact, human-readable format. |
 | [Cat Indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) | Lists index stats in a compact, human-readable format. |
-| [Cat Nodes](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.nodes) | Shows node-level metrics like CPU, memory, and roles. |
-| [Cat Shards](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.shards) | Displays shard allocation across nodes. |
-| [Cat Health](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/cat.health) | Provides a snapshot of cluster health. |
+| [Cat Nodes](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-nodes) | Shows node-level metrics like CPU, memory, and roles. |
+| [Cat Shards](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-shards) | Displays shard allocation across nodes. |
+| [Cat Health](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-health) | Provides a snapshot of cluster health. |
 
-### [Cluster](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-cluster)
+### [Cluster](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-cluster)
 
 The cluster APIs enable you to retrieve information about your infrastructure on cluster, node, or shard level. You can manage cluster settings and voting configuration exceptions, collect node statistics and retrieve node information.
 
 | API | Description |
 | --- | ----------- |
-| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-health) | Returns health status of the cluster. |
-| [Cluster Info](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-info) | Returns basic information about the cluster. |
-| [Cluster Reroute](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-reroute) | Manually reassigns shard allocations. |
-| [Cluster State](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-state) | Retrieves the current cluster state. |
-| [Explain shard allocation](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain) | Get explanations for shard allocations in the cluster. |
-| [Update Settings](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-put-settings) | Updates persistent or transient cluster settings. |
+| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-health) | Returns health status of the cluster. |
+| [Cluster Info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-info) | Returns basic information about the cluster. |
+| [Cluster Reroute](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-reroute) | Manually reassigns shard allocations. |
+| [Cluster State](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-state) | Retrieves the current cluster state. |
+| [Explain shard allocation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-allocation-explain) | Get explanations for shard allocations in the cluster. |
+| [Update Settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) | Updates persistent or transient cluster settings. |
 
-### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-health_report)
+### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-health_report)
 
 The cluster - health API provides you a report with the health status of an Elasticsearch cluster.
 
 | API | Description |
 | --- | ----------- |
-| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-health-report) | Returns health status of the cluster, including index-level details. |
+| [Cluster Health](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-health-report) | Returns health status of the cluster, including index-level details. |
 
-### [Connector](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-connector)
+### [Connector](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector)
 
 The connector and sync jobs APIs provide a convenient way to create and manage Elastic connectors and sync jobs in an internal index.
 
 | API | Description |
 | --- | ----------- |
-| [Get Connector](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/connector.get_connector) | Retrieves a connector configuration. |
-| [Put Connector](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/connector.put_connector) | Creates or updates a connector configuration. |
-| [Delete Connector](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/connector.delete_connector) | Deletes a connector configuration. |
-| [Post Connector Sync Job](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/connector.post_connector_sync_job) | Starts a sync job for a connector. |
-| [Get Connector Sync Job](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/connector.get_connector_sync_job) | Retrieves sync job details for a connector. |
+| [Get Connector](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-get) | Retrieves a connector configuration. |
+| [Put Connector](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-put) | Creates or updates a connector configuration. |
+| [Delete Connector](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-delete) | Deletes a connector configuration. |
+| [Post Connector Sync Job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-post) | Starts a sync job for a connector. |
+| [Get Connector Sync Job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-get) | Retrieves sync job details for a connector. |
 
-### [Cross-cluster replication (CCR)](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ccr)
+### [Cross-cluster replication (CCR)](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-ccr)
 
 The cross-cluster replication (CCR) APIs enable you to run cross-cluster replication operations, such as creating and managing follower indices or auto-follow patterns. With CCR, you can replicate indices across clusters to continue handling search requests in the event of a datacenter outage, prevent search volume from impacting indexing throughput, and reduce search latency by processing search requests in geo-proximity to the user.
 
 | API | Description |
 | --- | ----------- |
-| [Follow Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.follow) | Creates a follower index that replicates a leader index from a remote cluster. |
-| [Pause Follow](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.pause_follow) | Pauses replication of a follower index. |
-| [Resume Follow](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.resume_follow) | Resumes replication of a paused follower index. |
-| [Unfollow Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.unfollow) | Converts a follower index into a regular index. |
-| [Get Follow Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.follow_stats) | Retrieves stats about follower indices. |
-| [Get Auto-follow Patterns](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.get_auto_follow_pattern) | Lists auto-follow patterns for remote clusters. |
-| [Put Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.put_auto_follow_pattern) | Creates or updates an auto-follow pattern. |
-| [Delete Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ccr.delete_auto_follow_pattern) | Deletes an auto-follow pattern. |
+| [Follow Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-follow) | Creates a follower index that replicates a leader index from a remote cluster. |
+| [Pause Follow](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-pause-follow) | Pauses replication of a follower index. |
+| [Resume Follow](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-resume-follow) | Resumes replication of a paused follower index. |
+| [Unfollow Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-unfollow) | Converts a follower index into a regular index. |
+| [Get Follow Stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-follow-stats) | Retrieves stats about follower indices. |
+| [Get Auto-follow Patterns](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-get-auto-follow-pattern) | Lists auto-follow patterns for remote clusters. |
+| [Put Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-pause-auto-follow-pattern) | Creates or updates an auto-follow pattern. |
+| [Delete Auto-follow Pattern](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-delete-auto-follow-pattern) | Deletes an auto-follow pattern. |
 
 ### [Data stream](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-data-stream)
 

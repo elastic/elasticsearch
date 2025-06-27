@@ -121,7 +121,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         boolean failuresAllowed,
         RerankSnippetInput snippets
     ) {
-        super(List.of(new RetrieverSource(retrieverBuilder, null)), rankWindowSize);
+        super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;

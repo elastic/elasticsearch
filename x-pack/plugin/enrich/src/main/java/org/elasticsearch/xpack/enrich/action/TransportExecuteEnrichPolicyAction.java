@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -33,6 +34,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
     ExecuteEnrichPolicyAction.Response> {
 
     private final EnrichPolicyExecutor executor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportExecuteEnrichPolicyAction(
@@ -40,7 +42,8 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        EnrichPolicyExecutor enrichPolicyExecutor
+        EnrichPolicyExecutor enrichPolicyExecutor,
+        ProjectResolver projectResolver
     ) {
         super(
             ExecuteEnrichPolicyAction.NAME,
@@ -53,6 +56,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.executor = enrichPolicyExecutor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,6 +71,6 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
 
     @Override
     protected ClusterBlockException checkBlock(ExecuteEnrichPolicyAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

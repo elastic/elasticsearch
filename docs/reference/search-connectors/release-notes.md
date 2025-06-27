@@ -13,6 +13,12 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.0.3 [connectors-9.0.3-release-notes]
+
+### Features and enhancements [connectors-9.0.3-features-enhancements]
+
+Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning. See [#3459](https://github.com/elastic/connectors/pull/3459).
+
 ## 9.0.2 [connectors-9.0.2-release-notes]
 No changes since 9.0.1
 

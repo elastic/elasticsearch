@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -201,65 +200,6 @@ public class Mapper {
         return MapperUtils.mapUnary(unary, mappedChild);
     }
 
-    private PhysicalPlan mapToFragmentExec(Join logical, PhysicalPlan child) {
-        Holder<Boolean> hasFragment = new Holder<>(false);
-        Holder<Boolean> forceLocal = new Holder<>(false);
-
-        var childTransformed = child.transformUp(f -> {
-            if (forceLocal.get()) {
-                return f;
-            }
-            // Once we reached FragmentExec, we stuff our Enrich under it
-            if (f instanceof FragmentExec) {
-                hasFragment.set(true);
-                return new FragmentExec(logical);
-            }
-            if (f instanceof EnrichExec enrichExec) {
-                assert enrichExec.mode() != Enrich.Mode.REMOTE : "Unexpected remote ENRICH when looking for fragment";
-                if (enrichExec.mode() == Enrich.Mode.ANY) {
-                    return enrichExec.child();
-                } else {
-                    forceLocal.set(true);
-                    return f;
-                }
-            }
-            if (f instanceof UnaryExec unaryExec) {
-                if (f instanceof AggregateExec) {
-                    // We can't make a fragment here...
-                    assert logical.isRemote() == false : "Unexpected Aggregate inside remote join";
-                    forceLocal.set(true);
-                    return f;
-                }
-                // No need to include LimitExec because:
-                // 1. If it's an implied limit, we have a copy of it already on the top
-                // 2. If it's a forced limit, we can't execute this as a remote join anyway.
-                if (f instanceof ExchangeExec || f instanceof TopNExec) {
-                    return f;
-                } else {
-                    return unaryExec.child();
-                }
-            }
-            if (f instanceof LookupJoinExec) {
-                // We shouldn't be meeting LookupJoinExec unless we can't execute this as a remote join
-                forceLocal.set(true);
-                return f;
-            }
-            if (f instanceof MergeExec) {
-                forceLocal.set(true);
-                return f;
-            }
-            return f;
-        });
-
-        if (forceLocal.get() == false && hasFragment.get()) {
-            return childTransformed;
-        }
-        return null;
-    }
-
-    // This is a temporary hack for debugging purposes to quick switching
-    private static final boolean FRAGMENT_EXEC_HACK_ENABLED = System.getProperty("esql.fragment_exec.hack", "true").equals("true");
-
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
@@ -285,17 +225,6 @@ public class Mapper {
             if (left instanceof FragmentExec fragment) {
                 return new FragmentExec(bp);
             }
-
-            // if (FRAGMENT_EXEC_HACK_ENABLED) {
-            // var leftPlan = mapToFragmentExec(join, left);
-            // if (leftPlan == null) {
-            // if (join.isRemote()) {
-            // throw new EsqlIllegalArgumentException("Remote joins are not supported in this context: [" + join + "]");
-            // }
-            // } else {
-            // return leftPlan;
-            // }
-            // }
 
             PhysicalPlan right = map(bp.right());
             // if the right is data we can use a hash join directly

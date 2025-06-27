@@ -247,9 +247,6 @@ Here is an example using the `query_vector_builder`:
         }
       }
     }
-  },
-  "_source": {
-    "exclude": "inference_field.inference.chunks"
   }
 }
 ```

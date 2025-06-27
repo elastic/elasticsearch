@@ -15,6 +15,8 @@ DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(PROJECT_
 
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
+// explicit popMode of RP to allow DROP and KEEP in FORK branches
+PROJECT_RP : RP -> type(RP), popMode, popMode;
 PROJECT_DOT: DOT -> type(DOT);
 PROJECT_COMMA : COMMA -> type(COMMA);
 PROJECT_PARAM : PARAM -> type(PARAM);

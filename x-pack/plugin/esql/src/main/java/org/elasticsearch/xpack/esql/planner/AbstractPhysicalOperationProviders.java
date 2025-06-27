@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -65,7 +65,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
-        AbstractAggregateExec aggregateExec,
+        AggregateExec aggregateExec,
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
@@ -210,7 +210,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("no operator factory");
     }
 
-    private AttributeMap<BlockHash.TopNDef> buildAttributesToTopNDefMap(AbstractAggregateExec aggregateExec) {
+    private AttributeMap<BlockHash.TopNDef> buildAttributesToTopNDefMap(AggregateExec aggregateExec) {
         if (aggregateExec instanceof TopNAggregateExec == false) {
             return AttributeMap.emptyAttributeMap();
         }
@@ -416,7 +416,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      */
     public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
         PhysicalOperation source,
-        AbstractAggregateExec aggregateExec,
+        AggregateExec aggregateExec,
         List<GroupingAggregator.Factory> aggregatorFactories,
         Attribute attrSource,
         ElementType groupType,

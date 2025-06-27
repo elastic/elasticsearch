@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGr
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -69,14 +69,14 @@ import java.util.Set;
  * to be serialized between nodes, and is only used locally.
  */
 public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    AbstractAggregateExec,
+    AggregateExec,
     LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(AbstractAggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
+    protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<FieldAttribute>();
 
         PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
-            if (exec instanceof AbstractAggregateExec agg) {
+            if (exec instanceof AggregateExec agg) {
                 var orderedAggregates = new ArrayList<NamedExpression>();
                 var changedAggregates = false;
                 for (NamedExpression aggExpr : agg.aggregates()) {
@@ -171,7 +171,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
         SearchStats stats,
-        AbstractAggregateExec agg,
+        AggregateExec agg,
         Set<FieldAttribute> foundAttributes
     ) {
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {

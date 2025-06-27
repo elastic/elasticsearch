@@ -89,7 +89,7 @@ import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -212,7 +212,7 @@ public class LocalExecutionPlanner {
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
-            AbstractAggregateExec.class,
+            AggregateExec.class,
             a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
@@ -238,7 +238,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
-        if (node instanceof AbstractAggregateExec aggregate) {
+        if (node instanceof AggregateExec aggregate) {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
@@ -346,7 +346,7 @@ public class LocalExecutionPlanner {
         return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
     }
 
-    private PhysicalOperation planAggregation(AbstractAggregateExec aggregate, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
         var physicalOperation = physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
 

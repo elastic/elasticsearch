@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.ParameterizedOptimizerRule;
-import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -47,25 +47,25 @@ import java.util.stream.Collectors;
  *     not a check like {@code isNotNull}.</li>
  * </ul>
  */
-public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AbstractAggregateExec, LocalPhysicalOptimizerContext> {
+public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(AbstractAggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
+    protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         Set<Attribute> foundAttributes = findSpatialShapeBoundsAttributes(aggregate, ctx);
         if (foundAttributes.isEmpty()) {
             return aggregate;
         }
         return aggregate.transformDown(PhysicalPlan.class, exec -> switch (exec) {
-            case AbstractAggregateExec agg -> transformAggregateExec(agg, foundAttributes);
+            case AggregateExec agg -> transformAggregateExec(agg, foundAttributes);
             case FieldExtractExec fieldExtractExec -> transformFieldExtractExec(fieldExtractExec, foundAttributes);
             default -> exec;
         });
     }
 
-    private static Set<Attribute> findSpatialShapeBoundsAttributes(AbstractAggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
+    private static Set<Attribute> findSpatialShapeBoundsAttributes(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<Attribute>();
         aggregate.transformDown(UnaryExec.class, exec -> {
             switch (exec) {
-                case AbstractAggregateExec agg -> {
+                case AggregateExec agg -> {
                     List<AggregateFunction> aggregateFunctions = agg.aggregates()
                         .stream()
                         .flatMap(e -> SpatialShapeBoundsExtraction.extractAggregateFunction(e).stream())
@@ -110,7 +110,7 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Abs
         return fieldExtractExec.withBoundsAttributes(boundsAttributes);
     }
 
-    private static PhysicalPlan transformAggregateExec(AbstractAggregateExec agg, Set<Attribute> foundAttributes) {
+    private static PhysicalPlan transformAggregateExec(AggregateExec agg, Set<Attribute> foundAttributes) {
         return agg.transformExpressionsDown(
             SpatialExtent.class,
             spatialExtent -> foundAttributes.contains(spatialExtent.field())

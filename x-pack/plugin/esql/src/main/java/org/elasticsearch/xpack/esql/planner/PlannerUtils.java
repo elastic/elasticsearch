@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.physical.AbstractAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -123,7 +123,7 @@ public class PlannerUtils {
         final var pipelineBreaker = pipelineBreakers.getFirst();
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
-        if (reducePlan instanceof AbstractAggregateExec agg) {
+        if (reducePlan instanceof AggregateExec agg) {
             reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
         }
         return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);

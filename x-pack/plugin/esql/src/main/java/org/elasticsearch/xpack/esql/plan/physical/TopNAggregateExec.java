@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopNAggregateExec extends AbstractAggregateExec implements EstimatesRowSize {
+public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "TopNAggregateExec",
@@ -69,7 +69,7 @@ public class TopNAggregateExec extends AbstractAggregateExec implements Estimate
     }
 
     @Override
-    protected NodeInfo<TopNAggregateExec> info() {
+    protected NodeInfo<AggregateExec> info() {
         return NodeInfo.create(
             this,
             TopNAggregateExec::new,

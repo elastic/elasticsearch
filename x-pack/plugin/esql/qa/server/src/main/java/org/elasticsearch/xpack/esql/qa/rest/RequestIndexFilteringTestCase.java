@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMapNoPartialCheck;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -249,6 +249,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
     }
 
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC, checkPartialResults);
+    }
+
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
         indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
     }
@@ -279,7 +284,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             }""".replace("%differentiator_field_name%", differentiatorFieldName));
         Response response = client.performRequest(createIndex);
         assertThat(
-            entityToMapNoPartialCheck(response.getEntity(), XContentType.JSON),
+            entityToMap(response.getEntity(), XContentType.JSON),
             matchesMap().entry("shards_acknowledged", true).entry("index", indexName).entry("acknowledged", true)
         );
 

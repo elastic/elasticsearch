@@ -1249,13 +1249,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        Mode mode,
+        boolean checkPartialResults
+    )
+        throws IOException {
+        var results = mode == ASYNC
+            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
+            : runEsqlSync(requestObject, assertWarnings);
+        return checkPartialResults ? assertNotPartial(results) : results;
+    }
+
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
         throws IOException {
-        if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
-        } else {
-            return runEsqlSync(requestObject, assertWarnings);
-        }
+        return runEsql(requestObject, assertWarnings, mode, true);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1511,7 +1520,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return Collections.unmodifiableMap(copy);
     }
 
-    protected static Map<String, Object> entityToMapNoPartialCheck(HttpEntity entity, XContentType expectedContentType) throws IOException {
+    protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
         var result = EsqlTestUtils.entityToMap(entity, expectedContentType);
         if (shouldLog()) {
             LOGGER.info("entity={}", result);
@@ -1520,12 +1529,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return result;
     }
 
-    /**
-     * Converts the entity to a map and asserts that this is not a partial response (`is_partial` field is absent or `false`).
-     * Use {@link #entityToMapNoPartialCheck} if you want to skip this check.
-     */
-    protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
-        return assertNotPartial(entityToMapNoPartialCheck(entity, expectedContentType));
+    protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType, boolean allowPartialResults)
+        throws IOException {
+        var response = EsqlTestUtils.entityToMap(entity, expectedContentType);
+        return allowPartialResults ? response : assertNotPartial(response);
     }
 
     static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {
@@ -1859,7 +1866,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }""".replace("%shards%", Integer.toString(shards)));
         Response response = client().performRequest(createIndex);
         assertThat(
-            entityToMapNoPartialCheck(response.getEntity(), XContentType.JSON),
+            entityToMap(response.getEntity(), XContentType.JSON),
             matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
         );
 

@@ -20,12 +20,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.GroupSelector;
-import org.apache.lucene.search.grouping.GroupingSearch;
 import org.apache.lucene.search.grouping.SearchGroup;
-import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.core.Nullable;
@@ -217,18 +217,22 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         record DocAndParent(int parent, int doc) {}
 
         @Override
+        @SuppressWarnings("unchecked")
         public Query rewrite(IndexSearcher searcher) throws IOException {
             final TopDocs topDocs;
             if (parentFilter != null) {
                 // We're dealing with a nested field, so we need to search at the child level.
                 // We retrieve the top `rescoreK` child documents, but collapse them so that only
                 // the best child per parent is kept.
-                var groupSearch = new GroupingSearch(new ParentSelector(parentFilter));
-                TopGroups<DocAndParent> topGroups = groupSearch.search(searcher, innerQuery, 0, rescoreK);
-                var scoreDocs = Arrays.stream(topGroups.groups)
-                    .map(g -> new ScoreDoc(g.groupValue().doc, g.score()))
-                    .toArray(ScoreDoc[]::new);
-                topDocs = new TopDocs(new TotalHits(topGroups.totalHitCount, TotalHits.Relation.EQUAL_TO), scoreDocs);
+                FirstPassGroupingCollector<ParentAndDoc> groupingCollector = new FirstPassGroupingCollector<>(
+                    new ParentSelector(parentFilter),
+                    Sort.RELEVANCE,
+                    rescoreK
+                );
+                searcher.search(innerQuery, groupingCollector);
+                var groups = groupingCollector.getTopGroups(0);
+                var scoreDocs = groups.stream().map(g -> new ScoreDoc(g.groupValue.doc, (float) g.sortValues[0])).toArray(ScoreDoc[]::new);
+                topDocs = new TopDocs(new TotalHits(scoreDocs.length, TotalHits.Relation.EQUAL_TO), scoreDocs);
             } else {
                 // Retrieve top `rescoreK` documents from the inner query
                 topDocs = searcher.search(innerQuery, rescoreK);

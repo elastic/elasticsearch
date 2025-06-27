@@ -166,9 +166,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        if (configuration == null) {
-            throw new IllegalArgumentException("Configuration cannot be null for WildcardLikeList translation");
-        }
         return new ExpressionQuery(source(), targetFieldName, this, configuration);
     }
 }

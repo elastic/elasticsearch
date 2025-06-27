@@ -73,6 +73,9 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);
+        if (config == null) {
+            throw new UnsupportedEncodingException("Configuration cannot be null when writing ExpressionQueryBuilder");
+        }
         config.writeTo(out);
         PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
         planStreamOutput.writeNamedWriteable(expression);

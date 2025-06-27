@@ -41,6 +41,12 @@ public interface LucenePushdownPredicates {
      *     serializable unless their {@link QueryBuilder}
      *     {@link QueryBuilder#supportsVersion supports} the version.
      * </p>
+     * <p>
+     *     This is done on the coordinating node <strong>and</strong>. And for
+     *     cross cluster search this is done on the coordinating node on the
+     *     remote cluster. So! We actually <strong>have</strong> the minimum
+     *     cluster transport version.
+     * </p>
      */
     @Nullable
     TransportVersion minTransportVersion();

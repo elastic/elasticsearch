@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -28,6 +29,8 @@ public class SimulateIngestService extends IngestService {
         if (request instanceof SimulateBulkRequest simulateBulkRequest) {
             try {
                 pipelineSubstitutions = getPipelineSubstitutions(simulateBulkRequest.getPipelineSubstitutions(), ingestService);
+            } catch (ElasticsearchException elasticEx) {
+                throw elasticEx;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

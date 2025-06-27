@@ -628,7 +628,7 @@ setup:
               default_pipeline: "my-pipeline"
 
   - do:
-      catch: "request"
+      catch: bad_request
       headers:
         Content-Type: application/json
       simulate.ingest:
@@ -661,7 +661,8 @@ setup:
               }
             }
           }
-  - match: { status: 500 }
+  - match: { status: 400 }
+  - match: { error.reason: "No processor type exists with name [non-existent-processor]" }
 
 ---
 "Test index in path":

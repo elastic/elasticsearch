@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
@@ -34,6 +35,8 @@ import java.util.Map;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,6 +47,10 @@ public class SimulateIngestServiceTests extends ESTestCase {
         Map<K, V> map = new HashMap<>();
         map.put(key, value);
         return map;
+    }
+
+    private static <K, V> Map<K, V> emptyMutableHashMap() {
+        return new HashMap<>(0);
     }
 
     public void testGetPipeline() {
@@ -116,6 +123,31 @@ public class SimulateIngestServiceTests extends ESTestCase {
             Pipeline pipeline2 = simulateIngestService.getPipeline(projectId, "pipeline2");
             assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
+    }
+
+    public void testRethrowingOfElasticParseExceptionFromProcessors() {
+        final PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
+            {"processors": []}"""), XContentType.JSON);
+        final IngestMetadata ingestMetadata = new IngestMetadata(Map.of("pipeline1", pipelineConfiguration));
+        final Processor.Factory factoryThatThrowsElasticParseException = (factory, tag, description, config, projectId) -> {
+            throw new ElasticsearchParseException("house: it's never lupus");
+        };
+        final Map<String, Processor.Factory> processors = Map.of("parse_exception_processor", factoryThatThrowsElasticParseException);
+        final var projectId = randomProjectIdOrDefault();
+        IngestService ingestService = createWithProcessors(projectId, processors);
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
+            newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", emptyMutableHashMap())))),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+
+        final ElasticsearchParseException ex = assertThrows(
+            ElasticsearchParseException.class,
+            () -> new SimulateIngestService(ingestService, simulateBulkRequest)
+        );
+        assertThat(ex.getMessage(), is("house: it's never lupus"));
     }
 
     private static IngestService createWithProcessors(ProjectId projectId, Map<String, Processor.Factory> processors) {

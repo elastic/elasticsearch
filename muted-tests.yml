@@ -574,6 +574,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationActionTests
   method: testValidatePrerequisites
   issue: https://github.com/elastic/elasticsearch/issues/130178
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130205
 
 # Examples:
 #

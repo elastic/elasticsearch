@@ -150,10 +150,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     /*
      * This returns information about databases that are downloaded from maxmind.
      */
-    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(
-        ProjectMetadata projectMetadata,
-        String id
-    ) {
+    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ProjectMetadata projectMetadata, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
         final IngestGeoIpMetadata geoIpMeta = projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {

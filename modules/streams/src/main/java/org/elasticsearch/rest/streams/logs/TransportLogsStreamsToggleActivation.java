@@ -77,7 +77,7 @@ public class TransportLogsStreamsToggleActivation extends AcknowledgedTransportM
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         ProjectId projectId = projectResolver.getProjectId();
-        StreamsMetadata streamsState = state.projectState(projectId).metadata().custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
+        StreamsMetadata streamsState = state.metadata().getProject(projectId).custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
         boolean currentlyEnabled = streamsState.isLogsEnabled();
         boolean shouldEnable = request.shouldEnable();
         if (shouldEnable != currentlyEnabled) {

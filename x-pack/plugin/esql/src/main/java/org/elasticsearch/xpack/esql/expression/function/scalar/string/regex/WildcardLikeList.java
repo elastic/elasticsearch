@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -35,7 +37,8 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         "WildcardLikeList",
         WildcardLikeList::new
     );
-    private Configuration configuration;
+    @Nullable
+    private final Configuration configuration;
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -66,7 +69,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
             in.readNamedWriteable(Expression.class),
             new WildcardPatternList(in),
             deserializeCaseInsensitivity(in),
-            Configuration.readFrom(in)
+            readConfiguration(in)
         );
     }
 
@@ -76,7 +79,32 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         out.writeNamedWriteable(field());
         pattern().writeTo(out);
         serializeCaseInsensitivity(out);
-        configuration.writeTo(out);
+        writeConfiguration(out);
+
+    }
+
+    static Configuration readConfiguration(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+            boolean hasConfiguration = in.readBoolean();
+            if (hasConfiguration) {
+                return Configuration.readFrom(in);
+            } else {
+                return null; // For backward compatibility, configuration is not serialized before this version
+            }
+        } else {
+            return null; // For backward compatibility, configuration is not serialized before this version
+        }
+    }
+
+    void writeConfiguration(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+            boolean hasConfiguration = configuration != null;
+            out.writeBoolean(hasConfiguration);
+            if (hasConfiguration) {
+                configuration.writeTo(out);
+            }
+        }
+        // else don't write configuration for backward compatibility
     }
 
     @Override
@@ -138,6 +166,9 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
+        if (configuration == null) {
+            throw new IllegalArgumentException("Configuration cannot be null for WildcardLikeList translation");
+        }
         return new ExpressionQuery(source(), targetFieldName, this, configuration);
     }
 }

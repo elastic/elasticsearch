@@ -17,6 +17,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPARSE_VECTOR_INDEX_OPTIONS_FEATURE;
 
 /**
  * Spec for mapper-related features.
@@ -74,7 +75,8 @@ public class MapperFeatures implements FeatureSpecification {
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
             IVF_FORMAT_CLUSTER_FEATURE,
             IVF_NESTED_SUPPORT,
-            SEARCH_LOAD_PER_SHARD
+            SEARCH_LOAD_PER_SHARD,
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE
         );
     }
 }

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -36,6 +38,7 @@ public class InferenceFeatures implements FeatureSpecification {
         "test_rule_retriever.with_indices_that_dont_return_rank_docs"
     );
     private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
+    private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -62,7 +65,10 @@ public class InferenceFeatures implements FeatureSpecification {
             TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS,
             SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG,
             SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
-            SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS
+            SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS,
+            SEMANTIC_TEXT_INDEX_OPTIONS,
+            COHERE_V2_API,
+            SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS
         );
     }
 }

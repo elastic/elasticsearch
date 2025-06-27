@@ -35,6 +35,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
@@ -56,6 +57,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -134,7 +136,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         int inputChannel = 0;
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
-        String matchField = "match";
+        FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match");
         List<NamedExpression> loadFields = List.of(
             new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
@@ -245,11 +247,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
                 }""");
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
-            EsPhysicalOperationProviders.DefaultShardContext ctx = new EsPhysicalOperationProviders.DefaultShardContext(
-                0,
-                executionCtx,
-                AliasFilter.EMPTY
-            );
+            var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);
             return new AbstractLookupService.LookupShardContext(ctx, executionCtx, () -> {
                 try {
                     IOUtils.close(reader, mapperService);

@@ -362,7 +362,7 @@ public class DataStreamAutoShardingService {
      * <p>If the recommendation is to INCREASE/DECREASE shards the reported cooldown period will be TimeValue.ZERO.
      * If the auto sharding service thinks the number of shards must be changed but it can't recommend a change due to the cooldown
      * period not lapsing, the result will be of type {@link AutoShardingType#COOLDOWN_PREVENTED_INCREASE} or
-     * {@link AutoShardingType#COOLDOWN_PREVENTED_INCREASE} with the remaining cooldown configured and the number of shards that should
+     * {@link AutoShardingType#COOLDOWN_PREVENTED_DECREASE} with the remaining cooldown configured and the number of shards that should
      * be configured for the data stream once the remaining cooldown lapses as the target number of shards.
      *
      * <p>The NOT_APPLICABLE type result will report a cooldown period of TimeValue.MAX_VALUE.

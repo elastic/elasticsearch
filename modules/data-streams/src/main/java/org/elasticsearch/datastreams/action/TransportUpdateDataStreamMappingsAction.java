@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -82,7 +83,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ActionListener<UpdateDataStreamMappingsAction.Response> listener
     ) throws Exception {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            state.projectState(projectResolver.getProjectId()).metadata(),
+            projectResolver.getProjectMetadata(state),
             IndicesOptions.DEFAULT,
             request.indices()
         );
@@ -143,8 +144,9 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
             );
             return;
         }
+        ProjectId projectId = projectResolver.getProjectId();
         metadataDataStreamsService.updateMappings(
-            projectResolver.getProjectId(),
+            projectId,
             masterNodeTimeout,
             ackTimeout,
             dataStreamName,
@@ -159,9 +161,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(
-                                    clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                )
+                                dataStream.getEffectiveMappings(clusterService.state().projectState(projectId).metadata())
                             )
                         );
                     } catch (IOException e) {

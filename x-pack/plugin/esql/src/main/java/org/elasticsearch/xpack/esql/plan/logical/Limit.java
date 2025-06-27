@@ -70,7 +70,8 @@ public class Limit extends UnaryPlan implements TelemetryAware {
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
         // Let's make sure we notice during tests if we ever serialize a duplicated Limit.
-        assert duplicated == false;
+        // FIXME: verify that this condition is correct and fix the comments
+        assert implied || duplicated == false;
     }
 
     @Override

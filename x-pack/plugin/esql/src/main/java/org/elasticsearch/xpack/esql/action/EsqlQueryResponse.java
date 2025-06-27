@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -36,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -119,8 +122,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
-        long documentsFound = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
-        long valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
+        long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+        long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             profile = in.readOptionalWriteable(Profile::readFrom);
         }
@@ -152,7 +155,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
-        if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+        if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
@@ -163,6 +166,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(executionInfo);
         }
+    }
+
+    private static boolean supportsValuesLoaded(TransportVersion version) {
+        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
+            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
     }
 
     public List<ColumnInfoImpl> columns() {
@@ -279,6 +287,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 return b;
             }));
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
+            content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
             content.add(ChunkedToXContentHelper.endObject());
         }
         content.add(ChunkedToXContentHelper.endObject());
@@ -387,15 +396,23 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public record Profile(List<DriverProfile> drivers) implements Writeable {
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {
-            return new Profile(in.readCollectionAsImmutableList(DriverProfile::readFrom));
+            return new Profile(
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)) {
+                out.writeCollection(plans);
+            }
         }
     }
 }

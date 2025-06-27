@@ -73,6 +73,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeTestCas
     }
 
     public void testIndexing() throws Exception {
+        assumeTrue("test relies on index.mapping.source.mode setting", getOldClusterTestVersion().onOrAfter("8.16.0"));
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

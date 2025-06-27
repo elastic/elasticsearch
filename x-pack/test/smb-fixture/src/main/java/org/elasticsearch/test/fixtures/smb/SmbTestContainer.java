@@ -12,40 +12,18 @@ import com.github.dockerjava.api.model.Capability;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.containers.wait.strategy.WaitAllStrategy;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.RemoteDockerImage;
 
 import java.time.Duration;
 
 public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    private static final String DOCKER_BASE_IMAGE = "ubuntu:24.04";
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/es-smb-fixture:1.0";
     public static final int AD_LDAP_PORT = 636;
     public static final int AD_LDAP_GC_PORT = 3269;
 
     public SmbTestContainer() {
-        super(
-            new ImageFromDockerfile("es-smb-fixture").withDockerfileFromBuilder(
-                builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("TZ", "Etc/UTC")
-                    .run(
-                        "DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=10 update -qqy && apt-get install -qqy tzdata"
-                            + " winbind samba ldap-utils "
-                    )
-                    .copy("fixture/provision/installsmb.sh", "/fixture/provision/installsmb.sh")
-                    .copy("fixture/certs/ca.key", "/fixture/certs/ca.key")
-                    .copy("fixture/certs/ca.pem", "/fixture/certs/ca.pem")
-                    .copy("fixture/certs/cert.pem", "/fixture/certs/cert.pem")
-                    .copy("fixture/certs/key.pem", "/fixture/certs/key.pem")
-                    .run("chmod +x /fixture/provision/installsmb.sh")
-                    .cmd("/fixture/provision/installsmb.sh && service samba-ad-dc restart && echo Samba started && sleep infinity")
-                    .build()
-            )
-                .withFileFromClasspath("fixture/provision/installsmb.sh", "/smb/provision/installsmb.sh")
-                .withFileFromClasspath("fixture/certs/ca.key", "/smb/certs/ca.key")
-                .withFileFromClasspath("fixture/certs/ca.pem", "/smb/certs/ca.pem")
-                .withFileFromClasspath("fixture/certs/cert.pem", "/smb/certs/cert.pem")
-                .withFileFromClasspath("fixture/certs/key.pem", "/smb/certs/key.pem")
-        );
+        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
 
         addExposedPort(AD_LDAP_PORT);
         addExposedPort(AD_LDAP_GC_PORT);

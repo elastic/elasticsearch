@@ -108,8 +108,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
         assertMap(
             result,
-            matchesMap()
-                // .entry("documents_found", documentsFound) Backport incoming maybe
+            matchesMap().entry("documents_found", documentsFound)
                 .entry(
                     "profile",
                     matchesMap().entry("drivers", instanceOf(List.class))

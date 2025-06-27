@@ -361,10 +361,38 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return toQuery(query, queryShardContext);
         }
 
+        private static class BytesFromMixedStringsBytesRefBlockLoader extends BlockStoredFieldsReader.StoredFieldsBlockLoader {
+            BytesFromMixedStringsBytesRefBlockLoader(String field) {
+                super(field);
+            }
+
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.bytesRefs(expectedCount);
+            }
+
+            @Override
+            public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+                return new BlockStoredFieldsReader.Bytes(field) {
+                    private final BytesRef scratch = new BytesRef();
+
+                    @Override
+                    protected BytesRef toBytesRef(Object v) {
+                        if (v instanceof BytesRef b) {
+                            return b;
+                        } else {
+                            assert v instanceof String;
+                            return BlockSourceReader.toBytesRef(scratch, v.toString());
+                        }
+                    }
+                };
+            }
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedFieldNameForSyntheticSource());
+                return new BytesFromMixedStringsBytesRefBlockLoader(storedFieldNameForSyntheticSource());
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -385,7 +413,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 ) {
                     @Override
                     protected BytesRef storedToBytesRef(Object stored) {
-                        return (BytesRef) stored;
+                        if (stored instanceof BytesRef storedBytes) {
+                            return storedBytes;
+                        } else {
+                            assert stored instanceof String;
+                            return new BytesRef(stored.toString());
+                        }
                     }
                 };
             }
@@ -476,7 +509,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
-                    b.value(((BytesRef) value).utf8ToString());
+                    if (value instanceof BytesRef valueBytes) {
+                        b.value(valueBytes.utf8ToString());
+                    } else {
+                        assert value instanceof String;
+                        b.value(value.toString());
+                    }
                 }
             }
         );

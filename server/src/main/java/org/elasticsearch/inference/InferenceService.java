@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.io.Closeable;
 import java.util.EnumSet;
@@ -248,4 +249,14 @@ public interface InferenceService extends Closeable {
      * after ensuring the node's internals are set up (for example if this ensures the internal ES client is ready for use).
      */
     default void onNodeStarted() {}
+
+    /**
+     * Get the service integration validator for the given task type.
+     * This allows services to provide custom validation logic.
+     * @param taskType The task type
+     * @return The service integration validator or null if the default should be used
+     */
+    default ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        return null;
+    }
 }

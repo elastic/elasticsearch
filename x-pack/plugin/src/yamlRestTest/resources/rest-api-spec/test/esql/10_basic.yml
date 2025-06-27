@@ -169,7 +169,7 @@ setup:
   - match: {values.0.1: 40}
 
 ---
-"Basic ESQL query":
+basic:
   - do:
       esql.query:
         body:
@@ -181,12 +181,66 @@ setup:
   - match: {values.0: [1, 1]}
 
 ---
-"Test From Eval Sort Limit":
+basic with documents_found:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [documents_found_and_values_loaded]
+      reason: "checks for documents_found and values_loaded"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | keep data | sort data | limit 2'
+          columnar: true
+
+  - match: {documents_found: 10}   # two documents per shard
+  - match: {values_loaded: 10}     # one per document
+  - match: {columns.0.name: "data"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0: [1, 1]}
+
+---
+FROM EVAL SORT LIMIT:
   - do:
       esql.query:
         body:
           query: 'from test | eval x = count + 7 | sort x | limit 1'
 
+  - match: {columns.0.name: "color"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.6.name: "x"}
+  - match: {values.0.6: 47}
+  - length: {values: 1}
+
+---
+FROM EVAL SORT LIMIT with documents_found:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [documents_found_and_values_loaded]
+      reason: "checks for documents_found and values_loaded"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = count + 7 | sort x | limit 1'
+
+  - match: {documents_found: 40}
+  # We can't be sure quite how many values we'll load. It's at least
+  # one per document in the index. And one per top document. But we
+  # might load more values because we run in more threads.
+  - gte: {values_loaded: 45}
   - match: {columns.0.name: "color"}
   - match: {columns.1.name: "count"}
   - match: {columns.2.name: "count_d"}
@@ -359,20 +413,22 @@ setup:
   - match: {values.2: ["1",2.0,null,true,123,1674835275193]}
 
 ---
-"Test Unnamed Input Params Also For Limit":
+"Test Unnamed Input Params Also For Limit And Sample":
   - requires:
         test_runner_features: [ capabilities ]
         capabilities:
           - method: POST
             path: /_query
             parameters: [ ]
-            capabilities: [ parameter_for_limit ]
+            capabilities: [ parameter_for_limit, parameter_for_sample ]
         reason: "named or positional parameters"
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
-          params: ["1", 2.0, null, true, 123, 1674835275193, 3]
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ? | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          params: [0.999999999999, "1", 2.0, null, true, 123, 1674835275193, 3]
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}
@@ -401,14 +457,16 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ parameter_for_limit ]
+          capabilities: [ parameter_for_limit, parameter_for_sample ]
       reason: "named or positional parameters"
 
   - do:
       esql.query:
         body:
-          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
-          params: [{"n1" : "1"}, {"n2" : 2.0}, {"n3" : null}, {"n4" : true}, {"n5" : 123}, {"n6": 1674835275193}, {"l": 3}]
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ? | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit ?'
+          params: [{"s": 0.99999999999}, {"n1" : "1"}, {"n2" : 2.0}, {"n3" : null}, {"n4" : true}, {"n5" : 123}, {"n6": 1674835275193}, {"l": 3}]
 
   - length: {columns: 6}
   - match: {columns.0.name: "x"}
@@ -465,14 +523,16 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ parameter_for_limit ]
+          capabilities: [ parameter_for_limit, parameter_for_sample ]
       reason: "named or positional parameters for field names"
 
   - do:
       esql.query:
         body:
-          query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit ?l'
-          params: [{"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}, {"l": 3}]
+          # The "| sort time" is to work around https://github.com/elastic/elasticsearch/issues/120272
+          # TODO: remove it when the issue is fixed
+          query: 'from test | sort time | sample ?s | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit ?l'
+          params: [{"s": 0.99999999999}, {"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}, {"l": 3}]
 
   - length: {columns: 3}
   - match: {columns.0.name: "color"}

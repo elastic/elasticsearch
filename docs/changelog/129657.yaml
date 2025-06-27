@@ -1,0 +1,6 @@
+pr: 129657
+summary: Fix `PushQueryIT#testEqualityOrTooBig`
+area: ES|QL
+type: bug
+issues:
+ - 129545

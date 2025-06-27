@@ -324,10 +324,19 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
     }
 
     public void testAvailableDiskSpaceMonitorWhenFileSystemStatErrors() throws Exception {
-        aFileStore.usableSpace = randomLongBetween(1L, 100L);
-        aFileStore.totalSpace = randomLongBetween(1L, 100L);
-        bFileStore.usableSpace = randomLongBetween(1L, 100L);
-        bFileStore.totalSpace = randomLongBetween(1L, 100L);
+        long aUsableSpace;
+        long bUsableSpace;
+        do {
+            aFileStore.usableSpace = randomLongBetween(1L, 1000L);
+            aFileStore.totalSpace = randomLongBetween(1L, 1000L);
+            bFileStore.usableSpace = randomLongBetween(1L, 1000L);
+            bFileStore.totalSpace = randomLongBetween(1L, 1000L);
+            // the default 5% (same as flood stage level)
+            aUsableSpace = Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L);
+            bUsableSpace = Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L);
+        } while (aUsableSpace == bUsableSpace); // they must be different in order to distinguish the available disk space updates
+        long finalBUsableSpace = bUsableSpace;
+        long finalAUsableSpace = aUsableSpace;
         boolean aErrorsFirst = randomBoolean();
         if (aErrorsFirst) {
             // the "a" file system will error when collecting stats
@@ -355,18 +364,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                     assertThat(availableDiskSpaceUpdates.size(), is(1));
                     if (aErrorsFirst) {
                         // uses the stats from "b"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalBUsableSpace));
                     } else {
                         // uses the stats from "a"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalAUsableSpace));
                     }
                 }
             });
@@ -393,21 +394,14 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             }
             assertBusy(() -> {
                 synchronized (availableDiskSpaceUpdates) {
+                    // the updates are different values
                     assertThat(availableDiskSpaceUpdates.size(), is(3));
                     if (aErrorsFirst) {
                         // uses the stats from "a"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(aFileStore.usableSpace - aFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalAUsableSpace));
                     } else {
                         // uses the stats from "b"
-                        assertThat(
-                            getLast(availableDiskSpaceUpdates).getBytes(),
-                            // the default 5% (same as flood stage level)
-                            is(Math.max(bFileStore.usableSpace - bFileStore.totalSpace / 20, 0L))
-                        );
+                        assertThat(getLast(availableDiskSpaceUpdates).getBytes(), is(finalBUsableSpace));
                     }
                 }
             });
@@ -533,7 +527,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         bFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         aFileStore.usableSpace = randomLongBetween(900L, aFileStore.totalSpace);
-        bFileStore.usableSpace = randomLongBetween(900L, bFileStore.totalSpace);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> randomLongBetween(900L, bFileStore.totalSpace));
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         try (
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
@@ -611,7 +605,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         aFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         bFileStore.totalSpace = randomLongBetween(1_000L, 10_000L);
         aFileStore.usableSpace = randomLongBetween(900L, aFileStore.totalSpace);
-        bFileStore.usableSpace = randomLongBetween(900L, bFileStore.totalSpace);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> randomLongBetween(900L, bFileStore.totalSpace));
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         try (
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
@@ -844,6 +838,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 when(mergeTask2.schedule()).thenReturn(RUN);
                 boolean task1Runs = randomBoolean();
                 long currentAvailableBudget = expectedAvailableBudget.get();
+                // the over-budget here can be larger than the total initial available budget
                 long overBudget = randomLongBetween(currentAvailableBudget + 1L, currentAvailableBudget + 100L);
                 long underBudget = randomLongBetween(0L, currentAvailableBudget);
                 if (task1Runs) {
@@ -879,11 +874,18 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
                 // update the expected budget given that one task now finished
                 expectedAvailableBudget.set(expectedAvailableBudget.get() + completedMergeTask.estimatedRemainingMergeSize());
             }
-            // let the test finish cleanly
-            assertBusy(() -> {
-                assertThat(threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(), is(aHasMoreSpace ? 112_500L : 103_000L));
-                assertThat(threadPoolMergeExecutorService.allDone(), is(true));
-            });
+            assertBusy(
+                () -> assertThat(
+                    threadPoolMergeExecutorService.getDiskSpaceAvailableForNewMergeTasks(),
+                    is(aHasMoreSpace ? 112_500L : 103_000L)
+                )
+            );
+            // let the test finish cleanly (some tasks can be over budget even if all the other tasks finished running)
+            aFileStore.totalSpace = Long.MAX_VALUE;
+            bFileStore.totalSpace = Long.MAX_VALUE;
+            aFileStore.usableSpace = Long.MAX_VALUE;
+            bFileStore.usableSpace = Long.MAX_VALUE;
+            assertBusy(() -> assertThat(threadPoolMergeExecutorService.allDone(), is(true)));
         }
         if (setThreadPoolMergeSchedulerSetting) {
             assertWarnings(
@@ -896,7 +898,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         long diskSpaceLimitBytes = randomLongBetween(10L, 100L);
         aFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
         aFileStore.totalSpace = aFileStore.usableSpace + randomLongBetween(1L, 10L);
-        bFileStore.usableSpace = diskSpaceLimitBytes + randomLongBetween(1L, 100L);
+        bFileStore.usableSpace = randomValueOtherThan(aFileStore.usableSpace, () -> diskSpaceLimitBytes + randomLongBetween(1L, 100L));
         bFileStore.totalSpace = bFileStore.usableSpace + randomLongBetween(1L, 10L);
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         Settings.Builder settingsBuilder = Settings.builder().put(settings);
@@ -986,8 +988,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         }
         if (setThreadPoolMergeSchedulerSetting) {
             assertWarnings(
-                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch "
-                    + "and will be removed in a future release. See the breaking changes documentation for the next major version."
+                "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
         }
     }
@@ -997,7 +998,10 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         bFileStore.totalSpace = randomLongBetween(300L, 1_000L);
         long grantedUsableSpaceBuffer = randomLongBetween(10L, 50L);
         aFileStore.usableSpace = randomLongBetween(200L, aFileStore.totalSpace - grantedUsableSpaceBuffer);
-        bFileStore.usableSpace = randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer);
+        bFileStore.usableSpace = randomValueOtherThan(
+            aFileStore.usableSpace,
+            () -> randomLongBetween(200L, bFileStore.totalSpace - grantedUsableSpaceBuffer)
+        );
         boolean aHasMoreSpace = aFileStore.usableSpace > bFileStore.usableSpace;
         Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // change the watermark level, just for coverage and it's easier with the calculations

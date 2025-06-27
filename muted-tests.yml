@@ -221,6 +221,9 @@ tests:
   - class: org.elasticsearch.discovery.ClusterDisruptionIT
     method: testAckedIndexing
     issue: https://github.com/elastic/elasticsearch/issues/117024
+  - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+    method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
+    issue: https://github.com/elastic/elasticsearch/issues/129845
 
   # Examples:
   #
@@ -350,8 +353,6 @@ tests:
   - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
     method: test {docs.testFilterToday}
     issue: https://github.com/elastic/elasticsearch/issues/121474
-  - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-    issue: https://github.com/elastic/elasticsearch/issues/121537
   - class: org.elasticsearch.xpack.test.rest.XPackRestIT
     method: test {p0=transform/*}
     issue: https://github.com/elastic/elasticsearch/issues/120816

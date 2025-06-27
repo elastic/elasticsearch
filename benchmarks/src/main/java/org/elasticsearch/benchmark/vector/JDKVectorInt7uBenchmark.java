@@ -67,9 +67,9 @@ public class JDKVectorInt7uBenchmark {
         heapSegB = MemorySegment.ofArray(byteArrayB);
 
         arena = Arena.ofConfined();
-        nativeSegA = arena.allocate((long) byteArrayA.length * Float.BYTES);
+        nativeSegA = arena.allocate((long) byteArrayA.length);
         MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
-        nativeSegB = arena.allocate((long) byteArrayB.length * Float.BYTES);
+        nativeSegB = arena.allocate((long) byteArrayB.length);
         MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
     }
 
@@ -80,19 +80,19 @@ public class JDKVectorInt7uBenchmark {
 
     @Benchmark
     @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public float dotProductLucene() {
+    public int dotProductLucene() {
         return VectorUtil.dotProduct(byteArrayA, byteArrayB);
     }
 
     @Benchmark
     @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public float dotProductNativeWithNativeSeg() {
+    public int dotProductNativeWithNativeSeg() {
         return dotProduct7u(nativeSegA, nativeSegB, size);
     }
 
     @Benchmark
     @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public float dotProductNativeWithHeapSeg() {
+    public int dotProductNativeWithHeapSeg() {
         return dotProduct7u(heapSegA, heapSegB, size);
     }
 

@@ -56,6 +56,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
+    private boolean isForESQL;
+
     /**
      * Implements the wildcard search query. Supported wildcards are {@code *}, which
      * matches any character sequence (including the empty one), and {@code ?},
@@ -78,6 +80,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         this.value = value;
     }
 
+    public WildcardQueryBuilder(String fieldName, String value, boolean isForESQL){
+        this(fieldName, value);
+        this.isForESQL = isForESQL;
+    }
     /**
      * Read from a stream.
      */
@@ -87,6 +93,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)){
+            isForESQL = in.readBoolean();
+        } else {
+            isForESQL = false;
+        }
     }
 
     @Override
@@ -95,6 +106,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)){
+            out.writeBoolean(isForESQL);
+        }
     }
 
     @Override
@@ -218,7 +232,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
             // since rewrites might happen on a network thread.
-            Query query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            Query query;
+            if(isForESQL) {
+                query = constantFieldType.wildcardLikeQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            } else {
+                query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            }
             if (query instanceof MatchAllDocsQuery) {
                 return new MatchAllQueryBuilder();
             } else if (query instanceof MatchNoDocsQuery) {

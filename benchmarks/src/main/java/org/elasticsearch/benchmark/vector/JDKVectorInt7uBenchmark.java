@@ -52,7 +52,7 @@ public class JDKVectorInt7uBenchmark {
 
     Arena arena;
 
-    @Param({ "1", "128", "207", "256", "300", "512", "702", "1024" })
+    @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
     @Setup(Level.Iteration)

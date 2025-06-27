@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 #include "vec.h"
 
 #include <emmintrin.h>
@@ -186,4 +187,162 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
         res += dist * dist;
     }
     return res;
+}
+
+// --- single precision floats
+
+// Horizontal add of all 8 elements in a __m256 register
+static inline float horizontal_sum_avx2(__m256 v) {
+    // First, add the low and high 128-bit lanes
+    __m128 low  = _mm256_castps256_ps128(v);      // lower 128 bits
+    __m128 high = _mm256_extractf128_ps(v, 1);    // upper 128 bits
+    __m128 sum128 = _mm_add_ps(low, high);        // sum 8 floats → 4 floats
+
+    // Then do horizontal sum within 128-bit lane
+    __m128 shuf = _mm_movehdup_ps(sum128);        // duplicate odd-index elements
+    __m128 sums = _mm_add_ps(sum128, shuf);       // add pairs
+
+    shuf = _mm_movehl_ps(shuf, sums);             // move high pair to low
+    sums = _mm_add_ss(sums, shuf);                // add final two elements
+
+    return _mm_cvtss_f32(sums);
+}
+
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
+// size_t elementCount  the number of floating point elements
+EXPORT float cosf32(const float *a, const float *b, size_t elementCount) {
+    __m256 dot0 = _mm256_setzero_ps();
+    __m256 dot1 = _mm256_setzero_ps();
+    __m256 dot2 = _mm256_setzero_ps();
+    __m256 dot3 = _mm256_setzero_ps();
+
+    __m256 norm_a0 = _mm256_setzero_ps();
+    __m256 norm_a1 = _mm256_setzero_ps();
+    __m256 norm_a2 = _mm256_setzero_ps();
+    __m256 norm_a3 = _mm256_setzero_ps();
+
+    __m256 norm_b0 = _mm256_setzero_ps();
+    __m256 norm_b1 = _mm256_setzero_ps();
+    __m256 norm_b2 = _mm256_setzero_ps();
+    __m256 norm_b3 = _mm256_setzero_ps();
+
+    size_t i = 0;
+    // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
+    size_t unrolled_limit = elementCount & ~31UL;
+    for (; i < unrolled_limit; i += 32) {
+        __m256 a0 = _mm256_loadu_ps(a + i);
+        __m256 b0 = _mm256_loadu_ps(b + i);
+        __m256 a1 = _mm256_loadu_ps(a + i + 8);
+        __m256 b1 = _mm256_loadu_ps(b + i + 8);
+        __m256 a2 = _mm256_loadu_ps(a + i + 16);
+        __m256 b2 = _mm256_loadu_ps(b + i + 16);
+        __m256 a3 = _mm256_loadu_ps(a + i + 24);
+        __m256 b3 = _mm256_loadu_ps(b + i + 24);
+
+        dot0 = _mm256_fmadd_ps(a0, b0, dot0);
+        dot1 = _mm256_fmadd_ps(a1, b1, dot1);
+        dot2 = _mm256_fmadd_ps(a2, b2, dot2);
+        dot3 = _mm256_fmadd_ps(a3, b3, dot3);
+
+        norm_a0 = _mm256_fmadd_ps(a0, a0, norm_a0);
+        norm_a1 = _mm256_fmadd_ps(a1, a1, norm_a1);
+        norm_a2 = _mm256_fmadd_ps(a2, a2, norm_a2);
+        norm_a3 = _mm256_fmadd_ps(a3, a3, norm_a3);
+
+        norm_b0 = _mm256_fmadd_ps(b0, b0, norm_b0);
+        norm_b1 = _mm256_fmadd_ps(b1, b1, norm_b1);
+        norm_b2 = _mm256_fmadd_ps(b2, b2, norm_b2);
+        norm_b3 = _mm256_fmadd_ps(b3, b3, norm_b3);
+    }
+
+    // combine and reduce vector accumulators
+    __m256 dot_total = _mm256_add_ps(_mm256_add_ps(dot0, dot1), _mm256_add_ps(dot2, dot3));
+    __m256 norm_a_total = _mm256_add_ps(_mm256_add_ps(norm_a0, norm_a1), _mm256_add_ps(norm_a2, norm_a3));
+    __m256 norm_b_total = _mm256_add_ps(_mm256_add_ps(norm_b0, norm_b1), _mm256_add_ps(norm_b2, norm_b3));
+
+    float dot_result = horizontal_sum_avx2(dot_total);
+    float norm_a_result = horizontal_sum_avx2(norm_a_total);
+    float norm_b_result = horizontal_sum_avx2(norm_b_total);
+
+    // Handle remaining tail with scalar loop
+    for (; i < elementCount; ++i) {
+        float ai = a[i];
+        float bi = b[i];
+        dot_result += ai * bi;
+        norm_a_result += ai * ai;
+        norm_b_result += bi * bi;
+    }
+
+    float denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
+    if (denom == 0.0f) {
+        return 0.0f;
+    }
+    return dot_result / denom;
+}
+
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
+// size_t elementCount  the number of floating point elements
+EXPORT float dotf32(const float *a, const float *b, size_t elementCount) {
+    __m256 acc0 = _mm256_setzero_ps();
+    __m256 acc1 = _mm256_setzero_ps();
+    __m256 acc2 = _mm256_setzero_ps();
+    __m256 acc3 = _mm256_setzero_ps();
+
+    size_t i = 0;
+    // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
+    size_t unrolled_limit = elementCount & ~31UL;
+    for (; i < unrolled_limit; i += 32) {
+        acc0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i),      acc0);
+        acc1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8),  acc1);
+        acc2 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16), acc2);
+        acc3 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24), acc3);
+    }
+
+    // Combine all partial sums
+    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(acc0, acc1), _mm256_add_ps(acc2, acc3));
+    float result = horizontal_sum_avx2(total_sum);
+
+    for (; i < elementCount; ++i) {
+        result += a[i] * b[i];
+    }
+
+    return result;
+}
+
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
+// size_t elementCount  the number of floating point elements
+EXPORT float sqrf32(const float *a, const float *b, size_t elementCount) {
+    __m256 sum0 = _mm256_setzero_ps();
+    __m256 sum1 = _mm256_setzero_ps();
+    __m256 sum2 = _mm256_setzero_ps();
+    __m256 sum3 = _mm256_setzero_ps();
+
+    size_t i = 0;
+    size_t unrolled_limit = elementCount & ~31UL;
+    // Each __m256 holds 8 floats, so unroll 4x = 32 floats per loop
+    for (; i < unrolled_limit; i += 32) {
+        __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a + i),      _mm256_loadu_ps(b + i));
+        __m256 d1 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 8),  _mm256_loadu_ps(b + i + 8));
+        __m256 d2 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 16), _mm256_loadu_ps(b + i + 16));
+        __m256 d3 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 24), _mm256_loadu_ps(b + i + 24));
+
+        sum0 = _mm256_fmadd_ps(d0, d0, sum0);
+        sum1 = _mm256_fmadd_ps(d1, d1, sum1);
+        sum2 = _mm256_fmadd_ps(d2, d2, sum2);
+        sum3 = _mm256_fmadd_ps(d3, d3, sum3);
+    }
+
+    // reduce all partial sums
+    __m256 total_sum = _mm256_add_ps(_mm256_add_ps(sum0, sum1), _mm256_add_ps(sum2, sum3));
+    float result = horizontal_sum_avx2(total_sum);
+
+    for (; i < elementCount; ++i) {
+        float diff = a[i] - b[i];
+        result += diff * diff;
+    }
+
+    return result;
 }

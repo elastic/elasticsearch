@@ -9,10 +9,10 @@
 
 package org.elasticsearch.simdvec;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
+import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
+import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -21,11 +21,10 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
-import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -34,11 +33,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer.quantizeQuery;
 import static org.elasticsearch.simdvec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
@@ -47,12 +44,9 @@ import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-public class VectorScorerFactoryTests extends AbstractVectorTestCase {
+public class Float32VectorScorerFactoryTests extends AbstractVectorTestCase {
 
-    // bounds of the range of values that can be seen by int7 scalar quantized vectors
-    static final byte MIN_INT7_VALUE = 0;
-    static final byte MAX_INT7_VALUE = 127;
+    static final double BASE_DELTA = 1e-5;
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -72,44 +66,36 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     void testSimpleImpl(long maxChunkSize) throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
-        var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                 for (int dims : List.of(31, 32, 33)) {
                     // dimensions that cross the scalar / native boundary (stride)
-                    byte[] vec1 = new byte[dims];
-                    byte[] vec2 = new byte[dims];
-                    float[] query1 = new float[dims];
-                    float[] query2 = new float[dims];
-                    float vec1Correction, vec2Correction;
+                    float[] vector1 = new float[dims];
+                    float[] vector2 = new float[dims];
                     String fileName = "testSimpleImpl-" + sim + "-" + dims + ".vex";
                     try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                         for (int i = 0; i < dims; i++) {
-                            query1[i] = (float) i;
-                            query2[i] = (float) (dims - i);
+                            vector1[i] = (float) i;
+                            vector2[i] = (float) (dims - i);
                         }
-                        vec1Correction = quantizeQuery(query1, vec1, VectorSimilarityType.of(sim), scalarQuantizer);
-                        vec2Correction = quantizeQuery(query2, vec2, VectorSimilarityType.of(sim), scalarQuantizer);
-                        byte[] bytes = concat(vec1, floatToByteArray(vec1Correction), vec2, floatToByteArray(vec2Correction));
-                        out.writeBytes(bytes, 0, bytes.length);
+                        writeFloat32Vectors(out, vector1, vector2);
                     }
                     try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                         var values = vectorValues(dims, 2, in, VectorSimilarityType.of(sim));
-                        float scc = values.getScalarQuantizer().getConstantMultiplier();
-                        float expected = luceneScore(sim, vec1, vec2, scc, vec1Correction, vec2Correction);
+                        float expected = luceneFloat32Score(sim, vector1, vector2);
 
                         var luceneSupplier = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer();
                         luceneSupplier.setScoringOrdinal(0);
-                        assertThat(luceneSupplier.score(1), equalTo(expected));
-                        var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, scc).get();
+                        assertEquals(expected, luceneSupplier.score(1), BASE_DELTA);
+                        var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(0);
-                        assertThat(scorer.score(1), equalTo(expected));
+                        assertEquals(expected, scorer.score(1), BASE_DELTA);
 
-                        if (Runtime.version().feature() >= 22) {
-                            var qScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, query1).get();
-                            assertThat(qScorer.score(1), equalTo(expected));
+                        if (supportsHeapSegments()) {
+                            var qScorer = factory.getFloat32VectorScorer(VectorSimilarityType.of(sim), values, vector1).get();
+                            assertEquals(expected, qScorer.score(1), BASE_DELTA);
                         }
                     }
                 }
@@ -117,48 +103,47 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    public void testNonNegativeDotProduct() throws IOException {
+    public void testNonNegative() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testNonNegativeDotProduct"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
-            // keep vecs `0` so dot product is `0`
-            byte[] vec1 = new byte[32];
-            byte[] vec2 = new byte[32];
+            float[] vec1 = new float[32];
+            float[] vec2 = new float[32];
             String fileName = "testNonNegativeDotProduct-32";
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                var negativeOffset = floatToByteArray(-5f);
-                byte[] bytes = concat(vec1, negativeOffset, vec2, negativeOffset);
-                out.writeBytes(bytes, 0, bytes.length);
+                vec1[0] = -2.0f;  // values to trigger a negative dot product
+                vec2[0] = 1.0f;
+                writeFloat32Vectors(out, vec1, vec2);
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 var values = vectorValues(32, 2, in, VectorSimilarityType.of(DOT_PRODUCT));
                 // dot product
-                float expected = 0f;
-                assertThat(luceneScore(DOT_PRODUCT, vec1, vec2, 1, -5, -5), equalTo(expected));
-                var supplier = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, 1).get();
+                float expected = 0.0f;
+                assertThat(luceneFloat32Score(DOT_PRODUCT, vec1, vec2), equalTo(expected));
+                var supplier = factory.getFloat32VectorScorerSupplier(DOT_PRODUCT, in, values).get();
                 var scorer = supplier.scorer();
                 scorer.setScoringOrdinal(0);
                 assertThat(scorer.score(1), equalTo(expected));
                 assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
                 // max inner product
-                expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, -5, -5);
-                supplier = factory.getInt7SQVectorScorerSupplier(MAXIMUM_INNER_PRODUCT, in, values, 1).get();
+                expected = luceneFloat32Score(MAXIMUM_INNER_PRODUCT, vec1, vec2);
+                supplier = factory.getFloat32VectorScorerSupplier(MAXIMUM_INNER_PRODUCT, in, values).get();
                 scorer = supplier.scorer();
                 scorer.setScoringOrdinal(0);
                 assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
                 assertThat(scorer.score(1), equalTo(expected));
                 // cosine
                 expected = 0f;
-                assertThat(luceneScore(COSINE, vec1, vec2, 1, -5, -5), equalTo(expected));
-                supplier = factory.getInt7SQVectorScorerSupplier(COSINE, in, values, 1).get();
+                assertThat(luceneFloat32Score(COSINE, vec1, vec2), equalTo(expected));
+                supplier = factory.getFloat32VectorScorerSupplier(COSINE, in, values).get();
                 scorer = supplier.scorer();
                 scorer.setScoringOrdinal(0);
                 assertThat(scorer.score(1), equalTo(expected));
                 assertThat(scorer.score(1), greaterThanOrEqualTo(0f));
                 // euclidean
-                expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, -5, -5);
-                supplier = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, 1).get();
+                expected = luceneFloat32Score(EUCLIDEAN, vec1, vec2);
+                supplier = factory.getFloat32VectorScorerSupplier(EUCLIDEAN, in, values).get();
                 scorer = supplier.scorer();
                 scorer.setScoringOrdinal(0);
                 assertThat(scorer.score(1), equalTo(expected));
@@ -169,47 +154,29 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandom() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomWithChunkSize(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplier(maxChunkSize, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomWithChunkSize(maxChunkSize);
     }
 
-    public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_INT7_FUNC);
-    }
-
-    public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT7_FUNC);
-    }
-
-    void testRandomSupplier(long maxChunkSize, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+    void testRandomWithChunkSize(long maxChunkSize) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
             final int dims = randomIntBetween(1, 4096);
             final int size = randomIntBetween(2, 100);
-            final float correction = randomFloat();
-            final byte[][] vectors = new byte[size][];
-            final float[] offsets = new float[size];
+            final float[][] vectors = IntStream.range(0, size).mapToObj(i -> randomVector(dims)).toArray(float[][]::new);
+            final double delta = BASE_DELTA * dims; // scale the delta with the size
 
             String fileName = "testRandom-" + dims;
             logger.info("Testing " + fileName);
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    var vec = byteArraySupplier.apply(dims);
-                    var off = randomFloat();
-                    out.writeBytes(vec, 0, vec.length);
-                    out.writeInt(Float.floatToIntBits(off));
-                    vectors[i] = vec;
-                    offsets[i] = off;
-                }
+                writeFloat32Vectors(out, vectors);
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 for (int times = 0; times < TIMES; times++) {
@@ -217,70 +184,16 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
-                        float expected = luceneScore(sim, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                        var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
+                        float expected = luceneFloat32Score(sim, vectors[idx0], vectors[idx1]);
+                        var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx0);
-                        assertThat(scorer.score(idx1), equalTo(expected));
-                    }
-                }
-            }
-        }
-    }
+                        assertEquals(expected, scorer.score(idx1), delta);
 
-    public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, VectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
-    }
-
-    public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, VectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
-    }
-
-    public void testRandomScorerChunkSizeSmall() throws IOException {
-        long maxChunkSize = randomLongBetween(32, 128);
-        logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
-    }
-
-    void testRandomScorerImpl(long maxChunkSize, Function<Integer, float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
-        var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
-
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                // Use the random supplier for COSINE, which returns values in the normalized range
-                floatArraySupplier = sim == COSINE ? FLOAT_ARRAY_RANDOM_FUNC : floatArraySupplier;
-                final int dims = randomIntBetween(1, 4096);
-                final int size = randomIntBetween(2, 100);
-                final float[][] vectors = new float[size][];
-                final byte[][] qVectors = new byte[size][];
-                final float[] corrections = new float[size];
-
-                float delta = 1e-6f * dims;
-
-                String fileName = "testRandom-" + sim + "-" + dims + ".vex";
-                logger.info("Testing " + fileName);
-                try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                    for (int i = 0; i < size; i++) {
-                        vectors[i] = floatArraySupplier.apply(dims);
-                        qVectors[i] = new byte[dims];
-                        corrections[i] = quantizeQuery(vectors[i], qVectors[i], VectorSimilarityType.of(sim), scalarQuantizer);
-                        out.writeBytes(qVectors[i], 0, dims);
-                        out.writeBytes(floatToByteArray(corrections[i]), 0, 4);
-                    }
-                }
-                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    for (int times = 0; times < TIMES; times++) {
-                        int idx0 = randomIntBetween(0, size - 1);
-                        int idx1 = randomIntBetween(0, size - 1);
-                        var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
-                        var correction = scalarQuantizer.getConstantMultiplier();
-
-                        var expected = luceneScore(sim, qVectors[idx0], qVectors[idx1], correction, corrections[idx0], corrections[idx1]);
-                        var scorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(sim), values, vectors[idx0]).get();
-                        assertEquals(scorer.score(idx1), expected, delta);
+                        if (supportsHeapSegments()) {
+                            var qScorer = factory.getFloat32VectorScorer(VectorSimilarityType.of(sim), values, vectors[idx0]).get();
+                            assertEquals(expected, qScorer.score(idx1), delta);
+                        }
                     }
                 }
             }
@@ -289,33 +202,24 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomSlice() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomSliceImpl(30, 64, 1);
     }
 
-    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier)
-        throws IOException {
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
                 final int size = randomIntBetween(2, 100);
-                final float correction = randomFloat();
-                final byte[][] vectors = new byte[size][];
-                final float[] offsets = new float[size];
+                final float[][] vectors = IntStream.range(0, size).mapToObj(i -> randomVector(dims)).toArray(float[][]::new);
+                final double delta = BASE_DELTA * dims; // scale the delta with the size
 
                 String fileName = "testRandomSliceImpl-" + times + "-" + dims;
                 logger.info("Testing " + fileName);
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                     byte[] ba = new byte[initialPadding];
                     out.writeBytes(ba, 0, ba.length);
-                    for (int i = 0; i < size; i++) {
-                        var vec = byteArraySupplier.apply(dims);
-                        var off = randomFloat();
-                        out.writeBytes(vec, 0, vec.length);
-                        out.writeInt(Float.floatToIntBits(off));
-                        vectors[i] = vec;
-                        offsets[i] = off;
-                    }
+                    writeFloat32Vectors(out, vectors);
                 }
                 try (
                     var outter = dir.openInput(fileName, IOContext.DEFAULT);
@@ -326,11 +230,16 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                         for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                             var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
-                            float expected = luceneScore(sim, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
-                            var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
+                            float expected = luceneFloat32Score(sim, vectors[idx0], vectors[idx1]);
+                            var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                             var scorer = supplier.scorer();
                             scorer.setScoringOrdinal(idx0);
-                            assertThat(scorer.score(idx1), equalTo(expected));
+                            assertEquals(expected, scorer.score(idx1), delta);
+
+                            if (supportsHeapSegments()) {
+                                var qScorer = factory.getFloat32VectorScorer(VectorSimilarityType.of(sim), values, vectors[idx0]).get();
+                                assertEquals(expected, qScorer.score(idx1), delta);
+                            }
                         }
                     }
                 }
@@ -345,33 +254,34 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
-            final int dims = 8192;
+            final int dims = 4096;
             final int size = 262144;
-            final float correction = randomFloat();
+            assert (long) dims * Float.BYTES * size > Integer.MAX_VALUE;
+            final double delta = BASE_DELTA * dims; // scale the delta with the size
 
             String fileName = "testLarge-" + dims;
             logger.info("Testing " + fileName);
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                 for (int i = 0; i < size; i++) {
-                    var vec = vector(i, dims);
-                    var off = (float) i;
-                    out.writeBytes(vec, 0, vec.length);
-                    out.writeInt(Float.floatToIntBits(off));
+                    writeFloat32Vectors(out, vector(i, dims));
                 }
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
-                    float off0 = (float) idx0;
-                    float off1 = (float) idx1;
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, size, in, VectorSimilarityType.of(sim));
-                        float expected = luceneScore(sim, vector(idx0, dims), vector(idx1, dims), correction, off0, off1);
-                        var supplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, correction).get();
+                        float expected = luceneFloat32Score(sim, vector(idx0, dims), vector(idx1, dims));
+                        var supplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx0);
-                        assertThat(scorer.score(idx1), equalTo(expected));
+                        assertEquals(expected, scorer.score(idx1), delta);
+
+                        if (supportsHeapSegments()) {
+                            var qScorer = factory.getFloat32VectorScorer(VectorSimilarityType.of(sim), values, vector(idx0, dims)).get();
+                            assertEquals(expected, qScorer.score(idx1), delta);
+                        }
                     }
                 }
             }
@@ -392,23 +302,21 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
         final long maxChunkSize = 32;
         final int dims = 34; // dimensions that are larger than the chunk size, to force fallback
-        byte[] vec1 = new byte[dims];
-        byte[] vec2 = new byte[dims];
+        float[] vec1 = new float[dims];
+        float[] vec2 = new float[dims];
         IntStream.range(0, dims).forEach(i -> vec1[i] = 1);
         IntStream.range(0, dims).forEach(i -> vec2[i] = 2);
         try (Directory dir = new MMapDirectory(createTempDir("testRace"), maxChunkSize)) {
             String fileName = "testRace-" + dims;
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                var one = floatToByteArray(1f);
-                byte[] bytes = concat(vec1, one, vec1, one, vec2, one, vec2, one);
-                out.writeBytes(bytes, 0, bytes.length);
+                writeFloat32Vectors(out, vec1, vec1, vec2, vec2);
             }
-            var expectedScore1 = luceneScore(sim, vec1, vec1, 1, 1, 1);
-            var expectedScore2 = luceneScore(sim, vec2, vec2, 1, 1, 1);
+            var expectedScore1 = luceneFloat32Score(sim, vec1, vec1);
+            var expectedScore2 = luceneFloat32Score(sim, vec2, vec2);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 var values = vectorValues(dims, 4, in, VectorSimilarityType.of(sim));
-                var scoreSupplier = factory.getInt7SQVectorScorerSupplier(sim, in, values, 1f).get();
+                var scoreSupplier = factory.getFloat32VectorScorerSupplier(sim, in, values).get();
                 var tasks = List.<Callable<Optional<Throwable>>>of(
                     new ScoreCallable(scoreSupplier.copy().scorer(), 0, 1, expectedScore1),
                     new ScoreCallable(scoreSupplier.copy().scorer(), 2, 3, expectedScore2)
@@ -455,57 +363,47 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
-        var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
+    FloatVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var slice = in.slice("values", 0, in.length());
-        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
+        var byteSize = dims * Float.BYTES;
+        return new OffHeapFloatVectorValues.DenseOffHeapVectorValues(dims, size, slice, byteSize, DefaultFlatVectorScorer.INSTANCE, sim);
     }
 
-    RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim) throws IOException {
-        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    /** Computes the score using the Lucene implementation. */
+    static float luceneFloat32Score(VectorSimilarityType similarityFunc, float[] a, float[] b) {
+        return VectorSimilarityType.of(similarityFunc).compare(a, b);
+    }
+
+    RandomVectorScorerSupplier luceneScoreSupplier(KnnVectorValues values, VectorSimilarityFunction sim) throws IOException {
+        return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(sim, values);
+    }
+
+    static float[] randomVector(int dim) {
+        float[] v = new float[dim];
+        Random random = random();
+        for (int i = 0; i < dim; i++) {
+            v[i] = random.nextFloat();
+        }
+        return v;
     }
 
     // creates the vector based on the given ordinal, which is reproducible given the ord and dims
-    static byte[] vector(int ord, int dims) {
+    static float[] vector(int ord, int dims) {
         var random = new Random(Objects.hash(ord, dims));
-        byte[] ba = new byte[dims];
+        float[] fa = new float[dims];
         for (int i = 0; i < dims; i++) {
-            ba[i] = (byte) RandomNumbers.randomIntBetween(random, MIN_INT7_VALUE, MAX_INT7_VALUE);
+            fa[i] = random.nextFloat();
         }
-        return ba;
+        return fa;
     }
 
-    static Function<Integer, float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
+    static void writeFloat32Vectors(IndexOutput out, float[]... vectors) throws IOException {
+        var buffer = ByteBuffer.allocate(vectors[0].length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        for (var v : vectors) {
+            buffer.asFloatBuffer().put(v);
+            out.writeBytes(buffer.array(), buffer.array().length);
         }
-        return fa;
-    };
-
-    static Function<Integer, float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
-        float[] fa = new float[size];
-        Arrays.fill(fa, Float.MAX_VALUE);
-        return fa;
-    };
-
-    static Function<Integer, byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static Function<Integer, byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static Function<Integer, byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MIN_INT7_VALUE);
-        return ba;
-    };
+    }
 
     static final int TIMES = 100; // a loop iteration times
 }

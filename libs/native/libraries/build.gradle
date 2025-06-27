@@ -52,7 +52,7 @@ dependencies {
   libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
   libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
   libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
-  libs "org.elasticsearch:vec:${vecVersion}@zip" // temporarily comment this out, if testing a locally built native lib
+//  libs "org.elasticsearch:vec:${vecVersion}@zip" // temporarily comment this out, if testing a locally built native lib
 }
 
 def extractLibs = tasks.register('extractLibs', Copy) {

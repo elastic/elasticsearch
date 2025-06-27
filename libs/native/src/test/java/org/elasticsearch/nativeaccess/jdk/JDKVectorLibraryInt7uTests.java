@@ -15,47 +15,33 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
-    static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
-
-    static final int[] VECTOR_DIMS = { 1, 4, 6, 8, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 1023, 1024, 1025 };
-
-    final int size;
-
-    static Arena arena;
-
-    final double delta;
-
-    public JDKVectorLibraryTests(int size) {
-        this.size = size;
-        this.delta = 1e-5 * size; // scale the delta with the size
+    public JDKVectorLibraryInt7uTests(int size) {
+        super(size);
     }
 
     @BeforeClass
-    public static void setup() {
-        arena = Arena.ofConfined();
+    public static void beforeClass() {
+        VectorSimilarityFunctionsTests.setup();
     }
 
     @AfterClass
-    public static void cleanup() {
-        arena.close();
+    public static void afterClass() {
+        VectorSimilarityFunctionsTests.cleanup();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        return () -> IntStream.of(VECTOR_DIMS).boxed().map(i -> new Object[] { i }).iterator();
+        return VectorSimilarityFunctionsTests.parametersFactory();
     }
 
     public void testInt7BinaryVectors() {
@@ -79,7 +65,7 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
             // dot product
             int expected = dotProductScalar(values[first], values[second]);
             assertEquals(expected, dotProduct7u(nativeSeg1, nativeSeg2, dims));
-            if (testWithHeapSegments()) {
+            if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
                 var heapSeg2 = MemorySegment.ofArray(values[second]);
                 assertEquals(expected, dotProduct7u(heapSeg1, heapSeg2, dims));
@@ -90,7 +76,7 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
             // square distance
             expected = squareDistanceScalar(values[first], values[second]);
             assertEquals(expected, squareDistance7u(nativeSeg1, nativeSeg2, dims));
-            if (testWithHeapSegments()) {
+            if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
                 var heapSeg2 = MemorySegment.ofArray(values[second]);
                 assertEquals(expected, squareDistance7u(heapSeg1, heapSeg2, dims));
@@ -98,10 +84,6 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
                 assertEquals(expected, squareDistance7u(heapSeg1, nativeSeg2, dims));
             }
         }
-    }
-
-    static boolean testWithHeapSegments() {
-        return Runtime.version().feature() >= 22;
     }
 
     public void testIllegalDims() {

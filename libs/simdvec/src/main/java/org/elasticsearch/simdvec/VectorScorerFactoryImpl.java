@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -35,6 +36,24 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
         QuantizedByteVectorValues values,
+        float[] queryVector
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getFloat32VectorScorer(
+        VectorSimilarityFunction sim,
+        FloatVectorValues values,
         float[] queryVector
     ) {
         throw new UnsupportedOperationException("should not reach here");

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.simdvec;
 
-import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -62,17 +61,9 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
-    /** Computes the score using the Lucene implementation. */
-    public static float luceneScore(
-        VectorSimilarityType similarityFunc,
-        byte[] a,
-        byte[] b,
-        float correction,
-        float aOffsetValue,
-        float bOffsetValue
-    ) {
-        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction, (byte) 7);
-        return scorer.score(a, aOffsetValue, b, bOffsetValue);
+    // Support for passing on-heap arrays/segments to native
+    protected static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
     }
 
     /** Converts a float value to a byte array. */

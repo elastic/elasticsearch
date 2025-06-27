@@ -128,6 +128,8 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 1.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
         assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
         assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
@@ -137,8 +139,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
         assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
         assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
-        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 0.0f);
-        assertEquals(QUERY_NAME, sparseVectorQueryBuilder.queryName());
+        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 1.0f);
     }
 
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {

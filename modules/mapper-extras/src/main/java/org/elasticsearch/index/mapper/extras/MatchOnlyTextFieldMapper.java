@@ -133,8 +133,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 indexAnalyzer,
-                storeSource,
-                meta.getValue()
+                context.isSourceSynthetic(),
+                meta.getValue(),
+                withinMultiField,
+                multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField()
             );
             return ft;
         }
@@ -164,17 +166,24 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final TextFieldType textFieldType;
         private final String originalName;
 
+        private final boolean withinMultiField;
+        private final boolean hasCompatibleMultiFields;
+
         public MatchOnlyTextFieldType(
             String name,
             TextSearchInfo tsi,
             Analyzer indexAnalyzer,
             boolean isSyntheticSource,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean withinMultiField,
+            boolean hasCompatibleMultiFields
         ) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource);
             this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.withinMultiField = withinMultiField;
+            this.hasCompatibleMultiFields = hasCompatibleMultiFields;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -183,7 +192,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Lucene.STANDARD_ANALYZER,
                 false,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false,
+                false
             );
         }
 
@@ -210,20 +221,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
             }
-            if (searchExecutionContext.isSourceSynthetic()) {
+            if (searchExecutionContext.isSourceSynthetic() && withinMultiField == false && hasCompatibleMultiFields == false) {
                 String name = storedFieldNameForSyntheticSource();
                 // TODO: go the parent field and load either via stored fields or doc values the values instead synthesizing complete source
                 // (in case of synthetic source and if this field is a multi field, then it will not have a stored field.)
-                if (name != null) {
-                    StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
-                    return context -> {
-                        LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
-                        return docId -> {
-                            leafLoader.advanceTo(docId);
-                            return leafLoader.storedFields().get(name);
-                        };
+                StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
+                return context -> {
+                    LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
+                    return docId -> {
+                        leafLoader.advanceTo(docId);
+                        return leafLoader.storedFields().get(name);
                     };
-                }
+                };
             }
             return context -> {
                 ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
@@ -529,7 +538,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             for (FieldMapper multiField : multiFields()) {
                 if (multiField instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                        return kwd.syntheticSourceSupport();
+                        return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
                     }
                 }
             }

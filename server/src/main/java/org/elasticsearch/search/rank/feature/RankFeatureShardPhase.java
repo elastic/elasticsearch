@@ -66,7 +66,7 @@ public final class RankFeatureShardPhase {
                     if (snippets.numSnippets() != null) {
                         highlightBuilder.numOfFragments(snippets.numSnippets());
                     }
-                    highlightBuilder.fragmentSize(20); // TODO use model limit
+                    highlightBuilder.fragmentSize(request.getTokenSizeLimit());
                     SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
                     searchContext.highlight(searchHighlightContext);
                 }

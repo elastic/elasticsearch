@@ -41,19 +41,22 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
     private final int[] docIds;
 
     private final RerankSnippetInput snippets;
+    private final int tokenSizeLimit;
 
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId contextId,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
-        @Nullable RerankSnippetInput snippets
+        @Nullable RerankSnippetInput snippets,
+        int tokenSizeLimit
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
         this.docIds = docIds.stream().flatMapToInt(IntStream::of).toArray();
         this.contextId = contextId;
         this.snippets = snippets;
+        this.tokenSizeLimit = tokenSizeLimit;
     }
 
     public RankFeatureShardRequest(StreamInput in) throws IOException {
@@ -64,8 +67,10 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             snippets = in.readOptionalWriteable(RerankSnippetInput::new);
+            this.tokenSizeLimit = in.readVInt();
         } else {
             snippets = null;
+            this.tokenSizeLimit = 0;
         }
     }
 
@@ -78,6 +83,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         out.writeOptionalWriteable(contextId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             out.writeOptionalWriteable(snippets);
+            out.writeVInt(tokenSizeLimit);
         }
     }
 
@@ -111,6 +117,10 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     public RerankSnippetInput snippets() {
         return snippets;
+    }
+
+    public int getTokenSizeLimit() {
+        return tokenSizeLimit;
     }
 
     @Override

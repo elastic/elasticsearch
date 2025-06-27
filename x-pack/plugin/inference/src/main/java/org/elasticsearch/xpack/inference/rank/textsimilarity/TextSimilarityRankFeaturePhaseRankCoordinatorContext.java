@@ -28,12 +28,17 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
  * the provided rank window.
  */
 public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
+
+    private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
+    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4096;
 
     protected final Client client;
     protected final String inferenceId;
@@ -56,6 +61,20 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
+    }
+
+    /**
+     * @return The token size limit to apply to this rerank context.
+     * This is not yet available so we are hardcoding it for now.
+     * See: https://github.com/elastic/ml-team/issues/1622
+     */
+    @Override
+    public Integer tokenSizeLimit() {
+        if (inferenceId.equals(DEFAULT_RERANK_ID) || inferenceId.equals(RERANKER_ID)) {
+            return RERANK_TOKEN_SIZE_LIMIT;
+        }
+
+        return DEFAULT_TOKEN_SIZE_LIMIT;
     }
 
     @Override

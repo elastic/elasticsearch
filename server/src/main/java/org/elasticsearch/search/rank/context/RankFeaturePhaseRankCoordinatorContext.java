@@ -55,6 +55,8 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         return snippets;
     }
 
+    public abstract Integer tokenSizeLimit();
+
     /**
      * Computes the updated scores for a list of features (i.e. document-based data). We also pass along an ActionListener
      * that should be called with the new scores, and will continue execution to the next phase

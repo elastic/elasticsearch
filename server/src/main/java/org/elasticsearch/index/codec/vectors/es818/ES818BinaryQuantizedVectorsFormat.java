@@ -87,7 +87,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   * </ul>
  */
 public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
-  
+
     static final boolean USE_DIRECT_IO = getUseDirectIO();
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";

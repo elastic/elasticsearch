@@ -78,15 +78,14 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalNamedWriteable(
-            query == null || query.supportsVersion(out.getTransportVersion()) ? query :
-            /*
-             * The remote node doesn't support the query we're sending. If this were only
-             * used for _search this could just fail, but for ESQL it's much more convenient
-             * if it pretends that the query is MatchAll. ESQL will frequently be able to
-             * perform the document filtering on the data node in its engine. Slowly.
-             * But correctly.
-             */
+        out.writeOptionalNamedWriteable(query == null || query.supportsVersion(out.getTransportVersion()) ? query :
+        /*
+         * The remote node doesn't support the query we're sending. If this were only
+         * used for _search this could just fail, but for ESQL it's much more convenient
+         * if it pretends that the query is MatchAll. ESQL will frequently be able to
+         * perform the document filtering on the data node in its engine. Slowly.
+         * But correctly.
+         */
             new MatchAllQueryBuilder());
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

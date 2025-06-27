@@ -214,8 +214,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             this.parentFilter = parentFilter;
         }
 
-        record DocAndParent(int parent, int doc) {}
-
         @Override
         @SuppressWarnings("unchecked")
         public Query rewrite(IndexSearcher searcher) throws IOException {

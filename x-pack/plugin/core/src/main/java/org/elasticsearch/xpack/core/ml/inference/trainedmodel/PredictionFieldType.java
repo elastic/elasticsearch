@@ -46,7 +46,6 @@ public enum PredictionFieldType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    @SuppressForbidden(reason = "accept lenient boolean field values")
     public Object transformPredictedValue(Double value, String stringRep) {
         if (value == null) {
             return null;
@@ -63,7 +62,7 @@ public enum PredictionFieldType implements Writeable {
                         // do nothing, allow fall through to final fromDouble
                     }
                 } else if (isBoolQuickCheck(stringRep)) { // if we start with t/f case insensitive, it indicates boolean string
-                    return Boolean.parseBoolean(stringRep);
+                    return parseBoolean(stringRep);
                 }
                 return fromDouble(value);
             case NUMBER:
@@ -80,6 +79,11 @@ public enum PredictionFieldType implements Writeable {
             default:
                 return value;
         }
+    }
+
+    @SuppressForbidden(reason = "accept lenient boolean field values")
+    private static boolean parseBoolean(String value) {
+        return Boolean.parseBoolean(value);
     }
 
     private static boolean fromDouble(double value) {

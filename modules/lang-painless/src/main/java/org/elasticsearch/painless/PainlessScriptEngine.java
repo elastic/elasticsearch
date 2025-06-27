@@ -392,9 +392,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private CompilerSettings buildCompilerSettings(Map<String, String> params) {
         CompilerSettings compilerSettings;
         if (params.isEmpty()) {
@@ -418,7 +415,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.PICKY);
             if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
+                compilerSettings.setPicky(parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
@@ -441,6 +438,13 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
         return compilerSettings;
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean parseBoolean(String value) {
+        return Boolean.parseBoolean(value);
     }
 
     private static ScriptException convertToScriptException(String scriptSource, Throwable t) {

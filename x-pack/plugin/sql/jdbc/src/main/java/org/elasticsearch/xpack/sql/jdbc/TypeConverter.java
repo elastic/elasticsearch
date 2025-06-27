@@ -311,9 +311,7 @@ final class TypeConverter {
         throw e != null ? new SQLException(message, e) : new SQLException(message);
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
+    @SuppressForbidden(reason = "allow lenient conversion to boolean")
     private static Boolean asBoolean(Object val, EsType columnType, String typeString) throws SQLException {
         switch (columnType) {
             case BOOLEAN:

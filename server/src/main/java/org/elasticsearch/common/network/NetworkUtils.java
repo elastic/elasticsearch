@@ -50,7 +50,7 @@ public abstract class NetworkUtils {
     @SuppressForbidden(
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
     )
-    static boolean preferIPv6Addresses() {
+    private static boolean preferIPv6Addresses() {
         return Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
     }
 

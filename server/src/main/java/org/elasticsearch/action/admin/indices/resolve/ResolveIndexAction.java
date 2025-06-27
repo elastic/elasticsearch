@@ -38,7 +38,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
@@ -630,7 +629,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (ia.isSystem()) {
                             attributes.add(Attribute.SYSTEM);
                         }
-                        final boolean isFrozen = isFrozen(writeIndex);
+                        final boolean isFrozen = writeIndex.getSettings().getAsBoolean("index.frozen", false);
                         if (isFrozen) {
                             attributes.add(Attribute.FROZEN);
                         }
@@ -664,13 +663,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
-        }
-
-        @SuppressForbidden(
-            reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-        )
-        private static boolean isFrozen(IndexMetadata writeIndex) {
-            return Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
         }
 
         private static Stream<Index> getAliasIndexStream(

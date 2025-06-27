@@ -97,9 +97,6 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return Set.of(TemplateScript.CONTEXT, TemplateScript.INGEST_CONTEXT);
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
         CustomMustacheFactory.Builder builder = CustomMustacheFactory.builder();
         if (options == null || options.isEmpty()) {
@@ -111,10 +108,17 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         if (options.containsKey(DETECT_MISSING_PARAMS_OPTION)) {
-            builder.detectMissingParams(Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION)));
+            builder.detectMissingParams(getDetectMissingParamsOption(options));
         }
 
         return builder.build();
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean getDetectMissingParamsOption(Map<String, String> options) {
+        return Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION));
     }
 
     @Override

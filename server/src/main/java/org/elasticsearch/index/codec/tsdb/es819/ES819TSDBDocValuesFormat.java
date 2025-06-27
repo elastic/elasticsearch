@@ -100,7 +100,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     @SuppressForbidden(
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
     )
-    static boolean getOptimizedMergeEnabledDefault() {
+    private static boolean getOptimizedMergeEnabledDefault() {
         return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 

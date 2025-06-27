@@ -376,9 +376,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         ).getDestIndex();
 
         var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)));
-        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
-        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
-        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY), false));
+        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), false));
+        assertFalse(Booleans.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE), false));
 
         cleanupMetadataBlocks(destIndex);
     }

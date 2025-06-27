@@ -632,7 +632,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @SuppressForbidden(
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
     )
-    static boolean getErrorTraceHeader(ThreadPool threadPool) {
+    private static boolean getErrorTraceHeader(ThreadPool threadPool) {
         return Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
     }
 

@@ -63,23 +63,22 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     static final class TrackingLengthFieldsConsumer extends FieldsConsumer {
         final SegmentWriteState state;
         final FieldsConsumer in;
-        final IntIntHashMap maxLengths;
+        final IntIntHashMap termsBytesPerField;
 
         TrackingLengthFieldsConsumer(SegmentWriteState state, FieldsConsumer in) {
             this.state = state;
             this.in = in;
-            this.maxLengths = new IntIntHashMap(state.fieldInfos.size());
+            this.termsBytesPerField = new IntIntHashMap(state.fieldInfos.size());
         }
 
         @Override
         public void write(Fields fields, NormsProducer norms) throws IOException {
-            in.write(new TrackingLengthFields(fields, maxLengths, state.fieldInfos), norms);
-            long totalLength = 0;
-            for (int len : maxLengths.values) {
-                totalLength += len; // minTerm
-                totalLength += len; // maxTerm
+            in.write(new TrackingLengthFields(fields, termsBytesPerField, state.fieldInfos), norms);
+            long totalBytes = 0;
+            for (int bytes : termsBytesPerField.values) {
+                totalBytes += bytes;
             }
-            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalLength));
+            state.segmentInfo.putAttribute(IN_MEMORY_POSTINGS_BYTES_KEY, Long.toString(totalBytes));
         }
 
         @Override
@@ -89,12 +88,12 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     }
 
     static final class TrackingLengthFields extends FilterLeafReader.FilterFields {
-        final IntIntHashMap maxLengths;
+        final IntIntHashMap termsBytesPerField;
         final FieldInfos fieldInfos;
 
-        TrackingLengthFields(Fields in, IntIntHashMap maxLengths, FieldInfos fieldInfos) {
+        TrackingLengthFields(Fields in, IntIntHashMap termsBytesPerField, FieldInfos fieldInfos) {
             super(in);
-            this.maxLengths = maxLengths;
+            this.termsBytesPerField = termsBytesPerField;
             this.fieldInfos = fieldInfos;
         }
 
@@ -102,10 +101,13 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
         public Terms terms(String field) throws IOException {
             Terms terms = super.terms(field);
             if (terms == null) {
-                return terms;
+                return null;
             }
             int fieldNum = fieldInfos.fieldInfo(field).number;
-            return new TrackingLengthTerms(terms, len -> maxLengths.put(fieldNum, Math.max(maxLengths.getOrDefault(fieldNum, 0), len)));
+            return new TrackingLengthTerms(
+                terms,
+                bytes -> termsBytesPerField.put(fieldNum, Math.max(termsBytesPerField.getOrDefault(fieldNum, 0), bytes))
+            );
         }
     }
 
@@ -125,6 +127,8 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
 
     static final class TrackingLengthTermsEnum extends FilterLeafReader.FilterTermsEnum {
         int maxTermLength = 0;
+        int minTermLength = 0;
+        int termCount = 0;
         final IntConsumer onFinish;
 
         TrackingLengthTermsEnum(TermsEnum in, IntConsumer onFinish) {
@@ -136,9 +140,19 @@ public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
         public BytesRef next() throws IOException {
             final BytesRef term = super.next();
             if (term != null) {
-                maxTermLength = Math.max(maxTermLength, term.length);
+                if (termCount == 0) {
+                    minTermLength = term.length;
+                }
+                maxTermLength = term.length;
+                termCount++;
             } else {
-                onFinish.accept(maxTermLength);
+                if (termCount == 1) {
+                    // If the minTerm and maxTerm are the same, only one instance is kept on the heap.
+                    assert minTermLength == maxTermLength;
+                    onFinish.accept(maxTermLength);
+                } else {
+                    onFinish.accept(maxTermLength + minTermLength);
+                }
             }
             return term;
         }

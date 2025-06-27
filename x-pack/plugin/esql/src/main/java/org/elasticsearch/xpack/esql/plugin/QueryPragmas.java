@@ -79,7 +79,7 @@ public final class QueryPragmas implements Writeable {
         MappedFieldType.FieldExtractPreference.NONE
     );
 
-    public static final Setting<Integer> MAX_TOP_N_AGGS_LIMIT = Setting.intSetting("max_top_n_aggs_limit", 100, 1);
+    public static final Setting<Integer> MAX_TOP_N_AGGS_LIMIT = Setting.intSetting("max_top_n_aggs_limit", 100, 0);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 

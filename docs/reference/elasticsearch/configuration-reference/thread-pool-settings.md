@@ -33,7 +33,7 @@ $$$search-throttled$$$`search_throttled`
 :   For analyze requests. Thread pool type is `fixed` with a size of `1`, queue size of `16`.
 
 `write`
-:   For write operations and ingest processors. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `10000`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).
+:   For write operations and ingest processors. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `max(10000, (`[`# of allocated processors`](#node.processors)`* 750))`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).
 
 `write_coordination`
 :   For bulk request coordination operations. Thread pool type is `fixed` with a size of [`# of allocated processors`](#node.processors), queue_size of `10000`. The maximum size for this pool is `1 + `[`# of allocated processors`](#node.processors).

@@ -30,6 +30,10 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution("to be triaged")
 }
 
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.logs_stream_feature_flag_enabled', 'true'
+}
+
 if (buildParams.inFipsJvm){
   // These fail in CI but only when run as part of checkPart2 and not individually.
   // Tracked in :

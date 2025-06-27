@@ -170,8 +170,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             shouldPruneTokens,
             tokenPruningConfig
         );
-//        sparseVectorQueryBuilder.boost(queryBuilder.boost());
-//        sparseVectorQueryBuilder.queryName(queryBuilder.queryName());
+        // sparseVectorQueryBuilder.boost(queryBuilder.boost());
+        // sparseVectorQueryBuilder.queryName(queryBuilder.queryName());
         return sparseVectorQueryBuilder;
     }
 

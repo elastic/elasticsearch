@@ -270,14 +270,16 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     public KnnVectorQueryBuilder(KnnVectorQueryBuilder queryBuilder, String fieldName, QueryVectorBuilder queryVectorBuilder) {
-        this(fieldName,
+        this(
+            fieldName,
             queryBuilder.queryVector(),
             queryVectorBuilder,
             null,
             queryBuilder.k(),
             queryBuilder.numCands(),
             queryBuilder.rescoreVectorBuilder(),
-            queryBuilder.getVectorSimilarity());
+            queryBuilder.getVectorSimilarity()
+        );
         this.boost = queryBuilder.boost();
         this.queryName = queryBuilder.queryName();
         this.filterQueries.addAll(queryBuilder.filterQueries());

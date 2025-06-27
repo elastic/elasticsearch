@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -177,7 +178,11 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(backingIndex)
                             .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
-                            .addShard(shardRoutingBuilder(shardId, searchNode.getId(), false, STARTED).withRecoverySource(null).build())
+                            .addShard(
+                                shardRoutingBuilder(shardId, searchNode.getId(), false, STARTED).withRecoverySource(null)
+                                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                                    .build()
+                            )
                     )
                     .build()
             )

@@ -43,6 +43,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -90,7 +91,7 @@ class KnnSearcher {
     private final int efSearch;
     private final int nProbe;
     private final KnnIndexTester.IndexType indexType;
-    private final int dim;
+    private int dim;
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
     private final float overSamplingFactor;
@@ -120,6 +121,7 @@ class KnnSearcher {
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
+        int offsetByteSize = 0;
         try (
             FileChannel input = FileChannel.open(queryPath);
             ExecutorService executorService = Executors.newFixedThreadPool(searchThreads, r -> new Thread(r, "KnnSearcher-Thread"))
@@ -131,7 +133,19 @@ class KnnSearcher {
                     + " bytes, assuming vector count is "
                     + (queryPathSizeInBytes / ((long) dim * vectorEncoding.byteSize))
             );
-            KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding);
+            if (dim == -1) {
+                offsetByteSize = 4;
+                ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+                int bytesRead = Channels.readFromFileChannel(input, 0, preamble);
+                if (bytesRead < 4) {
+                    throw new IllegalArgumentException("queryPath \"" + queryPath + "\" does not contain a valid dims?");
+                }
+                dim = preamble.getInt(0);
+                if (dim <= 0) {
+                    throw new IllegalArgumentException("queryPath \"" + queryPath + "\" has invalid dimension: " + dim);
+                }
+            }
+            KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
             try (MMapDirectory dir = new MMapDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
@@ -194,7 +208,7 @@ class KnnSearcher {
             }
         }
         logger.info("checking results");
-        int[][] nn = getOrCalculateExactNN();
+        int[][] nn = getOrCalculateExactNN(offsetByteSize);
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -203,7 +217,7 @@ class KnnSearcher {
         finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
     }
 
-    private int[][] getOrCalculateExactNN() throws IOException {
+    private int[][] getOrCalculateExactNN(int vectorFileOffsetBytes) throws IOException {
         // look in working directory for cached nn file
         String hash = Integer.toString(
             Objects.hash(
@@ -231,9 +245,9 @@ class KnnSearcher {
             // checking low-precision recall
             int[][] nn;
             if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                nn = computeExactNNByte(queryPath);
+                nn = computeExactNNByte(queryPath, vectorFileOffsetBytes);
             } else {
-                nn = computeExactNN(queryPath);
+                nn = computeExactNN(queryPath, vectorFileOffsetBytes);
             }
             writeExactNN(nn, nnPath);
             long elapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS); // ns -> ms
@@ -368,12 +382,17 @@ class KnnSearcher {
         }
     }
 
-    private int[][] computeExactNN(Path queryPath) throws IOException {
+    private int[][] computeExactNN(Path queryPath, int vectorFileOffsetBytes) throws IOException {
         int[][] result = new int[numQueryVectors][];
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
             try (FileChannel qIn = FileChannel.open(queryPath)) {
-                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(qIn, dim, VectorEncoding.FLOAT32);
+                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(
+                    qIn,
+                    dim,
+                    VectorEncoding.FLOAT32,
+                    vectorFileOffsetBytes
+                );
                 for (int i = 0; i < numQueryVectors; i++) {
                     float[] queryVector = new float[dim];
                     queryReader.next(queryVector);
@@ -385,12 +404,12 @@ class KnnSearcher {
         }
     }
 
-    private int[][] computeExactNNByte(Path queryPath) throws IOException {
+    private int[][] computeExactNNByte(Path queryPath, int vectorFileOffsetBytes) throws IOException {
         int[][] result = new int[numQueryVectors][];
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
             try (FileChannel qIn = FileChannel.open(queryPath)) {
-                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(qIn, dim, VectorEncoding.BYTE);
+                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(qIn, dim, VectorEncoding.BYTE, vectorFileOffsetBytes);
                 for (int i = 0; i < numQueryVectors; i++) {
                     byte[] queryVector = new byte[dim];
                     queryReader.next(queryVector);

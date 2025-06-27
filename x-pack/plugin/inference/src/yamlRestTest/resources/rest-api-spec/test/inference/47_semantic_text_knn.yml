@@ -405,7 +405,7 @@ setup:
   - match: { hits.total.value: 4 }
 
 ---
-"Apply boost and query name":
+"Apply boost and query name on single index":
   - requires:
       cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
       reason: fix boosting and query name for semantic text knn queries.
@@ -415,7 +415,7 @@ setup:
 
   - do:
       indices.create:
-        index: test-sparse-index-random
+        index: test-dense-index-random
         body:
           settings:
             number_of_shards: 1
@@ -428,7 +428,7 @@ setup:
 
   - do:
       index:
-        index: test-sparse-index-random
+        index: test-dense-index-random
         id: doc_1
         body:
           inference_field: [ "It was a beautiful game", "Very competitive" ]
@@ -439,7 +439,7 @@ setup:
         # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
-        index: test-semantic-text-index
+        index: test-dense-index-random
         body:
           query:
             knn:
@@ -460,7 +460,7 @@ setup:
         # Force JSON content type so that we use a parser that interprets the floating-point score as a double
         Content-Type: application/json
       search:
-        index: test-sparse-index-random
+        index: test-dense-index-random
         body:
           query:
             knn:
@@ -478,4 +478,103 @@ setup:
   - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e15 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
+---
+"Apply boost and query name on multiple indices":
+  - requires:
+      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      reason: fix boosting and query name for semantic text knn queries.
 
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      indices.create:
+        index: index-with-semantic-field
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.create:
+        index: index-with-dense-field
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      index:
+        index: index-with-semantic-field
+        id: doc_1
+        body:
+          inference_field: [ "It was a beautiful game", "Very competitive" ]
+        refresh: true
+
+  - do:
+      index:
+        index: index-with-dense-field
+        id: doc_1
+        body:
+          inference_field: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: index-with-semantic-field,index-with-dense-field
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 2
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: soccer
+                  model_id: dense-inference-id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 0.9984111, error: 1e15 } }
+  - not_exists: hits.hits.0.matched_queries
+  - close_to: { hits.hits.1._score: { value: 0.9984111, error: 1e15 } }
+  - not_exists: hits.hits.1.matched_queries
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: index-with-semantic-field,index-with-dense-field
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 2
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: soccer
+                  model_id: dense-inference-id
+              boost: 5.0
+              _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e15 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+  - close_to: { hits.hits.1._score: { value: 4.9907494, error: 1e15 } }
+  - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }

@@ -75,7 +75,13 @@ public class RailRoadDiagram {
                             var nexterArg = args.get(++i);
                             assert nexterArg.optional();
                             // TODO: Should it be possible to be able to specify "emitEmptyBuckets" but not "from" and "to"?
-                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name), new Syntax(","), new Literal(nexterArg.name));
+                            Sequence seq = new Sequence(
+                                new Literal(argName),
+                                new Syntax(","),
+                                new Literal(nextArg.name),
+                                new Syntax(","),
+                                new Literal(nexterArg.name)
+                            );
                             argExpressions.add(new Repetition(seq, 0, 1));
                         } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
                             // Special case with leading optional args

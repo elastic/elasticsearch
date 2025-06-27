@@ -66,6 +66,29 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
         }
 
         try {
+            // FIXME: this should catch the error but fails instead
+            /*
+            try (
+                EsqlQueryResponse resp = runQuery(
+                    "FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                    randomBoolean()
+                )
+            ) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(0));
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remoteCluster.getFailures(), not(empty()));
+                var failure = remoteCluster.getFailures().get(0);
+                assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
+            } */
+
             try (
                 EsqlQueryResponse resp = runQuery(
                     "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
@@ -115,29 +138,6 @@ public class CrossClusterLookupJoinFailuresIT extends AbstractCrossClusterTestCa
                 // assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
                 assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
             }
-
-            // FIXME: this should work but fails
-            /*
-            try (
-                EsqlQueryResponse resp = runQuery(
-                    "FROM c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
-                    randomBoolean()
-                )
-            ) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(0));
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                assertThat(remoteCluster.getFailures(), not(empty()));
-                var failure = remoteCluster.getFailures().get(0);
-                assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
-            } */
 
             // now fail
             setSkipUnavailable(REMOTE_CLUSTER_1, false);

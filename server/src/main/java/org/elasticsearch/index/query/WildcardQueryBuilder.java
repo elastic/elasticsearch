@@ -56,7 +56,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
-    private boolean isForESQL;
+    private boolean isForESQL = false;
 
     /**
      * Implements the wildcard search query. Supported wildcards are {@code *}, which

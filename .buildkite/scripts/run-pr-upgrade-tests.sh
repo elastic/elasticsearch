@@ -18,7 +18,8 @@ fi
 
 # Identify the merge base of the current commit (branch) and the base branch of the pull request.
 # PR upgrade tests are run from the merge base to the current commit.
-BASE_COMMIT=$(git merge-base $BUILDKITE_PULL_REQUEST_BASE_BRANCH $BUILDKITE_COMMIT)
+git fetch origin $BUILDKITE_PULL_REQUEST_BASE_BRANCH
+BASE_COMMIT=$(git merge-base origin/$BUILDKITE_PULL_REQUEST_BASE_BRANCH $BUILDKITE_COMMIT)
 
 VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 

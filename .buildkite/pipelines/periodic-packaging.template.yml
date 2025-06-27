@@ -14,8 +14,6 @@ steps:
               - oraclelinux-8
               - sles-12
               - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
               - ubuntu-2204
               - rocky-8
               - rocky-9

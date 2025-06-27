@@ -1261,7 +1261,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public boolean hasNormalizer() {
+    boolean hasNormalizer() {
         return normalizerName != null;
     }
 
@@ -1275,7 +1275,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasNormalizer()) {
             // NOTE: no matter if we have doc values or not we use fallback synthetic source
             // to store the original value whose doc values would be altered by the normalizer

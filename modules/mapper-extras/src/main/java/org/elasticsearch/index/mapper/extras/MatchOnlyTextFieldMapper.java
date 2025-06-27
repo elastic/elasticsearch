@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -124,7 +123,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta };
         }
 
-        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context, boolean storeSource) {
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
@@ -151,7 +150,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             } else {
                 storeSource = context.isSourceSynthetic();
             }
-            MatchOnlyTextFieldType tft = buildFieldType(context, storeSource);
+            MatchOnlyTextFieldType tft = buildFieldType(context);
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }
@@ -535,15 +534,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             );
         } else {
-            for (FieldMapper multiField : multiFields()) {
-                if (multiField instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                        return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
-                    }
-                }
+            var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+            if (kwd != null) {
+                return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
             }
             assert false : "there should be a suite field mapper with native synthetic source support";
-            return null;
+            return super.syntheticSourceSupport();
         }
     }
 }

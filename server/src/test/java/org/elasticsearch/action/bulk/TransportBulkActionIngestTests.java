@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -425,8 +424,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             redirectPredicate.capture(),
             redirectHandler.capture(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -476,8 +474,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -525,8 +522,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(systemWriteCoordinationExecutor)
+            completionHandler.capture()
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -558,7 +554,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -598,7 +594,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -686,8 +682,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
@@ -737,8 +732,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
@@ -831,8 +825,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
     }
 
@@ -872,8 +865,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
     }
 
@@ -902,8 +894,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         indexRequest1.autoGenerateId();
         completionHandler.getValue().accept(Thread.currentThread(), null);
@@ -942,8 +933,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
-            completionHandler.capture(),
-            same(writeCoordinationExecutor)
+            completionHandler.capture()
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);

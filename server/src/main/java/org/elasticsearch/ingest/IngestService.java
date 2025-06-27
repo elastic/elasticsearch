@@ -95,7 +95,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -826,7 +825,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
      *                     that ingestion completed on or an exception in the event that the entire operation
      *                     has failed.
-     * @param executor Which executor the bulk request should be executed on.
      */
     public void executeBulkRequest(
         final ProjectId projectId,
@@ -836,15 +834,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final Executor executor
+        final BiConsumer<Thread, Exception> onCompletion
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         // Adapt handler to ensure node features during ingest logic
         final Function<String, Boolean> adaptedResolveFailureStore = wrapResolverWithFeatureCheck(resolveFailureStore);
 
-        executor.execute(new AbstractRunnable() {
+        new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -933,7 +930,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 }
             }
-        });
+        }.run();
     }
 
     /**

@@ -347,8 +347,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                         }
                     }
                 }
-            },
-            executor
+            }
         );
     }
 

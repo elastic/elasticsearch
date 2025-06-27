@@ -252,8 +252,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
 
         assertTrue(failure.get());
@@ -1236,8 +1235,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
 
         assertTrue(failure.get());
@@ -1287,8 +1285,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(failureHandler, times(1)).apply(
             argThat(item -> item == 2),
@@ -1326,8 +1323,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verifyNoInteractions(failureHandler);
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1370,8 +1366,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         latch.await();
         assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
@@ -1404,8 +1399,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verifyNoInteractions(failureHandler);
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1467,8 +1461,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(any(), any());
         verifyNoInteractions(failureHandler);
@@ -1526,8 +1519,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
@@ -1586,8 +1578,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verifyNoInteractions(failureHandler);
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1646,8 +1637,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
@@ -1715,8 +1705,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
 
         verify(requestItemErrorHandler, times(numIndexRequests)).apply(anyInt(), argThat(e -> e.getCause().equals(error)), eq(fsStatus));
@@ -1765,8 +1754,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
@@ -1817,8 +1805,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verifyNoInteractions(redirectHandler);
@@ -1869,8 +1856,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verifyNoInteractions(redirectHandler);
@@ -1928,8 +1914,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
@@ -1994,8 +1979,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> true,
             requestItemRedirectHandler,
             requestItemErrorHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
 
         verify(requestItemRedirectHandler, times(numIndexRequests)).apply(anyInt(), anyString(), argThat(e -> e.getCause().equals(error)));
@@ -2059,8 +2043,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
 
         verifyNoInteractions(requestItemErrorHandler);
@@ -2177,8 +2160,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
-            (thread, e) -> {},
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            (thread, e) -> {}
         );
 
         {
@@ -2263,8 +2245,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
         var endSize1 = indexRequest.ramBytesUsed();
@@ -2292,8 +2273,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
         var endSize2 = indexRequest.ramBytesUsed();
@@ -2322,8 +2302,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
@@ -2357,8 +2336,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
@@ -2388,8 +2366,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         final IngestStats afterFifthRequestStats = ingestService.stats();
         assertThat(afterFifthRequestStats.pipelineStats().size(), equalTo(3));
@@ -2486,8 +2463,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            completionHandler
         );
         verifyNoInteractions(failureHandler);
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -2582,8 +2558,7 @@ public class IngestServiceTests extends ESTestCase {
                 (s) -> false,
                 (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
                 (integer, e, status) -> {},
-                (thread, e) -> {},
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                (thread, e) -> {}
             );
         }
 
@@ -2658,8 +2633,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
-            (thread, e) -> {},
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            (thread, e) -> {}
         );
 
         assertThat(indexRequest1.getRawTimestamp(), nullValue());

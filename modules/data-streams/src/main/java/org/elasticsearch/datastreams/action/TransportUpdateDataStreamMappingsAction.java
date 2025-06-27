@@ -82,8 +82,9 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ClusterState state,
         ActionListener<UpdateDataStreamMappingsAction.Response> listener
     ) throws Exception {
+        ProjectId projectId = projectResolver.getProjectId();
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            projectResolver.getProjectMetadata(state),
+            state.metadata().getProject(projectId),
             IndicesOptions.DEFAULT,
             request.indices()
         );
@@ -99,6 +100,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         countDownListener.onResponse(null);
         for (String dataStreamName : dataStreamNames) {
             updateSingleDataStream(
+                projectId,
                 dataStreamName,
                 request.getMappings(),
                 request.masterNodeTimeout(),
@@ -124,6 +126,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     }
 
     private void updateSingleDataStream(
+        ProjectId projectId,
         String dataStreamName,
         CompressedXContent mappingsOverrides,
         TimeValue masterNodeTimeout,
@@ -144,7 +147,6 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
             );
             return;
         }
-        ProjectId projectId = projectResolver.getProjectId();
         metadataDataStreamsService.updateMappings(
             projectId,
             masterNodeTimeout,

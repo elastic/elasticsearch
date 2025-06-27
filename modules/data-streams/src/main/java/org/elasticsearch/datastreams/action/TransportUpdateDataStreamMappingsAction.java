@@ -161,7 +161,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(clusterService.state().projectState(projectId).metadata())
+                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId))
                             )
                         );
                     } catch (IOException e) {

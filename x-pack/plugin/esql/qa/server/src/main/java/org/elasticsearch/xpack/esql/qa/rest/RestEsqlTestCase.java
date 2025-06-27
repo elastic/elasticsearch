@@ -1254,8 +1254,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         AssertWarnings assertWarnings,
         Mode mode,
         boolean checkPartialResults
-    )
-        throws IOException {
+    ) throws IOException {
         var results = mode == ASYNC
             ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
             : runEsqlSync(requestObject, assertWarnings);

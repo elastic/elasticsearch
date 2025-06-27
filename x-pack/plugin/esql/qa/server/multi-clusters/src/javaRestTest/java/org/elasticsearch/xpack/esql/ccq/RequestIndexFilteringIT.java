@@ -37,8 +37,8 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {

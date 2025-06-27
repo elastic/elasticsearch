@@ -126,7 +126,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     private final Map<String, Object> metadata;
     private final Settings settings;
-    private final CompressedXContent mappings;
+    private final CompressedXContent mappings; // always stored with json content type
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;

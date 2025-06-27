@@ -66,12 +66,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
-    public static CustomServiceSettings fromMap(
-        Map<String, Object> map,
-        ConfigurationParseContext context,
-        TaskType taskType,
-        String inferenceId
-    ) {
+    public static CustomServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context, TaskType taskType) {
         ValidationException validationException = new ValidationException();
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
@@ -140,14 +135,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static class TextEmbeddingSettings implements ToXContentFragment, Writeable {
 
         // This specifies float for the element type but null for all other settings
-        public static final TextEmbeddingSettings DEFAULT_FLOAT = new TextEmbeddingSettings(
-            null,
-            null,
-            null,
-            CustomServiceEmbeddingType.FLOAT
-        );
+        public static final TextEmbeddingSettings DEFAULT_FLOAT = new TextEmbeddingSettings(null, null, null);
         // This refers to settings that are not related to the text embedding task type (all the settings should be null)
-        public static final TextEmbeddingSettings NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS = new TextEmbeddingSettings(null, null, null, null);
+        public static final TextEmbeddingSettings NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS = new TextEmbeddingSettings(null, null, null);
 
         public static TextEmbeddingSettings fromMap(Map<String, Object> map, TaskType taskType, ValidationException validationException) {
             if (taskType != TaskType.TEXT_EMBEDDING) {
@@ -157,7 +147,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
             Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
             Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-            return new TextEmbeddingSettings(similarity, dims, maxInputTokens, null);
+            return new TextEmbeddingSettings(similarity, dims, maxInputTokens);
         }
 
         private final SimilarityMeasure similarityMeasure;
@@ -167,8 +157,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         public TextEmbeddingSettings(
             @Nullable SimilarityMeasure similarityMeasure,
             @Nullable Integer dimensions,
-            @Nullable Integer maxInputTokens,
-            @Nullable CustomServiceEmbeddingType embeddingType
+            @Nullable Integer maxInputTokens
         ) {
             this.similarityMeasure = similarityMeasure;
             this.dimensions = dimensions;
@@ -331,7 +320,12 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return responseJsonParser.getEmbeddingType().toElementType();
+        var embeddingType = responseJsonParser.getEmbeddingType();
+        if (embeddingType != null) {
+            return embeddingType.toElementType();
+        }
+
+        return null;
     }
 
     public Integer getMaxInputTokens() {

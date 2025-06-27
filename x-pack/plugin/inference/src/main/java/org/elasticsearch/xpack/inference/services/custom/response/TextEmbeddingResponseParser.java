@@ -106,11 +106,12 @@ public class TextEmbeddingResponseParser extends BaseCustomResponseParser {
         return builder;
     }
 
-    // For testing
+    // Default for testing
     String getTextEmbeddingsPath() {
         return textEmbeddingsPath;
     }
 
+    @Override
     public CustomServiceEmbeddingType getEmbeddingType() {
         return embeddingType;
     }

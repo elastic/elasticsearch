@@ -110,12 +110,7 @@ public class CustomModelTests extends ESTestCase {
         String requestContentString = "\"input\":\"${input}\"";
 
         CustomServiceSettings serviceSettings = new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                SimilarityMeasure.DOT_PRODUCT,
-                dims,
-                maxInputTokens,
-                CustomServiceEmbeddingType.FLOAT
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens),
             url,
             headers,
             QueryParameters.EMPTY,

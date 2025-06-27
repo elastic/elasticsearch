@@ -243,7 +243,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, CustomServiceEmbeddingType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,
@@ -270,7 +270,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             TaskType.TEXT_EMBEDDING,
             CustomService.NAME,
             new CustomServiceSettings(
-                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456, CustomServiceEmbeddingType.FLOAT),
+                new CustomServiceSettings.TextEmbeddingSettings(similarityMeasure, 123, 456),
                 url,
                 Map.of("key", "value"),
                 QueryParameters.EMPTY,

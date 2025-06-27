@@ -56,12 +56,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                SimilarityMeasure.DOT_PRODUCT,
-                dims,
-                maxInputTokens,
-                CustomServiceEmbeddingType.FLOAT
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
@@ -182,12 +177,7 @@ public class CustomRequestTests extends ESTestCase {
             """;
 
         var serviceSettings = new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                SimilarityMeasure.DOT_PRODUCT,
-                dims,
-                maxInputTokens,
-                CustomServiceEmbeddingType.FLOAT
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens),
             "${url}",
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),

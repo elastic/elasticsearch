@@ -49,8 +49,6 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
     }
 
     protected TopNAggregateExec(StreamInput in) throws IOException {
-        // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
-        // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         super(in);
         this.order = in.readCollectionAsList(Order::new);
         this.limit = in.readNamedWriteable(Expression.class);
@@ -74,11 +72,11 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
             this,
             TopNAggregateExec::new,
             child(),
-            groupings,
-            aggregates,
-            mode,
-            intermediateAttributes,
-            estimatedRowSize,
+            groupings(),
+            aggregates(),
+            getMode(),
+            intermediateAttributes(),
+            estimatedRowSize(),
             order,
             limit
         );
@@ -89,11 +87,11 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
         return new TopNAggregateExec(
             source(),
             newChild,
-            groupings,
-            aggregates,
-            mode,
-            intermediateAttributes,
-            estimatedRowSize,
+            groupings(),
+            aggregates(),
+            getMode(),
+            intermediateAttributes(),
+            estimatedRowSize(),
             order,
             limit
         );
@@ -112,11 +110,11 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
         return new TopNAggregateExec(
             source(),
             child(),
-            groupings,
+            groupings(),
             newAggregates,
-            mode,
-            intermediateAttributes,
-            estimatedRowSize,
+            getMode(),
+            intermediateAttributes(),
+            estimatedRowSize(),
             order,
             limit
         );
@@ -127,11 +125,11 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
         return new TopNAggregateExec(
             source(),
             child(),
-            groupings,
-            aggregates,
+            groupings(),
+            aggregates(),
             newMode,
-            intermediateAttributes,
-            estimatedRowSize,
+            intermediateAttributes(),
+            estimatedRowSize(),
             order,
             limit
         );
@@ -142,10 +140,10 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
         return new TopNAggregateExec(
             source(),
             child(),
-            groupings,
-            aggregates,
-            mode,
-            intermediateAttributes,
+            groupings(),
+            aggregates(),
+            getMode(),
+            intermediateAttributes(),
             estimatedRowSize,
             order,
             limit
@@ -154,7 +152,7 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, order, limit, child());
+        return Objects.hash(groupings(), aggregates(), getMode(), intermediateAttributes(), estimatedRowSize(), order, limit, child());
     }
 
     @Override
@@ -168,11 +166,11 @@ public class TopNAggregateExec extends AggregateExec implements EstimatesRowSize
         }
 
         TopNAggregateExec other = (TopNAggregateExec) obj;
-        return Objects.equals(groupings, other.groupings)
-            && Objects.equals(aggregates, other.aggregates)
-            && Objects.equals(mode, other.mode)
-            && Objects.equals(intermediateAttributes, other.intermediateAttributes)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+        return Objects.equals(groupings(), other.groupings())
+            && Objects.equals(aggregates(), other.aggregates())
+            && Objects.equals(getMode(), other.getMode())
+            && Objects.equals(intermediateAttributes(), other.intermediateAttributes())
+            && Objects.equals(estimatedRowSize(), other.estimatedRowSize())
             && Objects.equals(order, other.order)
             && Objects.equals(limit, other.limit)
             && Objects.equals(child(), other.child());

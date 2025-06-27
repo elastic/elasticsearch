@@ -53,9 +53,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
@@ -147,44 +145,36 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 
-        final Set<String> eligibleNodes = getEligibleNodes(indexShardRouting);
-        if (eligibleNodes.isEmpty()) {
-            return NO_NODE_FOUND;
-        }
-
-        return candidateNodes.stream()
-            .filter(candidateNode -> eligibleNodes.contains(candidateNode.getId()))
+        // We find the nodes that hold the eligible shards.
+        // If the current node of such a shard is a candidate node, then we assign the task there.
+        // This code is inefficient, but we are relying on the laziness of the intermediate operations
+        // and the assumption that the first shard we examine has high chances of being assigned to a candidate node.
+        return indexShardRouting.activeShards()
+            .stream()
+            .filter(this::isEligible)
+            .map(ShardRouting::currentNodeId)
+            .filter(nodeId -> isCandidateNode(candidateNodes, nodeId))
             .findAny()
-            .map(
-                node -> new PersistentTasksCustomMetadata.Assignment(
-                    node.getId(),
-                    "downsampling using node holding shard [" + shardId + "]"
-                )
-            )
+            .map(nodeId -> new PersistentTasksCustomMetadata.Assignment(nodeId, "downsampling using node holding shard [" + shardId + "]"))
             .orElse(NO_NODE_FOUND);
     }
 
     /**
-     * An eligible node to run the downsampling task for a shard is a node that holds
-     * a searchable version of this shard.
-     * In stateless deployment we choose only nodes that hold search shards.
-     * Otherwise, we choose the node that holds the primary shard.
-     * Visible for testing.
-     * @param indexShardRouting the routing of the shard to be downsampled
-     * @return the set of candidate nodes downsampling can run on.
+     * Only shards that can be searched can be used as the source of a downsampling task.
+     * In stateless deployment, this means that shards that CANNOT be promoted to primary can be used.
+     * For simplicity, in non-stateless deployments we use the primary shard.
      */
-    Set<String> getEligibleNodes(IndexShardRoutingTable indexShardRouting) {
-        if (isStateless) {
-            return indexShardRouting.assignedShards()
-                .stream()
-                .filter(shardRouting -> shardRouting.primary() == false && shardRouting.started())
-                .map(ShardRouting::currentNodeId)
-                .collect(Collectors.toSet());
+    private boolean isEligible(ShardRouting shardRouting) {
+        return shardRouting.started() && (isStateless ? shardRouting.isPromotableToPrimary() == false : shardRouting.primary());
+    }
+
+    private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {
+        for (DiscoveryNode candidateNode : candidateNodes) {
+            if (candidateNode.getId().equals(nodeId)) {
+                return true;
+            }
         }
-        if (indexShardRouting.primaryShard().started()) {
-            return Set.of(indexShardRouting.primaryShard().currentNodeId());
-        }
-        return Set.of();
+        return false;
     }
 
     @Override

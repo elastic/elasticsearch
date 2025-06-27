@@ -7785,7 +7785,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {
-        assertLookupJoinFieldNames(query, data, expectedFieldNames, true);
+        assertLookupJoinFieldNames(query, data, expectedFieldNames, false);
     }
 
     private void assertLookupJoinFieldNames(

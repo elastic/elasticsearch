@@ -297,6 +297,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     ) {
         final long ingestStartTimeInNanos = relativeTimeNanos();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        final Thread originalThread = Thread.currentThread();
         getIngestService(original).executeBulkRequest(
             metadata.id(),
             original.numberOfActions(),
@@ -305,49 +306,42 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             (indexName) -> resolveFailureStore(indexName, metadata, threadPool.absoluteTimeInMillis()),
             bulkRequestModifier::markItemForFailureStore,
             bulkRequestModifier::markItemAsFailed,
-            (originalThread, exception) -> {
-                if (exception != null) {
-                    logger.debug("failed to execute pipeline for a bulk request", exception);
-                    listener.onFailure(exception);
+            listener.delegateFailureAndWrap((l, unused) -> {
+                long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
+                BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, l);
+                if (bulkRequest.requests().isEmpty()) {
+                    // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                    // so we stop and send an empty response back to the client.
+                    // (this will happen if pre-processing all items in the bulk failed)
+                    actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                 } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeNanos() - ingestStartTimeInNanos);
-                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
-                        ingestTookInMillis,
-                        listener
-                    );
-                    if (bulkRequest.requests().isEmpty()) {
-                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                        // so we stop and send an empty response back to the client.
-                        // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
-                    } else {
-                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
-                            @Override
-                            protected void doRun() throws IOException {
-                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
-                            }
-
-                            @Override
-                            public boolean isForceExecution() {
-                                // If we fork back to a coordination thread we **not** should fail, because tp queue is full.
-                                // (Otherwise the work done during ingest will be lost)
-                                // It is okay to force execution here. Throttling of write requests happens prior to
-                                // ingest when a node receives a bulk request.
-                                return true;
-                            }
-                        };
-                        // If a processor went async and returned a response on a different thread then
-                        // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
-                        // coordination steps on the write thread
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            executor.execute(runnable);
+                    ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                        @Override
+                        protected void doRun() throws IOException {
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                         }
+
+                        @Override
+                        public boolean isForceExecution() {
+                            // If we fork back to a coordination thread we **not** should fail, because tp queue is full.
+                            // (Otherwise the work done during ingest will be lost)
+                            // It is okay to force execution here. Throttling of write requests happens prior to
+                            // ingest when a node receives a bulk request.
+                            return true;
+                        }
+                    };
+                    // If a processor went async and returned a response on a different thread then
+                    // before we continue the bulk request we should fork back on a coordination thread. Otherwise it is fine to perform
+                    // coordination steps on the write thread
+                    if (originalThread == Thread.currentThread()) {
+                        runnable.run();
+                    } else {
+                        executor.execute(runnable);
                     }
                 }
-            }
+
+            })
         );
     }
 

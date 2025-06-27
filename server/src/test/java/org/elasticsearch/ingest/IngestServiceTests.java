@@ -242,7 +242,7 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         ingestService.executeBulkRequest(
             randomProjectIdOrDefault(),
@@ -252,11 +252,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
 
         assertTrue(failure.get());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testUpdatePipelines() {
@@ -1225,7 +1225,7 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         ingestService.executeBulkRequest(
             projectId,
@@ -1235,11 +1235,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
 
         assertTrue(failure.get());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {
@@ -1270,7 +1270,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         Boolean noRedirect = randomBoolean() ? false : null;
         IndexDocFailureStoreStatus fsStatus = noRedirect == null
@@ -1285,14 +1285,14 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verify(failureHandler, times(1)).apply(
             argThat(item -> item == 2),
             argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage())),
             argThat(fsStatus::equals)
         );
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteSuccess() {
@@ -1314,7 +1314,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1323,10 +1323,10 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testDynamicTemplates() throws Exception {
@@ -1357,7 +1357,7 @@ public class IngestServiceTests extends ESTestCase {
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = (v, e, s) -> {
             throw new AssertionError("must never fail", e);
         };
-        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
+        final ActionListener<Void> listener = ActionListener.running(latch::countDown);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1366,7 +1366,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         latch.await();
         assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
@@ -1390,7 +1390,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1399,10 +1399,10 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
@@ -1452,7 +1452,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1461,11 +1461,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(any(), any());
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
         assertThat(indexRequest.index(), equalTo("update_index"));
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
@@ -1505,7 +1505,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         Boolean noRedirect = randomBoolean() ? false : null;
         IndexDocFailureStoreStatus fsStatus = noRedirect == null
@@ -1519,11 +1519,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteSuccessWithOnFailure() throws Exception {
@@ -1569,7 +1569,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1578,10 +1578,10 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
@@ -1622,7 +1622,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         Boolean noRedirect = randomBoolean() ? false : null;
         IndexDocFailureStoreStatus fsStatus = noRedirect == null
@@ -1637,11 +1637,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
@@ -1690,7 +1690,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         Boolean noRedirect = randomBoolean() ? false : null;
         IndexDocFailureStoreStatus fsStatus = noRedirect == null
@@ -1705,11 +1705,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
-            completionHandler
+            listener
         );
 
         verify(requestItemErrorHandler, times(numIndexRequests)).apply(anyInt(), argThat(e -> e.getCause().equals(error)), eq(fsStatus));
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteFailureRedirection() throws Exception {
@@ -1745,7 +1745,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1754,12 +1754,12 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testFailureRedirectionWithoutNodeFeatureEnabled() throws Exception {
@@ -1796,7 +1796,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1805,7 +1805,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verifyNoInteractions(redirectHandler);
@@ -1814,7 +1814,7 @@ public class IngestServiceTests extends ESTestCase {
             any(RuntimeException.class),
             eq(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)
         );
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteFailureStatusOnFailureWithoutRedirection() throws Exception {
@@ -1847,7 +1847,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             DEFAULT_PROJECT_ID,
             1,
@@ -1856,12 +1856,12 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verifyNoInteractions(redirectHandler);
         verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(IndexDocFailureStoreStatus.NOT_ENABLED));
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testExecuteFailureRedirectionWithNestedOnFailure() throws Exception {
@@ -1905,7 +1905,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             1,
@@ -1914,12 +1914,12 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
-            completionHandler
+            listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(redirectHandler, times(1)).apply(eq(0), eq(indexRequest.index()), any(RuntimeException.class));
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testBulkRequestExecutionWithRedirectedFailures() throws Exception {
@@ -1970,7 +1970,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             numRequest,
@@ -1979,12 +1979,12 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> true,
             requestItemRedirectHandler,
             requestItemErrorHandler,
-            completionHandler
+            listener
         );
 
         verify(requestItemRedirectHandler, times(numIndexRequests)).apply(anyInt(), anyString(), argThat(e -> e.getCause().equals(error)));
         verifyNoInteractions(requestItemErrorHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
     }
 
     public void testBulkRequestExecution() throws Exception {
@@ -2034,7 +2034,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> requestItemErrorHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         ingestService.executeBulkRequest(
             projectId,
             numRequest,
@@ -2043,11 +2043,11 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
-            completionHandler
+            listener
         );
 
         verifyNoInteractions(requestItemErrorHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
         for (int i = 0; i < bulkRequest.requests().size(); i++) {
             DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
@@ -2160,7 +2160,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
-            (thread, e) -> {}
+            ActionListener.noop()
         );
 
         {
@@ -2231,7 +2231,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
 
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_none");
@@ -2245,7 +2245,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
         var endSize1 = indexRequest.ramBytesUsed();
@@ -2273,7 +2273,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
         var endSize2 = indexRequest.ramBytesUsed();
@@ -2302,7 +2302,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
@@ -2336,7 +2336,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
         endSize1 += indexRequest.ramBytesUsed();
@@ -2366,7 +2366,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         final IngestStats afterFifthRequestStats = ingestService.stats();
         assertThat(afterFifthRequestStats.pipelineStats().size(), equalTo(3));
@@ -2452,7 +2452,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
         @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final ActionListener<Void> listener = mock(ActionListener.class);
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
         ingestService.executeBulkRequest(
@@ -2463,10 +2463,10 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
-            completionHandler
+            listener
         );
         verifyNoInteractions(failureHandler);
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        verify(listener, times(1)).onResponse(null);
         verify(dropHandler, times(1)).accept(1);
     }
 
@@ -2558,7 +2558,7 @@ public class IngestServiceTests extends ESTestCase {
                 (s) -> false,
                 (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
                 (integer, e, status) -> {},
-                (thread, e) -> {}
+                ActionListener.noop()
             );
         }
 
@@ -2633,7 +2633,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
-            (thread, e) -> {}
+            ActionListener.noop()
         );
 
         assertThat(indexRequest1.getRawTimestamp(), nullValue());

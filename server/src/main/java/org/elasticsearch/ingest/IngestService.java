@@ -822,9 +822,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onFailure A callback executed when a document fails ingestion and does not need to be
      *                  persisted. Accepts the slot in the collection of requests that the document
      *                  occupies, and the exception that the document encountered.
-     * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
-     *                     that ingestion completed on or an exception in the event that the entire operation
-     *                     has failed.
+     * @param listener A callback executed once all documents have been processed.
      */
     public void executeBulkRequest(
         final ProjectId projectId,
@@ -834,7 +832,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion
+        final ActionListener<Void> listener
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
@@ -845,13 +843,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
+                listener.onFailure(e);
             }
 
             @Override
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                try (var refs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                     int i = 0;
                     for (DocWriteRequest<?> actionRequest : actionRequests) {
                         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);

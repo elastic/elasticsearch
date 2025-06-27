@@ -36,6 +36,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
@@ -2551,7 +2552,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnBitQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnBitQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
+                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
                 if (parentFilter != null) {
                     knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);
@@ -2592,7 +2593,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnByteQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnByteQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
+                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
                 if (parentFilter != null) {
                     knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);
@@ -2658,7 +2659,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnFloatQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnFloatQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
+                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
                 if (parentFilter != null) {
                     knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);

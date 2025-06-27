@@ -89,7 +89,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -114,6 +113,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 
 public class EsqlSession {
 
@@ -217,7 +217,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        if (explainMode) {
+        if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
@@ -240,8 +240,6 @@ public class EsqlSession {
         }
     }
 
-    private record LogicalPlanTuple(LogicalPlan nonStubbedSubPlan, LogicalPlan originalSubPlan) {}
-
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         PlanRunner runner,
@@ -262,48 +260,40 @@ public class EsqlSession {
         }
     }
 
-    private LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan) {
-        Holder<LogicalPlanTuple> subPlan = new Holder<>();
-        // Collect the first inlinejoin (bottom up in the tree)
-        optimizedPlan.forEachUp(InlineJoin.class, ij -> {
-            // extract the right side of the plan and replace its source
-            if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {
-                var p = InlineJoin.replaceStub(ij.left(), ij.right());
-                p.setOptimized();
-                subPlan.set(new LogicalPlanTuple(p, ij.right()));
-            }
-        });
-        return subPlan.get();
-    }
-
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         LogicalPlan optimizedPlan,
-        LogicalPlanTuple subPlans,
+        InlineJoin.LogicalPlanTuple subPlans,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
+        LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.nonStubbedSubPlan, request);
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.nonStubbedSubPlan, result);
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
 
                 // replace the original logical plan with the backing result
                 LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
                     InlineJoin.class,
-                    ij -> ij.right() == subPlans.originalSubPlan ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+                    // and equals would have ignored name IDs anyway
+                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
                 );
+                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
+                LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newLogicalPlan);
 
                 if (newSubPlan == null) {// run the final "main" plan
+                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
                     runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
@@ -320,7 +310,7 @@ public class EsqlSession {
         }));
     }
 
-    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
         List<Page> pages = result.pages();
         List<Attribute> schema = result.schema();
         // if (pages.size() > 1) {

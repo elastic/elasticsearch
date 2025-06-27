@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,7 +42,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         // track used references
         var used = plan.outputSet().asBuilder();
         // track inlinestats' own aggregation output (right-hand side of the join) so that any other plan on the left-hand side of the
-        // inline join won't have it's columns pruned due to the lack of "visibility" into the right hand side output/Attributes
+        // inline join won't have its columns pruned due to the lack of "visibility" into the right hand side output/Attributes
         var inlineJoinRightOutput = new ArrayList<Attribute>();
         Holder<Boolean> forkPresent = new Holder<>(false);
 
@@ -103,6 +104,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                         } else {
                             p = aggregate.with(aggregate.groupings(), remaining);
                         }
+                    }
+                } else if (p instanceof InlineJoin ij) {// TODO: InlineStats - add tests for this IJ removal
+                    var remaining = removeUnused(ij.right().output(), used, Collections.emptyList());
+                    if (remaining != null) {
+                        if (remaining.isEmpty()) {
+                            // remove the InlineJoin altogether
+                            p = ij.left();
+                            recheck = true;
+                        }
+                        // TODO: InlineStats - prune only the unused columns from it?
                     }
                 } else if (p instanceof Eval eval) {
                     var remaining = removeUnused(eval.fields(), used, inlineJoinRightOutput);

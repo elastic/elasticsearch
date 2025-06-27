@@ -201,7 +201,6 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languag
 ;
 
 two
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 FROM employees
@@ -210,17 +209,24 @@ FROM employees
 | WHERE avg_worked_seconds > avg_avg_worked_seconds
 | INLINESTATS max_languages = MAX(languages) BY gender
 | SORT emp_no ASC
-| LIMIT 3;
+| LIMIT 10;
 
 emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:integer|max_languages:integer|gender:keyword
 10002          |328922887              |3.133013149047619E8          |5                |5                    |F              
 10006          |372957040              |2.978159518235294E8          |3                |5                    |F              
 10007          |393084805              |2.863684210555556E8          |4                |5                    |F
+10010          |315236372              |2.863684210555556E8          |4                |5                    |null           
+10012          |365510850              |3.133013149047619E8          |5                |5                    |null           
+10015          |390266432              |3.133013149047619E8          |5                |5                    |null           
+10018          |309604079              |3.0318626831578946E8         |2                |5                    |null           
+10019          |342855721              |2.94833632E8                 |1                |5                    |null           
+10020          |373309605              |3.181719481E8                |null             |5                    |M              
+10023          |330870342              |3.181719481E8                |null             |5                    |F
 ;
 
 three
 required_capability: inlinestats_v8
-// fails with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
+// used to fail with AssertionError at org.elasticsearch.xpack.esql.plan.logical.Limit.writeTo(Limit.java:70)
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -243,6 +249,32 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10019          |342855721              |2.94833632E8                 |1                |5                    |1                     |5                     |null           
 10020          |373309605              |3.181719481E8                |null             |5                    |null                  |null                  |M              
 10023          |330870342              |3.181719481E8                |null             |5                    |3                     |5                     |F
+;
+
+// TODO: INLINESTATS unit test needed for this one
+pushDownSort_To_LeftSideOnly
+required_capability: inlinestats_v8
+
+from employees
+| sort emp_no desc
+| inlinestats avg = avg(salary) by languages
+| limit 5
+| keep emp_no, avg, languages, gender
+;
+
+ emp_no:integer| avg:double    |languages:integer|gender:keyword     
+10001          |57305.0        |2                |M              
+10002          |46272.5        |5                |F              
+10003          |61805.0        |4                |M              
+10004          |46272.5        |5                |M              
+10005          |63528.0        |1                |M
+;
+
+from employees
+| sort emp_no desc
+| inlinestats avg = avg(salary) by languages
+| limit 5
+| keep emp_no, avg, languages, gender
 ;
 
 byMultivaluedSimple
@@ -313,7 +345,6 @@ FROM airports
 ;
 
 mvMinMvExpand
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 FROM airports
@@ -378,7 +409,6 @@ abbrev:keyword | country:keyword | count:long
 ;
 
 afterLookup
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 required_capability: join_lookup_v12
 
@@ -403,7 +433,6 @@ ZNZ            |4                       |German
 ;
 
 afterEnrich
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 required_capability: enrich_load
 
@@ -466,7 +495,6 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeEnrich
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 required_capability: enrich_load
 
@@ -486,7 +514,6 @@ ACA            |Acapulco de Juárez|385            |major          |Acapulco de 
 ;
 
 beforeAndAfterEnrich
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 required_capability: enrich_load
 
@@ -510,7 +537,6 @@ ALL            |Albenga        |499            |mid            |1               
 ;
 
 shadowing
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
@@ -522,7 +548,6 @@ left         | right          | right       | 172.21.0.5
 ;
 
 shadowingMulti
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
@@ -534,7 +559,6 @@ left         | middle         | right         |            left |           left
 ;
 
 shadowingSelf
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 ROW city = "Raleigh"
@@ -546,7 +570,6 @@ city:long
 ;
 
 shadowingSelfBySelf
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 ROW city = "Raleigh"
@@ -559,7 +582,6 @@ Raleigh
 ;
 
 shadowingInternal
-required_capability: join_planning_v1
 required_capability: inlinestats_v8
 
 ROW city = "Zürich"
@@ -585,9 +607,8 @@ row x = 1
 2              |3              |3              |1              |1
 ;
 
-ignoreUnusedEvaledValue-Ignore
+ignoreUnusedEvaledValue_AndInlineStats
 required_capability: inlinestats_v8
-// fails with expected [keys] to be non-empty
 
 ROW x = 1
 | INLINESTATS max(x)
@@ -599,9 +620,21 @@ x:integer
 1
 ;
 
-ignoreUnusedEvaledValue2-Ignore
+ignoreUnusedEvaledValue_AndInlineStats2
 required_capability: inlinestats_v8
-// fails with expected [keys] to be non-empty
+
+ROW x = 1, z = 2
+| INLINESTATS max(x)
+| EVAL a = x + 1, b = z + 2
+| KEEP x, z
+;
+
+x:integer | z:integer
+1         | 2
+;
+
+ignoreUnusedEvaledValue_AndInlineStats3
+required_capability: inlinestats_v8
 
 from employees
 | inlinestats max(salary)
@@ -613,6 +646,36 @@ from employees
 
  salary:integer     
 74999     
+;
+
+ignoreUnusedEvaledValue_AndInlineStats4
+required_capability: inlinestats_v8
+
+from employees
+| inlinestats max(salary), m = min(salary) by gender
+| eval y = concat(gender, "")
+| keep emp_no
+| sort emp_no desc
+| limit 1
+;
+
+emp_no:integer     
+10100     
+;
+
+ignoreUnusedEvaledValue_AndInlineStats5
+required_capability: inlinestats_v8
+
+from employees
+| inlinestats max(salary), m = min(salary) by gender
+| eval y = m / 2
+| keep emp_no
+| sort emp_no desc
+| limit 1
+;
+
+emp_no:integer     
+10100     
 ;
 
 byConstant
@@ -691,7 +754,6 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 byTwoCalculatedSecondOverwrites
-required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
 required_capability: inlinestats_v8
 
@@ -713,7 +775,6 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 byTwoCalculatedSecondOverwritesReferencingFirst
-required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
 required_capability: inlinestats_v8
 
@@ -737,7 +798,6 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 
 groupShadowsAgg
-required_capability: join_planning_v1
 required_capability: stats_alias_collision_warnings
 required_capability: inlinestats_v8
 
@@ -1126,6 +1186,49 @@ salary:integer |gender:keyword
 25976          |F              
 25976          |F              
 25976          |F
+;
+
+doubleShadowing_WithIntertwinedFilters
+required_capability: inlinestats_v8
+
+FROM employees
+| WHERE salary > 30000
+| INLINESTATS salary = min(salary) BY gender
+| WHERE salary > 31000
+| INLINESTATS salary = max(salary) BY gender
+| WHERE salary > 31500
+| KEEP salary, gender
+| SORT salary DESC, gender 
+;
+warning:No limit defined, adding default limit of [1000]
+
+salary:integer |gender:keyword
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null           
+31120          |null
+;
+
+shadowingAggregateByNextGrouping
+required_capability: inlinestats_v8
+
+FROM employees
+| KEEP gender, languages, emp_no, salary
+| INLINESTATS gender = count_distinct(gender) BY languages
+| INLINESTATS avg(salary) BY gender
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer |salary:integer |languages:integer|avg(salary):double|gender:keyword     
+10001          |57305          |2                |48248.55          |2              
+10002          |56371          |5                |48248.55          |2              
+10003          |61805          |4                |48248.55          |2              
 ;
 
 doubleShadowingWithEval

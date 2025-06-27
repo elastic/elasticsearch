@@ -26,9 +26,7 @@ public class SessionUtils {
         // Limit ourselves to 1mb of results similar to LOOKUP for now.
         long bytesUsed = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
         if (bytesUsed > ByteSizeValue.ofMb(1).getBytes()) {
-            throw new IllegalArgumentException(
-                "INLINESTATS sub-plan execution results too large [" + ByteSizeValue.ofBytes(bytesUsed) + "] > 1mb"
-            );
+            throw new IllegalArgumentException("sub-plan execution results too large [" + ByteSizeValue.ofBytes(bytesUsed) + "] > 1mb");
         }
         int positionCount = pages.stream().mapToInt(Page::getPositionCount).sum();
         Block.Builder[] builders = new Block.Builder[schema.size()];

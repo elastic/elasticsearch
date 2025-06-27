@@ -80,9 +80,12 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         JinaAIEmbeddingsTaskSettings requestTaskSettings
     ) {
         var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
+        // TODO: Should a null late chunking override a non-null late chunking?
+        var shouldUseLateChunking = requestTaskSettings.lateChunking != null
+            ? requestTaskSettings.lateChunking
+            : originalSettings.lateChunking;
 
-        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse, requestTaskSettings.lateChunking);
-        // TODO: Check the above
+        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse, shouldUseLateChunking);
     }
 
     private static InputType getValidInputType(
@@ -176,7 +179,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIEmbeddingsTaskSettings that = (JinaAIEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType) && lateChunking == that.lateChunking;
+        return Objects.equals(inputType, that.inputType) && Objects.equals(lateChunking, that.lateChunking);
     }
 
     @Override

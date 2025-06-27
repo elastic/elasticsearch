@@ -866,6 +866,40 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
     }
 
+    public void testShouldBatchAcrossInputsIsFalse_DoesNotBatchRequestsFromSeparateInputs() {
+        int batchSize = 512;
+
+        var testSentence = "This is a test sentence with ten words in total. ";
+
+        List<ChunkInferenceInput> inputs = List.of(
+            new ChunkInferenceInput(testSentence + testSentence + testSentence),
+            new ChunkInferenceInput(testSentence),
+            new ChunkInferenceInput(testSentence + testSentence + testSentence + testSentence)
+        );
+
+        var chunkingSettings = new SentenceBoundaryChunkingSettings(10, 0);
+
+        var finalListener = testListener();
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
+            inputs,
+            batchSize,
+            false,
+            chunkingSettings
+        ).batchRequestsWithListeners(finalListener);
+
+        assertThat(batches, hasSize(3));
+        var expectedBatchSizes = List.of(3, 1, 4);
+        for (int i = 0; i < batches.size(); i++) {
+            assertThat(batches.get(i).batch().inputs().get(), hasSize(expectedBatchSizes.get(i)));
+            batches.get(i)
+                .listener()
+                .onResponse(new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 1f }))));
+        }
+
+        assertNotNull(finalListener.results);
+        assertThat(finalListener.results, hasSize(3));
+    }
+
     public void testListenerErrorsWithWrongNumberOfResponses() {
         List<ChunkInferenceInput> inputs = List.of(
             new ChunkInferenceInput("1st small"),

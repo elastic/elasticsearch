@@ -88,13 +88,13 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         int maxNumberOfInputsPerBatch,
         ChunkingSettings defaultChunkingSettings
     ) {
-        this(inputs, maxNumberOfInputsPerBatch, false, defaultChunkingSettings);
+        this(inputs, maxNumberOfInputsPerBatch, true, defaultChunkingSettings);
     }
 
     public EmbeddingRequestChunker(
         List<ChunkInferenceInput> inputs,
         int maxNumberOfInputsPerBatch,
-        Boolean isLateChunkingEnabled,
+        Boolean shouldBatchAcrossInputs,
         ChunkingSettings defaultChunkingSettings
     ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
@@ -142,19 +142,18 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
-        if (isLateChunkingEnabled != null && isLateChunkingEnabled) {
-            // This must be true for late chunking cases otherwise we can't pass all chunks in a single request
-            assert (maxNumberOfInputsPerBatch >= MAX_CHUNKS);
+        if (shouldBatchAcrossInputs == null || shouldBatchAcrossInputs) {
+            AtomicInteger counter = new AtomicInteger();
             this.batchRequests = allRequests.stream()
-                .collect(Collectors.groupingBy(Request::inputIndex))
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
                 .values()
                 .stream()
                 .map(BatchRequest::new)
                 .toList();
         } else {
-            AtomicInteger counter = new AtomicInteger();
+            assert (maxNumberOfInputsPerBatch >= MAX_CHUNKS);
             this.batchRequests = allRequests.stream()
-                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
+                .collect(Collectors.groupingBy(Request::inputIndex))
                 .values()
                 .stream()
                 .map(BatchRequest::new)

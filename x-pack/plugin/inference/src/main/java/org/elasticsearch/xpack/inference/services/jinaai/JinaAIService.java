@@ -279,10 +279,12 @@ public class JinaAIService extends SenderService {
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
+        var isLateChunkingEnabled = jinaaiModel.getTaskSettings().isLateChunkingEnabled();
+        var shouldBatchAcrossInputs = isLateChunkingEnabled == null || isLateChunkingEnabled == false;
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            jinaaiModel.getTaskSettings().isLateChunkingEnabled(),
+            shouldBatchAcrossInputs,
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

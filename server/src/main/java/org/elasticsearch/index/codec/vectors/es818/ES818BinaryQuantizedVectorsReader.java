@@ -65,7 +65,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818BinaryQuantizedVectorsReader.class);
 
-    private final Map<String, FieldEntry> fields = new HashMap<>();
+    private final Map<String, FieldEntry> fields;
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
     private final ES818BinaryFlatVectorsScorer vectorScorer;
@@ -77,6 +77,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         ES818BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
         super(vectorsScorer);
+        this.fields = new HashMap<>();
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
         int versionMeta = -1;
@@ -120,6 +121,19 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         }
     }
 
+    private ES818BinaryQuantizedVectorsReader(ES818BinaryQuantizedVectorsReader clone, FlatVectorsReader rawVectorsReader) {
+        super(clone.vectorScorer);
+        this.rawVectorsReader = rawVectorsReader;
+        this.vectorScorer = clone.vectorScorer;
+        this.quantizedVectorData = clone.quantizedVectorData;
+        this.fields = clone.fields;
+    }
+
+    @Override
+    public FlatVectorsReader getMergeInstance() {
+        return new ES818BinaryQuantizedVectorsReader(this, rawVectorsReader.getMergeInstance());
+    }
+
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);
@@ -160,7 +174,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
-        if (fi == null) {
+        if (fi == null || fi.size() == 0) {
             return null;
         }
         return vectorScorer.getRandomVectorScorer(

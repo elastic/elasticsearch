@@ -148,7 +148,7 @@ public class EntitlementBootstrap {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 

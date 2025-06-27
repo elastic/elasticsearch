@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -111,6 +113,30 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testLookupJoinWithAliases() throws IOException {
+        setupClusters(2);
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup_local", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup_remote", 10);
+
+        setupAlias(LOCAL_CLUSTER, "values_lookup_local", "values_lookup");
+        setupAlias(REMOTE_CLUSTER_1, "values_lookup_remote", "values_lookup");
+
+        try (
+            EsqlQueryResponse resp = runQuery(
+                "FROM logs-*,c*:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        ) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("lookup_key", "lookup_name", "lookup_tag", "v", "tag"));
+
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(20));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
@@ -389,6 +415,15 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(cluster.getSkippedShards(), equalTo(0));
             assertThat(cluster.getFailedShards(), equalTo(0));
         }
+    }
+
+    protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
+        Client client = client(clusterAlias);
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName));
+        assertAcked(client.admin().indices().aliases(indicesAliasesRequestBuilder.request()));
     }
 
 }

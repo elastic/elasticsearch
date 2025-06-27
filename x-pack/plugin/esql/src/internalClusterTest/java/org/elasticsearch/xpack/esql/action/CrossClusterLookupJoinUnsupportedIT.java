@@ -56,7 +56,7 @@ public class CrossClusterLookupJoinUnsupportedIT extends AbstractCrossClusterTes
                 randomBoolean()
             )
         );
-        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after STATS"));
+        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after Aggregate"));
 
         ex = expectThrows(
             VerificationException.class,
@@ -65,7 +65,16 @@ public class CrossClusterLookupJoinUnsupportedIT extends AbstractCrossClusterTes
                 randomBoolean()
             )
         );
-        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after SORT"));
+        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after OrderBy"));
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery(
+                "FROM logs-*,c*:logs-* | LIMIT 2 | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key",
+                randomBoolean()
+            )
+        );
+        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after Limit"));
 
         setupHostsEnrich();
         ex = expectThrows(

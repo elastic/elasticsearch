@@ -57,8 +57,6 @@ public class JDKVectorInt7uBenchmark {
 
     @Setup(Level.Iteration)
     public void init() {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-
         byteArrayA = new byte[size];
         byteArrayB = new byte[size];
         for (int i = 0; i < size; ++i) {

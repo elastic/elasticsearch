@@ -54,7 +54,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 settings,
                 ThreadPool.Names.WRITE,
                 allocatedProcessors,
-                10000,
+                // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
+                Math.max(allocatedProcessors * 750, 10000),
                 new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )
         );

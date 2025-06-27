@@ -216,8 +216,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
         for (int i = 0; i < rankedDocs.size(); i++) {
             // TODO this naively assumes that we always get the requested number of snippets per ranked document
-            int docId = i / numSnippets;
-            float score = rankedDocs.get(i).relevanceScore();
+            RankedDocsResults.RankedDoc rankedDoc = rankedDocs.get(i);
+            int docId = rankedDoc.index() / numSnippets;
+            float score = rankedDoc.relevanceScore();
 
             if (hasScore[docId] == false) {
                 scores[docId] = score;
@@ -229,7 +230,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
         float[] result = new float[featureDocs.length];
         for (int i = 0; i < featureDocs.length; i++) {
-            result[i] = hasScore[i] ? normalizeScore(scores[i]) : 0f;
+            result[i] = hasScore[i] ? scores[i] : 0f;
         }
 
         return result;

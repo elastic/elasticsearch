@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -2779,7 +2780,13 @@ public class InternalEngine extends Engine {
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
-        iwc.setCodec(new TrackingPostingsInMemoryBytesCodec(engineConfig.getCodec()));
+
+        Codec codec = engineConfig.getCodec();
+        if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+            codec = new TrackingPostingsInMemoryBytesCodec(codec);
+        }
+        iwc.setCodec(codec);
+
         boolean useCompoundFile = engineConfig.getUseCompoundFile();
         iwc.setUseCompoundFile(useCompoundFile);
         if (useCompoundFile == false) {

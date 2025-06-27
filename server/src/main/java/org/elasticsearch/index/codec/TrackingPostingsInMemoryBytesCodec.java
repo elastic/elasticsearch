@@ -24,11 +24,14 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 import java.util.function.IntConsumer;
 
 public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
+    public static final FeatureFlag TRACK_POSTINGS_IN_MEMORY_BYTES = new FeatureFlag("track_postings_in_memory_bytes");
+
     public static final String IN_MEMORY_POSTINGS_BYTES_KEY = "es.postings.in_memory_bytes";
 
     public TrackingPostingsInMemoryBytesCodec(Codec delegate) {

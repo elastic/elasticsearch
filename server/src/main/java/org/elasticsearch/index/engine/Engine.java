@@ -288,13 +288,15 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
-            if (segmentReader != null) {
-                String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                    TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                );
-                if (postingBytes != null) {
-                    totalPostingBytes += Long.parseLong(postingBytes);
+            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                if (segmentReader != null) {
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
+                    }
                 }
             }
         }

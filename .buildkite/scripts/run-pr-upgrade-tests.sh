@@ -18,7 +18,8 @@ fi
 
 # Identify the merge base of the current commit (branch) and the base branch of the pull request.
 # PR upgrade tests are run from the merge base to the current commit.
-BASE_COMMIT=$(git merge-base $BUILDKITE_PULL_REQUEST_BASE_BRANCH $BUILDKITE_COMMIT)
+git fetch origin $BUILDKITE_PULL_REQUEST_BASE_BRANCH
+BASE_COMMIT=$(git merge-base origin/$BUILDKITE_PULL_REQUEST_BASE_BRANCH $BUILDKITE_COMMIT)
 
 VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
@@ -29,7 +30,7 @@ steps:
     - group: "pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH"
       steps:
         - label: "pr-upgrade-part-{{matrix.PART}}"
-          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}} -Dtests.jvm.argline="-Des.serverless_transport=true"
+          command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}
           timeout_in_minutes: 300
           agents:
             provider: gcp

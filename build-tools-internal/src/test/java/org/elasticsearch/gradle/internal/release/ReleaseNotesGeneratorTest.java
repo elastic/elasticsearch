@@ -101,9 +101,8 @@ public class ReleaseNotesGeneratorTest {
             writeResource(outputFile, actualOutput);
             assertFalse("UPDATE_EXPECTED_OUTPUT should be set back to false after updating output", UPDATE_EXPECTED_OUTPUT);
         } else {
-            // expected resources files always contain \n newlines, but generated data has the system newline
-            String[] expectedLines = expectedOutput.split("\n");
-            String[] actualLines = actualOutput.split(System.lineSeparator());
+            String[] expectedLines = expectedOutput.replace("\r", "").split("\n");
+            String[] actualLines = actualOutput.split("\n");
 
             assertThat(actualLines, arrayContaining(expectedLines));
         }

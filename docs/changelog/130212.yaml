@@ -1,0 +1,14 @@
+pr: 130212
+summary: Mark token pruning GA for 8.19
+area: Relevance
+type: docs
+issues: []
+highlight:
+  title: Mark token pruning GA for 8.19
+  body: |-
+    (backport of: https://github.com/elastic/elasticsearch/pull/128854)
+
+    A docs change to remove the [preview] labels for the token pruning
+    configuration items for the Sparse Vector query as we get ready to put
+    these into GA.
+  notable: true

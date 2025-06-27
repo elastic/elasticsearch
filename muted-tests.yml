@@ -566,6 +566,14 @@ tests:
 - class: org.elasticsearch.action.support.ThreadedActionListenerTests
   method: testRejectionHandling
   issue: https://github.com/elastic/elasticsearch/issues/130129
+- class: org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionTests
+  method: testManyInitialManyPartialFinalRunnerThrowing
+  issue: https://github.com/elastic/elasticsearch/issues/130145
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/issues/130162
+- class: org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationActionTests
+  method: testValidatePrerequisites
+  issue: https://github.com/elastic/elasticsearch/issues/130178
 
 # Examples:
 #

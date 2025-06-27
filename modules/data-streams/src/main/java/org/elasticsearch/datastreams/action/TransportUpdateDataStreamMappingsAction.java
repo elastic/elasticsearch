@@ -82,7 +82,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ActionListener<UpdateDataStreamMappingsAction.Response> listener
     ) throws Exception {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            clusterService.state(),
+            state.projectState(projectResolver.getProjectId()).metadata(),
             IndicesOptions.DEFAULT,
             request.indices()
         );

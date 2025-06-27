@@ -69,7 +69,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         ActionListener<GetDataStreamMappingsAction.Response> listener
     ) throws Exception {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            clusterService.state(),
+            project.metadata(),
             IndicesOptions.DEFAULT,
             request.indices()
         );

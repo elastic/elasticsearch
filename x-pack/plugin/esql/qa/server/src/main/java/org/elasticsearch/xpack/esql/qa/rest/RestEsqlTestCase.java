@@ -1520,6 +1520,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return result;
     }
 
+    /**
+     * Converts the entity to a map and asserts that this is not a partial response (`is_partial` field is absent or `false`).
+     * Use {@link #entityToMapNoPartialCheck} if you want to skip this check.
+     */
     protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
         return assertNotPartial(entityToMapNoPartialCheck(entity, expectedContentType));
     }

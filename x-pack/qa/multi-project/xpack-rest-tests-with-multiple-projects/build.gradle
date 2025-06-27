@@ -37,7 +37,6 @@ tasks.named("yamlRestTest").configure {
     '^esql/60_usage/*',
     '^esql/180_match_operator/*',
     '^health/10_usage/*',
-    '^ilm/60_operation_mode/*',
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',
     '^migrate/10_reindex/*',

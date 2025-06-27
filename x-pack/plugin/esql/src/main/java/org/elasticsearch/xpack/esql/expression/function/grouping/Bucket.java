@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -59,6 +61,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
 /**
  * Splits dates and numbers into a given number of buckets. There are two ways to invoke
@@ -72,6 +75,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         TwoOptionalArguments,
         SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+
+    private static final Logger logger = LogManager.getLogger(Bucket.class);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
@@ -519,15 +524,19 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             var min = searchStats.min(fieldName);
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them
-            if (min != null && max != null && buckets().foldable()) {
-                // System.out.println("field: " + fieldName + ", min: " + min + ", " + dateWithTypeToString((Long) min, fieldType));
-                // System.out.println("field: " + fieldName + ", max: " + max + ", " + dateWithTypeToString((Long) max, fieldType));
-                Rounding.Prepared rounding = getDateRounding(FoldContext.small(), (Long) min, (Long) max);
+            if (min instanceof Long minValue && max instanceof Long maxValue && buckets().foldable()) {
+                Rounding.Prepared rounding = getDateRounding(FoldContext.small(), minValue, maxValue);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
-                // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
-                // System.out.println("roundingPoints = " + Arrays.toString(roundingPoints));
                 if (roundingPoints == null) {
-                    return null; // TODO log this case
+                    logger.trace(
+                        "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
+                        fieldName,
+                        minValue,
+                        dateWithTypeToString(minValue, fieldType),
+                        maxValue,
+                        dateWithTypeToString(maxValue, fieldType)
+                    );
+                    return null;
                 }
                 // Convert to round_to function with the roundings
                 List<Expression> points = Arrays.stream(roundingPoints)

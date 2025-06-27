@@ -209,7 +209,7 @@ public class SearchContextStats implements SearchStats {
             Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
                 byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
-                if (minPackedValue != null) {
+                if (minPackedValue != null && minPackedValue.length == 8) {
                     long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
                     if (minValue <= min[0]) {
                         min[0] = minValue;
@@ -236,7 +236,7 @@ public class SearchContextStats implements SearchStats {
             Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
-                if (maxPackedValue != null) {
+                if (maxPackedValue != null && maxPackedValue.length == 8) {
                     long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
                     if (maxValue >= max[0]) {
                         max[0] = maxValue;

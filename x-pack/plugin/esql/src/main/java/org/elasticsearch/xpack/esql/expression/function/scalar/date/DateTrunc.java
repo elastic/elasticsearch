@@ -16,6 +16,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -50,6 +52,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
 public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -57,6 +60,8 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
         "DateTrunc",
         DateTrunc::new
     );
+
+    private static final Logger logger = LogManager.getLogger(DateTrunc.class);
 
     @FunctionalInterface
     public interface DateTruncFactoryProvider {
@@ -231,8 +236,8 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
 
         rounding.timeZone(timeZone);
         if (min != null && max != null && tryPrepareWithMinMax) {
-            // Multiple quantities of month, quarter or year is not supported by PreparedRounding.maybeUseArray, which is called by
-            // prepare(min, max), as it may hit an assert in it.
+            // Multiple quantities calendar interval - day/week/month/quarter/year is not supported by PreparedRounding.maybeUseArray,
+            // which is called by prepare(min, max), as it may hit an assert. Call prepare(min, max) only for single calendar interval.
             return rounding.build().prepare(min, max);
         }
         return rounding.build().prepareForUnknown();
@@ -295,17 +300,20 @@ public class DateTrunc extends EsqlScalarFunction implements SurrogateExpression
             var min = searchStats.min(fieldName);
             var max = searchStats.max(fieldName);
             // If min/max is available create rounding with them
-            if (min != null && max != null && interval().foldable()) {
-                // System.out.println("field: "+ fieldName + ", min string: " + dateWithTypeToString((Long) min, fieldType));
-                // System.out.println("field: "+ fieldName + ", max string: " + dateWithTypeToString((Long) max, fieldType));
+            if (min instanceof Long minValue && max instanceof Long maxValue && interval().foldable()) {
                 Object foldedInterval = interval().fold(FoldContext.small() /* TODO remove me */);
-                Rounding.Prepared rounding = createRounding(foldedInterval, DEFAULT_TZ, (Long) min, (Long) max);
+                Rounding.Prepared rounding = createRounding(foldedInterval, DEFAULT_TZ, minValue, maxValue);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
-                // the min/max long values for date and date_nanos are correct, however the roundingPoints for date_nanos is null
-                // System.out.println("field name = " + fieldName + ", min = " + min + ", max = " + max + ", roundingPoints = " +
-                // Arrays.toString(roundingPoints));
                 if (roundingPoints == null) {
-                    return null; // TODO log this case
+                    logger.trace(
+                        "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
+                        fieldName,
+                        minValue,
+                        dateWithTypeToString(minValue, fieldType),
+                        maxValue,
+                        dateWithTypeToString(maxValue, fieldType)
+                    );
+                    return null;
                 }
                 // Convert to round_to function with the roundings
                 List<Expression> points = Arrays.stream(roundingPoints)

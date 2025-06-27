@@ -154,7 +154,6 @@ public class UpdateDataStreamMappingsActionResponseTests extends AbstractWireSer
         }
         result.put("mappings", mappings);
         result.put("effective_mappings", effectiveMappings);
-        Map<String, Object> indexSettingsResults = new HashMap<>();
         return result;
     }
 

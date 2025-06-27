@@ -129,7 +129,7 @@ public class MetadataDataStreamsService {
                     ClusterState.builder(clusterState)
                         .putProjectMetadata(
                             updateDataStreamOptions(
-                                clusterState.projectState(modifyOptionsTask.projectId).metadata(),
+                                clusterState.metadata().getProject(modifyOptionsTask.projectId),
                                 modifyOptionsTask.getDataStreamNames(),
                                 modifyOptionsTask.getOptions()
                             )
@@ -188,7 +188,7 @@ public class MetadataDataStreamsService {
             }
         };
         this.updateMappingsTaskQueue = clusterService.createTaskQueue(
-            "update-data-stream-settings",
+            "update-data-stream-mappings",
             Priority.NORMAL,
             updateMappingsExecutor
         );
@@ -821,7 +821,7 @@ public class MetadataDataStreamsService {
         ) {
             super(ackTimeout, listener.safeMap(response -> {
                 if (response.isAcknowledged()) {
-                    return clusterService.state().projectState(projectId).metadata().dataStreams().get(dataStreamName);
+                    return clusterService.state().metadata().getProject(projectId).dataStreams().get(dataStreamName);
                 } else {
                     throw new ElasticsearchException("Updating settings not accepted for unknown reasons");
                 }

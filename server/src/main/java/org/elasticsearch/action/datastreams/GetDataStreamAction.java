@@ -38,7 +38,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -424,13 +423,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.startObject(SETTINGS_FIELD.getPreferredName());
                 dataStream.getSettings().toXContent(builder, params);
                 builder.endObject();
-                builder.field(MAPPINGS_FIELD.getPreferredName());
-                Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
-                    dataStream.getMappings().uncompressed(),
-                    true,
-                    XContentType.JSON
-                ).v2();
-                builder.map(uncompressedMappings);
+                if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+                    builder.field(MAPPINGS_FIELD.getPreferredName());
+                    Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
+                        dataStream.getMappings().uncompressed(),
+                        true,
+                        builder.contentType()
+                    ).v2();
+                    builder.map(uncompressedMappings);
+                }
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                 builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                 builder.field(DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(), dataStream.getFailureComponent().isRolloverOnWrite());

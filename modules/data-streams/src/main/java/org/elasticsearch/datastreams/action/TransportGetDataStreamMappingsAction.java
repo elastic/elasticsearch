@@ -58,7 +58,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamMappingsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -69,7 +69,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         ActionListener<GetDataStreamMappingsAction.Response> listener
     ) throws Exception {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            clusterService.state(),
+            project.metadata(),
             IndicesOptions.DEFAULT,
             request.indices()
         );

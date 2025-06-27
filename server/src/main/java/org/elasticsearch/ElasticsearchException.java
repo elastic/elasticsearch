@@ -118,6 +118,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String ROOT_CAUSE = "root_cause";
 
     static final String TIMED_OUT_HEADER = "X-Timed-Out";
+    static final String EXCEPTION_TYPE_HEADER = "X-Elasticsearch-Exception";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -130,7 +131,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
-        maybePutTimeoutHeader();
+        addErrorHeaders();
     }
 
     /**
@@ -145,7 +146,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
-        maybePutTimeoutHeader();
+        addErrorHeaders();
     }
 
     /**
@@ -162,7 +163,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
-        maybePutTimeoutHeader();
+        addErrorHeaders();
     }
 
     @SuppressWarnings("this-escape")
@@ -173,10 +174,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
     }
 
-    private void maybePutTimeoutHeader() {
+    private void addErrorHeaders() {
         if (isTimeout()) {
             // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
             headers.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
+        // TODO: cache unwrapping the cause? we do this in several places...
+        Throwable cause = unwrapCause();
+        RestStatus status = ExceptionsHelper.status(cause);
+        if (status.getStatus() >= 500) {
+            headers.put(EXCEPTION_TYPE_HEADER, List.of(cause.getClass().getSimpleName()));
         }
     }
 

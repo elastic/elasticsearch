@@ -181,10 +181,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
         );
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
@@ -288,9 +285,9 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
 
     private TestTelemetryPlugin getTelemetryPlugin(String dataNodeName) {
         var plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
-                .filterPlugins(TestTelemetryPlugin.class)
-                .findFirst()
-                .orElseThrow();
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
         plugin.resetMeter();
         return plugin;
     }

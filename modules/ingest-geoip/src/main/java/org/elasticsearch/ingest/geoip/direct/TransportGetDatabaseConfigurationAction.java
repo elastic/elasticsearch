@@ -14,6 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -94,9 +95,10 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             clusterService.state().metadata().getProject(projectId)
         );
         String geoIpTaskId = GeoIpDownloaderTaskExecutor.getTaskId(projectId, projectResolver.supportsMultipleProjects());
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         for (String id : ids) {
             results.addAll(getWebDatabases(geoIpTaskId, tasksMetadata, id));
-            results.addAll(getMaxmindDatabases(projectId, clusterService, id));
+            results.addAll(getMaxmindDatabases(projectMetadata, id));
         }
         return results;
     }
@@ -149,15 +151,11 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
      * This returns information about databases that are downloaded from maxmind.
      */
     private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(
-        ProjectId projectId,
-        ClusterService clusterService,
+        ProjectMetadata projectMetadata,
         String id
     ) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
-        final IngestGeoIpMetadata geoIpMeta = clusterService.state()
-            .metadata()
-            .getProject(projectId)
-            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {

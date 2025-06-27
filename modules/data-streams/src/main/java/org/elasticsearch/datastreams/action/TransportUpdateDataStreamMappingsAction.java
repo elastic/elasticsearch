@@ -42,7 +42,6 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     UpdateDataStreamMappingsAction.Request,
     UpdateDataStreamMappingsAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDataStreamMappingsAction.class);
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;

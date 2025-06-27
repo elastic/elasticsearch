@@ -2564,16 +2564,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
-        assertEquals(true, future.isDone());
-        assertThrows(ExecutionException.class, future::get);
-        try {
-            future.get();
-        } catch (ExecutionException ex) {
-            assertEquals(
-                "java.lang.IllegalArgumentException: creating elasticsearch api keys using cloud api keys is not supported",
-                ex.getMessage()
-            );
-        }
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, future);
+        assertThat(iae.getMessage(), equalTo("creating elasticsearch api keys using cloud api keys is not supported"));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {

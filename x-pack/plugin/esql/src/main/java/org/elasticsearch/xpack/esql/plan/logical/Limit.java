@@ -29,19 +29,21 @@ public class Limit extends UnaryPlan implements TelemetryAware {
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
     private final transient boolean duplicated;
+    private final transient boolean implied;
 
     /**
      * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated} to
      * {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {
-        this(source, limit, child, false);
+        this(source, limit, child, false, false);
     }
 
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated) {
+    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean implied) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
+        this.implied = implied;
     }
 
     /**
@@ -52,6 +54,7 @@ public class Limit extends UnaryPlan implements TelemetryAware {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
+            false,
             false
         );
     }
@@ -77,12 +80,12 @@ public class Limit extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, child(), duplicated);
+        return NodeInfo.create(this, Limit::new, limit, child(), duplicated, implied);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, newChild, duplicated);
+        return new Limit(source(), limit, newChild, duplicated, implied);
     }
 
     public Expression limit() {
@@ -90,15 +93,23 @@ public class Limit extends UnaryPlan implements TelemetryAware {
     }
 
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, child(), duplicated);
+        return new Limit(source(), limit, child(), duplicated, implied);
     }
 
     public boolean duplicated() {
         return duplicated;
     }
 
+    public boolean implied() {
+        return implied;
+    }
+
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, child(), duplicated);
+        return new Limit(source(), limit, child(), duplicated, implied);
+    }
+
+    public Limit withImplied(boolean implied) {
+        return new Limit(source(), limit, child(), duplicated, implied);
     }
 
     @Override
@@ -108,7 +119,7 @@ public class Limit extends UnaryPlan implements TelemetryAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated);
+        return Objects.hash(limit, child(), duplicated, implied);
     }
 
     @Override

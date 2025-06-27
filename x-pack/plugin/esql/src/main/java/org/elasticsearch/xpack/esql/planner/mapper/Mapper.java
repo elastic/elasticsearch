@@ -205,6 +205,11 @@ public class Mapper {
         Holder<Boolean> hasFragment = new Holder<>(false);
         Holder<Boolean> forceLocal = new Holder<>(false);
 
+        // If we have any forced limits inside, we can't execute this as a remote join
+        if (logical.left().anyMatch(pl -> pl instanceof Limit limit && limit.implied() == false)) {
+            return null;
+        }
+
         var childTransformed = child.transformUp(f -> {
             if (forceLocal.get()) {
                 return f;
@@ -212,13 +217,7 @@ public class Mapper {
             // Once we reached FragmentExec, we stuff our Enrich under it
             if (f instanceof FragmentExec) {
                 hasFragment.set(true);
-                // FIXME: hack to remove duplicate limits. This is probably not the right way to do it.
-                return new FragmentExec(logical.transformUp(Limit.class, l -> {
-                    if (l.duplicated()) {
-                        return l.child();
-                    }
-                    return l;
-                }));
+                return new FragmentExec(logical);
             }
             if (f instanceof EnrichExec enrichExec) {
                 assert enrichExec.mode() != Enrich.Mode.REMOTE : "Unexpected remote ENRICH when looking for fragment";
@@ -236,14 +235,19 @@ public class Mapper {
                     forceLocal.set(true);
                     return f;
                 }
-                if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
+                // No need to include LimitExec because:
+                // 1. If it's an implied limit, we have a copy of it already on the top
+                // 2. If it's a forced limit, we can't execute this as a remote join anyway.
+                if (f instanceof ExchangeExec || f instanceof TopNExec) {
                     return f;
                 } else {
                     return unaryExec.child();
                 }
             }
-            if (f instanceof LookupJoinExec lj) {
-                return lj.right();
+            if (f instanceof LookupJoinExec) {
+                // We shouldn't be meeting LookupJoinExec unless we can't execute this as a remote join
+                forceLocal.set(true);
+                return f;
             }
             if (f instanceof MergeExec) {
                 forceLocal.set(true);
@@ -252,14 +256,7 @@ public class Mapper {
             return f;
         });
 
-        if (forceLocal.get()) {
-            if (logical.isRemote()) {
-                throw new EsqlIllegalArgumentException("Remote joins are not supported in this context");
-            }
-            return null;
-        }
-
-        if (hasFragment.get()) {
+        if (forceLocal.get() == false && hasFragment.get()) {
             return childTransformed;
         }
         return null;
@@ -288,7 +285,11 @@ public class Mapper {
 
             if (FRAGMENT_EXEC_HACK_ENABLED) {
                 var leftPlan = mapToFragmentExec(join, left);
-                if (leftPlan != null) {
+                if (leftPlan == null) {
+                    if (join.isRemote()) {
+                        throw new EsqlIllegalArgumentException("Remote joins are not supported in this context: [" + join + "]");
+                    }
+                } else {
                     return leftPlan;
                 }
             }

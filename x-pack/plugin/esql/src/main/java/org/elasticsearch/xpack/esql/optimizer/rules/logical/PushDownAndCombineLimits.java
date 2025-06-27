@@ -108,7 +108,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
         List<LogicalPlan> grandChildren = limit.child().children();
         LogicalPlan firstGrandChild = grandChildren.getFirst();
-        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild);
+        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild).withImplied(true);
 
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);

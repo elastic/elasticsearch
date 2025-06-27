@@ -461,7 +461,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
                 query = rescoreKnnVectorQuery.innerQuery();
             }
-            assertThat(query, instanceOf(KnnFloatVectorQuery.class));
+            assertTrue(query instanceof KnnFloatVectorQuery || query instanceof PatienceKnnVectorQuery);
         }
 
         {   // byte type with 4096 dims
@@ -491,7 +491,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
-            assertThat(query, instanceOf(ESKnnByteVectorQuery.class));
+            assertTrue(query instanceof ESKnnByteVectorQuery || query instanceof PatienceKnnVectorQuery);
         }
     }
 

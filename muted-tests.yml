@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test600Interrupt
   issue: https://github.com/elastic/elasticsearch/issues/128144
+- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
+  method: testChildrenTasksCancelledOnTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/123568
 
 # Examples:
 #

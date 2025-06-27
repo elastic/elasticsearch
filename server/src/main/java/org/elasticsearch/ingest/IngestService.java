@@ -848,7 +848,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
                 try (var refs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                     int i = 0;
                     for (DocWriteRequest<?> actionRequest : actionRequests) {

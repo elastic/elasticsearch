@@ -2558,7 +2558,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e, is(rejectedExecutionException));
     }
 
-    @Test
     public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {
         final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);

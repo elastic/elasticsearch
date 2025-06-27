@@ -394,4 +394,77 @@ synthetic_source with copy_to:
   - match:
       hits.hits.0.fields.copy.0: "Apache Lucene powers Elasticsearch"
 
+---
+synthetic_source match_only_text as multi-field:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source match_only_text with multi-field:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                fields:
+                  raw:
+                    type: keyword
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 

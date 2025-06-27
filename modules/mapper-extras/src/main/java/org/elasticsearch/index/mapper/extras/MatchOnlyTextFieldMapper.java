@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -123,7 +124,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta };
         }
 
-        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context, boolean storeSource) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
@@ -132,7 +133,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 indexAnalyzer,
-                context.isSourceSynthetic(),
+                storeSource,
                 meta.getValue()
             );
             return ft;
@@ -140,7 +141,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
-            MatchOnlyTextFieldType tft = buildFieldType(context);
             final boolean storeSource;
             if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 storeSource = context.isSourceSynthetic()
@@ -149,6 +149,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             } else {
                 storeSource = context.isSourceSynthetic();
             }
+            MatchOnlyTextFieldType tft = buildFieldType(context, storeSource);
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }
@@ -211,14 +212,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (searchExecutionContext.isSourceSynthetic()) {
                 String name = storedFieldNameForSyntheticSource();
-                StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
-                return context -> {
-                    LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
-                    return docId -> {
-                        leafLoader.advanceTo(docId);
-                        return leafLoader.storedFields().get(name);
+                // TODO: go the parent field and load either via stored fields or doc values the values instead synthesizing complete source
+                // (in case of synthetic source and if this field is a multi field, then it will not have a stored field.)
+                if (name != null) {
+                    StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
+                    return context -> {
+                        LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
+                        return docId -> {
+                            leafLoader.advanceTo(docId);
+                            return leafLoader.storedFields().get(name);
+                        };
                     };
-                };
+                }
             }
             return context -> {
                 ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
@@ -506,18 +511,30 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(
-            () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
-                @Override
-                protected void write(XContentBuilder b, Object value) throws IOException {
-                    if (value instanceof BytesRef valueBytes) {
-                        b.value(valueBytes.utf8ToString());
-                    } else {
-                        assert value instanceof String;
-                        b.value(value.toString());
+        if (storeSource) {
+            return new SyntheticSourceSupport.Native(
+                () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
+                    @Override
+                    protected void write(XContentBuilder b, Object value) throws IOException {
+                        if (value instanceof BytesRef valueBytes) {
+                            b.value(valueBytes.utf8ToString());
+                        } else {
+                            assert value instanceof String;
+                            b.value(value.toString());
+                        }
+                    }
+                }
+            );
+        } else {
+            for (FieldMapper multiField : multiFields()) {
+                if (multiField instanceof KeywordFieldMapper kwd) {
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        return kwd.syntheticSourceSupport();
                     }
                 }
             }
-        );
+            assert false : "there should be a suite field mapper with native synthetic source support";
+            return null;
+        }
     }
 }

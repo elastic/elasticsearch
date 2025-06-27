@@ -572,6 +572,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/130205
+- class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
+  method: testKMeansNeighbors
+  issue: https://github.com/elastic/elasticsearch/issues/130258
 
 # Examples:
 #

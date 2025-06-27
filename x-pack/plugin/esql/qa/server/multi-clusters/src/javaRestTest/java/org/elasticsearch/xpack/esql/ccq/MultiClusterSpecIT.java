@@ -314,16 +314,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 // If the query contains lookup indices, use only remotes to avoid duplication
                 onlyRemotes = true;
             }
-            final String remoteIndices;
-            if (onlyRemotes) {
-                remoteIndices = Arrays.stream(localIndices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
-                    .collect(Collectors.joining(","));
-            } else {
-                remoteIndices = Arrays.stream(localIndices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
-                    .collect(Collectors.joining(","));
-            }
+            final boolean onlyRemotesFinal = onlyRemotes;
+            final String remoteIndices = Arrays.stream(localIndices)
+                .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
+                .collect(Collectors.joining(","));
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
         }
@@ -331,15 +325,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String[] parts = commands[0].split("\\s+");
             assert parts.length >= 2 : commands[0];
             String[] indices = parts[1].split(",");
-            if (onlyRemotes) {
-                parts[1] = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), true))
-                    .collect(Collectors.joining(","));
-            } else {
-                parts[1] = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), false))
-                    .collect(Collectors.joining(","));
-            }
+            final boolean onlyRemotesFinal = onlyRemotes;
+            parts[1] = Arrays.stream(indices)
+                .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
+                .collect(Collectors.joining(","));
             String newNewMetrics = String.join(" ", parts);
             testCase.query = newNewMetrics + query.substring(first.length());
         }

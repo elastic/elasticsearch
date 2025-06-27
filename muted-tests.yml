@@ -561,8 +561,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testCohereEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/130010
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/128224
 - class: org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests
   method: testMergeEmptyMappingsIntoTemplateWithNonEmptySettings
   issue: https://github.com/elastic/elasticsearch/issues/130050
@@ -574,6 +572,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/130067
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/130215
 
 # Examples:
 #

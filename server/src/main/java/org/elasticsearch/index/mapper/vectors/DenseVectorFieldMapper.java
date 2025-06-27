@@ -2554,9 +2554,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new BooleanQuery.Builder().add(createExactKnnBitQuery(queryVector), BooleanClause.Occur.SHOULD)
                         .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
-                if (parentFilter != null) {
-                    knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);
-                }
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
@@ -2595,9 +2592,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new BooleanQuery.Builder().add(createExactKnnByteQuery(queryVector), BooleanClause.Occur.SHOULD)
                         .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
-                if (parentFilter != null) {
-                    knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);
-                }
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
@@ -2661,9 +2655,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new BooleanQuery.Builder().add(createExactKnnFloatQuery(queryVector), BooleanClause.Occur.SHOULD)
                         .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
                         .build();
-                if (parentFilter != null) {
-                    knnQuery = new ToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Max);
-                }
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(

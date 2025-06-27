@@ -142,6 +142,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
+            MatchOnlyTextFieldType tft = buildFieldType(context);
             final boolean storeSource;
             if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 storeSource = context.isSourceSynthetic()
@@ -150,7 +151,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             } else {
                 storeSource = context.isSourceSynthetic();
             }
-            MatchOnlyTextFieldType tft = buildFieldType(context);
             return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
         }
     }

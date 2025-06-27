@@ -29,6 +29,10 @@ import org.elasticsearch.common.util.FeatureFlag;
 import java.io.IOException;
 import java.util.function.IntConsumer;
 
+/**
+ * A codec that tracks the length of the min and max written terms. Used to improve memory usage estimates in serverless, since
+ * {@link org.apache.lucene.codecs.lucene90.blocktree.FieldReader} keeps an in-memory reference to the min and max term.
+ */
 public class TrackingPostingsInMemoryBytesCodec extends FilterCodec {
     public static final FeatureFlag TRACK_POSTINGS_IN_MEMORY_BYTES = new FeatureFlag("track_postings_in_memory_bytes");
 

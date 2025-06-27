@@ -331,7 +331,7 @@ emp_no:integer
 10001
 ;
 
-dropAllFieldsUsedInLookupOnMaybeTheCoordinator
+dropAllFieldsUsedInLookupOnTheCoordinator
 required_capability: join_lookup_v12
 
 FROM employees
@@ -367,7 +367,7 @@ language_code:integer | language_name:keyword       | country:text
 1                     | English                     | null
 ;
 
-nonUniqueRightKeyOnMaybeTheCoordinatorLateLimit
+nonUniqueRightKeyOnTheCoordinatorLateLimit
 required_capability: join_lookup_v12
 required_capability: join_lookup_fix_limit_pushdown
 
@@ -714,7 +714,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 10003          | 4                     | German
 ;
 
-filterOnTheDataNodeThenFilterOnMaybeTheCoordinator
+filterOnTheDataNodeThenFilterOnTheCoordinator
 required_capability: join_lookup_v12
 
 FROM employees

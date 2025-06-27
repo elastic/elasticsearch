@@ -119,11 +119,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "StatsAndLookupMessageFromIndex",
         "MvJoinKeyOnTheLookupIndexAfterStats",
         "MvJoinKeyOnFromAfterStats",
-        // Lookup join after SORT+LIMIT is not supported in CCS yet
-        "NullifiedJoinKeyToPurgeTheJoin"
-    // "SortBeforeAndAfterJoin",
-    // "SortEvalBeforeLookup",
-    // "SortBeforeAndAfterMultipleJoinAndMvExpand"
+        // Lookup join after SORT is not supported in CCS yet
+        "NullifiedJoinKeyToPurgeTheJoin",
+        "SortBeforeAndAfterJoin",
+        "SortEvalBeforeLookup",
+        "SortBeforeAndAfterMultipleJoinAndMvExpand"
     );
 
     @Override

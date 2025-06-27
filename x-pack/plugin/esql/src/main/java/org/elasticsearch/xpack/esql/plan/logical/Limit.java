@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Limit extends UnaryPlan implements TelemetryAware {
+public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
@@ -29,21 +29,19 @@ public class Limit extends UnaryPlan implements TelemetryAware {
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
     private final transient boolean duplicated;
-    private final transient boolean implied;
 
     /**
      * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated} to
      * {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {
-        this(source, limit, child, false, false);
+        this(source, limit, child, false);
     }
 
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean implied) {
+    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
-        this.implied = implied;
     }
 
     /**
@@ -54,24 +52,20 @@ public class Limit extends UnaryPlan implements TelemetryAware {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
-            false,
             false
         );
     }
 
     /**
-     * Omits serializing {@link Limit#duplicated} because when sent to a data node, this should always be {@code false}.
-     * That's because if it's true, this means a copy of this limit was pushed down below an MvExpand or Join, and thus there's
-     * another pipeline breaker further upstream - we're already on the coordinator node.
+     * Omits serializing {@link Limit#duplicated} because this is only required to avoid pushing duplicating a limit past
+     * {@link org.elasticsearch.xpack.esql.plan.logical.join.Join} or {@link MvExpand} in an infinite loop, see
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits}.
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
-        // Let's make sure we notice during tests if we ever serialize a duplicated Limit.
-        // FIXME: verify that this condition is correct and fix the comments
-        assert implied || duplicated == false;
     }
 
     @Override
@@ -81,12 +75,12 @@ public class Limit extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, child(), duplicated, implied);
+        return NodeInfo.create(this, Limit::new, limit, child(), duplicated);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, newChild, duplicated, implied);
+        return new Limit(source(), limit, newChild, duplicated);
     }
 
     public Expression limit() {
@@ -94,23 +88,15 @@ public class Limit extends UnaryPlan implements TelemetryAware {
     }
 
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, child(), duplicated, implied);
+        return new Limit(source(), limit, child(), duplicated);
     }
 
     public boolean duplicated() {
         return duplicated;
     }
 
-    public boolean implied() {
-        return implied;
-    }
-
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, child(), duplicated, implied);
-    }
-
-    public Limit withImplied(boolean implied) {
-        return new Limit(source(), limit, child(), duplicated, implied);
+        return new Limit(source(), limit, child(), duplicated);
     }
 
     @Override
@@ -120,7 +106,7 @@ public class Limit extends UnaryPlan implements TelemetryAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated, implied);
+        return Objects.hash(limit, child(), duplicated);
     }
 
     @Override

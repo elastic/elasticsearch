@@ -35,9 +35,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -2687,7 +2685,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
                     k,
                     adjustedK,
-                    knnQuery
+                    knnQuery,
+                    parentFilter
                 );
             }
             if (similarityThreshold != null) {

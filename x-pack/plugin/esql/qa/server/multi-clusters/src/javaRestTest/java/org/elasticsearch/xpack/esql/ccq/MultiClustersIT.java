@@ -418,7 +418,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
-        System.out.println(resultString);
+        logger.info(resultString);
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
@@ -433,7 +433,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
-        System.out.println(resultString);
+        logger.info(resultString);
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
@@ -448,7 +448,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
-        System.out.println(resultString);
+        logger.info(resultString);
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 
@@ -463,7 +463,7 @@ public class MultiClustersIT extends ESRestTestCase {
         var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
         var values = List.of(List.of(localDocs.size(), localIndex));
         String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
-        System.out.println(resultString);
+        logger.info(resultString);
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
     }
 

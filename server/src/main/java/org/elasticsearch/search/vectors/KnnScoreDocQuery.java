@@ -20,6 +20,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -46,6 +47,19 @@ public class KnnScoreDocQuery extends Query {
 
     // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
+
+    static Query fromQuery(Query query, int k, IndexSearcher searcher) throws IOException {
+        if (query instanceof MatchNoDocsQuery) {
+            // If the rewritten query is a MatchNoDocsQuery, we can return it directly.
+            return query;
+        }
+        if (query instanceof KnnScoreDocQuery knnQuery) {
+            return knnQuery;
+        }
+        TopDocs topDocs = searcher.search(query, k);
+        assert topDocs.scoreDocs.length == k;
+        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+    }
 
     /**
      * Creates a query.
@@ -176,6 +190,9 @@ public class KnnScoreDocQuery extends Query {
 
                     @Override
                     public int advanceShallow(int docId) {
+                        if (docId == NO_MORE_DOCS) {
+                            return NO_MORE_DOCS;
+                        }
                         int start = Math.max(upTo, lower);
                         int docIdIndex = Arrays.binarySearch(docs, start, upper, docId + context.docBase);
                         if (docIdIndex < 0) {

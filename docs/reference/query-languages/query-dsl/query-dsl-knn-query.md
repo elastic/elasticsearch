@@ -227,6 +227,39 @@ A sample query can look like below:
 ```
 
 
+## Knn query on a semantic_text field [knn-query-with-semantic-text]
+
+Elasticsearch supports knn queries over a [
+`semantic_text` field](/reference/elasticsearch/mapping-reference/semantic-text.md).
+
+Here is an example using the `query_vector_builder`:
+
+```json
+{
+  "query": {
+    "knn": {
+      "field": "inference_field",
+      "k": 10,
+      "num_candidates": 100,
+      "query_vector_builder": {
+        "text_embedding": {
+          "model_text": "test"
+        }
+      }
+    }
+  },
+  "_source": {
+    "exclude": "inference_field.inference.chunks"
+  }
+}
+```
+
+Note that for `semantic_text` fields, the `model_id` does not have to be
+provided as it can be inferred from the `semantic_text` field mapping.
+
+Knn search using query vectors over `semantic_text` fields is also supported,
+with no change to the API.
+
 ## Knn query with aggregations [knn-query-aggregations]
 
 `knn` query calculates aggregations on top `k` documents from each shard. Thus, the final results from aggregations contain `k * number_of_shards` documents. This is different from the [top level knn section](docs-content://solutions/search/vector/knn.md) where aggregations are calculated on the global top `k` nearest documents.

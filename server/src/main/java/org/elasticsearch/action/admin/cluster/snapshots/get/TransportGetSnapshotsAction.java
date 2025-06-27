@@ -503,21 +503,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final var indicesLookup = getIndicesLookup(repositoryData);
             return Iterators.concat(
                 // matching in-progress snapshots first
-                Iterators.map(
-                    Iterators.filter(
-                        snapshotsInProgress.forRepo(repository.getProjectId(), repository.getMetadata().name()).iterator(),
-                        snapshotInProgress -> {
-                            final var snapshotId = snapshotInProgress.snapshot().getSnapshotId();
-                            if (snapshotNamePredicate.test(snapshotId.getName(), true)) {
-                                matchingInProgressSnapshots.add(snapshotId);
-                                return true;
-                            } else {
-                                return false;
-                            }
-                        }
-                    ),
-                    this::forSnapshotInProgress
-                ),
+                Iterators.map(Iterators.filter(snapshotsInProgress.forRepo(repository.getProjectRepo()).iterator(), snapshotInProgress -> {
+                    final var snapshotId = snapshotInProgress.snapshot().getSnapshotId();
+                    if (snapshotNamePredicate.test(snapshotId.getName(), true)) {
+                        matchingInProgressSnapshots.add(snapshotId);
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }), this::forSnapshotInProgress),
                 repositoryData == null
                     // Only returning in-progress snapshots:
                     ? Collections.emptyIterator()

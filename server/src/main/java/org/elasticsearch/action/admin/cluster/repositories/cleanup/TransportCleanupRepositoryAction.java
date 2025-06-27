@@ -144,7 +144,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     @Override
     protected ClusterBlockException checkBlock(CleanupRepositoryRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     /**

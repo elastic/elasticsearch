@@ -707,7 +707,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    // This is limit is cluster wide across all projects
+    // This limit is intentionally cluster wide across all projects
     private void ensureBelowConcurrencyLimit(
         String repository,
         String name,

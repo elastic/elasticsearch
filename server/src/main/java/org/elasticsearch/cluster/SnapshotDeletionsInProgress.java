@@ -135,8 +135,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return entries.isEmpty() == false;
     }
 
+    /**
+     * Similar to {@link #hasDeletionsInProgress()} but checks in the scope of the given project.
+     */
     public boolean hasDeletionsInProgress(ProjectId projectId) {
-        return entries.stream().filter(entry -> entry.projectId().equals(projectId)).findFirst().isPresent();
+        return entries.stream().anyMatch(entry -> entry.projectId().equals(projectId));
     }
 
     @Override

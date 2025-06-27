@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_INTERNAL_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_NAME_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -64,10 +65,18 @@ public class XContentUtilsTests extends ESTestCase {
     }
 
     public void testAddAuthorizationInfoWithCloudApiKey() throws IOException {
-        String apiKeyId = randomAlphaOfLength(20);
-        Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication(apiKeyId);
+        User user = AuthenticationTestHelper.randomCloudApiKeyUser();
+        Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication(user);
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
-        assertThat(json, containsString("{\"authorization\":{\"cloud_api_key\":{\"id\":\"" + apiKeyId + "\""));
+        assertThat(json, containsString("{\"authorization\":{\"cloud_api_key\":{\"id\":\"" + user.principal()));
+        assertThat(json, containsString("\"internal\":" + user.metadata().getOrDefault(API_KEY_INTERNAL_KEY, null)));
+        if (user.metadata().containsKey(API_KEY_NAME_KEY)) {
+            assertThat(json, containsString("\"name\":\"" + user.metadata().getOrDefault(API_KEY_NAME_KEY, null) + "\""));
+        }
+        for (String role : user.roles()) {
+            assertThat(json, containsString(role));
+        }
+
     }
 
     public void testAddAuthorizationInfoWithServiceAccount() throws IOException {

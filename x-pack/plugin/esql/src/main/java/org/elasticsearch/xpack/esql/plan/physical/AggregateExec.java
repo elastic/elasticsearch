@@ -35,21 +35,21 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         AggregateExec::new
     );
 
-    protected final List<? extends Expression> groupings;
-    protected final List<? extends NamedExpression> aggregates;
+    private final List<? extends Expression> groupings;
+    private final List<? extends NamedExpression> aggregates;
     /**
      * The output attributes of {@link AggregatorMode#INITIAL} and {@link AggregatorMode#INTERMEDIATE} aggregations, resp.
      * the input attributes of {@link AggregatorMode#FINAL} and {@link AggregatorMode#INTERMEDIATE} aggregations.
      */
-    protected final List<Attribute> intermediateAttributes;
+    private final List<Attribute> intermediateAttributes;
 
-    protected final AggregatorMode mode;
+    private final AggregatorMode mode;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
      */
-    protected final Integer estimatedRowSize;
+    private final Integer estimatedRowSize;
 
     public AggregateExec(
         Source source,
@@ -71,12 +71,15 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     protected AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
-        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class));
-        this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        this.aggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
-        this.mode = in.readEnum(AggregatorMode.class);
-        this.intermediateAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.estimatedRowSize = in.readOptionalVInt();
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            in.readEnum(AggregatorMode.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readOptionalVInt()
+        );
     }
 
     @Override
@@ -89,9 +92,24 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             out.writeEnum(getMode());
             out.writeNamedWriteableCollection(intermediateAttributes());
         } else {
-            out.writeEnum(Mode.fromAggregatorMode(getMode()));
+            out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
         }
         out.writeOptionalVInt(estimatedRowSize());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<AggregateExec> info() {
+        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
+    @Override
+    public AggregateExec replaceChild(PhysicalPlan newChild) {
+        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public List<? extends Expression> groupings() {
@@ -100,6 +118,14 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
+    }
+
+    public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
+        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
+    public AggregateExec withMode(AggregatorMode newMode) {
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
     }
 
     /**
@@ -122,31 +148,31 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedSize(size);
     }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
-
-    @Override
-    protected NodeInfo<AggregateExec> info() {
-        return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
-    }
-
-    @Override
-    public AggregateExec replaceChild(PhysicalPlan newChild) {
-        return new AggregateExec(source(), newChild, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
-    }
-
-    public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
-        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
-    }
-
-    public AggregateExec withMode(AggregatorMode newMode) {
-        return new AggregateExec(source(), child(), groupings, aggregates, newMode, intermediateAttributes, estimatedRowSize);
-    }
-
     protected AggregateExec withEstimatedSize(int estimatedRowSize) {
         return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
+    /**
+     * Used only for bwc when de-/serializing.
+     */
+    @Deprecated
+    private enum Mode {
+        SINGLE,
+        PARTIAL, // maps raw inputs to intermediate outputs
+        FINAL; // maps intermediate inputs to final outputs
+
+        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
+            return switch (aggregatorMode) {
+                case SINGLE -> SINGLE;
+                case INITIAL -> PARTIAL;
+                case FINAL -> FINAL;
+                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
+                // data node level reduction.
+                case INTERMEDIATE -> throw new UnsupportedOperationException(
+                    "cannot turn intermediate aggregation into single, partial or final."
+                );
+            };
+        }
     }
 
     /**
@@ -186,29 +212,6 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             });
         }
         return orginalAttributs;
-    }
-
-    /**
-     * Used only for bwc when de-/serializing.
-     */
-    @Deprecated
-    private enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL; // maps intermediate inputs to final outputs
-
-        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
-            return switch (aggregatorMode) {
-                case SINGLE -> SINGLE;
-                case INITIAL -> PARTIAL;
-                case FINAL -> FINAL;
-                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
-                // data node level reduction.
-                case INTERMEDIATE -> throw new UnsupportedOperationException(
-                    "cannot turn intermediate aggregation into single, partial or final."
-                );
-            };
-        }
     }
 
     @Override

@@ -102,11 +102,11 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return new TimeSeriesAggregateExec(
             source(),
             child(),
-            groupings,
+            groupings(),
             newAggregates,
-            mode,
-            intermediateAttributes,
-            estimatedRowSize,
+            getMode(),
+            intermediateAttributes(),
+            estimatedRowSize(),
             timeBucket
         );
     }

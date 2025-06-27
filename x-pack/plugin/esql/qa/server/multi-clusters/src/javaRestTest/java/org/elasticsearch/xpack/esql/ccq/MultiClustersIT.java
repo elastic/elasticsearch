@@ -179,11 +179,7 @@ public class MultiClustersIT extends ESRestTestCase {
             requiredCapabilities.add("like_list_on_index_fields");
         }
         // the feature is completely supported if both local and remote clusters support it
-        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), requiredCapabilities).orElse(false);
-        try (RestClient remoteClient = remoteClusterClient()) {
-            isSupported = isSupported
-                && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
-        }
+        boolean isSupported = capabilitiesSupportedNewAndOld(requiredCapabilities);
 
         if (isSupported) {
             assertResultMap(includeCCSMetadata, result, columns, values, remoteOnly);
@@ -454,6 +450,12 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     public void testLikeListIndex() throws Exception {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_list_on_index_fields"));
+        // the feature is completely supported if both local and remote clusters support it
+        if (capabilitiesSupportedNewAndOld(requiredCapabilities) == false) {
+            logger.info("-->  skipping testNotLikeListIndex, due to missing capability");
+            return;
+        }
         boolean includeCCSMetadata = includeCCSMetadata();
         Map<String, Object> result = run("""
             FROM test-local-index,*:test-remote-index METADATA _index
@@ -469,10 +471,37 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     public void testNotLikeListIndex() throws Exception {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_list_on_index_fields"));
+        // the feature is completely supported if both local and remote clusters support it
+        if (capabilitiesSupportedNewAndOld(requiredCapabilities) == false) {
+            logger.info("-->  skipping testNotLikeListIndex, due to missing capability");
+            return;
+        }
         boolean includeCCSMetadata = includeCCSMetadata();
         Map<String, Object> result = run("""
             FROM test-local-index,*:test-remote-index METADATA _index
             | WHERE _index NOT LIKE ("*remote*", "not-exist*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        String resultString = Strings.toString(JsonXContent.contentBuilder().prettyPrint().map(result));
+        System.out.println(resultString);
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
+    }
+
+    public void testNotLikeListKeyWord() throws Exception {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_list_on_index_fields"));
+        // the feature is completely supported if both local and remote clusters support it
+        if (capabilitiesSupportedNewAndOld(requiredCapabilities) == false) {
+            logger.info("-->  skipping testNotLikeListIndex, due to missing capability");
+            return;
+        }
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE color NOT LIKE ("*blue*", "*red*")
             | STATS c = COUNT(*) BY _index
             | SORT _index ASC
             """, includeCCSMetadata);

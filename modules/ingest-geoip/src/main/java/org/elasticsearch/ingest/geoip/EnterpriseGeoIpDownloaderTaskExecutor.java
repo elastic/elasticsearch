@@ -48,7 +48,9 @@ import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWN
 import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.ENABLED_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING;
 
-@NotMultiProjectCapable(description = "Enterprise GeoIP not available in serverless")
+@NotMultiProjectCapable(
+    description = "Enterprise GeoIP not available in serverless, we should review this class for MP again after serverless is enabled"
+)
 public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<EnterpriseGeoIpTaskParams>
     implements
         ClusterStateListener {

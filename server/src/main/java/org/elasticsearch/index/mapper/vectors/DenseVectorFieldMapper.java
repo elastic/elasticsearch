@@ -2547,7 +2547,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             elementType.checkDimensions(dims, queryVector.length);
             Query knnQuery;
-            if (indexOptions.isFlat()) {
+            if (indexOptions != null && indexOptions.isFlat()) {
                 knnQuery = filter == null
                     ? createExactKnnBitQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnBitQuery(queryVector), BooleanClause.Occur.SHOULD)
@@ -2588,7 +2588,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             Query knnQuery;
-            if (indexOptions.isFlat()) {
+            if (indexOptions != null && indexOptions.isFlat()) {
                 knnQuery = filter == null
                     ? createExactKnnByteQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnByteQuery(queryVector), BooleanClause.Occur.SHOULD)
@@ -2654,7 +2654,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 numCands = Math.max(adjustedK, numCands);
             }
             Query knnQuery;
-            if (indexOptions.isFlat()) {
+            if (indexOptions != null && indexOptions.isFlat()) {
                 knnQuery = filter == null
                     ? createExactKnnFloatQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnFloatQuery(queryVector), BooleanClause.Occur.SHOULD)

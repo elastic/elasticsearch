@@ -87,6 +87,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
   * </ul>
  */
 public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
+  
     static final boolean USE_DIRECT_IO = getUseDirectIO();
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
@@ -104,7 +105,7 @@ public class ES818BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
     )
     private static boolean getUseDirectIO() {
-        return Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "true"));
+        return Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
     }
 
     private static final FlatVectorsFormat rawVectorFormat = USE_DIRECT_IO

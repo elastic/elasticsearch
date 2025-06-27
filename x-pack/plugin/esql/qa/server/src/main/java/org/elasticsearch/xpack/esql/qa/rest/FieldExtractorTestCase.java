@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMapNoPartialCheck;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -1738,7 +1738,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         }
         request.setJsonEntity(bulk.toString());
         Response response = client().performRequest(request);
-        Map<String, Object> result = entityToMap(response.getEntity(), XContentType.JSON);
+        Map<String, Object> result = entityToMapNoPartialCheck(response.getEntity(), XContentType.JSON);
         assertMap(result, matchesMap().extraOk().entry("errors", false));
     }
 

@@ -1855,7 +1855,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }""".replace("%shards%", Integer.toString(shards)));
         Response response = client().performRequest(createIndex);
         assertThat(
-            entityToMap(response.getEntity(), XContentType.JSON),
+            entityToMapNoPartialCheck(response.getEntity(), XContentType.JSON),
             matchesMap().entry("shards_acknowledged", true).entry("index", testIndexName()).entry("acknowledged", true)
         );
 

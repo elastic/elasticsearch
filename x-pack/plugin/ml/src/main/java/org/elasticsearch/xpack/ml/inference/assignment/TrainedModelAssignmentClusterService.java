@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -523,14 +522,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private static ClusterState forceUpdate(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
-        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(currentState.metadata().getProject());
         if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
-            metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                .removeProjectCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+            builder.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
+                .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
-            metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
+            builder.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
         }
-        return ClusterState.builder(currentState).metadata(metadata).build();
+        return ClusterState.builder(currentState).putProjectMetadata(builder).build();
     }
 
     ClusterState createModelAssignment(ClusterState currentState, CreateTrainedModelAssignmentAction.Request request) throws Exception {
@@ -651,14 +650,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
-        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(TransportVersionUtils.getMinTransportVersion(currentState));
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             createAssignmentRequest,
-            allocatedProcessorsScale,
-            useNewMemoryFields
+            allocatedProcessorsScale
         );
 
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();

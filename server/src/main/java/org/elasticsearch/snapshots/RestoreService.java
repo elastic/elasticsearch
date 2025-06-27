@@ -602,7 +602,9 @@ public final class RestoreService implements ClusterStateApplier {
                 return;
             }
 
-            for (Repository repository : repositoriesService.getRepositories().values()) {
+            @FixForMultiProject(description = "resolve the actual projectId, ES-10228")
+            final var projectId = ProjectId.DEFAULT;
+            for (Repository repository : repositoriesService.getProjectRepositories(projectId).values()) {
                 // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we
                 // only care about ones with missing UUIDs. It's possible to have the UUID change from under us if, e.g., the repository was
                 // wiped by an external force, but in this case any searchable snapshots are lost anyway so it doesn't really matter.
@@ -1583,6 +1585,8 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {
+            @FixForMultiProject
+            final var projectBuilder = mdBuilder.getProject(ProjectId.DEFAULT);
             if (metadata.persistentSettings() != null) {
                 Settings settings = metadata.persistentSettings();
                 if (request.skipOperatorOnlyState()) {
@@ -1607,13 +1611,13 @@ public final class RestoreService implements ClusterStateApplier {
             if (metadata.getProject().templates() != null) {
                 // TODO: Should all existing templates be deleted first?
                 for (IndexTemplateMetadata cursor : metadata.getProject().templates().values()) {
-                    mdBuilder.put(cursor);
+                    projectBuilder.put(cursor);
                 }
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
             mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
-            mdBuilder.removeProjectCustomIf((key, value) -> value.isRestorable());
+            projectBuilder.removeCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
             if (metadata.customs() != null) {
@@ -1630,7 +1634,7 @@ public final class RestoreService implements ClusterStateApplier {
                 for (var entry : metadata.getProject().customs().entrySet()) {
                     if (entry.getValue().isRestorable()) {
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(entry.getKey(), entry.getValue());
+                        projectBuilder.putCustom(entry.getKey(), entry.getValue());
                     }
                 }
             }

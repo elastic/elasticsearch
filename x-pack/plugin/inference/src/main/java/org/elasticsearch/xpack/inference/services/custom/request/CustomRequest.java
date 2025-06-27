@@ -14,37 +14,32 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST_CONTENT;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
-    private static final String QUERY = "query";
-    private static final String INPUT = "input";
 
     private final URI uri;
     private final ValidatingSubstitutor jsonPlaceholderReplacer;
     private final ValidatingSubstitutor stringPlaceholderReplacer;
     private final CustomModel model;
 
-    public CustomRequest(String query, List<String> input, CustomModel model) {
+    public CustomRequest(RequestParameters requestParams, CustomModel model) {
         this.model = Objects.requireNonNull(model);
 
         var stringOnlyParams = new HashMap<String, String>();
@@ -55,11 +50,7 @@ public class CustomRequest implements Request {
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
 
-        if (query != null) {
-            jsonParams.put(QUERY, toJson(query, QUERY));
-        }
-
-        addInputJsonParam(jsonParams, input, model.getTaskType());
+        jsonParams.putAll(requestParams.jsonParameters());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
@@ -70,8 +61,6 @@ public class CustomRequest implements Request {
         for (var entry : paramsToAdd.entrySet()) {
             if (entry.getValue() instanceof String str) {
                 stringParams.put(entry.getKey(), str);
-            } else if (entry.getValue() instanceof SerializableSecureString serializableSecureString) {
-                stringParams.put(entry.getKey(), serializableSecureString.getSecureString().toString());
             } else if (entry.getValue() instanceof SecureString secureString) {
                 stringParams.put(entry.getKey(), secureString.toString());
             }
@@ -81,14 +70,6 @@ public class CustomRequest implements Request {
     private static void addJsonStringParams(Map<String, String> jsonStringParams, Map<String, ?> params) {
         for (var entry : params.entrySet()) {
             jsonStringParams.put(entry.getKey(), toJson(entry.getValue(), entry.getKey()));
-        }
-    }
-
-    private static void addInputJsonParam(Map<String, String> jsonParams, List<String> input, TaskType taskType) {
-        if (taskType == TaskType.COMPLETION && input.isEmpty() == false) {
-            jsonParams.put(INPUT, toJson(input.get(0), INPUT));
-        } else {
-            jsonParams.put(INPUT, toJson(input, INPUT));
         }
     }
 
@@ -107,7 +88,6 @@ public class CustomRequest implements Request {
         } catch (URISyntaxException e) {
             throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
         }
-
     }
 
     @Override
@@ -133,7 +113,7 @@ public class CustomRequest implements Request {
     private void setRequestContent(HttpPost httpRequest) {
         String replacedRequestContentString = jsonPlaceholderReplacer.replace(
             model.getServiceSettings().getRequestContentString(),
-            REQUEST_CONTENT
+            REQUEST
         );
         StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
         httpRequest.setEntity(stringEntity);

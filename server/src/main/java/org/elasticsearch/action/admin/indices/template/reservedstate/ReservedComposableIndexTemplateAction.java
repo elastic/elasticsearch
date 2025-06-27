@@ -12,13 +12,16 @@ package org.elasticsearch.action.admin.indices.template.reservedstate;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -45,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  */
 public class ReservedComposableIndexTemplateAction
     implements
-        ReservedClusterStateHandler<ProjectMetadata, ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
+        ReservedProjectStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
     public static final String NAME = "index_templates";
     public static final String COMPONENTS = "component_templates";
     private static final String COMPONENT_PREFIX = "component_template:";
@@ -133,10 +136,10 @@ public class ReservedComposableIndexTemplateAction
     }
 
     @Override
-    public TransformState<ProjectMetadata> transform(ComponentsAndComposables source, TransformState<ProjectMetadata> prevState)
-        throws Exception {
+    public TransformState transform(ProjectId projectId, ComponentsAndComposables source, TransformState prevState) throws Exception {
         var requests = prepare(source);
-        ProjectMetadata project = prevState.state();
+        ClusterState clusterState = prevState.state();
+        ProjectMetadata project = clusterState.getMetadata().getProject(projectId);
 
         // We transform in the following order:
         // 1. create or update component templates (composable templates depend on them)
@@ -192,7 +195,10 @@ public class ReservedComposableIndexTemplateAction
             project = MetadataIndexTemplateService.innerRemoveComponentTemplate(project, componentNames);
         }
 
-        return new TransformState<>(project, Sets.union(componentEntities, composableEntities));
+        return new TransformState(
+            ClusterState.builder(clusterState).putProjectMetadata(project).build(),
+            Sets.union(componentEntities, composableEntities)
+        );
     }
 
     @Override

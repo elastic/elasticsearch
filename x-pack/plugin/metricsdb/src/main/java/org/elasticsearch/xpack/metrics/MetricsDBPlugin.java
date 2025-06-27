@@ -56,8 +56,7 @@ public class MetricsDBPlugin extends Plugin implements ActionPlugin {
                 clusterService,
                 services.threadPool(),
                 services.client(),
-                services.xContentRegistry(),
-                services.projectResolver()
+                services.xContentRegistry()
             )
         );
         MetricsDBIndexTemplateRegistry registryInstance = registry.get();

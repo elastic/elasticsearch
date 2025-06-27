@@ -25,10 +25,9 @@ public class MetricsDBIndexTemplateRegistry extends YamlTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
     }
 
     @Override

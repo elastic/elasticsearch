@@ -77,14 +77,14 @@ public class PlanConsistencyChecker {
 
     private static void checkMissingForkBranch(QueryPlan<?> plan, AttributeSet forkOutputSet, Failures failures) {
         Map<String, DataType> attributeTypes = forkOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
-        AttributeSet missing = AttributeSet.of();
+        Set<Attribute> missing = new HashSet<>();
 
         Set<String> commonAttrs = new HashSet<>();
 
         // get the missing attributes from the sub plan
         plan.output().forEach(attribute -> {
             var attrType = attributeTypes.get(attribute.name());
-            if (attrType == null || attrType != attribute.dataType()) {
+            if (attrType == null || (attrType != attribute.dataType() && attrType != DataType.UNSUPPORTED)) {
                 missing.add(attribute);
             }
             commonAttrs.add(attribute.name());
@@ -99,7 +99,12 @@ public class PlanConsistencyChecker {
 
         if (missing.isEmpty() == false) {
             failures.add(
-                fail(plan, "Plan [{}] optimized incorrectly due to missing attributes in subplans", plan.nodeString(), missing.toString())
+                fail(
+                    plan,
+                    "Plan [{}] optimized incorrectly due to missing attributes in subplans: [{}]",
+                    plan.nodeString(),
+                    missing.toString()
+                )
             );
         }
     }

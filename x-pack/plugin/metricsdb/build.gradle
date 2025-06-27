@@ -25,7 +25,7 @@ dependencies {
   testImplementation project(':x-pack:plugin:esql-core')
   testImplementation project(':x-pack:plugin:mapper-version')
 
-  def otelVersion = "1.48.0"
+  def otelVersion = "1.50.0"
   implementation "io.opentelemetry:opentelemetry-api:$otelVersion"
   implementation "io.opentelemetry:opentelemetry-context:$otelVersion"
   // TODO this is explicitly marked as "not for production" but it's good for now

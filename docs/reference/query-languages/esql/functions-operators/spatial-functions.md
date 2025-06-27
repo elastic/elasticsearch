@@ -47,4 +47,3 @@ mapped_pages:
 
 :::{include} ../_snippets/functions/layout/st_ymin.md
 :::
-

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -980,7 +981,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             builder.startObject()
                 .field("mapsToFloatTooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING - 1, 0.0, 5.0).toArray())
                 .field("mapsToFloatTooBig", Randomness.get().doubles(MAX_DIMS_COUNT + 1, 0.0, 5.0).toArray())
-                .field("mapsToDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .field("mapsToInt8HnswDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .field("mapsToBBQHnswDenseVector", Randomness.get().doubles(BBQ_DIMS_DEFAULT_THRESHOLD, 0.0, 5.0).toArray())
                 .endObject()
         );
         ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, builder.contentType()));
@@ -988,8 +990,18 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(update);
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooSmall")).fieldType().typeName(), equalTo("float"));
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooBig")).fieldType().typeName(), equalTo("float"));
-        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
-        DenseVectorFieldMapper dvFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToDenseVector"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToInt8HnswDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+        DenseVectorFieldMapper int8DVFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToInt8HnswDenseVector"));
+        assertThat(
+            ((DenseVectorFieldMapper.DenseVectorIndexOptions) int8DVFieldMapper.fieldType().getIndexOptions()).getType().getName(),
+            equalTo("int8_hnsw")
+        );
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToBBQHnswDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+        DenseVectorFieldMapper bbqDVFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToBBQHnswDenseVector"));
+        assertThat(
+            ((DenseVectorFieldMapper.DenseVectorIndexOptions) bbqDVFieldMapper.fieldType().getIndexOptions()).getType().getName(),
+            equalTo("bbq_hnsw")
+        );
     }
 
     public void testDefaultDenseVectorMappingsObject() throws IOException {

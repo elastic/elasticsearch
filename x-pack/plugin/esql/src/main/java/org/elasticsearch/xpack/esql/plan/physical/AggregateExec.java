@@ -136,10 +136,6 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return estimatedRowSize;
     }
 
-    public AggregatorMode getMode() {
-        return mode;
-    }
-
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
@@ -150,6 +146,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     protected AggregateExec withEstimatedSize(int estimatedRowSize) {
         return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+    }
+
+    public AggregatorMode getMode() {
+        return mode;
     }
 
     /**

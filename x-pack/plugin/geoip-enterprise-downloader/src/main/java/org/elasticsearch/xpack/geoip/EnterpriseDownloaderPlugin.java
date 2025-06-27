@@ -40,7 +40,8 @@ public class EnterpriseDownloaderPlugin extends Plugin {
             services.client(),
             services.clusterService(),
             services.threadPool(),
-            getLicenseState()
+            getLicenseState(),
+            services.projectResolver()
         );
         enterpriseGeoIpDownloaderLicenseListener.init();
         return List.of(enterpriseGeoIpDownloaderLicenseListener);

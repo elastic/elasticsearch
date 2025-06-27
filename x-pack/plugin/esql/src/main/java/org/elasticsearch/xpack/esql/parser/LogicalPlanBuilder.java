@@ -121,6 +121,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
+        }
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            // TODO this one is never reached because the Parser fails to understand multiple round brackets
+            throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
+        }
         var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;

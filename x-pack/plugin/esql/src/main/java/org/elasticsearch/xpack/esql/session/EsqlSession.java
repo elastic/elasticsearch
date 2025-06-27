@@ -190,15 +190,10 @@ public class EsqlSession {
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         LogicalPlan parsed = parse(request.query(), request.params());
-        Explain explain = findExplain(parsed);
-        if (explain != null) {
+        if (parsed instanceof Explain explain) {
             explainMode = true;
-            if (explain == parsed) {
-                parsed = explain.query();
-                parsedPlanString = parsed.toString();
-            } else {
-                throw new VerificationException("EXPLAIN does not support downstream commands");
-            }
+            parsed = explain.query();
+            parsedPlanString = parsed.toString();
         }
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
@@ -209,19 +204,6 @@ public class EsqlSession {
                 );
             }
         });
-    }
-
-    private Explain findExplain(LogicalPlan parsed) {
-        if (parsed instanceof Explain e) {
-            return e;
-        }
-        for (LogicalPlan child : parsed.children()) {
-            Explain result = findExplain(child);
-            if (result != null) {
-                return result;
-            }
-        }
-        return null;
     }
 
     /**

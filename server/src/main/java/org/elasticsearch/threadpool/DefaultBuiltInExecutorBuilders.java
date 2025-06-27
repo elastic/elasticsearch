@@ -54,7 +54,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 settings,
                 ThreadPool.Names.WRITE,
                 allocatedProcessors,
-                10000,
+                // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
+                Math.max(allocatedProcessors * 750, 10000),
                 new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
             )
         );
@@ -192,17 +193,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new FixedExecutorBuilder(
                 settings,
                 ThreadPool.Names.SYSTEM_WRITE,
-                halfProcMaxAt5,
-                1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
-                true
-            )
-        );
-        result.put(
-            ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
-            new FixedExecutorBuilder(
-                settings,
-                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 halfProcMaxAt5,
                 1000,
                 new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),

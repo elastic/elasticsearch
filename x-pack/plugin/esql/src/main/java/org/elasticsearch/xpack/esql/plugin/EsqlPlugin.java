@@ -192,6 +192,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     private final List<Verifier.ExtraCheckers> extraCheckers = new ArrayList<>();
+    private final Settings settings;
+
+    public EsqlPlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -211,7 +216,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
-                extraCheckers
+                extraCheckers,
+                settings
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

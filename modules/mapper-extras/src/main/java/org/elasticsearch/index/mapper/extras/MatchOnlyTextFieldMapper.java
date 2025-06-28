@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
@@ -220,18 +220,34 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
             }
-            if (searchExecutionContext.isSourceSynthetic() && withinMultiField == false && hasCompatibleMultiFields == false) {
+            if (searchExecutionContext.isSourceSynthetic() && withinMultiField) {
+                String parentField = searchExecutionContext.parentPath(name());
+                var parent = searchExecutionContext.lookup().fieldType(parentField);
+                if (parent.isStored()) {
+                    return storedFieldFetcher(parentField);
+                } else if (parent.hasDocValues()) {
+                    return docValuesFieldFetcher(parentField);
+                } else {
+                    assert false : "parent field should either be stored or have doc values";
+                }
+            } else if (searchExecutionContext.isSourceSynthetic() && hasCompatibleMultiFields) {
+                var mapper = (MatchOnlyTextFieldMapper) searchExecutionContext.getMappingLookup().getMapper(name());
+                var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(mapper);
+                if (kwd != null) {
+                    var fieldType = kwd.fieldType();
+                    if (fieldType.isStored()) {
+                        return storedFieldFetcher(fieldType.name());
+                    } else if (fieldType.hasDocValues()) {
+                        return docValuesFieldFetcher(fieldType.name());
+                    } else {
+                        assert false : "multi field should either be stored or have doc values";
+                    }
+                } else {
+                    assert false : "multi field of type keyword should exist";
+                }
+            } else if (searchExecutionContext.isSourceSynthetic()) {
                 String name = storedFieldNameForSyntheticSource();
-                // TODO: go the parent field and load either via stored fields or doc values the values instead synthesizing complete source
-                // (in case of synthetic source and if this field is a multi field, then it will not have a stored field.)
-                StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
-                return context -> {
-                    LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
-                    return docId -> {
-                        leafLoader.advanceTo(docId);
-                        return leafLoader.storedFields().get(name);
-                    };
-                };
+                return storedFieldFetcher(name);
             }
             return context -> {
                 ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
@@ -243,6 +259,35 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
+                };
+            };
+        }
+
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(String name) {
+            return context -> {
+                var sortedDocValues = DocValues.getSortedSet(context.reader(), name);
+                return docId -> {
+                    if (sortedDocValues.advanceExact(docId)) {
+                        var values = new ArrayList<>(sortedDocValues.docValueCount());
+                        for (int i = 0; i < sortedDocValues.docValueCount(); i++) {
+                            long ord = sortedDocValues.nextOrd();
+                            values.add(sortedDocValues.lookupOrd(ord).utf8ToString());
+                        }
+                        return values;
+                    } else {
+                        return List.of();
+                    }
+                };
+            };
+        }
+
+        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
+            var loader = StoredFieldLoader.create(false, Set.of(name));
+            return context -> {
+                var leafLoader = loader.getLoader(context, null);
+                return docId -> {
+                    leafLoader.advanceTo(docId);
+                    return leafLoader.storedFields().get(name);
                 };
             };
         }

@@ -396,6 +396,10 @@ synthetic_source with copy_to:
 
 ---
 synthetic_source match_only_text as multi-field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: synthetic_source_test
@@ -433,6 +437,10 @@ synthetic_source match_only_text as multi-field:
 
 ---
 synthetic_source match_only_text with multi-field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: synthetic_source_test
@@ -468,3 +476,45 @@ synthetic_source match_only_text with multi-field:
   - match:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 
+---
+synthetic_source match_only_text with store multi-field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                fields:
+                  raw:
+                    type: keyword
+                    store: true
+                    doc_value: false
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"

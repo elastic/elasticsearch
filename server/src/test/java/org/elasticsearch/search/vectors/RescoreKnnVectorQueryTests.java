@@ -139,7 +139,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             VectorSimilarityFunction.COSINE,
             k,
             k,
-            null
+            innerQuery
         );
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);

@@ -262,8 +262,10 @@ record CmdLineArgs(
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
             }
-            if (dimensions <= 0) {
-                throw new IllegalArgumentException("dimensions must be a positive integer");
+            if (dimensions <= 0 && dimensions != -1) {
+                throw new IllegalArgumentException(
+                    "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
+                );
             }
             return new CmdLineArgs(
                 docVectors,

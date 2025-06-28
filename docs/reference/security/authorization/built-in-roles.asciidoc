@@ -228,6 +228,7 @@ Grants read-only access to all features in {kib} (including Solutions) and to da
 ===============================
 * This role provides read access to any index that is not prefixed with a dot.
 * This role automatically grants read-only access to new {kib} features as soon as they are available.
+* In version 8.17, access to Fleet UI with this role requires Fleet experimental features to be enabled which are disabled by default. See `xpack.fleet.enableExperimental` in https://www.elastic.co/guide/en/kibana/8.17/fleet-settings-kb.html[Kibana settings documentation,title=Kibana 8.17 settings].
 ===============================
 
 --

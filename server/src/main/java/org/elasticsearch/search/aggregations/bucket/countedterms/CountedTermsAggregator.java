@@ -79,7 +79,7 @@ class CountedTermsAggregator extends TermsAggregator {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (ords.advanceExact(doc)) {
-                    for (int i = 0; i < ords.docValueCount(); i++) {
+                    for (int i = 0, dvc = ords.docValueCount(); i < dvc; i++) {
                         long ord = ords.nextOrd();
                         collectOrdinal(bucketOrds.add(owningBucketOrd, ords.lookupOrd(ord)), doc, sub);
                     }

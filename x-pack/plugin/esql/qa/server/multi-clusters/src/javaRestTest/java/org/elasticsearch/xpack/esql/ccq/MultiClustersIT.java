@@ -71,6 +71,9 @@ public class MultiClustersIT extends ESRestTestCase {
     List<Doc> localDocs = List.of();
     final String remoteIndex = "test-remote-index";
     List<Doc> remoteDocs = List.of();
+    final String lookupIndexLocal = "test-lookup-index-local";
+    final String lookupIndexRemote = "test-lookup-index-remote";
+    final String lookupAlias = "test-lookup-index";
 
     @Before
     public void setUpIndices() throws Exception {
@@ -106,6 +109,44 @@ public class MultiClustersIT extends ESRestTestCase {
             );
             indexDocs(remoteClient, remoteIndex, remoteDocs);
         }
+    }
+
+    private void setupLookupIndices() throws IOException {
+        RestClient localClient = client();
+        final String mapping = """
+             "properties": {
+               "data": { "type": "long" },
+               "morecolor": { "type": "keyword" }
+             }
+            """;
+        var lookupDocs = IntStream.range(0, between(1, 5))
+            .mapToObj(n -> new Doc(n, randomFrom("red", "yellow", "green"), randomIntBetween(1, 1000)))
+            .toList();
+        createIndex(
+            localClient,
+            lookupIndexLocal,
+            Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build(),
+            mapping,
+            "\"" + lookupAlias + "\":{}"
+        );
+        indexDocs(localClient, lookupIndexLocal, lookupDocs);
+        try (RestClient remoteClient = remoteClusterClient()) {
+            createIndex(
+                remoteClient,
+                lookupIndexRemote,
+                Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build(),
+                mapping,
+                "\"" + lookupAlias + "\":{}"
+            );
+            indexDocs(remoteClient, lookupIndexRemote, lookupDocs);
+        }
+    }
+
+    public void wipeLookupIndices() throws IOException {
+        try (RestClient remoteClient = remoteClusterClient()) {
+            deleteIndex(remoteClient, lookupIndexRemote);
+        }
+        deleteIndex(client(), lookupIndexLocal);
     }
 
     @After
@@ -419,6 +460,57 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusterData, hasKey("took"));
     }
 
+    public void testLookupJoinAliases() throws IOException {
+        assumeTrue(
+            "Local cluster does not support multiple LOOKUP JOIN aliases",
+            supportsLookupJoinAliases(Clusters.localClusterVersion())
+        );
+        assumeTrue(
+            "Remote cluster does not support multiple LOOKUP JOIN aliases",
+            supportsLookupJoinAliases(Clusters.remoteClusterVersion())
+        );
+        try {
+            setupLookupIndices();
+            Map<String, Object> result = run(
+                "FROM test-local-index,*:test-remote-index | LOOKUP JOIN test-lookup-index ON data | STATS c = COUNT(*)",
+                true
+            );
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
+            assertResultMap(true, result, columns, values, false);
+        } finally {
+            wipeLookupIndices();
+        }
+    }
+
+    public void testLookupJoinAliasesSkipOld() throws IOException {
+        assumeTrue(
+            "Local cluster does not support multiple LOOKUP JOIN aliases",
+            supportsLookupJoinAliases(Clusters.localClusterVersion())
+        );
+        assumeFalse(
+            "Remote cluster should not support multiple LOOKUP JOIN aliases",
+            supportsLookupJoinAliases(Clusters.remoteClusterVersion())
+        );
+        try {
+            setupLookupIndices();
+            Map<String, Object> result = run(
+                "FROM test-local-index,*:test-remote-index | LOOKUP JOIN test-lookup-index ON data | STATS c = COUNT(*)",
+                true
+            );
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(localDocs.size()));
+
+            MapMatcher mapMatcher = getResultMatcher(true, false, result.containsKey("documents_found"));
+            mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+            mapMatcher = mapMatcher.entry("is_partial", true);
+            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            // TODO: check that the remote is skipped
+        } finally {
+            wipeLookupIndices();
+        }
+    }
+
     public void testLikeIndex() throws Exception {
 
         boolean includeCCSMetadata = includeCCSMetadata();
@@ -540,6 +632,10 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean capabilitiesEndpointAvailable() {
         return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
+    }
+
+    private static boolean supportsLookupJoinAliases(Version version) {
+        return version.onOrAfter(Version.V_9_2_0);
     }
 
     private static boolean includeCCSMetadata() {

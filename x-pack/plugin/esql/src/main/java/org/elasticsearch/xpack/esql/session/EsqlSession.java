@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,6 +30,8 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -146,6 +149,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private Set<String> configuredClusters;
     private final InferenceRunner inferenceRunner;
+    private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -179,6 +183,7 @@ public class EsqlSession {
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.inferenceRunner = services.inferenceRunner();
         this.preMapper = new PreMapper(services);
+        this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
 
     public String sessionId() {
@@ -536,11 +541,32 @@ public class EsqlSession {
                 newIndexResolution.unavailableClusters()
             );
         } else {
-            // TODO: validate remotes to be able to handle multiple indices in LOOKUP JOIN
+            // validate remotes to be able to handle multiple indices in LOOKUP JOIN
+            validateRemoteVersions(executionInfo);
         }
 
         return result.addLookupIndexResolution(index, newIndexResolution);
 
+    }
+
+    private void validateRemoteVersions(EsqlExecutionInfo executionInfo) {
+        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
+        clusters.forEach(cluster -> {
+            String clusterAlias = cluster.getClusterAlias();
+            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                // No need to check local, obviously
+                var connection = remoteClusterService.getConnection(clusterAlias);
+                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_MANY_INDICES)) {
+                    skipClusterOrError(
+                        clusterAlias,
+                        executionInfo,
+                        "remote cluster version ["
+                            + connection.getTransportVersion()
+                            + "] does not support multiple indices in LOOKUP JOIN, skipping"
+                    );
+                }
+            }
+        });
     }
 
     private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {

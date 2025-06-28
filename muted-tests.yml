@@ -572,6 +572,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
   method: testKMeansNeighbors
   issue: https://github.com/elastic/elasticsearch/issues/130258
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/130215
 
 # Examples:
 #

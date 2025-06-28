@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testIndexCompatibilityChecks
+  issue: https://github.com/elastic/elasticsearch/issues/130276
 
 # Examples:
 #

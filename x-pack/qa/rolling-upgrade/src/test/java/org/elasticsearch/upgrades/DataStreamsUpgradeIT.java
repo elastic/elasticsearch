@@ -216,6 +216,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             if (ilmEnabled) {
                 checkILMPhase(dataStreamName, upgradedIndicesMetadata);
+                // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+                // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+                wipeDataStreams();
             } else {
                 compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
             }
@@ -227,7 +230,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
          * This test makes sure that if reindex is run and completed, then when the cluster is upgraded the task
          * does not begin running again.
          */
-        String dataStreamName = "reindex_test_data_stream_ugprade_test";
+        String dataStreamName = "reindex_test_data_stream_upgrade_test";
         int numRollovers = randomIntBetween(0, 5);
         boolean hasILMPolicy = randomBoolean();
         boolean ilmEnabled = hasILMPolicy && randomBoolean();
@@ -237,6 +240,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             makeSureNoUpgrade(dataStreamName);
             cancelReindexTask(dataStreamName);
+            // Delete the data streams to avoid ILM continuously running cluster state tasks, see
+            // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
+            wipeDataStreams();
         } else {
             makeSureNoUpgrade(dataStreamName);
         }

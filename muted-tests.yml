@@ -575,6 +575,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/130215
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/130270
 
 # Examples:
 #

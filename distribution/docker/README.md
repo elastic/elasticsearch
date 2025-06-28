@@ -134,7 +134,7 @@ custom behaviour in the
 
 We go to some lengths to try and make the Docker build resilient to transient
 network errors. This is why, when browsing the
-[Dockerfile](src/docker/Dockerfile), you'll see many commands wrapped in looping
+[Dockerfile](src/docker/dockerfiles/cloud_ess/Dockerfile), you'll see many commands wrapped in looping
 logic, so that if e.g. package installation fails, we try again. We also perform
 explicit `docker pull` commands instead of relying on `docker run` to pull an
 image down automatically, so that we can wrap the `pull` part in a retry.

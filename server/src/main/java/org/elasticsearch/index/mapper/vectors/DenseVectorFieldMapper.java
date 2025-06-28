@@ -35,7 +35,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -2550,7 +2549,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnBitQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnBitQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
+                        .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else {
                 knnQuery = parentFilter != null
@@ -2588,7 +2587,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnByteQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnByteQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
+                        .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else {
                 knnQuery = parentFilter != null
@@ -2651,7 +2650,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = filter == null
                     ? createExactKnnFloatQuery(queryVector)
                     : new BooleanQuery.Builder().add(createExactKnnFloatQuery(queryVector), BooleanClause.Occur.SHOULD)
-                        .add(parentFilter != null ? new ToChildBlockJoinQuery(filter, parentFilter) : filter, BooleanClause.Occur.FILTER)
+                        .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 knnQuery = parentFilter != null

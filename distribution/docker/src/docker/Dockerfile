@@ -183,7 +183,7 @@ RUN yes no | dpkg-reconfigure dash && \\
       "      ${package_manager} update && \n" +
       "      ${package_manager} upgrade -y && \n" +
       "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "        ca-certificates curl netcat-openbsd p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
       "      ${package_manager} clean && \n" +
       "      rm -rf /var/lib/apt/lists/*"
   ) %>
@@ -202,9 +202,10 @@ RUN <%= retry.loop(
 
 
 <% if (docker_base == "default" || docker_base == "cloud") { %>
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
-    adduser elasticsearch root && \\
+RUN userdel -r ubuntu && \\
+    groupadd -g 1000 elasticsearch && \\
+    useradd --uid 1000 --gid 1000 --home-dir /usr/share/elasticsearch --create-home elasticsearch && \\
+    usermod -aG root elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 <% } else if (docker_base == "wolfi") { %>
 RUN groupadd -g 1000 elasticsearch && \

@@ -100,6 +100,7 @@ public class EsqlCCSUtils {
             return false;
         }
 
+        // On disconnect error, check whether all remotes are marked as skip_unavailable.
         if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
             for (String clusterAlias : executionInfo.clusterAliases()) {
                 if (executionInfo.isSkipUnavailable(clusterAlias) == false
@@ -109,6 +110,12 @@ public class EsqlCCSUtils {
             }
             return true;
         }
+
+        // If all clusters are skippable remotes, then we can return an empty result.
+        if (executionInfo.clusterAliases().stream().allMatch(executionInfo::isSkipUnavailable)) {
+            return true;
+        }
+
         return false;
     }
 

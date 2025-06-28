@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -276,7 +275,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
             if (field.getIndexOptions().isFlat()) {
-                assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
+                assertThat(query, instanceOf(DenseVectorQuery.class));
             } else {
                 assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
@@ -293,7 +292,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
             if (field.getIndexOptions().isFlat()) {
-                assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
+                assertThat(query, instanceOf(DenseVectorQuery.class));
             } else {
                 assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }

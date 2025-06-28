@@ -16,8 +16,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -36,21 +34,17 @@ public class InboundDecoder implements Releasable {
     private int bytesConsumed = 0;
     private boolean isCompressed = false;
     private boolean isClosed = false;
-    private final ByteSizeValue maxHeaderSize;
-    private final ChannelType channelType;
+    private final int maxHeaderSize;
+    private final boolean isServerChannel;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
-        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), ChannelType.MIX);
+        this(recycler, Integer.MAX_VALUE, false);
     }
 
-    public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
-        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), channelType);
-    }
-
-    public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {
+    public InboundDecoder(Recycler<BytesRef> recycler, int maxHeaderSize, boolean isServerChannel) {
         this.recycler = recycler;
         this.maxHeaderSize = maxHeaderSize;
-        this.channelType = channelType;
+        this.isServerChannel = isServerChannel;
     }
 
     public int decode(ReleasableBytesReference reference, CheckedConsumer<Object, IOException> fragmentConsumer) throws IOException {
@@ -73,13 +67,13 @@ public class InboundDecoder implements Releasable {
                 fragmentConsumer.accept(PING);
                 return 6;
             } else {
-                int headerBytesToRead = headerBytesToRead(reference, maxHeaderSize);
+                int headerBytesToRead = headerBytesToRead(reference);
                 if (headerBytesToRead == 0) {
                     return 0;
                 } else {
                     totalNetworkSize = messageLength + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
 
-                    Header header = readHeader(messageLength, reference, channelType);
+                    Header header = readHeader(messageLength, reference);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
                         isCompressed = true;
@@ -160,11 +154,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private static int headerBytesToRead(BytesReference reference, ByteSizeValue maxHeaderSize) throws StreamCorruptedException {
-        if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
-            return 0;
-        }
-
+    private int headerBytesToRead(BytesReference reference) throws StreamCorruptedException {
         if (reference.length() <= TcpHeader.HEADER_SIZE) {
             return 0;
         } else {
@@ -173,7 +163,7 @@ public class InboundDecoder implements Releasable {
                 throw new StreamCorruptedException("invalid negative variable header size: " + variableHeaderSize);
             }
             int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
-            if (totalHeaderSize > maxHeaderSize.getBytes()) {
+            if (totalHeaderSize > maxHeaderSize) {
                 throw new StreamCorruptedException("header size [" + totalHeaderSize + "] exceeds limit of [" + maxHeaderSize + "]");
             }
             if (totalHeaderSize > reference.length()) {
@@ -184,7 +174,7 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    private static Header readHeader(int networkMessageSize, BytesReference bytesReference, ChannelType channelType) throws IOException {
+    private Header readHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
             long requestId = streamInput.readLong();
@@ -192,10 +182,8 @@ public class InboundDecoder implements Releasable {
             int remoteVersion = streamInput.readInt();
 
             Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
-            if (channelType == ChannelType.SERVER && header.isResponse()) {
+            if (isServerChannel && header.isResponse()) {
                 throw new IllegalArgumentException("server channels do not accept inbound responses, only requests, closing channel");
-            } else if (channelType == ChannelType.CLIENT && header.isRequest()) {
-                throw new IllegalArgumentException("client channels do not accept inbound requests, only responses, closing channel");
             }
             if (header.isHandshake()) {
                 checkHandshakeVersionCompatibility(header.getVersion());
@@ -243,9 +231,4 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    public enum ChannelType {
-        SERVER,
-        CLIENT,
-        MIX
-    }
 }

@@ -79,6 +79,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -2546,9 +2547,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             elementType.checkDimensions(dims, queryVector.length);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnBitQuery(queryVector))
+                    : createExactKnnBitQuery(queryVector);
                 knnQuery = filter == null
                     ? createExactKnnBitQuery(queryVector)
-                    : new BooleanQuery.Builder().add(createExactKnnBitQuery(queryVector), BooleanClause.Occur.SHOULD)
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else {
@@ -2584,9 +2588,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnByteQuery(queryVector))
+                    : createExactKnnByteQuery(queryVector);
                 knnQuery = filter == null
                     ? createExactKnnByteQuery(queryVector)
-                    : new BooleanQuery.Builder().add(createExactKnnByteQuery(queryVector), BooleanClause.Occur.SHOULD)
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else {
@@ -2647,9 +2654,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnFloatQuery(queryVector))
+                    : createExactKnnFloatQuery(queryVector);
                 knnQuery = filter == null
                     ? createExactKnnFloatQuery(queryVector)
-                    : new BooleanQuery.Builder().add(createExactKnnFloatQuery(queryVector), BooleanClause.Occur.SHOULD)
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
@@ -2684,8 +2694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
                     k,
                     adjustedK,
-                    knnQuery,
-                    parentFilter
+                    knnQuery
                 );
             }
             if (similarityThreshold != null) {

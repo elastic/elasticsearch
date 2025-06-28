@@ -81,8 +81,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         VectorSimilarityFunction.COSINE,
                         k,
                         k,
-                        innerQuery,
-                        null
+                        innerQuery
                     );
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
@@ -140,7 +139,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             VectorSimilarityFunction.COSINE,
             k,
             k,
-            innerQuery,
             null
         );
         IndexSearcher searcher = newSearcher(reader, true, false);

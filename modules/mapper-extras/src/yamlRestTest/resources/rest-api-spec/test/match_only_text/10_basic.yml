@@ -436,6 +436,49 @@ synthetic_source match_only_text as multi-field:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 
 ---
+synthetic_source match_only_text as multi-field with stored keyword as parent:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                store: true
+                doc_values: false
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
 synthetic_source match_only_text with multi-field:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
@@ -477,7 +520,7 @@ synthetic_source match_only_text with multi-field:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 
 ---
-synthetic_source match_only_text with store multi-field:
+synthetic_source match_only_text with stored multi-field:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
       reason: "Source mode configured through index setting"
@@ -497,7 +540,7 @@ synthetic_source match_only_text with store multi-field:
                   raw:
                     type: keyword
                     store: true
-                    doc_value: false
+                    doc_values: false
 
   - do:
       index:

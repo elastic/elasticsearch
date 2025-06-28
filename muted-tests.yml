@@ -575,6 +575,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/130215
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/10_basic/basic with documents_found}
+  issue: https://github.com/elastic/elasticsearch/issues/130256
 
 # Examples:
 #

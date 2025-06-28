@@ -7,29 +7,26 @@ mapped_pages:
 
 Phases allowed: hot, warm.
 
-[Force merges](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) the index into the specified maximum number of [segments](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments).
-
-::::{note}
-Shards that are relocating during a `forcemerge` will not be merged.
-::::
-
+[Force merges](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) the index into the specified maximum number of [segments](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments). This operation is best effort. For example, shards that are relocating during a `forcemerge` will not be merged.
 
 To use the `forcemerge` action in the `hot` phase, the `rollover` action **must** be present. If no rollover action is configured, {{ilm-init}} will reject the policy.
 
 :::::{admonition} Performance considerations
 :name: ilm-forcemerge-performance
 
-Force merge is a resource-intensive operation. If too many force merges are triggered at once, it can negatively impact your cluster. This can happen when you apply an {{ilm-init}} policy that includes a force merge action to existing indices. If they meet the `min_age` criteria, they can immediately proceed through multiple phases. You can prevent this by increasing the `min_age` or setting `index.lifecycle.origination_date` to change how the index age is calculated.
+Force merge is a resource-intensive operation. If too many force merges are triggered at once, it can negatively impact your cluster. For example, this can happen when you 
+* modify an existing {{ilm-init}} policy's phase `min_age` such that indices trigger into force-merging phase faster.
+* apply an {{ilm-init}} policy that includes a force merge action to existing indices. If they meet the `min_age` criteria, they can immediately proceed through multiple actions. You can prevent this by increasing the `min_age` or setting `index.lifecycle.origination_date` to change how the index age is calculated.
+* run the [{{ilm-init}} Move Step API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-move-to-step) against multiple indices.
 
-If you experience a force merge task queue backlog, you might need to increase the size of the force merge threadpool so indices can be force merged in parallel. To do this, configure the `thread_pool.force_merge.size` [cluster setting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-get-settings).
+If you experience a force merge task queue backlog, you might need to increase the size of the force merge threadpool so indices can be force merged in parallel. To do this, configure the `thread_pool.force_merge.size` [cluster setting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-get-settings). This is considered an expert setting override as this can have cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
 
-::::{important}
-This can have cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
-::::
+Force merging will be performed by the node hosting the shard. The [node's role](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#data-node-role) frequently is equal to the [data tier](https://www.elastic.co/docs/manage-data/lifecycle/data-tiers) of the {{ilm-init}}'s phase of the index, but this is not guaranteed. For example, a forcemerge in the 
+* `hot` phase will use hot nodes; however, performing merges on this potentially higher performance hardware may have a trade off of impacting ingestion. 
+* `warm` phase will use warm nodes; however, merges may potentially take longer to perform on less performant hardware but will avoid impacting ingestion in the `hot` tier.
+* `cold` or `frozen` phase [{{ilm-init}} Searchable Snapshots](https://www.elastic.co/docs/reference/elasticsearch/index-lifecycle-actions/ilm-searchable-snapshot) via `force_merge_index` happens on the preceeding data tier.
 
-
-Force merging will be performed by the nodes within the current phase of the index. A forcemerge in the `hot` phase will use hot nodes with potentially faster nodes, while impacting ingestion more. A forcemerge in the `warm` phase will use warm nodes and potentially take longer to perform, but without impacting ingestion in the `hot` tier.
-
+We recommend that merges be targetted against SSD and not HDD disks.
 :::::
 
 

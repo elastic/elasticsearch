@@ -181,6 +181,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -307,27 +308,28 @@ public class EsqlFunctionRegistry {
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
             new FunctionDefinition[] {
-                def(Avg.class, uni(Avg::new), "avg"),
-                def(Count.class, uni(Count::new), "count"),
-                def(CountDistinct.class, bi(CountDistinct::new), "count_distinct"),
+                def(Avg.class, uniWithPragmas(Avg::new), "avg"),
+                def(Count.class, uniWithPragmas(Count::new), "count"),
+                def(CountDistinct.class, biWithPragmas(CountDistinct::new), "count_distinct"),
+                def(Sum.class, uniWithPragmas(Sum::new), "sum"),
+                def(Median.class, uniWithPragmas(Median::new), "median"),
+                def(WeightedAvg.class, biWithPragmas(WeightedAvg::new), "weighted_avg"),
+                def(Percentile.class, biWithPragmas(Percentile::new), "percentile") },
+            new FunctionDefinition[] {
                 def(Max.class, uni(Max::new), "max"),
-                def(Median.class, uni(Median::new), "median"),
-                def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
+                def(MedianAbsoluteDeviation.class, uniWithPragmas(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
                 def(Min.class, uni(Min::new), "min"),
-                def(Percentile.class, bi(Percentile::new), "percentile"),
                 def(Sample.class, bi(Sample::new), "sample"),
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
-                def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
-                def(Values.class, uni(Values::new), "values"),
-                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg") },
+                def(Values.class, uni(Values::new), "values") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
                 def(Acos.class, Acos::new, "acos"),
                 def(Asin.class, Asin::new, "asin"),
                 def(Atan.class, Atan::new, "atan"),
-                def(Atan2.class, Atan2::new, "atan2"),
+                def(Atan2.class, bi(Atan2::new), "atan2"),
                 def(Cbrt.class, Cbrt::new, "cbrt"),
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
@@ -342,10 +344,10 @@ public class EsqlFunctionRegistry {
                 def(Log10.class, Log10::new, "log10"),
                 def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
-                def(Pow.class, Pow::new, "pow"),
-                def(Round.class, Round::new, "round"),
+                def(Pow.class, bi(Pow::new), "pow"),
+                def(Round.class, bi(Round::new), "round"),
                 def(RoundTo.class, RoundTo::new, "round_to"),
-                def(Scalb.class, Scalb::new, "scalb"),
+                def(Scalb.class, bi(Scalb::new), "scalb"),
                 def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
@@ -358,18 +360,18 @@ public class EsqlFunctionRegistry {
                 def(BitLength.class, BitLength::new, "bit_length"),
                 def(ByteLength.class, ByteLength::new, "byte_length"),
                 def(Concat.class, Concat::new, "concat"),
-                def(EndsWith.class, EndsWith::new, "ends_with"),
-                def(Hash.class, Hash::new, "hash"),
+                def(EndsWith.class, bi(EndsWith::new), "ends_with"),
+                def(Hash.class, bi(Hash::new), "hash"),
                 def(LTrim.class, LTrim::new, "ltrim"),
-                def(Left.class, Left::new, "left"),
+                def(Left.class, bi(Left::new), "left"),
                 def(Length.class, Length::new, "length"),
                 def(Locate.class, Locate::new, "locate"),
                 def(Md5.class, Md5::new, "md5"),
                 def(RTrim.class, RTrim::new, "rtrim"),
-                def(Repeat.class, Repeat::new, "repeat"),
+                def(Repeat.class, bi(Repeat::new), "repeat"),
                 def(Replace.class, Replace::new, "replace"),
                 def(Reverse.class, Reverse::new, "reverse"),
-                def(Right.class, Right::new, "right"),
+                def(Right.class, bi(Right::new), "right"),
                 def(Sha1.class, Sha1::new, "sha1"),
                 def(Sha256.class, Sha256::new, "sha256"),
                 def(Space.class, Space::new, "space"),
@@ -421,16 +423,16 @@ public class EsqlFunctionRegistry {
                 def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
                 def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
                 def(ToDegrees.class, ToDegrees::new, "to_degrees"),
-                def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
+                def(ToDouble.class, uniWithPragmas(ToDouble::new), "to_double", "to_dbl"),
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
-                def(ToIp.class, ToIp::new, "to_ip"),
-                def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
-                def(ToLong.class, ToLong::new, "to_long"),
+                def(ToIp.class, biWithPragmas(ToIp::new), "to_ip"),
+                def(ToInteger.class, uniWithPragmas(ToInteger::new), "to_integer", "to_int"),
+                def(ToLong.class, uniWithPragmas(ToLong::new), "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
-                def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
+                def(ToUnsignedLong.class, uniWithPragmas(ToUnsignedLong::new), "to_unsigned_long", "to_ulong", "to_ul"),
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
             new FunctionDefinition[] {
@@ -471,10 +473,10 @@ public class EsqlFunctionRegistry {
                 def(Rate.class, uni(Rate::new), "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
-                def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
-                def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
-                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
+                def(SumOverTime.class, uniWithPragmas(SumOverTime::new), "sum_over_time"),
+                def(CountOverTime.class, uniWithPragmas(CountOverTime::new), "count_over_time"),
+                def(CountDistinctOverTime.class, biWithPragmas(CountDistinctOverTime::new), "count_distinct_over_time"),
+                def(AvgOverTime.class, uniWithPragmas(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
@@ -1188,6 +1190,66 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
+    // Pragma aware builders and helpers: same as config aware, but for QueryPragmas additional parameter.
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
+     */
+    @SuppressWarnings("overloads")
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, PragmasAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (false == children.isEmpty()) {
+                throw new QlIllegalArgumentException("expects no arguments");
+            }
+            return ctorRef.build(source, cfg.pragmas());
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface PragmasAwareBuilder<T> {
+        T build(Source source, QueryPragmas pragmas);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a one-argument function that is pragmas aware.
+     */
+    @SuppressWarnings("overloads")
+    public static <T extends Function> FunctionDefinition def(Class<T> function, UnaryPragmasAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (children.size() > 1) {
+                throw new QlIllegalArgumentException("expects exactly one argument");
+            }
+            Expression ex = children.size() == 1 ? children.get(0) : null;
+            return ctorRef.build(source, ex, cfg.pragmas());
+        };
+        return def(function, builder, names);
+    }
+
+    public interface UnaryPragmasAwareBuilder<T> {
+        T build(Source source, Expression exp, QueryPragmas pragmas);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is configuration aware.
+     */
+    @SuppressWarnings("overloads")
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, BinaryPragmasAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.isEmpty())) {
+                throw new QlIllegalArgumentException("expects one or two arguments");
+            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, cfg.pragmas());
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface BinaryPragmasAwareBuilder<T> {
+        T build(Source source, Expression left, Expression right, QueryPragmas pragmas);
+    }
+
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.
@@ -1204,4 +1266,11 @@ public class EsqlFunctionRegistry {
         return function;
     }
 
+    private static <T extends Function> UnaryPragmasAwareBuilder<T> uniWithPragmas(UnaryPragmasAwareBuilder<T> function) {
+        return function;
+    }
+
+    private static <T extends Function> BinaryPragmasAwareBuilder<T> biWithPragmas(BinaryPragmasAwareBuilder<T> function) {
+        return function;
+    }
 }

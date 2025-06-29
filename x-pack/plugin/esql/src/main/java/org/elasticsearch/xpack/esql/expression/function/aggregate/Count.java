@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -88,18 +89,23 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "unsigned_long",
                 "version" },
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public Count(Source source, Expression field, Expression filter) {
+    public Count(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
     }
 
     private Count(StreamInput in) throws IOException {
         super(in);
+        pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     public String getWriteableName() {
@@ -108,17 +114,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field(), filter());
+        return NodeInfo.create(this, Count::new, field(), filter(), pragmas);
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter);
+        return new Count(source(), field(), filter, pragmas);
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0), newChildren.get(1));
+        return new Count(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
@@ -146,7 +152,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                pragmas
+            );
         }
 
         if (field.foldable()) {
@@ -163,7 +173,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, Literal.keyword(s, StringUtils.WILDCARD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), pragmas)
             );
         }
 

@@ -19,7 +19,7 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Source source = randomSource();
         Expression field = randomChild();
         Expression percentile = randomChild();
-        return new Percentile(source, field, percentile);
+        return new Percentile(source, field, percentile, getPragmas());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         } else {
             percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Percentile(source, field, percentile);
+        return new Percentile(source, field, percentile, getPragmas());
     }
 }

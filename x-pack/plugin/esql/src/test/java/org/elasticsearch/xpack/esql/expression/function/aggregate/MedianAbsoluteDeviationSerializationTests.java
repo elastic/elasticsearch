@@ -14,14 +14,15 @@ import java.io.IOException;
 public class MedianAbsoluteDeviationSerializationTests extends AbstractExpressionSerializationTests<MedianAbsoluteDeviation> {
     @Override
     protected MedianAbsoluteDeviation createTestInstance() {
-        return new MedianAbsoluteDeviation(randomSource(), randomChild());
+        return new MedianAbsoluteDeviation(randomSource(), randomChild(), getPragmas());
     }
 
     @Override
     protected MedianAbsoluteDeviation mutateInstance(MedianAbsoluteDeviation instance) throws IOException {
         return new MedianAbsoluteDeviation(
             instance.source(),
-            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
+            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
+            getPragmas()
         );
     }
 }

@@ -27,7 +27,7 @@ public class AvgErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Avg(source, args.get(0));
+        return new Avg(source, args.get(0), getPragmas());
     }
 
     @Override

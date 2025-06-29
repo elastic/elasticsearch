@@ -475,7 +475,7 @@ public final class EsqlTestUtils {
     }
 
     public static Map<String, EsField> loadMapping(String name) {
-        return LoadMapping.loadMapping(name);
+        return new LoadMapping(QueryPragmas.EMPTY).loadMapping(name);
     }
 
     public static String loadUtf8TextFile(String name) {

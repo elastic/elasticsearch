@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,9 +53,10 @@ public class ToVersion extends AbstractConvertFunction {
             name = "field",
             type = { "keyword", "text", "version" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression v
+        ) Expression v,
+        QueryPragmas pragmas
     ) {
-        super(source, v);
+        super(source, v, pragmas);
     }
 
     private ToVersion(StreamInput in) throws IOException {
@@ -78,12 +80,12 @@ public class ToVersion extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToVersion(source(), newChildren.get(0));
+        return new ToVersion(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToVersion::new, field());
+        return NodeInfo.create(this, ToVersion::new, field(), getPragmas());
     }
 
     @ConvertEvaluator(extraName = "FromString")

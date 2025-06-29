@@ -424,7 +424,7 @@ public class EsqlSession {
         initializeClusterData(indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, configuration.pragmas(), l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
@@ -504,7 +504,8 @@ public class EsqlSession {
             patternWithRemotes,
             fieldNames,
             null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution)),
+            configuration.pragmas()
         );
     }
 
@@ -615,8 +616,9 @@ public class EsqlSession {
      * Check whether the lookup index resolves to a single concrete index on all clusters or not.
      * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
      * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     *
      * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
-     *         or the original `lookupIndexResolution` if no changes are needed.
+     * or the original `lookupIndexResolution` if no changes are needed.
      */
     private IndexResolution checkSingleIndex(
         String index,
@@ -725,7 +727,8 @@ public class EsqlSession {
                     requestFilter,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
-                    })
+                    }),
+                    configuration.pragmas()
                 );
             }
         } else {

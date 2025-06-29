@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -73,9 +74,10 @@ public class ToDateNanos extends AbstractConvertFunction {
             name = "field",
             type = { "date", "date_nanos", "keyword", "text", "double", "long", "unsigned_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        super(source, field);
+        super(source, field, pragmas);
     }
 
     protected ToDateNanos(StreamInput in) throws IOException {
@@ -94,12 +96,12 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDateNanos(source(), newChildren.get(0));
+        return new ToDateNanos(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDateNanos::new, field());
+        return NodeInfo.create(this, ToDateNanos::new, field(), getPragmas());
     }
 
     @Override

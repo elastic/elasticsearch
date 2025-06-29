@@ -12,8 +12,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractNodeSerializationTests<T> {
+    // TODO:
+    // - move to `ESQLTestCase` (unify with ErrorsForCasesWithoutExampleTestCase and more)
+    // - Provide better implementation, maybe fetch the pragmas from gradle parameters.
+    protected QueryPragmas getPragmas() {
+        return QueryPragmas.EMPTY;
+    }
 
     public static Expression randomChild() {
         return ReferenceAttributeTests.randomReferenceAttribute(false);

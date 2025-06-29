@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -35,14 +36,37 @@ import java.util.stream.Collectors;
 public class Grok extends RegexExtract implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Grok", Grok::readFrom);
 
-    public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
+    public static class Parser {
+        Parser(String pattern, org.elasticsearch.grok.Grok grok, QueryPragmas pragmas) {
+            this.pattern = pattern;
+            this.grok = grok;
+            this.pragmas = pragmas;
+        }
+
+        private final String pattern;
+        private final org.elasticsearch.grok.Grok grok;
+        private final QueryPragmas pragmas;
+
+        public String getPattern() {
+            return this.pattern;
+        }
+
+        public org.elasticsearch.grok.Grok getGrok() {
+            return this.grok;
+        }
+
+        public QueryPragmas getPragmas() {
+            return this.pragmas;
+        }
 
         public List<Attribute> extractedFields() {
             return grok.captureConfig()
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric()))
+                .map(
+                    x -> new ReferenceAttribute(Source.EMPTY, x.name(), toDataType(x.type()).widenSmallNumeric(pragmas.native_float_type()))
+                )
                 .collect(Collectors.toList());
         }
 
@@ -71,11 +95,11 @@ public class Grok extends RegexExtract implements TelemetryAware {
         }
     }
 
-    public static Parser pattern(Source source, String pattern) {
+    public static Parser pattern(Source source, String pattern, QueryPragmas pragmas) {
         try {
             var builtinPatterns = GrokBuiltinPatterns.get(true);
             org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, logger::warn);
-            return new Parser(pattern, grok);
+            return new Parser(pattern, grok, pragmas);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid pattern [{}] for grok: {}", pattern, e.getMessage());
         }
@@ -92,16 +116,16 @@ public class Grok extends RegexExtract implements TelemetryAware {
     public Grok(Source source, LogicalPlan child, Expression inputExpr, Parser parser, List<Attribute> extracted) {
         super(source, child, inputExpr, extracted);
         this.parser = parser;
-
     }
 
     private static Grok readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
+        QueryPragmas pragmas = in.readNamedWriteable(QueryPragmas.class);
         return new Grok(
             source,
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            Grok.pattern(source, in.readString()),
+            Grok.pattern(source, in.readString(), pragmas),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -111,7 +135,7 @@ public class Grok extends RegexExtract implements TelemetryAware {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(input());
-        out.writeString(parser().pattern());
+        out.writeString(parser().getPattern());
         out.writeNamedWriteableCollection(extractedFields());
     }
 

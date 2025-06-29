@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,14 +54,18 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             name = "number",
             type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public Avg(Source source, Expression field, Expression filter) {
+    public Avg(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
     }
+
+    private QueryPragmas pragmas;
 
     @Override
     protected Expression.TypeResolution resolveType() {
@@ -75,6 +80,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
     private Avg(StreamInput in) throws IOException {
         super(in);
+        pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
 
     @Override
@@ -89,17 +95,17 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Avg> info() {
-        return NodeInfo.create(this, Avg::new, field(), filter());
+        return NodeInfo.create(this, Avg::new, field(), filter(), pragmas);
     }
 
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
-        return new Avg(source(), newChildren.get(0), newChildren.get(1));
+        return new Avg(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
     public Avg withFilter(Expression filter) {
-        return new Avg(source(), field(), filter);
+        return new Avg(source(), field(), filter, pragmas);
     }
 
     @Override
@@ -110,8 +116,8 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             return new MvAvg(s, field);
         }
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Div(s, new Sum(s, field, filter()).surrogate(), new Count(s, field, filter()).surrogate());
+            return new Div(s, new Sum(s, field, filter(), pragmas).surrogate(), new Count(s, field, filter(), pragmas).surrogate());
         }
-        return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
+        return new Div(s, new Sum(s, field, filter(), pragmas), new Count(s, field, filter(), pragmas), dataType());
     }
 }

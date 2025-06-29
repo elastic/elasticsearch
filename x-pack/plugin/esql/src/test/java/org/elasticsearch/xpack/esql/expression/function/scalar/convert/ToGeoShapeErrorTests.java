@@ -27,7 +27,7 @@ public class ToGeoShapeErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToGeoShape(source, args.get(0));
+        return new ToGeoShape(source, args.getFirst(), getPragmas());
     }
 
     @Override

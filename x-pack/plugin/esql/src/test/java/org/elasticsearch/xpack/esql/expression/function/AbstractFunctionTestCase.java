@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -97,6 +98,13 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
+
+    // TODO:
+    // - move to `ESQLTestCase` (unify with ErrorsForCasesWithoutExampleTestCase and more)
+    // - Provide better implementation, maybe fetch the pragmas from gradle parameters.
+    protected QueryPragmas getPragmas() {
+        return testCase.getConfiguration().pragmas();
+    }
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -306,11 +314,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
         List<Set<DataType>> validPerPosition = validPerPosition(valid);
 
+        // Assume that the whole suite runs with the same query pragmas.
+        var pragmas = testCaseSuppliers.getFirst().get().getConfiguration().pragmas();
+
         testCaseSuppliers.stream()
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(AbstractFunctionTestCase::allPermutations)
+            .flatMap(n -> AbstractFunctionTestCase.allPermutations(n, pragmas))
             .filter(types -> valid.contains(types) == false)
             /*
              * Skip any cases with more than one null. Our tests don't generate
@@ -374,16 +385,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return result;
     }
 
-    protected static Stream<List<DataType>> allPermutations(int argumentCount) {
+    protected static Stream<List<DataType>> allPermutations(int argumentCount, QueryPragmas pragmas) {
         if (argumentCount == 0) {
             return Stream.of(List.of());
         }
         if (argumentCount > 3) {
             throw new IllegalArgumentException("would generate too many combinations");
         }
-        Stream<List<DataType>> stream = validFunctionParameters().map(List::of);
+        Stream<List<DataType>> stream = validFunctionParameters(pragmas).map(List::of);
         for (int i = 1; i < argumentCount; i++) {
-            stream = stream.flatMap(types -> validFunctionParameters().map(t -> append(types, t)));
+            stream = stream.flatMap(types -> validFunctionParameters(pragmas).map(t -> append(types, t)));
         }
         return stream;
     }
@@ -393,7 +404,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * function tests to enumerate all possible parameters to test error messages
      * for invalid combinations.
      */
-    public static Stream<DataType> validFunctionParameters() {
+    public static Stream<DataType> validFunctionParameters(QueryPragmas pragmas) {
         return Arrays.stream(DataType.values()).filter(t -> {
             if (t == DataType.UNSUPPORTED) {
                 // By definition, functions never support UNSUPPORTED
@@ -434,7 +445,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                  */
                 return false;
             }
-            if (t.widenSmallNumeric() != t) {
+            if (t.widenSmallNumeric(pragmas.native_float_type()) != t) {
                 // Small numeric types are widened long before they arrive at functions.
                 return false;
             }

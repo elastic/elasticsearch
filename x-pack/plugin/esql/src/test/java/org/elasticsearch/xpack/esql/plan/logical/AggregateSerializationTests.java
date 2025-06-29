@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
             Expression agg = switch (between(0, 5)) {
                 case 0 -> new Max(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
                 case 1 -> new Min(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 2 -> new Count(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 2 -> new Count(randomSource(), FieldAttributeTests.createFieldAttribute(1, true), QueryPragmas.EMPTY);
                 case 3 -> new Top(
                     randomSource(),
                     FieldAttributeTests.createFieldAttribute(1, true),
@@ -50,7 +51,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     Literal.keyword(randomSource(), randomFrom("ASC", "DESC"))
                 );
                 case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true), QueryPragmas.EMPTY);
                 default -> throw new IllegalArgumentException();
             };
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));

@@ -133,7 +133,7 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToIp(source, args.getFirst(), options());
+        return new ToIp(source, args.getFirst(), options(), getPragmas());
     }
 
     private MapExpression options() {

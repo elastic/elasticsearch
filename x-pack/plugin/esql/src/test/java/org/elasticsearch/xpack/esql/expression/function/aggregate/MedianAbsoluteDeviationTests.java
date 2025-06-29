@@ -44,7 +44,7 @@ public class MedianAbsoluteDeviationTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MedianAbsoluteDeviation(source, args.get(0));
+        return new MedianAbsoluteDeviation(source, args.getFirst(), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

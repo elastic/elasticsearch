@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,6 +48,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     );
 
     private final Expression percentile;
+    private final QueryPragmas pragmas;
 
     @FunctionInfo(
         returnType = "double",
@@ -77,14 +79,16 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     public Percentile(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE, percentile);
+        this(source, field, Literal.TRUE, percentile, pragmas);
     }
 
-    public Percentile(Source source, Expression field, Expression filter, Expression percentile) {
+    public Percentile(Source source, Expression field, Expression filter, Expression percentile, QueryPragmas pragmas) {
         super(source, field, filter, singletonList(percentile));
         this.percentile = percentile;
+        this.pragmas = pragmas;
     }
 
     private Percentile(StreamInput in) throws IOException {
@@ -93,8 +97,9 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             in.readNamedWriteable(Expression.class),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
+                ? in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+                : in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(QueryPragmas.class)
         );
     }
 
@@ -110,17 +115,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), percentile);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), percentile, pragmas);
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), pragmas);
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, percentile);
+        return new Percentile(source(), field(), filter, percentile, pragmas);
     }
 
     public Expression percentile() {
@@ -177,7 +182,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         var field = field();
 
         if (field.foldable()) {
-            return new MvPercentile(source(), new ToDouble(source(), field), percentile());
+            return new MvPercentile(source(), new ToDouble(source(), field, pragmas), percentile());
         }
 
         return null;

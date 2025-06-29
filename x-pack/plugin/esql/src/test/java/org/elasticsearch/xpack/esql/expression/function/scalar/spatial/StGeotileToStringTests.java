@@ -59,6 +59,6 @@ public class StGeotileToStringTests extends SpatialGridTypeConversionTestCases {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StGeotileToString(source, args.get(0));
+        return new StGeotileToString(source, args.getFirst(), getPragmas());
     }
 }

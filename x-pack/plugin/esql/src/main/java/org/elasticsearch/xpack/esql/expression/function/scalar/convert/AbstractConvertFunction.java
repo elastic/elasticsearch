@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,19 +49,27 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
 
-    protected AbstractConvertFunction(Source source, Expression field) {
+    protected AbstractConvertFunction(Source source, Expression field, QueryPragmas pragmas) {
         super(source, field);
+        this.pragmas = pragmas;
+    }
+
+    private final QueryPragmas pragmas;
+
+    @Override
+    public QueryPragmas getPragmas() {
+        return pragmas;
     }
 
     protected AbstractConvertFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(QueryPragmas.class));
     }
 
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
     protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        DataType sourceType = field().dataType().widenSmallNumeric();
+        DataType sourceType = field().dataType().widenSmallNumeric(pragmas.native_float_type());
         var factory = factories().get(sourceType);
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);

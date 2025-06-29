@@ -27,7 +27,7 @@ public class ToDegreesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDegrees(source, args.get(0));
+        return new ToDegrees(source, args.getFirst(), getPragmas());
     }
 
     @Override

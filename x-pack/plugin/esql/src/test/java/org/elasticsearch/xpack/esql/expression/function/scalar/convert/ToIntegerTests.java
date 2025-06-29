@@ -279,7 +279,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToInteger(source, args.get(0));
+        return new ToInteger(source, args.getFirst(), getPragmas());
     }
 
     private static List<TestCaseSupplier.TypedDataSupplier> dateCases(long min, long max) {

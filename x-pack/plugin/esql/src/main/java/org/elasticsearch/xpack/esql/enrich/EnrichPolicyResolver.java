@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -114,6 +115,7 @@ public class EnrichPolicyResolver {
     public void resolvePolicies(
         Collection<UnresolvedPolicy> unresolvedPolicies,
         EsqlExecutionInfo executionInfo,
+        QueryPragmas pragmas,
         ActionListener<EnrichResolution> listener
     ) {
         if (unresolvedPolicies.isEmpty()) {
@@ -123,7 +125,7 @@ public class EnrichPolicyResolver {
 
         final Set<String> remoteClusters = new HashSet<>(executionInfo.getClusters().keySet());
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, pragmas, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
 
             Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
@@ -287,6 +289,7 @@ public class EnrichPolicyResolver {
         Collection<String> remoteClusters,
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
+        QueryPragmas pragmas,
         ActionListener<Map<String, LookupResponse>> listener
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
@@ -305,7 +308,7 @@ public class EnrichPolicyResolver {
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
-                                new LookupRequest(cluster, remotePolicies),
+                                new LookupRequest(cluster, remotePolicies, pragmas),
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(
                                     lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, cluster, l)),
@@ -331,7 +334,7 @@ public class EnrichPolicyResolver {
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
-                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies),
+                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies, pragmas),
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
@@ -353,15 +356,18 @@ public class EnrichPolicyResolver {
     private static class LookupRequest extends AbstractTransportRequest {
         private final String clusterAlias;
         private final Collection<String> policyNames;
+        private final QueryPragmas pragmas;
 
-        LookupRequest(String clusterAlias, Collection<String> policyNames) {
+        LookupRequest(String clusterAlias, Collection<String> policyNames, QueryPragmas pragmas) {
             this.clusterAlias = clusterAlias;
             this.policyNames = policyNames;
+            this.pragmas = pragmas;
         }
 
         LookupRequest(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
             this.policyNames = in.readStringCollectionAsList();
+            this.pragmas = in.readNamedWriteable(QueryPragmas.class);
         }
 
         @Override
@@ -376,11 +382,13 @@ public class EnrichPolicyResolver {
         final Map<String, String> failures;
         // does not need to be Writable since this indicates a failure to contact a remote cluster, so only set on querying cluster
         final transient Exception connectionError;
+        final QueryPragmas pragmas;
 
-        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
+        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures, QueryPragmas pragmas) {
             this.policies = policies;
             this.failures = failures;
             this.connectionError = null;
+            this.pragmas = pragmas;
         }
 
         /**
@@ -392,6 +400,7 @@ public class EnrichPolicyResolver {
             this.policies = Collections.emptyMap();
             this.failures = Collections.emptyMap();
             this.connectionError = connectionError;
+            this.pragmas = QueryPragmas.EMPTY;
         }
 
         LookupResponse(StreamInput in) throws IOException {
@@ -399,6 +408,7 @@ public class EnrichPolicyResolver {
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
             this.connectionError = null;
+            this.pragmas = planIn.readNamedWriteable(QueryPragmas.class);
         }
 
         @Override
@@ -421,7 +431,9 @@ public class EnrichPolicyResolver {
                 threadContext
             );
             try (
-                RefCountingListener refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))
+                RefCountingListener refs = new RefCountingListener(
+                    listener.map(unused -> new LookupResponse(resolvedPolices, failures, request.pragmas))
+                );
             ) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);
@@ -445,7 +457,7 @@ public class EnrichPolicyResolver {
                             } else {
                                 failures.put(policyName, indexResult.toString());
                             }
-                        }));
+                        }), request.pragmas);
                     }
                 }
             }

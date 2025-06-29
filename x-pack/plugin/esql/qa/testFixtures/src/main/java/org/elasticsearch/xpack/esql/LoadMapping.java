@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -36,13 +37,19 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.junit.Assert.assertNotNull;
 
 public class LoadMapping {
-    public static Map<String, EsField> loadMapping(String name) {
+    public LoadMapping(QueryPragmas pragmas) {
+        this.pragmas = pragmas;
+    }
+
+    private final QueryPragmas pragmas;
+
+    public Map<String, EsField> loadMapping(String name) {
         InputStream stream = LoadMapping.class.getResourceAsStream("/" + name);
         assertNotNull("Could not find mapping resource:" + name, stream);
         return loadMapping(stream);
     }
 
-    private static Map<String, EsField> loadMapping(InputStream stream) {
+    private Map<String, EsField> loadMapping(InputStream stream) {
         try (InputStream in = stream) {
             Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true);
             return fromEs(map);
@@ -52,7 +59,7 @@ public class LoadMapping {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, EsField> fromEs(Map<String, Object> asMap) {
+    private Map<String, EsField> fromEs(Map<String, Object> asMap) {
         Map<String, Object> props = null;
         if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
@@ -60,7 +67,7 @@ public class LoadMapping {
         return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
     }
 
-    private static Map<String, EsField> startWalking(Map<String, Object> mapping) {
+    private Map<String, EsField> startWalking(Map<String, Object> mapping) {
         Map<String, EsField> types = new LinkedHashMap<>();
 
         if (mapping == null) {
@@ -74,7 +81,7 @@ public class LoadMapping {
     }
 
     @SuppressWarnings("unchecked")
-    private static void walkMapping(String name, Object value, Map<String, EsField> mapping) {
+    private void walkMapping(String name, Object value, Map<String, EsField> mapping) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
@@ -122,7 +129,7 @@ public class LoadMapping {
         }
     }
 
-    private static DataType getType(Map<String, Object> content) {
+    private DataType getType(Map<String, Object> content) {
         if (content.containsKey("type")) {
             String typeName = content.get("type").toString();
             if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
@@ -136,7 +143,7 @@ public class LoadMapping {
                 metricType = (TimeSeriesParams.MetricType) metricsTypeParameter;
             }
             try {
-                return EsqlDataTypeRegistry.INSTANCE.fromEs(typeName, metricType);
+                return EsqlDataTypeRegistry.INSTANCE.fromEs(typeName, metricType, pragmas);
             } catch (IllegalArgumentException ex) {
                 return UNSUPPORTED;
             }

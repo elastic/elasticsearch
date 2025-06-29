@@ -85,6 +85,6 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToBoolean(source, args.get(0));
+        return new ToBoolean(source, args.getFirst(), getPragmas());
     }
 }

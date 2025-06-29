@@ -27,7 +27,7 @@ public class ToVersionLongErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToVersion(source, args.get(0));
+        return new ToVersion(source, args.get(0), getPragmas());
     }
 
     @Override

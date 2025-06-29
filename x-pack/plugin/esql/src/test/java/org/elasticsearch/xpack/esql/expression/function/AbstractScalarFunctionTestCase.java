@@ -409,11 +409,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
 
+        // Assume that the whole suite runs with the same query pragmas.
+        var pragmas = testCaseSuppliers.getFirst().get().getConfiguration().pragmas();
+
         testCaseSuppliers.stream()
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(count -> allPermutations(count, pragmas))
             .filter(types -> valid.contains(types) == false)
             .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
                 throw new IllegalStateException("must implement a case for " + types);

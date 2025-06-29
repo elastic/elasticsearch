@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToIpLeadingZerosDecimalSerializationTests extends AbstractUnaryScalarSerializationTests<ToIpLeadingZerosDecimal> {
     @Override
     protected ToIpLeadingZerosDecimal create(Source source, Expression child) {
-        return new ToIpLeadingZerosDecimal(source, child);
+        return new ToIpLeadingZerosDecimal(source, child, getPragmas());
     }
 }

@@ -75,7 +75,7 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToTimeDuration(source, args.get(0));
+        return new ToTimeDuration(source, args.getFirst(), getPragmas());
     }
 
     @Override

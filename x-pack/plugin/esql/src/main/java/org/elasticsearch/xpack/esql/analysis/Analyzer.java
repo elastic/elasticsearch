@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -213,18 +214,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
-
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             return resolveIndex(
                 plan,
                 plan.indexMode().equals(IndexMode.LOOKUP)
                     ? context.lookupResolution().get(plan.indexPattern().indexPattern())
-                    : context.indexResolution()
+                    : context.indexResolution(),
+                context.configuration().pragmas()
             );
         }
 
-        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution, QueryPragmas pragmas) {
             if (indexResolution == null || indexResolution.isValid() == false) {
                 String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();
                 return plan.unresolvedMessage().equals(indexResolutionMessage)
@@ -255,7 +256,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping(), pragmas);
             attributes.addAll(plan.metadataFields());
             return new EsRelation(
                 plan.source(),
@@ -265,6 +266,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
+
+        private QueryPragmas pragmas;
     }
 
     /**
@@ -272,17 +275,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * 1. takes care of data type widening (for certain types)
      * 2. drops the object and keyword hierarchy
      * <p>
-     *     Public for testing.
+     * Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping, QueryPragmas pragmas) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(list, source, null, mapping, pragmas);
         list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        Source source,
+        String parentName,
+        Map<String, EsField> mapping,
+        QueryPragmas pragmas
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -290,7 +299,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                var type = t.getDataType().widenSmallNumeric();
+                var type = t.getDataType().widenSmallNumeric(pragmas.native_float_type());
                 // due to a bug also copy the field since the Attribute hierarchy extracts the data type
                 // directly even if the data type is passed explicitly
                 if (type != t.getDataType()) {
@@ -306,7 +315,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 // allow compound object even if they are unknown
                 if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+                    mappingAsAttributes(list, source, attribute.name(), fieldProperties, pragmas);
                 }
             }
         }
@@ -330,7 +339,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping(), context.configuration().pragmas()),
                     plan.enrichFields(),
                     policy
                 );
@@ -743,7 +752,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
 
                 config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
+                join = new LookupJoin(join.source(), join.left(), join.right(), config);
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
                 // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
@@ -1022,28 +1031,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * resolve each item manually.
-         *
+         * <p>
          * Fields are added in the order they appear.
-         *
+         * <p>
          * If one field matches multiple expressions, the following precedence rules apply (higher to lower):
          * 1. complete field name (ie. no wildcards)
          * 2. partial wildcard expressions (eg. fieldNam*)
          * 3. wildcard only (ie. *)
-         *
+         * <p>
          * If a field name matches multiple expressions with the same precedence, last one is used.
-         *
+         * <p>
          * A few examples below:
-         *
+         * <p>
          * // full name
          * row foo = 1, bar = 2 | keep foo, bar, foo   ->  bar, foo
-         *
+         * <p>
          * // the full name has precedence on wildcard expression
          * row foo = 1, bar = 2 | keep foo, bar, foo*   ->  foo, bar
-         *
+         * <p>
          * // the two wildcard expressions have the same priority, even though the first one is more specific
          * // so last one wins
          * row foo = 1, bar = 2 | keep foo*, bar, fo*   ->  bar, foo
-         *
+         * <p>
          * // * has the lowest priority
          * row foo = 1, bar = 2 | keep *, foo   ->  bar, foo
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
@@ -1392,16 +1401,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // do implicit casting for function arguments
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
+                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry(), context.configuration().pragmas())
             );
         }
 
-        private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
+        private static Expression cast(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            EsqlFunctionRegistry registry,
+            QueryPragmas pragmas
+        ) {
             if (f instanceof In in) {
                 return processIn(in);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
-                return processScalarOrGroupingFunction(f, registry);
+                return processScalarOrGroupingFunction(f, registry, pragmas);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
@@ -1414,7 +1427,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Expression processScalarOrGroupingFunction(
             org.elasticsearch.xpack.esql.core.expression.function.Function f,
-            EsqlFunctionRegistry registry
+            EsqlFunctionRegistry registry,
+            QueryPragmas pragmas
         ) {
             List<Expression> args = f.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(f.getClass());
@@ -1457,7 +1471,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
             return targetNumericType != null && castNumericArgs
-                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
+                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType, pragmas)
                 : resultF;
         }
 
@@ -1533,7 +1547,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return commonType == to;
         }
 
-        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType) {
+        private static Expression castMixedNumericTypes(EsqlScalarFunction f, DataType targetNumericType, QueryPragmas pragmas) {
             List<Expression> newChildren = new ArrayList<>(f.children().size());
             boolean childrenChanged = false;
             DataType childDataType;
@@ -1550,10 +1564,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     childrenChanged = true;
                     // add a casting function
                     switch (targetNumericType) {
-                        case INTEGER -> newChildren.add(new ToInteger(e.source(), e));
-                        case LONG -> newChildren.add(new ToLong(e.source(), e));
-                        case DOUBLE -> newChildren.add(new ToDouble(e.source(), e));
-                        case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e));
+                        case INTEGER -> newChildren.add(new ToInteger(e.source(), e, pragmas));
+                        case LONG -> newChildren.add(new ToLong(e.source(), e, pragmas));
+                        case DOUBLE -> newChildren.add(new ToDouble(e.source(), e, pragmas));
+                        case UNSIGNED_LONG -> newChildren.add(new ToUnsignedLong(e.source(), e, pragmas));
                         default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetNumericType);
                     }
                 } else {
@@ -1721,7 +1735,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 imf.types().forEach(type -> {
-                    if (supportedTypes.contains(type.widenSmallNumeric())) {
+                    if (supportedTypes.contains(type.widenSmallNumeric(convert.getPragmas().native_float_type()))) {
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
@@ -1746,7 +1760,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
                     // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
+                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes, convert.getPragmas())) {
                         // Build the mapping between index name and conversion expressions
                         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
                         for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
@@ -1808,13 +1822,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
+        private static boolean canConvertOriginalTypes(
+            MultiTypeEsField multiTypeEsField,
+            Set<DataType> supportedTypes,
+            QueryPragmas pragmas
+        ) {
             return multiTypeEsField.getIndexToConversionExpressions()
                 .values()
                 .stream()
                 .allMatch(
                     e -> e instanceof AbstractConvertFunction convertFunction
-                        && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
+                        && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric(pragmas.native_float_type()))
                 );
         }
 
@@ -1916,7 +1934,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation.transformExpressionsUp(FieldAttribute.class, f -> {
                         if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
                             HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                            var convert = new ToDateNanos(f.source(), f);
+                            var convert = new ToDateNanos(f.source(), f, QueryPragmas.EMPTY); // TODO
                             imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
                             var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
                             return new FieldAttribute(

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
  */
-public final class QueryPragmas implements Writeable {
+public final class QueryPragmas implements NamedWriteable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
     public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
@@ -78,6 +78,8 @@ public final class QueryPragmas implements Writeable {
         "field_extract_preference",
         MappedFieldType.FieldExtractPreference.NONE
     );
+
+    public static final Setting<Boolean> NATIVE_FLOAT_TYPE = Setting.boolSetting("native_float_type", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -196,6 +198,13 @@ public final class QueryPragmas implements Writeable {
         return FIELD_EXTRACT_PREFERENCE.get(settings);
     }
 
+    /**
+     * Returns true if we let float type get pass type resolution
+     */
+    public boolean native_float_type() {
+        return NATIVE_FLOAT_TYPE.get(settings);
+    }
+
     public boolean isEmpty() {
         return settings.isEmpty();
     }
@@ -216,5 +225,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public String toString() {
         return settings.toString();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "query_params";
     }
 }

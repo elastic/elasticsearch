@@ -27,7 +27,7 @@ public class ToDoubleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDouble(source, args.get(0));
+        return new ToDouble(source, args.getFirst(), getPragmas());
     }
 
     @Override

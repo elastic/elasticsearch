@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToGeoPointSerializationTests extends AbstractUnaryScalarSerializationTests<ToGeoPoint> {
     @Override
     protected ToGeoPoint create(Source source, Expression child) {
-        return new ToGeoPoint(source, child);
+        return new ToGeoPoint(source, child, getPragmas());
     }
 }

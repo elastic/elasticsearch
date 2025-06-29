@@ -95,7 +95,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new WeightedAvg(source, args.get(0), args.get(1));
+        return new WeightedAvg(source, args.get(0), args.get(1), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(

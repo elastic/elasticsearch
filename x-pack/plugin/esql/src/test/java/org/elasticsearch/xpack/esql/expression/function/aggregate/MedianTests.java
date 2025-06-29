@@ -78,7 +78,7 @@ public class MedianTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Median(source, args.get(0));
+        return new Median(source, args.getFirst(), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

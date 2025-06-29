@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -79,9 +80,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             name = "number",
             type = { "double", "long", "unsigned_long", "integer", "aggregate_metric_double" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        super(source, field);
+        super(source, field, pragmas);
     }
 
     private ToAggregateMetricDouble(StreamInput in) throws IOException {
@@ -114,12 +116,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToAggregateMetricDouble(source(), newChildren.get(0));
+        return new ToAggregateMetricDouble(source(), newChildren.get(0), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToAggregateMetricDouble::new, field);
+        return NodeInfo.create(this, ToAggregateMetricDouble::new, field, getPragmas());
     }
 
     @Override

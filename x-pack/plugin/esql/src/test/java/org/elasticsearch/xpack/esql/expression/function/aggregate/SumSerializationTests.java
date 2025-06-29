@@ -14,11 +14,15 @@ import java.io.IOException;
 public class SumSerializationTests extends AbstractExpressionSerializationTests<Sum> {
     @Override
     protected Sum createTestInstance() {
-        return new Sum(randomSource(), randomChild());
+        return new Sum(randomSource(), randomChild(), getPragmas());
     }
 
     @Override
     protected Sum mutateInstance(Sum instance) throws IOException {
-        return new Sum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        return new Sum(
+            instance.source(),
+            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
+            getPragmas()
+        );
     }
 }

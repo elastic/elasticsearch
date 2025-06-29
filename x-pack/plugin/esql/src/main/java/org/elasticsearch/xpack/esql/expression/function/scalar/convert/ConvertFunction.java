@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Set;
 
@@ -25,4 +26,9 @@ public interface ConvertFunction {
      * The types that {@link #field()} can have.
      */
     Set<DataType> supportedTypes();
+
+    /**
+     * Convert functions tends to create new DataTypes, which makes them depend on pragmas.
+     */
+    QueryPragmas getPragmas();
 }

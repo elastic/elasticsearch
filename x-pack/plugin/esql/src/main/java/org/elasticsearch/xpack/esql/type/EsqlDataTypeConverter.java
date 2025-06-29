@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDur
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -68,7 +70,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
@@ -115,27 +116,28 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
-        entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
-        entry(BOOLEAN, ToBoolean::new),
-        entry(CARTESIAN_POINT, ToCartesianPoint::new),
-        entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        entry(DATETIME, ToDatetime::new),
-        entry(DATE_NANOS, ToDateNanos::new),
-        // ToDegrees, typeless
-        entry(DOUBLE, ToDouble::new),
-        entry(GEO_POINT, ToGeoPoint::new),
-        entry(GEO_SHAPE, ToGeoShape::new),
-        entry(INTEGER, ToInteger::new),
-        entry(IP, ToIpLeadingZerosRejected::new),
-        entry(LONG, ToLong::new),
-        // ToRadians, typeless
-        entry(KEYWORD, ToString::new),
-        entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new),
-        entry(DATE_PERIOD, ToDatePeriod::new),
-        entry(TIME_DURATION, ToTimeDuration::new)
-    );
+    private static final Map<DataType, TriFunction<Source, Expression, QueryPragmas, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION =
+        Map.ofEntries(
+            entry(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new),
+            entry(BOOLEAN, ToBoolean::new),
+            entry(CARTESIAN_POINT, ToCartesianPoint::new),
+            entry(CARTESIAN_SHAPE, ToCartesianShape::new),
+            entry(DATETIME, ToDatetime::new),
+            entry(DATE_NANOS, ToDateNanos::new),
+            // ToDegrees, typeless
+            entry(DOUBLE, ToDouble::new),
+            entry(GEO_POINT, ToGeoPoint::new),
+            entry(GEO_SHAPE, ToGeoShape::new),
+            entry(INTEGER, ToInteger::new),
+            entry(IP, ToIpLeadingZerosRejected::new),
+            entry(LONG, ToLong::new),
+            // ToRadians, typeless
+            entry(KEYWORD, ToString::new),
+            entry(UNSIGNED_LONG, ToUnsignedLong::new),
+            entry(VERSION, ToVersion::new),
+            entry(DATE_PERIOD, ToDatePeriod::new),
+            entry(TIME_DURATION, ToTimeDuration::new)
+        );
 
     public enum INTERVALS {
         // TIME_DURATION,
@@ -814,7 +816,7 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
+    public static TriFunction<Source, Expression, QueryPragmas, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
         return TYPE_TO_CONVERTER_FUNCTION.get(toType);
     }
 }

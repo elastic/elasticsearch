@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ public class GrokExecSerializationTests extends AbstractPhysicalPlanSerializatio
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         Expression inputExpression = FieldAttributeTests.createFieldAttribute(0, false);
-        Grok.Parser parser = Grok.pattern(source, EsqlNodeSubclassTests.randomGrokPattern());
+        Grok.Parser parser = Grok.pattern(source, EsqlNodeSubclassTests.randomGrokPattern(), QueryPragmas.EMPTY);
         return new GrokExec(source, child, inputExpression, parser, parser.extractedFields());
     }
 
@@ -33,13 +34,14 @@ public class GrokExecSerializationTests extends AbstractPhysicalPlanSerializatio
     protected GrokExec mutateInstance(GrokExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         Expression inputExpression = instance.inputExpression();
-        Grok.Parser parser = instance.pattern();
+        Grok.Parser parser = instance.getParser();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inputExpression = randomValueOtherThan(inputExpression, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 2 -> parser = Grok.pattern(
                 instance.source(),
-                randomValueOtherThan(parser.pattern(), EsqlNodeSubclassTests::randomGrokPattern)
+                randomValueOtherThan(parser.getPattern(), EsqlNodeSubclassTests::randomGrokPattern),
+                QueryPragmas.EMPTY
             );
         }
         return new GrokExec(instance.source(), child, inputExpression, parser, parser.extractedFields());

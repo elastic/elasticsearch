@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ public class AvgTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Avg(source, args.get(0));
+        return new Avg(source, args.getFirst(), getPragmas());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -72,7 +73,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                 // For single elements, we directly return them to avoid precision issues
                 expected = ((Number) fieldData.get(0)).doubleValue();
             } else if (fieldData.size() > 1) {
-                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+                expected = switch (fieldTypedData.type().widenSmallNumeric(QueryPragmas.EMPTY.native_float_type())) {
                     case INTEGER -> fieldData.stream()
                         .map(v -> (Integer) v)
                         .collect(Collectors.summarizingInt(Integer::intValue))

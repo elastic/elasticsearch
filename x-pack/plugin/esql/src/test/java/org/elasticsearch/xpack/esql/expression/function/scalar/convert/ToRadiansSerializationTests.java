@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToRadiansSerializationTests extends AbstractUnaryScalarSerializationTests<ToRadians> {
     @Override
     protected ToRadians create(Source source, Expression child) {
-        return new ToRadians(source, child);
+        return new ToRadians(source, child, getPragmas());
     }
 }

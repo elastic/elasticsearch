@@ -251,6 +251,6 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToLong(source, args.get(0));
+        return new ToLong(source, args.getFirst(), getPragmas());
     }
 }

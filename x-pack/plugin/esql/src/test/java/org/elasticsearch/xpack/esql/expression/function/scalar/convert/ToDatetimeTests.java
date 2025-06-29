@@ -187,6 +187,6 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDatetime(source, args.get(0));
+        return new ToDatetime(source, args.getFirst(), getPragmas());
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCountErrorTests;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -102,7 +103,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(AbstractFunctionTestCase::allPermutations)
+            .flatMap(x -> AbstractFunctionTestCase.allPermutations(x, QueryPragmas.EMPTY))
             .filter(types -> valid.contains(types) == false)
             /*
              * Skip any cases with more than one null. Our tests don't generate
@@ -188,5 +189,12 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
                 + "]";
 
         }
+    }
+
+    // TODO:
+    // - move to `ESQLTestCase`
+    // - Provide real implementation, maybe fetch the pragmas from gradle parameters.
+    protected QueryPragmas getPragmas() {
+        return QueryPragmas.EMPTY;
     }
 }

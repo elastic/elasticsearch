@@ -78,6 +78,6 @@ public class ToCartesianShapeTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToCartesianShape(source, args.get(0));
+        return new ToCartesianShape(source, args.getFirst(), getPragmas());
     }
 }

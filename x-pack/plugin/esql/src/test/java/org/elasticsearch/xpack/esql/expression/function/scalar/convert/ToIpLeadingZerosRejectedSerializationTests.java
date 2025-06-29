@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToIpLeadingZerosRejectedSerializationTests extends AbstractUnaryScalarSerializationTests<ToIpLeadingZerosRejected> {
     @Override
     protected ToIpLeadingZerosRejected create(Source source, Expression child) {
-        return new ToIpLeadingZerosRejected(source, child);
+        return new ToIpLeadingZerosRejected(source, child, getPragmas());
     }
 }

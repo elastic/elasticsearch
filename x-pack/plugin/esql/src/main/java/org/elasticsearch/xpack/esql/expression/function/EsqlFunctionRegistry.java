@@ -478,7 +478,7 @@ public class EsqlFunctionRegistry {
                 def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
                 def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(Knn.class, tri(Knn::new), "knn"),
+                def(Knn.class, Knn::new, "knn"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
                 def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),

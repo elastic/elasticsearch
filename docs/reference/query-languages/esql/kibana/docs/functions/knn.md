@@ -5,6 +5,6 @@ Finds the k nearest vectors to a query vector, as measured by a similarity metri
 
 ```esql
 from colors metadata _score
-| where knn(rgb_vector, [0, 120, 0])
+| where knn(rgb_vector, [0, 120, 0], 10)
 | sort _score desc, color asc
 ```

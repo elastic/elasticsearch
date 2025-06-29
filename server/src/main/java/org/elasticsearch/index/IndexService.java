@@ -246,7 +246,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
-            boolean sourceOnly = Boolean.parseBoolean(indexSettings.getSettings().get("index.source_only"));
+            boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);
             if (indexSettings.getIndexSortConfig().hasIndexSort() && sourceOnly == false) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.

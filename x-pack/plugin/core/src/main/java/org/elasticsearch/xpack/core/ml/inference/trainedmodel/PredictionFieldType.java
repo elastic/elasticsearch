@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -61,7 +62,7 @@ public enum PredictionFieldType implements Writeable {
                         // do nothing, allow fall through to final fromDouble
                     }
                 } else if (isBoolQuickCheck(stringRep)) { // if we start with t/f case insensitive, it indicates boolean string
-                    return Boolean.parseBoolean(stringRep);
+                    return parseBoolean(stringRep);
                 }
                 return fromDouble(value);
             case NUMBER:
@@ -78,6 +79,11 @@ public enum PredictionFieldType implements Writeable {
             default:
                 return value;
         }
+    }
+
+    @SuppressForbidden(reason = "accept lenient boolean field values")
+    private static boolean parseBoolean(String value) {
+        return Boolean.parseBoolean(value);
     }
 
     private static boolean fromDouble(double value) {

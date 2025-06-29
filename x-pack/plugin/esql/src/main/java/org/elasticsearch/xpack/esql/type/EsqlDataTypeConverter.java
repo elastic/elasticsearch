@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -599,6 +600,9 @@ public class EsqlDataTypeConverter {
         return new BytesRef(String.valueOf(field));
     }
 
+    @SuppressForbidden(
+        reason = "https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/type-conversion-functions#esql-to_boolean"
+    )
     public static boolean stringToBoolean(String field) {
         return Boolean.parseBoolean(field);
     }

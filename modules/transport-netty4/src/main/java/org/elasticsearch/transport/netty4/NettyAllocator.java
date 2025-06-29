@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.util.Arrays;
@@ -55,7 +56,7 @@ public class NettyAllocator {
                 + ", factors={es.unsafe.use_netty_default_allocator=true}]";
         } else {
             final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-            final boolean g1gcEnabled = Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
+            final boolean g1gcEnabled = useG1GC();
             final long g1gcRegionSizeInBytes = JvmInfo.jvmInfo().getG1RegionSize();
             final boolean g1gcRegionSizeIsKnown = g1gcRegionSizeInBytes != -1;
             ByteSizeValue heapSize = ByteSizeValue.ofBytes(heapSizeInBytes);
@@ -167,6 +168,13 @@ public class NettyAllocator {
                 return PageCacheRecycler.BYTE_PAGE_SIZE;
             }
         };
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean useG1GC() {
+        return Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
     }
 
     public static void logAllocatorDescriptionIfNeeded() {

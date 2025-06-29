@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -68,7 +69,7 @@ public class XContentDataHelperTests extends ESTestCase {
 
     public void testBoolean() throws IOException {
         boolean b = randomBoolean();
-        assertEquals(b, Boolean.parseBoolean(encodeAndDecode(b)));
+        assertEquals(b, Booleans.parseBoolean(encodeAndDecode(b)));
     }
 
     public void testString() throws IOException {

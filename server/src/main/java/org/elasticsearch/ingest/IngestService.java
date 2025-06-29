@@ -66,6 +66,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -118,6 +119,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IngestService.class);
+
+    public static final NodeFeature FIELD_ACCESS_PATTERN = new NodeFeature("ingest.field_access_pattern", true);
+
+    /**
+     * Checks the locally supported node features without relying on cluster state or feature service.
+     * This is primarily to support the Logstash elastic_integration plugin which uses the IngestService
+     * internally and thus would not have access to cluster service or feature services. NodeFeatures that
+     * are accepted here should be currently and generally available in Elasticsearch.
+     * @param nodeFeature The node feature to check
+     * @return true if the node feature can be supported in the local library code, false if it is not supported
+     */
+    public static boolean locallySupportedIngestFeature(NodeFeature nodeFeature) {
+        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+            // logs_stream feature flag guard
+            return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
+        }
+        // Default to unsupported if not contained here
+        return false;
+    }
 
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
@@ -374,6 +394,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public ProjectResolver getProjectResolver() {
         return projectResolver;
+    }
+
+    public FeatureService getFeatureService() {
+        return featureService;
     }
 
     /**
@@ -754,7 +778,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             deprecationLogger.critical(DeprecationCategory.API, "pipeline_name_special_chars", e.getMessage());
         }
 
-        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService, projectId);
+        Pipeline pipeline = Pipeline.create(
+            pipelineId,
+            pipelineConfig,
+            processorFactories,
+            scriptService,
+            projectId,
+            (n) -> featureService.clusterHasFeature(state, n)
+        );
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
 
@@ -1428,7 +1459,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     newConfiguration.getConfig(false),
                     processorFactories,
                     scriptService,
-                    projectId
+                    projectId,
+                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -1557,7 +1589,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
         var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
         PipelineHolder holder = originalPipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService, projectId);
+        Pipeline updatedPipeline = Pipeline.create(
+            id,
+            holder.configuration.getConfig(false),
+            processorFactories,
+            scriptService,
+            projectId,
+            (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
+        );
         ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
             .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
             .build();

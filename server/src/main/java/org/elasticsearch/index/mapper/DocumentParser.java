@@ -79,6 +79,15 @@ public final class DocumentParser {
         if (source.source() != null && source.source().length() == 0) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
+
+        int maxSourceSize = mappingParserContext.getIndexSettings().getMaxSourceSizeBytes();
+        if (source.source().length() > maxSourceSize) {
+            throw new DocumentParsingException(
+                new XContentLocation(0, 0),
+                "failed to parse, document too large. " + "Max allowed is " + maxSourceSize + " bytes."
+            );
+        }
+
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 

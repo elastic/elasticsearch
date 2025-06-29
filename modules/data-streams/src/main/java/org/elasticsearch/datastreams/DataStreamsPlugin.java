@@ -75,11 +75,13 @@ import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
+import org.elasticsearch.datastreams.rest.RestGetDataStreamMappingsAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamSettingsAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.datastreams.rest.RestUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -292,6 +294,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamOptionsAction());
         handlers.add(new RestGetDataStreamSettingsAction());
         handlers.add(new RestUpdateDataStreamSettingsAction());
+        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+            handlers.add(new RestGetDataStreamMappingsAction());
+            handlers.add(new RestUpdateDataStreamMappingsAction());
+        }
         return handlers;
     }
 

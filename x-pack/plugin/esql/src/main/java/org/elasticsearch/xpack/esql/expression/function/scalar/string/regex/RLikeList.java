@@ -12,11 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.EsqlAutomatonQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,33 +26,33 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.stream.Collectors;
 
-public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
+public class RLikeList extends RegexMatch<RLikePatternList> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "WildcardLikeList",
-        WildcardLikeList::new
+        "RLikeList",
+        RLikeList::new
     );
 
     /**
-     * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
+     * The documentation for this function is in RLike, and shown to the users as `RLIKE` in the docs.
      */
-    public WildcardLikeList(
+    public RLikeList(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns
+        @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
+        @Param(name = "patterns", type = { "keyword", "text" }, description = "A list of regular expressions.") RLikePatternList patterns
     ) {
-        this(source, left, patterns, false);
+        this(source, value, patterns, false);
     }
 
-    public WildcardLikeList(Source source, Expression left, WildcardPatternList patterns, boolean caseInsensitive) {
-        super(source, left, patterns, caseInsensitive);
+    public RLikeList(Source source, Expression field, RLikePatternList rLikePattern, boolean caseInsensitive) {
+        super(source, field, rLikePattern, caseInsensitive);
     }
 
-    public WildcardLikeList(StreamInput in) throws IOException {
+    private RLikeList(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            new WildcardPatternList(in),
+            new RLikePatternList(in),
             deserializeCaseInsensitivity(in)
         );
     }
@@ -77,23 +76,13 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     }
 
     @Override
-    protected NodeInfo<WildcardLikeList> info() {
-        return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive());
+    protected RLikeList replaceChild(Expression newChild) {
+        return new RLikeList(source(), newChild, pattern(), caseInsensitive());
     }
 
-    @Override
-    protected WildcardLikeList replaceChild(Expression newLeft) {
-        return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive());
-    }
-
-    /**
-     * Returns {@link Translatable#YES} if the field is pushable, otherwise {@link Translatable#NO}.
-     * For now, we only support a single pattern in the list for pushdown.
-     */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
-
     }
 
     /**
@@ -107,17 +96,18 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
     }
 
-    /**
-     * Translates the field to a {@link WildcardQuery} using the first pattern in the list.
-     * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
-     */
     private Query translateField(String targetFieldName) {
         return new EsqlAutomatonQuery(source(), targetFieldName, pattern().createAutomaton(caseInsensitive()), getAutomatonDescription());
     }
 
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, RLikeList::new, field(), pattern(), caseInsensitive());
+    }
+
     private String getAutomatonDescription() {
         // we use the information used to create the automaton to describe the query here
-        String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
-        return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
+        String patternDesc = pattern().patternList().stream().map(RLikePattern::pattern).collect(Collectors.joining("\", \""));
+        return "RLIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();
     }
 }

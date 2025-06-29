@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -24,6 +25,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +47,28 @@ public class BlockLoaderTestRunner {
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
+        expected = attemptMakeReadable(expected);
+        blockLoaderResult = attemptMakeReadable(blockLoaderResult);
         Assert.assertEquals(expected, blockLoaderResult);
+    }
+
+    // Attempt to make assertions readable:
+    private static Object attemptMakeReadable(Object expected) {
+        try {
+            if (expected instanceof BytesRef bytesRef) {
+                expected = bytesRef.utf8ToString();
+            } else if (expected instanceof List<?> list && list.getFirst() instanceof BytesRef) {
+                List<String> expectedList = new ArrayList<>(list.size());
+                for (Object e : list) {
+                    expectedList.add(((BytesRef) e).utf8ToString());
+                }
+                expected = expectedList;
+            }
+            return expected;
+        } catch (Exception | AssertionError e) {
+            // ip/geo fields can't be converted to strings:
+            return expected;
+        }
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

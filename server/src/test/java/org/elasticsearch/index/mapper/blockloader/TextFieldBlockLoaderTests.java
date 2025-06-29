@@ -27,6 +27,8 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        logger.info("field mapping={}", fieldMapping);
+        logger.info("value={}", value);
         return expectedValue(fieldMapping, value, params, testContext);
     }
 
@@ -82,7 +84,7 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
                     .map(BytesRef::new)
                     .collect(Collectors.toList());
 
-                if (store == false) {
+                if (store == false && ignoreAbove.equals(Integer.MAX_VALUE)) {
                     // using doc_values for synthetic source
                     indexed = new ArrayList<>(new HashSet<>(indexed));
                     indexed.sort(BytesRef::compareTo);

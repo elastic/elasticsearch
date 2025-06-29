@@ -70,11 +70,12 @@ public class QueryPlanningBenchmark {
     private EsqlParser defaultParser;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
+    private Configuration config;
 
     @Setup
     public void setup() {
 
-        var config = new Configuration(
+        this.config = new Configuration(
             DateUtils.UTC,
             Locale.US,
             null,
@@ -116,7 +117,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
+        var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

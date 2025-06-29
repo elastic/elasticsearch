@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
-
 public class WildcardQuery extends Query {
 
     private final String field, query;
@@ -44,7 +42,7 @@ public class WildcardQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        WildcardQueryBuilder wb = wildcardQuery(field, query);
+        WildcardQueryBuilder wb = new WildcardQueryBuilder(field, query, true);
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? wb : wb.caseInsensitive(caseInsensitive);
     }

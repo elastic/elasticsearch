@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -46,6 +47,21 @@ public interface TranslationAware {
      * <p>{@code Query childQuery = child.asQuery(handler);}</p>
      */
     Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
+
+    /**
+     * Translates the implementing expression into a Lucene {@link Automaton}.
+     */
+    default Automaton asLuceneQuery() {
+        throw new UnsupportedOperationException("asLuceneQuery is not implemented for " + getClass().getName());
+    };
+
+    /**
+     * Returns a description of the Lucene query that this expression translates to.
+     * This is used for debugging and logging purposes.
+     */
+    default String getLuceneQueryDescription() {
+        throw new UnsupportedOperationException("getLuceneQueryDescription is not implemented for " + getClass().getName());
+    };
 
     /**
      * Subinterface for expressions that can only process single values (and null out on MVs).

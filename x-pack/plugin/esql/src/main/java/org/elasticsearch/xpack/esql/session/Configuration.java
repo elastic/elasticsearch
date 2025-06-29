@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -307,6 +311,16 @@ public class Configuration implements Writeable {
             + "allow_partial_result="
             + allowPartialResults
             + '}';
+    }
+
+    /**
+     * This method is not very efficient because it creates a new BlockStreamInput
+     * Please use the constructor that takes a BlockStreamInput instead if you already have a BlockStreamInput
+     */
+    public static Configuration readFrom(StreamInput in) throws IOException {
+        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, blockFactory);
+        return new Configuration(blockStreamInput);
     }
 
 }

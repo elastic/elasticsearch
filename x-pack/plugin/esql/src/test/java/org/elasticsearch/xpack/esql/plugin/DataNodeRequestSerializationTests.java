@@ -302,7 +302,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {

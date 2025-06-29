@@ -959,9 +959,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                 continue;
             }
-            signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
+            List<DataType> types = tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList();
+            signatures.putIfAbsent(signatureTypes(testClass, types), tc.expectedType());
         }
         return signatures;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<DataType> signatureTypes(Class<?> testClass, List<DataType> types) {
+        try {
+            Method method = testClass.getMethod("signatureTypes", List.class);
+            return (List<DataType>) method.invoke(null, types);
+        } catch (NoSuchMethodException ingored) {
+            return types;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     @AfterClass

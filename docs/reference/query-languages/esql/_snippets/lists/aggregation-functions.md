@@ -16,3 +16,6 @@
 * [`TOP`](../../functions-operators/aggregation-functions.md#esql-top)
 * [preview] [`VALUES`](../../functions-operators/aggregation-functions.md#esql-values)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions.md#esql-weighted_avg)
+* [unavailable] [`FIRST_OVER_TIME`](../../functions-operators/aggregation-functions.md#esql-first_over_time)
+* [unavailable] [`LAST_OVER_TIME`](../../functions-operators/aggregation-functions.md#esql-last_over_time)
+* [unavailable] [`RATE`](../../functions-operators/aggregation-functions.md#esql-rate)

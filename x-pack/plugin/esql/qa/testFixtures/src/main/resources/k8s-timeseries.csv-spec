@@ -260,13 +260,19 @@ avg_cost:double    | cluster:keyword | time_bucket:datetime
 max_of_last_over_time
 required_capability: metrics_command
 required_capability: last_over_time
-TS k8s | STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::last_over_time[]
+TS k8s 
+| STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) 
+// end::last_over_time[]
+| SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::last_over_time-result[]
 max_cost:double | cluster:keyword | time_bucket:datetime    
 12.5            | staging         | 2024-05-10T00:09:00.000Z
 12.375          | prod            | 2024-05-10T00:17:00.000Z
 12.375          | qa              | 2024-05-10T00:06:00.000Z
 12.375          | qa              | 2024-05-10T00:01:00.000Z
+// end::last_over_time-result[]
 12.25           | prod            | 2024-05-10T00:19:00.000Z
 12.125          | qa              | 2024-05-10T00:17:00.000Z
 12.125          | prod            | 2024-05-10T00:00:00.000Z
@@ -278,12 +284,18 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 max_of_first_over_time
 required_capability: metrics_command
 required_capability: first_over_time
-TS k8s | STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
+// tag::first_over_time[]
+TS k8s
+| STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+// end::first_over_time[]
+| SORT max_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
+// tag::first_over_time-result[]
 max_cost:double | cluster:keyword | time_bucket:datetime    
 12.375          | prod            | 2024-05-10T00:17:00.000Z
 12.375          | qa              | 2024-05-10T00:01:00.000Z
 12.25           | prod            | 2024-05-10T00:19:00.000Z
+// end::first_over_time-result[]
 12.125          | qa              | 2024-05-10T00:07:00.000Z
 12.125          | staging         | 2024-05-10T00:03:00.000Z
 11.875          | prod            | 2024-05-10T00:15:00.000Z

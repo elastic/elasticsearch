@@ -66,3 +66,8 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::{include} ../_snippets/functions/layout/weighted_avg.md
 :::
 
+:::{include} ../_snippets/functions/layout/first_over_time.md
+:::
+
+:::{include} ../_snippets/functions/layout/last_over_time.md
+:::

@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -32,6 +34,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
@@ -43,16 +46,19 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     private final Expression timestamp;
 
+    // TODO: support all types
     @FunctionInfo(
-        returnType = { "int", "double", "integer", "long" },
-        description = "Collect the most recent value of a time-series in the specified interval. Available with TS command only",
-        type = FunctionType.AGGREGATE
+        returnType = { "long", "integer", "double" },
+        description = "The latest value of a field, where recency determined by the `@timestamp` field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
-    public LastOverTime(
-        Source source,
-        @Param(name = "field", type = { "long|int|double|float" }, description = "field") Expression field,
-        Expression timestamp
-    ) {
+    LastOverTime(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    }
+
+    public LastOverTime(Source source, Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 
@@ -78,10 +84,6 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    public static LastOverTime withUnresolvedTimestamp(Source source, Expression field) {
-        return new LastOverTime(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
     @Override
@@ -110,7 +112,16 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long");
+        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long")
+            .and(
+                isType(
+                    timestamp,
+                    dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                    sourceText(),
+                    SECOND,
+                    "date_nanos or datetime"
+                )
+            );
     }
 
     @Override

@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -43,16 +45,19 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     private final Expression timestamp;
 
+    // TODO: support all types
     @FunctionInfo(
-        returnType = { "int", "double", "integer", "long" },
-        description = "Collect the first occurrence value of a time-series in the specified interval. Available with TS command only",
-        type = FunctionType.AGGREGATE
+        returnType = { "long", "integer", "double" },
+        description = "The earliest value of a field, where recency determined by the `@timestamp` field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "first_over_time") }
     )
-    public FirstOverTime(
-        Source source,
-        @Param(name = "field", type = { "long|int|double|float" }, description = "field") Expression field,
-        Expression timestamp
-    ) {
+    public FirstOverTime(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    }
+
+    FirstOverTime(Source source, Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 
@@ -78,10 +83,6 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    public static FirstOverTime withUnresolvedTimestamp(Source source, Expression field) {
-        return new FirstOverTime(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
     @Override

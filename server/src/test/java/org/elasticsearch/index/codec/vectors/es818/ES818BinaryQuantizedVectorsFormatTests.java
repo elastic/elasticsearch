@@ -243,7 +243,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     assertEquals(centroid.length, dims);
 
                     OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
-                    byte[] quantizedVector = new byte[dims];
+                    int[] quantizedVector = new int[dims];
                     byte[] expectedVector = new byte[BQVectorUtils.discretize(dims, 64) / 8];
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {
                         vectorValues = new ES818BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);

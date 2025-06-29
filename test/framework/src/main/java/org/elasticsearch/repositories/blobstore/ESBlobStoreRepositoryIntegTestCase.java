@@ -230,8 +230,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertEquals(container.listBlobs(randomPurpose()).size(), 2);
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator());
             assertTrue(container.listBlobs(randomPurpose()).isEmpty());
-            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator()); // does not raise when blobs
-            // don't exist
+            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator()); // does not raise when blobs don't exist
         }
     }
 

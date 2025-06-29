@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -209,12 +211,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
                     .toList()
             );
         }
-        // start force merging (which is blocking) on a separate thread
-        Thread forceMergeThread = new Thread(
-            // the max segments argument makes it a blocking call
-            () -> assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get())
-        );
-        forceMergeThread.start();
+        // the max segments argument makes it a blocking call
+        ActionFuture<BroadcastResponse> forceMergeFuture = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
         assertBusy(() -> {
             // merge executor says merging is blocked due to insufficient disk space while there is a single merge task enqueued
             assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), equalTo(1));
@@ -236,7 +234,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             assertThat(currentMergeCount, equalTo(0L));
         });
         // the force merge call is still blocked
-        assertTrue(forceMergeThread.isAlive());
+        assertFalse(forceMergeFuture.isCancelled());
+        assertFalse(forceMergeFuture.isDone());
         // merge executor still confirms merging is blocked due to insufficient disk space
         assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
         // make disk space available in order to unblock the merge
@@ -247,35 +246,24 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
                 Settings.builder().put(ThreadPoolMergeExecutorService.INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING.getKey(), "0b")
             );
         }
-        // assert that all the merges are now done and that the force-merge call returns
-        assertBusy(() -> {
-            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(indexName).setMerge(true).get();
-            long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();
-            // NO merging is in progress
-            assertThat(currentMergeCount, equalTo(0L));
-            long totalMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getTotal();
-            assertThat(totalMergeCount, greaterThan(0L));
-            // force merge call returned
-            assertFalse(forceMergeThread.isAlive());
-            // telemetry also says that some merging took place
-            testTelemetryPlugin.collect();
-            assertThat(testTelemetryPlugin.getLongCounterMeasurement(MergeMetrics.MERGE_DOCS_TOTAL).getLast().getLong(), greaterThan(0L));
-            // and no further merging
-            assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
-                equalTo(0L)
-            );
-            assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
-                equalTo(0L)
-            );
-        });
+        // wait for the merge call to return
+        safeGet(forceMergeFuture);
+        IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(indexName).setMerge(true).get();
+        testTelemetryPlugin.collect();
+        // assert index stats and telemetry report no merging in progress (after force merge returned)
+        long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();
+        assertThat(currentMergeCount, equalTo(0L));
+        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(), equalTo(0L));
+        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(), equalTo(0L));
+        // but some merging took place (there might have been other merges automatically triggered before the force merge call)
+        long totalMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getTotal();
+        assertThat(totalMergeCount, greaterThan(0L));
+        assertThat(testTelemetryPlugin.getLongCounterMeasurement(MergeMetrics.MERGE_DOCS_TOTAL).getLast().getLong(), greaterThan(0L));
         // assert there's a single segment after the force merge
         List<ShardSegments> shardSegments = getShardSegments(indexName);
         assertThat(shardSegments.size(), equalTo(1));
         assertThat(shardSegments.get(0).getSegments().size(), equalTo(1));
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
-        forceMergeThread.join();
     }
 
     public void setTotalSpace(String dataNodeName, long totalSpace) {

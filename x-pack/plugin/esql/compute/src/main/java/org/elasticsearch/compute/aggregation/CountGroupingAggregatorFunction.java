@@ -112,7 +112,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private void addRawInput(int positionOffset, IntVector groups, Block values) {
         int position = positionOffset;
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++, position++) {
-            int groupId = Math.toIntExact(groups.getInt(groupPosition));
+            int groupId = groups.getInt(groupPosition);
             if (values.isNull(position)) {
                 continue;
             }
@@ -129,7 +129,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
+                int groupId = groups.getInt(g);
                 if (values.isNull(position)) {
                     continue;
                 }
@@ -147,7 +147,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
+                int groupId = groups.getInt(g);
                 if (values.isNull(position)) {
                     continue;
                 }
@@ -161,7 +161,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
      */
     private void addRawInput(IntVector groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            int groupId = Math.toIntExact(groups.getInt(groupPosition));
+            int groupId = groups.getInt(groupPosition);
             state.increment(groupId, 1);
         }
     }
@@ -177,7 +177,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
+                int groupId = groups.getInt(g);
                 state.increment(groupId, 1);
             }
         }
@@ -194,7 +194,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                int groupId = Math.toIntExact(groups.getInt(g));
+                int groupId = groups.getInt(g);
                 state.increment(groupId, 1);
             }
         }
@@ -206,6 +206,48 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
+        state.enableGroupIdTracking(new SeenGroupIds.Empty());
+        LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == seen.getPositionCount();
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            if (groups.isNull(groupPosition)) {
+                continue;
+            }
+            int groupStart = groups.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = groups.getInt(g);
+                state.increment(groupId, count.getLong(groupPosition + positionOffset));
+            }
+        }
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
+        state.enableGroupIdTracking(new SeenGroupIds.Empty());
+        LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == seen.getPositionCount();
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            if (groups.isNull(groupPosition)) {
+                continue;
+            }
+            int groupStart = groups.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = groups.getInt(g);
+                state.increment(groupId, count.getLong(groupPosition + positionOffset));
+            }
+        }
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
@@ -214,7 +256,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            state.increment(Math.toIntExact(groups.getInt(groupPosition)), count.getLong(groupPosition + positionOffset));
+            state.increment(groups.getInt(groupPosition), count.getLong(groupPosition + positionOffset));
         }
     }
 

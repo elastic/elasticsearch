@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -147,6 +148,23 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
+        );
+        return concreteIndexNames(context, request.indices());
+    }
+
+    public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request, Consumer<String> onResolutionFailure) {
+        Context context = new Context(
+            project,
+            request.indicesOptions(),
+            System.currentTimeMillis(),
+            false,
+            false,
+            request.includeDataStreams(),
+            false,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate(),
+            onResolutionFailure
         );
         return concreteIndexNames(context, request.indices());
     }
@@ -445,7 +463,10 @@ public class IndexNameExpressionResolver {
                     resources.remove(new ResolvedExpression(baseExpression, selector));
                 } else if (ensureAliasOrIndexExists(context, baseExpression, selector)) {
                     resources.add(new ResolvedExpression(baseExpression, selector));
-                }
+                } else if (context.getOptions().concreteTargetOptions().reportFailuresToResolve()
+                    && context.onResolutionFailure() != null) {
+                        context.onResolutionFailure().accept(baseExpression);
+                    }
             }
         }
         return resources;
@@ -587,7 +608,8 @@ public class IndexNameExpressionResolver {
             false,
             getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate()
+            getNetNewSystemIndexPredicate(),
+            null
         );
         return concreteIndices(context, request.indices());
     }
@@ -1537,6 +1559,7 @@ public class IndexNameExpressionResolver {
         private final SystemIndexAccessLevel systemIndexAccessLevel;
         private final Predicate<String> systemIndexAccessPredicate;
         private final Predicate<String> netNewSystemIndexPredicate;
+        private final Consumer<String> onResolutionFailure;
 
         Context(ProjectMetadata project, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
             this(project, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
@@ -1579,7 +1602,8 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                null
             );
         }
 
@@ -1604,7 +1628,8 @@ public class IndexNameExpressionResolver {
                 preserveDataStreams,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                null
             );
         }
 
@@ -1626,7 +1651,8 @@ public class IndexNameExpressionResolver {
                 false,
                 systemIndexAccessLevel,
                 systemIndexAccessPredicate,
-                netNewSystemIndexPredicate
+                netNewSystemIndexPredicate,
+                null
             );
         }
 
@@ -1640,7 +1666,8 @@ public class IndexNameExpressionResolver {
             boolean preserveDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
             Predicate<String> systemIndexAccessPredicate,
-            Predicate<String> netNewSystemIndexPredicate
+            Predicate<String> netNewSystemIndexPredicate,
+            Consumer<String> onResolutionFailure
         ) {
             this.project = project;
             this.options = options;
@@ -1652,6 +1679,7 @@ public class IndexNameExpressionResolver {
             this.systemIndexAccessLevel = systemIndexAccessLevel;
             this.systemIndexAccessPredicate = systemIndexAccessPredicate;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
+            this.onResolutionFailure = onResolutionFailure;
         }
 
         public ProjectMetadata getProject() {
@@ -1696,6 +1724,10 @@ public class IndexNameExpressionResolver {
          */
         public Predicate<String> getSystemIndexAccessPredicate() {
             return systemIndexAccessPredicate;
+        }
+
+        public Consumer<String> onResolutionFailure() {
+            return onResolutionFailure;
         }
     }
 

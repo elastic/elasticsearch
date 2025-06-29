@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -157,13 +158,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
+        final FailureCollector indexFailures = new FailureCollector();
+        final String[] concreteIndices = localIndices == null
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
-        } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
-        }
+            ? Strings.EMPTY_ARRAY
+            : indexNameExpressionResolver.concreteIndexNames(
+                projectState.metadata(),
+                localIndices,
+                expr -> indexFailures.collect(expr, new IndexNotFoundException(expr))
+            );
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
             listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
@@ -171,7 +174,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         checkIndexBlocks(projectState, concreteIndices);
-        final FailureCollector indexFailures = new FailureCollector();
+
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = new HashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = new HashMap<>();

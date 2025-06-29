@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.Map;
 import java.util.Objects;
@@ -27,25 +28,27 @@ public final class IndexResolution {
         EsIndex index,
         Set<String> resolvedIndices,
         Set<NoShardAvailableActionException> unavailableShards,
+        Set<IndexNotFoundException> unavailableIndices,
         Map<String, FieldCapabilitiesFailure> unavailableClusters
     ) {
         Objects.requireNonNull(index, "index must not be null if it was found");
         Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
         Objects.requireNonNull(unavailableShards, "unavailableShards must not be null");
+        Objects.requireNonNull(unavailableIndices, "unavailableIndices must not be null");
         Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
-        return new IndexResolution(index, null, resolvedIndices, unavailableShards, unavailableClusters);
+        return new IndexResolution(index, null, resolvedIndices, unavailableShards, unavailableIndices, unavailableClusters);
     }
 
     /**
      * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
      */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, index.concreteIndices(), Set.of(), Map.of());
+        return valid(index, index.concreteIndices(), Set.of(), Set.of(), Map.of());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Set.of(), Set.of(), Map.of());
+        return new IndexResolution(null, invalid, Set.of(), Set.of(), Set.of(), Map.of());
     }
 
     public static IndexResolution notFound(String name) {
@@ -60,6 +63,7 @@ public final class IndexResolution {
     // all indices found by field-caps
     private final Set<String> resolvedIndices;
     private final Set<NoShardAvailableActionException> unavailableShards;
+    private final Set<IndexNotFoundException> unavailableIndices;
     // remote clusters included in the user's index expression that could not be connected to
     private final Map<String, FieldCapabilitiesFailure> unavailableClusters;
 
@@ -68,12 +72,14 @@ public final class IndexResolution {
         @Nullable String invalid,
         Set<String> resolvedIndices,
         Set<NoShardAvailableActionException> unavailableShards,
+        Set<IndexNotFoundException> unavailableIndices,
         Map<String, FieldCapabilitiesFailure> unavailableClusters
     ) {
         this.index = index;
         this.invalid = invalid;
         this.resolvedIndices = resolvedIndices;
         this.unavailableShards = unavailableShards;
+        this.unavailableIndices = unavailableIndices;
         this.unavailableClusters = unavailableClusters;
     }
 
@@ -120,6 +126,13 @@ public final class IndexResolution {
      */
     public Set<NoShardAvailableActionException> getUnavailableShards() {
         return unavailableShards;
+    }
+
+    /**
+     * @return set of unavailable indices during index resolution
+     */
+    public Set<IndexNotFoundException> getUnavailableIndices() {
+        return unavailableIndices;
     }
 
     @Override

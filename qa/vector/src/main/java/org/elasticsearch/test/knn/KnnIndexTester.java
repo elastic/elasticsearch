@@ -202,7 +202,7 @@ public class KnnIndexTester {
             }
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
-                knnSearcher.runSearch(result);
+                knnSearcher.runSearch(result, cmdLineArgs.earlyTermination());
             }
             formattedResults.results.add(result);
         }

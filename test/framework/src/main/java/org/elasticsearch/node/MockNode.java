@@ -167,8 +167,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer
+            Tracer tracer,
+            String initialNodeId
         ) {
+
             // we use the MockTransportService.TestPlugin class as a marker to create a network
             // module with this MockNetworkService. NetworkService is such an integral part of the systme
             // we don't allow to plug it in from plugins or anything. this is a test-only override and
@@ -183,7 +185,8 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer
+                    tracer,
+                    initialNodeId
                 );
             } else {
                 return new MockTransportService(
@@ -193,7 +196,8 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders()
+                    taskManager.getTaskHeaders(),
+                    initialNodeId
                 );
             }
         }

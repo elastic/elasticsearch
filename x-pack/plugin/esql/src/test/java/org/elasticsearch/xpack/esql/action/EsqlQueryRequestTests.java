@@ -611,7 +611,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
         String localNode = randomAlphaOfLength(2);
-        Task task = request.createTask(localNode, id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
         TaskInfo taskInfo = task.taskInfo(localNode, true);

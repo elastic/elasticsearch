@@ -92,6 +92,8 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
             transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null,
+            null,
             null
         );
     }

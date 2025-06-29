@@ -92,7 +92,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 .version(nodeVersion)
                 .build(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            nodeNameAndId
         );
         transportService.start();
         transportService.acceptIncomingRequests();

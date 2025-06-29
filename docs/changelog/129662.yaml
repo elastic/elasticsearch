@@ -1,0 +1,6 @@
+pr: 129662
+summary: "[Security] Add entity store and asset criticality index privileges to built\
+  \ in Editor and Viewer roles"
+area: Authorization
+type: enhancement
+issues: []

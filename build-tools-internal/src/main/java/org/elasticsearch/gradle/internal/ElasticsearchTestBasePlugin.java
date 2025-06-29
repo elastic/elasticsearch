@@ -24,6 +24,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -173,6 +174,16 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if (mainSourceSet != null && testSourceSet != null) {
+                FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
+                FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
+                test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));
+            }
+
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());
 
@@ -205,27 +216,27 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             /*
-             *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
+             *  If this project builds a shadow JAR then any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
             project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-                    FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
                     Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-                    FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                    FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                    FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });
         });
-        configureImmutableCollectionsPatch(project);
+        configureJavaBasePatch(project);
+        configureEntitlements(project);
     }
 
-    private void configureImmutableCollectionsPatch(Project project) {
+    private void configureJavaBasePatch(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
             return; // build tests may not have this project, just skip
@@ -235,16 +246,74 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             .create(configurationName, config -> config.setCanBeConsumed(false));
         var deps = project.getDependencies();
         deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+
+        // If ElasticsearchJavaBasePlugin has specified a dependency on the entitlement bridge jar,
+        // then it needs to be added to the --patch-module=java.base command line option.
+        ConfigurationContainer configurations = project.getConfigurations();
+
         project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
             test.getInputs().files(patchedFileCollection);
             test.systemProperty("tests.hackImmutableCollections", "true");
+
+            Configuration bridgeJarConfig = configurations.findByName("entitlementBridgeJar");
+            String bridgeJarPart;
+            if (bridgeJarConfig == null) {
+                bridgeJarPart = "";
+            } else {
+                test.getInputs().files(bridgeJarConfig);
+                bridgeJarPart = File.pathSeparator + bridgeJarConfig.getSingleFile().getAbsolutePath();
+            }
+
             test.getJvmArgumentProviders()
                 .add(
                     () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base" + bridgeJarPart,
                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                     )
                 );
         });
     }
+
+    private static void configureEntitlements(Project project) {
+        Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
+        Project agent = project.findProject(":libs:entitlement:agent");
+        if (agent != null) {
+            agentJarConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent"))); }
+            );
+        }
+        FileCollection agentFiles = agentJarConfig;
+
+        Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
+        Project bridge = project.findProject(":libs:entitlement:bridge");
+        if (bridge != null) {
+            bridgeJarConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
+            );
+        }
+        FileCollection bridgeFiles = bridgeJarConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+
+            // Agent
+            if (agentFiles.isEmpty() == false) {
+                test.getInputs().files(agentFiles);
+                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                test.systemProperty("jdk.attach.allowAttachSelf", true);
+            }
+
+            // Bridge
+            if (bridgeFiles.isEmpty() == false) {
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                test.getInputs().files(bridgeFiles);
+                // Tests may not be modular, but the JDK still is
+                test.jvmArgs(
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
+                );
+            }
+        });
+    }
+
 }

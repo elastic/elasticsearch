@@ -184,7 +184,7 @@ public class ReleaseNotesGeneratorTest {
     }
 
     private String getResource(String name) throws Exception {
-        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8);
+        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8).replace("\r", "");
     }
 
     private void writeResource(String name, String contents) throws Exception {

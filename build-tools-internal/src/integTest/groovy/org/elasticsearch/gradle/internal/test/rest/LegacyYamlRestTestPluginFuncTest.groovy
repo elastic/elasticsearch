@@ -21,7 +21,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def setup() {
-        configurationCacheCompatible = true
+        configurationCacheCompatible = false // This is interfering with the entitlements logic in ElasticsearchTestBasePlugin
         buildApiRestrictionsDisabled = true
     }
 

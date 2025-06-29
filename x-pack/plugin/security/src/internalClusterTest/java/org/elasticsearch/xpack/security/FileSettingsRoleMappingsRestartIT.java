@@ -112,7 +112,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
-        final String masterNode = internalCluster().getMasterName();
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        awaitMasterNode();
         var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
 
         awaitFileSettingsWatcher();
@@ -192,7 +193,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     public void testFileSettingsReprocessedOnRestartWithoutVersionChange() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
-        final String masterNode = internalCluster().getMasterName();
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        awaitMasterNode();
 
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();

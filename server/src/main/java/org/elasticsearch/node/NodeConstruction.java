@@ -116,6 +116,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
@@ -287,9 +288,15 @@ class NodeConstruction {
                 // places they shouldn't. Best to explicitly drop them now to protect against such leakage.
                 settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
             }
+            // serverless deployments plug-in the multi-project resolver factory
+            ProjectResolver projectResolver = constructor.pluginsService.loadSingletonServiceProvider(
+                ProjectResolverFactory.class,
+                () -> ProjectResolverFactory.DEFAULT
+            ).create();
+            constructor.modules.bindToInstance(ProjectResolver.class, projectResolver);
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
-            constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
+            constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule, projectResolver);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
@@ -305,7 +312,8 @@ class NodeConstruction {
                 serviceProvider,
                 forbidPrivateIndexSettings,
                 telemetryProvider,
-                documentParsingProvider
+                documentParsingProvider,
+                projectResolver
             );
 
             return constructor;
@@ -562,8 +570,13 @@ class NodeConstruction {
     /**
      * Create various objects that are stored as member variables. This is so they are accessible as soon as possible.
      */
-    private void createClientAndRegistries(Settings settings, ThreadPool threadPool, SearchModule searchModule) {
-        client = new NodeClient(settings, threadPool);
+    private void createClientAndRegistries(
+        Settings settings,
+        ThreadPool threadPool,
+        SearchModule searchModule,
+        ProjectResolver projectResolver
+    ) {
+        client = new NodeClient(settings, threadPool, projectResolver);
         modules.add(b -> {
             b.bind(Client.class).toInstance(client);
             b.bind(NodeClient.class).toInstance(client);
@@ -664,7 +677,8 @@ class NodeConstruction {
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings,
         TelemetryProvider telemetryProvider,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        ProjectResolver projectResolver
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
@@ -681,12 +695,6 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        // serverless deployments plug-in the multi-project resolver factory
-        ProjectResolver projectResolver = pluginsService.loadSingletonServiceProvider(
-            ProjectResolverFactory.class,
-            () -> ProjectResolverFactory.DEFAULT
-        ).create();
-        modules.bindToInstance(ProjectResolver.class, projectResolver);
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
@@ -799,6 +807,9 @@ class NodeConstruction {
             threadPool::relativeTimeInMillis
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+
+        MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
+
         final List<SearchOperationListener> searchOperationListeners = List.of(
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
@@ -887,6 +898,7 @@ class NodeConstruction {
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
+            .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .slowLogFieldProvider(slowLogFieldProvider)
             .build();
@@ -990,7 +1002,11 @@ class NodeConstruction {
             .map(TerminationHandlerProvider::handler);
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
+            client,
+            indexingLimits,
+            telemetryProvider.getMeterRegistry()
+        );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
@@ -1173,7 +1189,7 @@ class NodeConstruction {
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
             () -> OnlinePrewarmingServiceProvider.DEFAULT
-        ).create(clusterService.getSettings(), threadPool, clusterService);
+        ).create(clusterService.getSettings(), threadPool, clusterService, telemetryProvider);
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
             clusterService,
@@ -1279,6 +1295,7 @@ class NodeConstruction {
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
+            b.bind(MergeMetrics.class).toInstance(mergeMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

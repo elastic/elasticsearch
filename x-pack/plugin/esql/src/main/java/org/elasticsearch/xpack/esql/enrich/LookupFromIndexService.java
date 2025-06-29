@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +56,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportService transportService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ProjectResolver projectResolver
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -67,7 +69,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             bigArrays,
             blockFactory,
             false,
-            TransportRequest::readFrom
+            TransportRequest::readFrom,
+            projectResolver
         );
     }
 
@@ -153,7 +156,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
@@ -198,10 +202,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
-                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN []", indexPattern);
+                throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
 
             out.writeString(inputDataType.typeName());

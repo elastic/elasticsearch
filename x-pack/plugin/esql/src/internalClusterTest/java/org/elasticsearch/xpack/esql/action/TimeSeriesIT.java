@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         assumeTrue("time series available in snapshot builds only", Build.current().isSnapshot());
         return super.run(request);
     }

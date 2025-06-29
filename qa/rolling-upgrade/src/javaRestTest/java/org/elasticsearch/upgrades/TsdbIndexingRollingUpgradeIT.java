@@ -12,25 +12,30 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.createTemplate;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.startTrial;
 import static org.elasticsearch.upgrades.TsdbIT.TEMPLATE;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
+public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """
@@ -194,4 +199,51 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
         assertThat(maxTx, notNullValue());
     }
 
+    protected static void startTrial() throws IOException {
+        Request startTrial = new Request("POST", "/_license/start_trial");
+        startTrial.addParameter("acknowledge", "true");
+        try {
+            assertOK(client().performRequest(startTrial));
+        } catch (ResponseException e) {
+            var responseBody = entityAsMap(e.getResponse());
+            String error = ObjectPath.evaluate(responseBody, "error_message");
+            assertThat(error, containsString("Trial was already activated."));
+        }
+    }
+
+    static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings");
+        request.addParameter("flat_settings", "true");
+        request.addParameter("include_defaults", "true");
+        Response response = client().performRequest(request);
+        try (InputStream is = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(
+                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
+                is,
+                true
+            );
+        }
+    }
+
+    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
+        final String INDEX_TEMPLATE = """
+            {
+                "index_patterns": ["$DATASTREAM"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
+    }
+
+    @SuppressWarnings("unchecked")
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+        final Request request = new Request("GET", "_data_stream/" + dataStreamName);
+        final List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
+        final Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+        final List<Map<String, String>> backingIndices = (List<Map<String, String>>) dataStream.get("indices");
+        return backingIndices.get(backingIndex).get("index_name");
+    }
 }

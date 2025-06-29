@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
+import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RerankParameters;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,10 +59,13 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
+        var model = CustomModelTests.getTestModel(
+            TaskType.TEXT_EMBEDDING,
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding")
+        );
         var request = new CustomRequest(
-            null,
-            List.of("abc"),
-            CustomModelTests.getTestModel(TaskType.TEXT_EMBEDDING, new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"))
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null, null), model.getServiceSettings().getInputTypeTranslator()),
+            model
         );
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,
@@ -98,16 +107,17 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = new CustomRequest(
-            null,
-            List.of("abc"),
-            CustomModelTests.getTestModel(
-                TaskType.SPARSE_EMBEDDING,
-                new SparseEmbeddingResponseParser(
-                    "$.result.sparse_embeddings[*].embedding[*].tokenId",
-                    "$.result.sparse_embeddings[*].embedding[*].weight"
-                )
+        var model = CustomModelTests.getTestModel(
+            TaskType.SPARSE_EMBEDDING,
+            new SparseEmbeddingResponseParser(
+                "$.result.sparse_embeddings[*].embedding[*].tokenId",
+                "$.result.sparse_embeddings[*].embedding[*].weight"
             )
+        );
+        var request = new CustomRequest(
+            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null, null), model.getServiceSettings().getInputTypeTranslator()),
+            model
+
         );
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
@@ -152,14 +162,11 @@ public class CustomResponseEntityTests extends ESTestCase {
             }
             """;
 
-        var request = new CustomRequest(
-            null,
-            List.of("abc"),
-            CustomModelTests.getTestModel(
-                TaskType.RERANK,
-                new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null)
-            )
+        var model = CustomModelTests.getTestModel(
+            TaskType.RERANK,
+            new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null)
         );
+        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query", List.of("doc1", "doc2"))), model);
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,
@@ -193,8 +200,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             """;
 
         var request = new CustomRequest(
-            null,
-            List.of("abc"),
+            CompletionParameters.of(new ChatCompletionInput(List.of("abc"))),
             CustomModelTests.getTestModel(TaskType.COMPLETION, new CompletionResponseParser("$.result.text"))
         );
 

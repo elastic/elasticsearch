@@ -34,6 +34,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -147,12 +148,12 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         );
 
         doAnswer(invocation -> {
-            var request = (PutRepositoryRequest) invocation.getArguments()[0];
+            var request = (PutRepositoryRequest) invocation.getArguments()[1];
             if (request.type().equals("inter_planetary")) {
                 throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepositoryCanBeCreated(any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(eq(ProjectId.DEFAULT), any());
 
         return repositoriesService;
     }

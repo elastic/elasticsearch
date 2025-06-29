@@ -263,6 +263,12 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
     A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
 
+`normalizer`
+:   (Optional, String)
+
+    Applies the same score normalizer to every sub-retriever.
+    Allowed values: `none` (default), `minmax`, `l2_norm`.
+
 
 Each entry specifies the following parameters:
 
@@ -289,6 +295,12 @@ Each entry specifies the following parameters:
         ```
 
     * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
+
+::::{note}
+Since 9.0 the `normalizer` field must be provided at the top level of the
+`linear` retriever.  Per-retriever `normalizer` parameters are no longer
+accepted and will return HTTP 400.
+::::
 
 See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 

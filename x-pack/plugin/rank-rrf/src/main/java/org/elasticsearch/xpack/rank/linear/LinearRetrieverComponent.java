@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.linear;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,9 +25,9 @@ public class LinearRetrieverComponent implements ToXContentObject {
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
     public static final ParseField NORMALIZER_FIELD = new ParseField("normalizer");
+    public static final ScoreNormalizer DEFAULT_NORMALIZER = IdentityScoreNormalizer.INSTANCE;
 
     static final float DEFAULT_WEIGHT = 1f;
-    static final ScoreNormalizer DEFAULT_NORMALIZER = IdentityScoreNormalizer.INSTANCE;
 
     RetrieverBuilder retriever;
     float weight;
@@ -38,17 +37,23 @@ public class LinearRetrieverComponent implements ToXContentObject {
         assert retrieverBuilder != null;
         this.retriever = retrieverBuilder;
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
-        this.normalizer = normalizer == null ? DEFAULT_NORMALIZER : normalizer;
         if (this.weight < 0) {
             throw new IllegalArgumentException("[weight] must be non-negative");
         }
+        this.normalizer = normalizer;
+    }
+
+    public LinearRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight) {
+        this(retrieverBuilder, weight, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), retriever);
         builder.field(WEIGHT_FIELD.getPreferredName(), weight);
-        builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
+        if (normalizer != null) {
+            builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
+        }
         return builder;
     }
 
@@ -59,7 +64,8 @@ public class LinearRetrieverComponent implements ToXContentObject {
         args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
             Float weight = (Float) args[1];
-            ScoreNormalizer normalizer = (ScoreNormalizer) args[2];
+            String normalizerStr = (String) args[2];
+            ScoreNormalizer normalizer = normalizerStr == null ? null : ScoreNormalizer.valueOf(normalizerStr);
             return new LinearRetrieverComponent(retrieverBuilder, weight, normalizer);
         }
     );
@@ -71,12 +77,7 @@ public class LinearRetrieverComponent implements ToXContentObject {
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ScoreNormalizer.valueOf(p.text()),
-            NORMALIZER_FIELD,
-            ObjectParser.ValueType.STRING
-        );
+        PARSER.declareString(optionalConstructorArg(), NORMALIZER_FIELD);
     }
 
     public static LinearRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

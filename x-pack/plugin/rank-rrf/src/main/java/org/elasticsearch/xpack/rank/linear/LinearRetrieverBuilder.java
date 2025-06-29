@@ -73,6 +73,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private final List<String> fields;
     private final String query;
     private final ScoreNormalizer normalizer;
+    private final boolean explicitNormalizer;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<LinearRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
@@ -82,20 +83,34 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             List<LinearRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<LinearRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];
             String query = (String) args[2];
-            ScoreNormalizer normalizer = args[3] == null ? null : ScoreNormalizer.valueOf((String) args[3]);
+            String normalizerStr = (String) args[3];
+            boolean explicitNormalizer = normalizerStr != null;
+            ScoreNormalizer normalizer = normalizerStr == null ? IdentityScoreNormalizer.INSTANCE : ScoreNormalizer.valueOf(normalizerStr);
             int rankWindowSize = args[4] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
 
             int index = 0;
             float[] weights = new float[retrieverComponents.size()];
             ScoreNormalizer[] normalizers = new ScoreNormalizer[retrieverComponents.size()];
+            Arrays.fill(normalizers, normalizer);
             List<RetrieverSource> innerRetrievers = new ArrayList<>();
             for (LinearRetrieverComponent component : retrieverComponents) {
                 innerRetrievers.add(RetrieverSource.from(component.retriever));
                 weights[index] = component.weight;
-                normalizers[index] = component.normalizer;
+                if (component.normalizer != null) {
+                    normalizers[index] = component.normalizer;
+                }
                 index++;
             }
-            return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
+            return new LinearRetrieverBuilder(
+                innerRetrievers,
+                fields,
+                query,
+                normalizer,
+                rankWindowSize,
+                weights,
+                normalizers,
+                explicitNormalizer
+            );
         }
     );
 
@@ -133,7 +148,16 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     LinearRetrieverBuilder(List<RetrieverSource> innerRetrievers, int rankWindowSize) {
-        this(innerRetrievers, null, null, null, rankWindowSize, getDefaultWeight(innerRetrievers), getDefaultNormalizers(innerRetrievers));
+        this(
+            innerRetrievers,
+            null,
+            null,
+            null,
+            rankWindowSize,
+            getDefaultWeight(innerRetrievers),
+            getDefaultNormalizers(innerRetrievers),
+            false
+        );
     }
 
     public LinearRetrieverBuilder(
@@ -142,7 +166,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         float[] weights,
         ScoreNormalizer[] normalizers
     ) {
-        this(innerRetrievers, null, null, null, rankWindowSize, weights, normalizers);
+        this(innerRetrievers, null, null, null, rankWindowSize, weights, normalizers, false);
     }
 
     public LinearRetrieverBuilder(
@@ -153,6 +177,19 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         int rankWindowSize,
         float[] weights,
         ScoreNormalizer[] normalizers
+    ) {
+        this(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers, false);
+    }
+
+    public LinearRetrieverBuilder(
+        List<RetrieverSource> innerRetrievers,
+        List<String> fields,
+        String query,
+        ScoreNormalizer normalizer,
+        int rankWindowSize,
+        float[] weights,
+        ScoreNormalizer[] normalizers,
+        boolean explicitNormalizer
     ) {
         // Use a mutable list for innerRetrievers so that we can use addChild
         super(innerRetrievers == null ? new ArrayList<>() : new ArrayList<>(innerRetrievers), rankWindowSize);
@@ -165,7 +202,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
         this.fields = fields == null ? null : List.copyOf(fields);
         this.query = query;
-        this.normalizer = normalizer;
+        this.normalizer = normalizer == null ? IdentityScoreNormalizer.INSTANCE : normalizer;
+        this.explicitNormalizer = explicitNormalizer;
         this.weights = weights;
         this.normalizers = normalizers;
     }
@@ -180,9 +218,10 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         ScoreNormalizer[] normalizers,
         Float minScore,
         String retrieverName,
-        List<QueryBuilder> preFilterQueryBuilders
+        List<QueryBuilder> preFilterQueryBuilders,
+        boolean explicitNormalizer
     ) {
-        this(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);
+        this(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers, explicitNormalizer);
         this.minScore = minScore;
         if (minScore != null && minScore < 0) {
             throw new IllegalArgumentException("[min_score] must be greater than or equal to 0, was: [" + minScore + "]");
@@ -210,7 +249,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             validationException
         );
 
-        if (query != null && normalizer == null) {
+        if (query != null && explicitNormalizer == false) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
@@ -221,7 +260,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
-        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
+        }
+        if (innerRetrievers.isEmpty() == false && explicitNormalizer) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
@@ -249,7 +289,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             normalizers,
             minScore,
             retrieverName,
-            newPreFilterQueryBuilders
+            newPreFilterQueryBuilders,
+            explicitNormalizer
         );
     }
 
@@ -361,7 +402,16 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
-                rewritten = new LinearRetrieverBuilder(fieldsInnerRetrievers, null, null, normalizer, rankWindowSize, weights, normalizers);
+                rewritten = new LinearRetrieverBuilder(
+                    fieldsInnerRetrievers,
+                    null,
+                    null,
+                    normalizer,
+                    rankWindowSize,
+                    weights,
+                    normalizers,
+                    false
+                );
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             } else {
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
@@ -393,7 +443,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
                 builder.endObject();
                 index++;
             }

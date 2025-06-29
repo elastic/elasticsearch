@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
@@ -373,9 +374,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
                     .subAggregation(groupByExecutableName)
-                    .subAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             )
-            .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
                 // The count values for events are scaled up to the highest sampling frequency.
                 // For example, if the highest sampling frequency is 100, an event with frequency=20 and count=1
@@ -393,10 +392,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 // Calculate a scaled-up total count (scaled up to the highest sampling frequency).
                 long totalCount = 0;
                 for (Terms.Bucket samplingFrequencyBucket : samplingFrequencies.getBuckets()) {
-                    InternalNumericMetricsAggregation.SingleValue count = samplingFrequencyBucket.getAggregations().get("total_count");
+                    final long count = samplingFrequencyBucket.getDocCount();
                     final double samplingFrequency = samplingFrequencyBucket.getKeyAsNumber().doubleValue();
                     final double samplingFactor = maxSamplingFrequency / samplingFrequency;
-                    totalCount += Math.round(count.value() * samplingFactor);
+                    totalCount += Math.round(count * samplingFactor);
                 }
 
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
@@ -429,8 +428,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
                                 Terms stacktraces = hostBucket.getAggregations().get("group_by");
                                 for (Terms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
-                                    Sum count = stacktraceBucket.getAggregations().get("count");
-                                    int finalCount = resampler.adjustSampleCount((int) Math.round(count.value() * samplingFactor));
+                                    long count = stacktraceBucket.getDocCount();
+                                    int finalCount = resampler.adjustSampleCount((int) Math.round(count * samplingFactor));
                                     if (finalCount <= 0) {
                                         continue;
                                     }

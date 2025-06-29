@@ -50,7 +50,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long" },
+            type = { "aggregate_metric_double", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -65,10 +65,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long or counter types"
+            "aggregate_metric_double or numeric except unsigned_long or counter types"
         );
     }
 
@@ -105,9 +105,15 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-
-        return field().foldable()
-            ? new MvAvg(s, field)
-            : new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
+        if (field.foldable()) {
+            return new MvAvg(s, field);
+        }
+        Expression sum = new Sum(s, field, filter()).surrogate() == null
+            ? new Sum(s, field, filter())
+            : new Sum(s, field, filter()).surrogate();
+        Expression count = new Count(s, field, filter()).surrogate() == null
+            ? new Count(s, field, filter())
+            : new Count(s, field, filter()).surrogate();
+        return new Div(s, sum, count, dataType());
     }
 }

@@ -18,6 +18,8 @@ dependencies {
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
 }
 
 addQaCheckDependencies(project)

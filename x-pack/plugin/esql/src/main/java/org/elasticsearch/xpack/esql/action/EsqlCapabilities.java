@@ -1215,7 +1215,12 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * Support for {@code STD_DEV_SAMPLE}, {@code VARIANCE_POPULATION}, and {@code VARIANCE_SAMPLE} aggregations.
+         */
+        STD_DEV_VARIATIONS;
 
         private final boolean enabled;
 

@@ -39,10 +39,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevSample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.VariancePopulation;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceSample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -317,9 +320,12 @@ public class EsqlFunctionRegistry {
                 def(Percentile.class, bi(Percentile::new), "percentile"),
                 def(Sample.class, bi(Sample::new), "sample"),
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
+                def(StdDevSample.class, uni(StdDevSample::new), "std_dev_sample"),
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
+                def(VariancePopulation.class, uni(VariancePopulation::new), "variance_population"),
+                def(VarianceSample.class, uni(VarianceSample::new), "variance_sample"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg") },
             // math
             new FunctionDefinition[] {

@@ -60,7 +60,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
                 var value = ((Number) fieldValue).doubleValue();
                 welfordAlgorithm.add(value);
             }
-            var result = welfordAlgorithm.evaluate();
+            var result = welfordAlgorithm.evaluatePopulation();
             var expected = Double.isInfinite(result) ? null : result;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

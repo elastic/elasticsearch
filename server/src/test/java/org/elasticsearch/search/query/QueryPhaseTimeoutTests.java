@@ -45,6 +45,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -454,6 +455,59 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         };
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         return context;
+    }
+
+    /**
+     * Verifies that the timeout callback registered by {@link QueryPhase}
+     * is always removed after the query finishes.
+     */
+    public void testCancellationCallbackRemoved() throws Exception {
+        class TrackingSearcher extends ContextIndexSearcher {
+            Runnable added;
+            boolean removed;
+
+            TrackingSearcher(IndexReader reader) throws IOException {
+                super(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    LuceneTestCase.MAYBE_CACHE_POLICY,
+                    true
+                );
+            }
+
+            @Override
+            public void addQueryCancellation(Runnable r) {
+                super.addQueryCancellation(r);
+                added = r;
+            }
+
+            @Override
+            public void removeQueryCancellation(Runnable r) {
+                super.removeQueryCancellation(r);
+                if (r == added) removed = true;
+            }
+        }
+
+        TrackingSearcher searcher = new TrackingSearcher(reader);
+
+        TestSearchContext ctx = new TestSearchContext(null, indexShard, searcher) {
+            @Override
+            public long getRelativeTimeInMillis() {
+                return 0L;
+            } // Freeze clock to ensure the timeout condition is never triggered
+
+            @Override
+            public TimeValue timeout() {
+                return TimeValue.timeValueMillis(5);
+            }
+        };
+        ctx.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+        QueryPhase.executeQuery(ctx);
+
+        assertNotNull("callback should be registered", searcher.added);
+        assertTrue("callback should be removed", searcher.removed);
     }
 
     private static final class TestSuggester extends Suggester<TestSuggestionContext> {

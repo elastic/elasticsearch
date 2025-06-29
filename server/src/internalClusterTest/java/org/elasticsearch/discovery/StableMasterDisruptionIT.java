@@ -9,7 +9,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -103,7 +102,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
-        ensureNoMaster(unluckyNode);
+        awaitMasterNotFound(unluckyNode);
         // because it has had a master within the last 30s:
         assertGreenMasterStability(internalCluster().client(unluckyNode));
 
@@ -142,20 +141,6 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             }
         });
         return BytesReference.bytes(builder).utf8ToString();
-    }
-
-    private void ensureNoMaster(String node) throws Exception {
-        assertBusy(
-            () -> assertNull(
-                client(node).admin()
-                    .cluster()
-                    .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).local(true))
-                    .get()
-                    .getState()
-                    .nodes()
-                    .getMasterNode()
-            )
-        );
     }
 
     /**
@@ -209,7 +194,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
         logger.info("--> waiting for master to remove it");
         ensureStableCluster(2, master);
-        ensureNoMaster(isolatedNode);
+        awaitMasterNotFound(isolatedNode);
 
         networkDisruption.stopDisrupting();
         ensureStableCluster(3);

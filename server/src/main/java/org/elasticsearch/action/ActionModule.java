@@ -68,6 +68,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSna
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.TransportRemoteClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
@@ -455,7 +456,6 @@ public class ActionModule extends AbstractModule {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
-    private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
 
@@ -488,7 +488,6 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
@@ -855,7 +854,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDesiredBalanceAction());
         registerHandler.accept(new RestDeleteDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
-        registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
+        registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
@@ -1062,6 +1061,7 @@ public class ActionModule extends AbstractModule {
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
         }
 
+        bind(TransportRemoteClusterStateAction.class).asEagerSingleton();
     }
 
     public ActionFilters getActionFilters() {

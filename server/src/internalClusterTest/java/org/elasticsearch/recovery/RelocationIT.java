@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -414,19 +413,15 @@ public class RelocationIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
-        assertBusy(() -> {
-            for (String node : internalCluster().getNodeNames()) {
-                if (node.equals(p_node)) {
-                    continue;
-                }
-                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-                assertThat(
-                    node + " indicates assigned replicas",
-                    state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(),
-                    equalTo(1)
-                );
+        for (String node : internalCluster().getNodeNames()) {
+            if (node.equals(p_node)) {
+                continue;
             }
-        });
+            awaitClusterState(
+                node,
+                state -> state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size() == 1
+            );
+        }
 
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {

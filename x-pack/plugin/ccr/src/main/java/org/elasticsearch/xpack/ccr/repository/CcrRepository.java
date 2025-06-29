@@ -21,6 +21,7 @@ import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -175,7 +176,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
                 ClusterStateAction.REMOTE_TYPE,
-                new ClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
+                new RemoteClusterStateRequest(new ClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true)),
                 l.map(ClusterStateResponse::getState)
             )
         );
@@ -287,9 +288,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ClusterStateResponse clusterState = executeRecoveryAction(
             remoteClient,
             ClusterStateAction.REMOTE_TYPE,
-            CcrRequests.metadataRequest(
-                // We set a single dummy index name to avoid fetching all the index data
-                "dummy_index_name"
+            new RemoteClusterStateRequest(
+                CcrRequests.metadataRequest(
+                    // We set a single dummy index name to avoid fetching all the index data
+                    "dummy_index_name"
+                )
             )
         );
         return clusterState.getState().metadata();
@@ -304,7 +307,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ClusterStateResponse clusterState = executeRecoveryAction(
             remoteClient,
             ClusterStateAction.REMOTE_TYPE,
-            CcrRequests.metadataRequest(leaderIndex)
+            new RemoteClusterStateRequest(CcrRequests.metadataRequest(leaderIndex))
         );
 
         // Validates whether the leader cluster has been configured properly:

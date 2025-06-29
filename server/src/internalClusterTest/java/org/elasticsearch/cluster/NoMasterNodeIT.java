@@ -82,17 +82,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client clientToMasterlessNode = client();
+        final String masterLessNode = internalCluster().getRandomNodeName();
+        final Client clientToMasterlessNode = client(masterLessNode);
 
-        assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(masterLessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         assertRequestBuilderThrows(
             clientToMasterlessNode.prepareGet("test", "1"),
@@ -246,17 +239,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final Client clientToMasterlessNode = client();
+        final String masterLessNode = internalCluster().getRandomNodeName();
+        final Client clientToMasterlessNode = client(masterLessNode);
 
-        assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(masterLessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
@@ -346,12 +332,9 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        assertBusy(() -> {
-            for (String node : nodesWithShards) {
-                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-                assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-            }
-        });
+        for (String node : nodesWithShards) {
+            awaitClusterState(node, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        }
 
         GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);

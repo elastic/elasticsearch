@@ -89,6 +89,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     /**
      * This very likely needs to be overridden for {@link QueryPlan#references} to be correct when inheriting.
      * This can be called on unresolved plans and therefore must not rely on calls to {@link QueryPlan#output()}.
+     * @see #references()
      */
     protected AttributeSet computeReferences() {
         return Expressions.references(expressions());

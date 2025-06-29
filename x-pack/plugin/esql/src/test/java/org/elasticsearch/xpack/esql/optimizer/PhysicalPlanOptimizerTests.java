@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -130,6 +131,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -798,6 +800,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
     }
 
+    public void testDoNotExtractGroupingFieldsTopN() {
+        var plan = physicalPlan("""
+            from test
+            | stats x = sum(salary) by first_name
+            | sort first_name
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var aggregate = as(optimized, TopNAggregateExec.class);
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
+        assertThat(aggregate.groupings(), hasSize(1));
+
+        var exchange = asRemoteExchange(aggregate.child());
+        aggregate = as(exchange.child(), TopNAggregateExec.class);
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
+        assertThat(aggregate.groupings(), hasSize(1));
+
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), equalTo(List.of("salary")));
+
+        var source = source(extract.child());
+        // doc id and salary are ints. salary isn't extracted.
+        // TODO salary kind of is extracted. At least sometimes it is. should it count?
+        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
+    }
+
     public void testExtractGroupingFieldsIfAggd() {
         var plan = physicalPlan("""
             from test
@@ -812,6 +840,30 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
+
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), equalTo(List.of("first_name")));
+
+        var source = source(extract.child());
+        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST));
+    }
+
+    public void testExtractGroupingFieldsIfAggdTopN() {
+        var plan = physicalPlan("""
+            from test
+            | stats x = count(first_name) by first_name
+            | sort first_name
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var aggregate = as(optimized, TopNAggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
+
+        var exchange = asRemoteExchange(aggregate.child());
+        aggregate = as(exchange.child(), TopNAggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST));
 
@@ -5519,12 +5571,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | SORT count DESC, country ASC
             """;
         var plan = this.physicalPlan(query, airports);
-        var topN = as(plan, TopNExec.class);
-        var agg = as(topN.child(), AggregateExec.class);
-        var exchange = as(agg.child(), ExchangeExec.class);
+        var topNAgg = as(plan, TopNAggregateExec.class);
+        var exchange = as(topNAgg.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
-        var agg2 = as(fragment.fragment(), Aggregate.class);
-        var filter = as(agg2.child(), Filter.class);
+        var topNAgg2 = as(fragment.fragment(), TopNAggregate.class);
+        var filter = as(topNAgg2.child(), Filter.class);
 
         // Validate the filter condition (two distance filters)
         var and = as(filter.condition(), And.class);
@@ -5544,12 +5595,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Now optimize the plan
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, TopNExec.class);
-        var aggExec = as(topLimit.child(), AggregateExec.class);
-        var exchangeExec = as(aggExec.child(), ExchangeExec.class);
-        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
+        var topNAggExec = as(optimized, TopNAggregateExec.class);
+        var exchangeExec = as(topNAggExec.child(), ExchangeExec.class);
+        var topNAggExec2 = as(exchangeExec.child(), TopNAggregateExec.class);
         // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
-        var evalExec = as(aggExec2.child(), EvalExec.class);
+        var evalExec = as(topNAggExec2.child(), EvalExec.class);
         var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
         assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(true));
         var source = assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.DOC_VALUES);
@@ -8065,6 +8115,47 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
         assertThat(randomSampling.probability(), equalTo(0.1));
         assertThat(randomSampling.hash(), equalTo(0));
+    }
+
+    public void testTopNStats() {
+        var plan = physicalPlan("""
+            from test
+            | stats x = count(first_name) by first_name, last_name
+            | sort x DESC, first_name NULLS LAST
+            | LIMIT 5
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var aggregate1 = as(optimized, TopNAggregateExec.class);
+
+        var exchange = asRemoteExchange(aggregate1.child());
+        var aggregate2 = as(exchange.child(), TopNAggregateExec.class);
+
+        var extract = as(aggregate2.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), equalTo(List.of("first_name", "last_name")));
+
+        var source = source(extract.child());
+        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST + KEYWORD_EST));
+
+        assertThat(aggregate1.groupings(), hasSize(2));
+        assertThat(aggregate1.estimatedRowSize(), equalTo(Long.BYTES + KEYWORD_EST + KEYWORD_EST));
+        assertThat(aggregate1.order(), hasSize(2));
+        var order1 = aggregate1.order().get(0);
+        assertThat(name(order1.child()), equalTo("x"));
+        assertThat(order1.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order1.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        var order2 = aggregate1.order().get(1);
+        assertThat(name(order2.child()), equalTo("first_name"));
+        assertThat(order2.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order2.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(aggregate1.limit().fold(FoldContext.small()), equalTo(5));
+
+        // Check that both agg nodes are identical
+        assertThat(aggregate1.aggregates(), equalTo(aggregate2.aggregates()));
+        assertThat(aggregate1.groupings(), equalTo(aggregate2.groupings()));
+        assertThat(aggregate1.estimatedRowSize(), equalTo(aggregate2.estimatedRowSize()));
+        assertThat(aggregate1.order(), equalTo(aggregate2.order()));
+        assertThat(aggregate1.limit(), equalTo(aggregate2.limit()));
     }
 
     @SuppressWarnings("SameParameterValue")

@@ -123,7 +123,7 @@ public class ValuesAggregatorBenchmark {
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
         return new HashAggregationOperator(
             List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
-            () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
+            () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false, 100),
             driverContext
         );
     }

@@ -71,3 +71,6 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 
 :::{include} ../_snippets/functions/layout/last_over_time.md
 :::
+
+:::{include} ../_snippets/functions/layout/rate.md
+:::

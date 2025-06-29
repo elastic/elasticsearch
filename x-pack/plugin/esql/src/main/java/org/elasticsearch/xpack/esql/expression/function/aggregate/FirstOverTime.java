@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class FirstOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
@@ -47,6 +49,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     // TODO: support all types
     @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double" },
         description = "The earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
@@ -57,7 +60,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
-    FirstOverTime(Source source, Expression field, Expression timestamp) {
+    public FirstOverTime(Source source, Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, timestamp);
     }
 
@@ -111,7 +114,16 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long");
+        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long")
+            .and(
+                isType(
+                    timestamp,
+                    dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                    sourceText(),
+                    SECOND,
+                    "date_nanos or datetime"
+                )
+            );
     }
 
     @Override

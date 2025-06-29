@@ -127,17 +127,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
 
             @Override
-            public void bulkScore(NeighborQueue queue) throws IOException {
-                // TODO: bulk score centroids like we do with posting lists
-                centroids.seek(quantizedCentroidsOffset);
-                for (int i = 0; i < numCentroids; i++) {
-                    queue.add(i, score());
-                }
-            }
-
-            @Override
             public void bulkScore(NeighborQueue queue, int start, int end) throws IOException {
                 // TODO: bulk score centroids like we do with posting lists
+                assert start > 0;
+                assert end > 0;
+                assert start + end <= numCentroids;
                 centroids.seek(quantizedCentroidsOffset + quantizedVectorByteSize * start);
                 for (int i = start; i < end; i++) {
                     queue.add(i, score());
@@ -223,16 +217,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             }
 
             @Override
-            public void bulkScore(NeighborQueue queue) throws IOException {
-                // TODO: bulk score centroids like we do with posting lists
-                centroids.seek(0L);
-                for (int i = 0; i < numParentCentroids; i++) {
-                    queue.add(i, score());
-                }
-            }
-
-            @Override
             public void bulkScore(NeighborQueue queue, int start, int end) throws IOException {
+                assert start > 0;
+                assert end > 0;
+                assert start + end <= numParentCentroids;
                 // TODO: bulk score centroids like we do with posting lists
                 centroids.seek(parentNodeByteSize * start);
                 for (int i = start; i < end; i++) {

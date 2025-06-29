@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
 import org.junit.Before;
@@ -71,6 +72,9 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     private TestEnrichPolicyResolver localCluster;
     private TestEnrichPolicyResolver clusterA;
     private TestEnrichPolicyResolver clusterB;
+
+    // TODO inject from Gradle command
+    private QueryPragmas pragmas;
 
     @After
     public void stopClusters() {
@@ -170,7 +174,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testLocalHosts() {
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Set<String> clusters = Set.of(LOCAL_CLUSTER_GROUP_KEY);
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("hosts", mode);
             assertHostPolicies(resolved);
             assertThat(resolved.concreteIndices(), equalTo(Map.of("", ".enrich-hosts-123")));
@@ -180,7 +188,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testRemoteHosts() {
         Set<String> clusters = Set.of("cluster_a", "cluster_b");
         for (Enrich.Mode mode : Enrich.Mode.values()) {
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("hosts", mode);
             assertHostPolicies(resolved);
             var expectedIndices = switch (mode) {
@@ -195,7 +207,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testMixedHosts() {
         Set<String> clusters = Set.of(LOCAL_CLUSTER_GROUP_KEY, "cluster_a", "cluster_b");
         for (Enrich.Mode mode : Enrich.Mode.values()) {
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("hosts", mode);
             assertHostPolicies(resolved);
             var expectedIndices = switch (mode) {
@@ -209,7 +225,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testLocalAddress() {
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Set<String> clusters = Set.of(LOCAL_CLUSTER_GROUP_KEY);
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("address", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchField(), equalTo("emp_id"));
@@ -220,7 +240,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         {
             List<String> clusters = randomSubsetOf(between(1, 3), List.of("", "cluster_a", "cluster_a"));
             var mode = Enrich.Mode.COORDINATOR;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("address", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchField(), equalTo("emp_id"));
@@ -233,7 +257,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testRemoteAddress() {
         Set<String> clusters = Set.of("cluster_a", "cluster_b");
         for (Enrich.Mode mode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("address", mode)),
+                QueryPragmas.EMPTY
+            );
             assertNull(resolution.getResolvedPolicy("address", mode));
             var msg = "enrich policy [address] has different enrich fields across clusters; "
                 + "these fields are missing in some policies: [state]";
@@ -244,7 +272,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testMixedAddress() {
         Set<String> clusters = Set.of(LOCAL_CLUSTER_GROUP_KEY, "cluster_a", "cluster_b");
         for (Enrich.Mode mode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("hosts", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("hosts", mode);
             assertHostPolicies(resolved);
             assertThat(
@@ -258,7 +290,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
     public void testLocalAuthor() {
         for (Enrich.Mode mode : Enrich.Mode.values()) {
             Set<String> clusters = Set.of(LOCAL_CLUSTER_GROUP_KEY);
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("author", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchField(), equalTo("author"));
@@ -269,7 +305,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         {
             var mode = Enrich.Mode.COORDINATOR;
             var clusters = randomSubsetOf(between(1, 3), Set.of("", "cluster_a", "cluster_b"));
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                QueryPragmas.EMPTY
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("author", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchField(), equalTo("author"));
@@ -284,7 +324,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         Set<String> clusters = Set.of("cluster_a");
         {
             var mode = Enrich.Mode.ANY;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                QueryPragmas.EMPTY
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -293,7 +337,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         {
             var mode = Enrich.Mode.REMOTE;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("author", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchType(), equalTo("range"));
@@ -308,7 +356,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         Set<String> clusters = Set.of("cluster_b");
         {
             var mode = Enrich.Mode.ANY;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -317,7 +369,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         {
             var mode = Enrich.Mode.REMOTE;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             ResolvedEnrichPolicy resolved = resolution.getResolvedPolicy("author", mode);
             assertNotNull(resolved);
             assertThat(resolved.matchType(), equalTo("match"));
@@ -332,7 +388,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         Set<String> clusters = Set.of("cluster_a", "cluster_b");
         {
             var mode = Enrich.Mode.ANY;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -341,7 +401,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         {
             var mode = Enrich.Mode.REMOTE;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -354,7 +418,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         Set<String> clusters = Set.of("", "cluster_b");
         {
             var mode = Enrich.Mode.ANY;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -363,7 +431,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         {
             var mode = Enrich.Mode.REMOTE;
-            var resolution = localCluster.resolvePolicies(clusters, List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)));
+            var resolution = localCluster.resolvePolicies(
+                clusters,
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("author", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("author", mode));
             assertThat(
                 resolution.getError("author", mode),
@@ -374,7 +446,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
 
     public void testMissingLocalPolicy() {
         for (Enrich.Mode mode : Enrich.Mode.values()) {
-            var resolution = localCluster.resolvePolicies(Set.of(""), List.of(new EnrichPolicyResolver.UnresolvedPolicy("authoz", mode)));
+            var resolution = localCluster.resolvePolicies(
+                Set.of(""),
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("authoz", mode)),
+                pragmas
+            );
             assertNull(resolution.getResolvedPolicy("authoz", mode));
             assertThat(resolution.getError("authoz", mode), equalTo("cannot find enrich policy [authoz], did you mean [author]?"));
         }
@@ -385,7 +461,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.REMOTE;
             var resolution = localCluster.resolvePolicies(
                 Set.of("cluster_a"),
-                List.of(new EnrichPolicyResolver.UnresolvedPolicy("addrezz", mode))
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("addrezz", mode)),
+                pragmas
             );
             assertNull(resolution.getResolvedPolicy("addrezz", mode));
             assertThat(resolution.getError("addrezz", mode), equalTo("cannot find enrich policy [addrezz] on clusters [cluster_a]"));
@@ -394,7 +471,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             var mode = Enrich.Mode.ANY;
             var resolution = localCluster.resolvePolicies(
                 Set.of("cluster_a"),
-                List.of(new EnrichPolicyResolver.UnresolvedPolicy("addrezz", mode))
+                List.of(new EnrichPolicyResolver.UnresolvedPolicy("addrezz", mode)),
+                pragmas
             );
             assertNull(resolution.getResolvedPolicy("addrezz", mode));
             assertThat(
@@ -433,7 +511,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             this.mappings = mappings;
         }
 
-        EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
+        EnrichResolution resolvePolicies(
+            Collection<String> clusters,
+            Collection<UnresolvedPolicy> unresolvedPolicies,
+            QueryPragmas pragmas
+        ) {
             PlainActionFuture<EnrichResolution> future = new PlainActionFuture<>();
             EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
             for (String cluster : clusters) {
@@ -452,7 +534,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                     unresolvedPolicies.add(new UnresolvedPolicy("legacy-policy-1", randomFrom(Enrich.Mode.values())));
                 }
             }
-            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, future);
+            super.resolvePolicies(unresolvedPolicies, esqlExecutionInfo, pragmas, future);
             return future.actionGet(30, TimeUnit.SECONDS);
         }
 

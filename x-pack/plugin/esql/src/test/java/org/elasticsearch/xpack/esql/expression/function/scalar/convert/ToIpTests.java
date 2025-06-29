@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.ArrayList;
@@ -132,8 +133,8 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new ToIp(source, args.getFirst(), options());
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
+        return new ToIp(source, args.getFirst(), options(), pragmas);
     }
 
     private MapExpression options() {

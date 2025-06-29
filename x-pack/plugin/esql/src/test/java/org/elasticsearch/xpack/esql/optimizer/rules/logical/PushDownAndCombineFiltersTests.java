@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +60,8 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.mockito.Mockito.mock;
 
 public class PushDownAndCombineFiltersTests extends ESTestCase {
+    // TODO inject from Gradle command
+    private QueryPragmas pragmas = QueryPragmas.EMPTY;
 
     public void testCombineFilters() {
         EsRelation relation = relation();
@@ -226,7 +229,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
-        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE), THREE);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, pragmas), THREE);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule

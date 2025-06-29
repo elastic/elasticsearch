@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,9 +58,10 @@ public class StGeotileToLong extends AbstractConvertFunction implements Evaluato
             name = "grid_id",
             type = { "keyword", "long" },
             description = "Input geotile grid-id. The input can be a single- or multi-valued column or an expression."
-        ) Expression v
+        ) Expression v,
+        QueryPragmas pragmas
     ) {
-        super(source, v);
+        super(source, v, pragmas);
     }
 
     private StGeotileToLong(StreamInput in) throws IOException {
@@ -83,12 +85,12 @@ public class StGeotileToLong extends AbstractConvertFunction implements Evaluato
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StGeotileToLong(source(), newChildren.get(0));
+        return new StGeotileToLong(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StGeotileToLong::new, field());
+        return NodeInfo.create(this, StGeotileToLong::new, field(), getPragmas());
     }
 
     @ConvertEvaluator(extraName = "FromString")

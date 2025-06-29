@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.AfterClass;
 
 import java.util.ArrayList;
@@ -313,7 +314,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
         return new In(source, args.get(args.size() - 1), args.subList(0, args.size() - 1));
     }
 

@@ -1187,7 +1187,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand("grok a \"%{WORD:foo}\"");
         assertEquals(Grok.class, cmd.getClass());
         Grok grok = (Grok) cmd;
-        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
         expectThrows(
@@ -1199,7 +1199,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         cmd = processingCommand("grok a \"%{WORD:foo} %{WORD:foo}\"");
         assertEquals(Grok.class, cmd.getClass());
         grok = (Grok) cmd;
-        assertEquals("%{WORD:foo} %{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo} %{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
         expectError(
@@ -1983,7 +1983,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
         Grok grok = as(rename.child(), Grok.class);
         assertEquals(grok.input(), attribute("f.6."));
-        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
         Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(dissect.input(), attribute("f.5*"));
@@ -2024,7 +2024,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
         grok = as(rename.child(), Grok.class);
         assertEquals(grok.input(), attribute("f7*..f.8"));
-        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
         dissect = as(grok.child(), Dissect.class);
         assertEquals(dissect.input(), attribute("f.5*.f.6."));
@@ -2699,7 +2699,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         Grok grok = as(plan, Grok.class);
         assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
-        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
         Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
@@ -2842,7 +2842,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         Grok grok = as(plan, Grok.class);
         assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
-        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals("%{WORD:foo}", grok.parser().getPattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
         Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
@@ -4266,7 +4266,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
             Grok grok = as(rename.child(), Grok.class);
             assertEquals(grok.input(), attribute("f.6."));
-            assertEquals("%{WORD:foo}", grok.parser().pattern());
+            assertEquals("%{WORD:foo}", grok.parser().getPattern());
             assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
             Dissect dissect = as(grok.child(), Dissect.class);
             assertEquals(dissect.input(), attribute("f.5*"));
@@ -4376,7 +4376,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
             Grok grok = as(rename.child(), Grok.class);
             assertEquals(grok.input(), attribute("f7*..f.8"));
-            assertEquals("%{WORD:foo}", grok.parser().pattern());
+            assertEquals("%{WORD:foo}", grok.parser().getPattern());
             assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
             Dissect dissect = as(grok.child(), Dissect.class);
             assertEquals(dissect.input(), attribute("f.5*.f.6."));

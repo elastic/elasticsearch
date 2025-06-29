@@ -21,6 +21,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
@@ -97,21 +98,32 @@ public class EsqlParser {
         this.config = config;
     }
 
-    // testing utility
+    // testing utility. Allow default values to either params or pragmas.
+    // TODO: make it at least explicit in the name ("withDefaultPragmas", etc), or ideally make it
+    //  deprecated, and force the tests to inject pragmas explicitly.
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, new QueryParams());
+        return createStatement(query, new QueryParams(), QueryPragmas.EMPTY);
     }
-
     // testing utility
     public LogicalPlan createStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+        return createStatement(query, params, QueryPragmas.EMPTY);
     }
 
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
+    // testing utility
+    public LogicalPlan createStatement(String query, QueryPragmas pragmas) {
+        return createStatement(query, new QueryParams(), pragmas);
+    }
+
+    // testing utility
+    public LogicalPlan createStatement(String query, QueryParams params, QueryPragmas pragmas) {
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), pragmas);
+    }
+
+    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics, QueryPragmas pragmas) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan, pragmas);
     }
 
     private <T> T invokeParser(
@@ -119,7 +131,8 @@ public class EsqlParser {
         QueryParams params,
         PlanTelemetry metrics,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
-        BiFunction<AstBuilder, ParserRuleContext, T> result
+        BiFunction<AstBuilder, ParserRuleContext, T> result,
+        QueryPragmas pragmas
     ) {
         if (query.length() > MAX_LENGTH) {
             throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
@@ -151,7 +164,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, pragmas)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,13 +62,22 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             name = "number",
             type = { "double", "integer", "long" },
             description = "Expression that outputs values to calculate the median of."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public Median(Source source, Expression field, Expression filter) {
+    public Median(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
+    }
+
+    private final QueryPragmas pragmas;
+
+    private Median(StreamInput in) throws IOException {
+        super(in);
+        this.pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
 
     @Override
@@ -79,10 +89,6 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             DEFAULT,
             "numeric except unsigned_long or counter types"
         );
-    }
-
-    private Median(StreamInput in) throws IOException {
-        super(in);
     }
 
     @Override
@@ -97,17 +103,17 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Median> info() {
-        return NodeInfo.create(this, Median::new, field(), filter());
+        return NodeInfo.create(this, Median::new, field(), filter(), pragmas);
     }
 
     @Override
     public Median replaceChildren(List<Expression> newChildren) {
-        return new Median(source(), newChildren.get(0), newChildren.get(1));
+        return new Median(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Median(source(), field(), filter);
+        return new Median(source(), field(), filter, pragmas);
     }
 
     @Override
@@ -116,7 +122,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         var field = field();
 
         return field.foldable()
-            ? new MvMedian(s, new ToDouble(s, field))
-            : new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
+            ? new MvMedian(s, new ToDouble(s, field, pragmas))
+            : new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER), pragmas);
     }
 }

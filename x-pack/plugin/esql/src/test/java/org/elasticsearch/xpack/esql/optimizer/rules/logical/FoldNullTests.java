@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.lang.reflect.Constructor;
 import java.util.List;
@@ -91,6 +92,9 @@ public class FoldNullTests extends ESTestCase {
     private Expression foldNull(Expression e) {
         return new FoldNull().rule(e, unboundLogicalOptimizerContext());
     }
+
+    // TODO inject from Gradle command
+    private QueryPragmas pragmas = QueryPragmas.EMPTY;
 
     public void testBasicNullFolding() {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
@@ -163,7 +167,7 @@ public class FoldNullTests extends ESTestCase {
         // ip
         assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
-        assertNullLiteral(foldNull(new ToString(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, NULL, QueryPragmas.EMPTY)));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
@@ -190,39 +194,39 @@ public class FoldNullTests extends ESTestCase {
             assertEquals(NULL, foldNull(conditionalFunction));
         }
 
-        Avg avg = new Avg(EMPTY, getFieldAttribute("a"));
+        Avg avg = new Avg(EMPTY, getFieldAttribute("a"), pragmas);
         assertEquals(avg, foldNull(avg));
-        avg = new Avg(EMPTY, NULL);
+        avg = new Avg(EMPTY, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(avg));
 
-        Count count = new Count(EMPTY, getFieldAttribute("a"));
+        Count count = new Count(EMPTY, getFieldAttribute("a"), pragmas);
         assertEquals(count, foldNull(count));
-        count = new Count(EMPTY, NULL);
+        count = new Count(EMPTY, NULL, pragmas);
         assertEquals(count, foldNull(count));
 
-        CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
+        CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"), pragmas);
         assertEquals(countd, foldNull(countd));
-        countd = new CountDistinct(EMPTY, NULL, NULL);
+        countd = new CountDistinct(EMPTY, NULL, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, LONG), foldNull(countd));
 
-        Median median = new Median(EMPTY, getFieldAttribute("a"));
+        Median median = new Median(EMPTY, getFieldAttribute("a"), pragmas);
         assertEquals(median, foldNull(median));
-        median = new Median(EMPTY, NULL);
+        median = new Median(EMPTY, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(median));
 
-        MedianAbsoluteDeviation medianad = new MedianAbsoluteDeviation(EMPTY, getFieldAttribute("a"));
+        MedianAbsoluteDeviation medianad = new MedianAbsoluteDeviation(EMPTY, getFieldAttribute("a"), pragmas);
         assertEquals(medianad, foldNull(medianad));
-        medianad = new MedianAbsoluteDeviation(EMPTY, NULL);
+        medianad = new MedianAbsoluteDeviation(EMPTY, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(medianad));
 
-        Percentile percentile = new Percentile(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
+        Percentile percentile = new Percentile(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"), pragmas);
         assertEquals(percentile, foldNull(percentile));
-        percentile = new Percentile(EMPTY, NULL, NULL);
+        percentile = new Percentile(EMPTY, NULL, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(percentile));
 
-        Sum sum = new Sum(EMPTY, getFieldAttribute("a"));
+        Sum sum = new Sum(EMPTY, getFieldAttribute("a"), pragmas);
         assertEquals(sum, foldNull(sum));
-        sum = new Sum(EMPTY, NULL);
+        sum = new Sum(EMPTY, NULL, pragmas);
         assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(sum));
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -148,7 +149,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), ModTests::modErrorMessageString);
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), ModTests::modErrorMessageString, QueryPragmas.EMPTY);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
@@ -165,7 +166,7 @@ public class ModTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
         return new Mod(source, args.get(0), args.get(1));
     }
 }

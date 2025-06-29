@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,18 +51,23 @@ public class AvgOverTime extends TimeSeriesAggregateFunction {
             name = "number",
             type = { "double", "integer", "long" },
             description = "Expression that outputs values to average."
-        ) Expression field
+        ) Expression field,
+        QueryPragmas pragmas
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, pragmas);
     }
 
-    public AvgOverTime(Source source, Expression field, Expression filter) {
+    public AvgOverTime(Source source, Expression field, Expression filter, QueryPragmas pragmas) {
         super(source, field, filter, emptyList());
+        this.pragmas = pragmas;
     }
 
     private AvgOverTime(StreamInput in) throws IOException {
         super(in);
+        this.pragmas = in.readNamedWriteable(QueryPragmas.class);
     }
+
+    private final QueryPragmas pragmas;
 
     @Override
     protected TypeResolution resolveType() {
@@ -80,21 +86,21 @@ public class AvgOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     protected NodeInfo<AvgOverTime> info() {
-        return NodeInfo.create(this, AvgOverTime::new, field(), filter());
+        return NodeInfo.create(this, AvgOverTime::new, field(), filter(), pragmas);
     }
 
     @Override
     public AvgOverTime replaceChildren(List<Expression> newChildren) {
-        return new AvgOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new AvgOverTime(source(), newChildren.get(0), newChildren.get(1), pragmas);
     }
 
     @Override
     public AvgOverTime withFilter(Expression filter) {
-        return new AvgOverTime(source(), field(), filter);
+        return new AvgOverTime(source(), field(), filter, pragmas);
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Avg(source(), field(), filter());
+        return new Avg(source(), field(), filter(), pragmas);
     }
 }

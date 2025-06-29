@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -295,7 +296,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
             (nullPosition, nullType, original) -> original.expectedType(),
             (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
         );
-        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
+        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString, QueryPragmas.EMPTY);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
@@ -337,7 +338,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
         return new Add(source, args.get(0), args.get(1));
     }
 }

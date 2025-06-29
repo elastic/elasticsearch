@@ -116,6 +116,12 @@ public final class AnalyzerTestUtils {
         );
     }
 
+    // TODO:
+    // 1) Add QueryPragmas as an additional "optional" argument here
+    // 2) Consider replacing with a builder. Even without the pragmas that's already too
+    // complex and error prone. Default values which magically getting threaded into tests
+    // may hide bugs.
+
     public static LogicalPlan analyze(String query) {
         return analyze(query, "mapping-basic.json");
     }

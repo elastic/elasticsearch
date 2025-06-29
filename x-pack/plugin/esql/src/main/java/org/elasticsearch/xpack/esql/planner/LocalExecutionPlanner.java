@@ -563,7 +563,7 @@ public class LocalExecutionPlanner {
         Map<String, Integer> fieldToPos = Maps.newHashMapWithExpectedSize(extractedFields.size());
         Map<String, ElementType> fieldToType = Maps.newHashMapWithExpectedSize(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
-        List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
+        List<Attribute> extractedFieldsFromPattern = grok.getParser().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
             DataType extractedFieldType = extractedFields.get(i).dataType();
             // Names in pattern and layout can differ.
@@ -580,7 +580,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
-                () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+                () -> new GrokEvaluatorExtracter(grok.getParser().getGrok(), grok.getParser().getPattern(), fieldToPos, fieldToType)
             ),
             layout
         );

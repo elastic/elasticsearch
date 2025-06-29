@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -237,7 +238,7 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
         return new NotEquals(source, args.get(0), args.get(1));
     }
 }

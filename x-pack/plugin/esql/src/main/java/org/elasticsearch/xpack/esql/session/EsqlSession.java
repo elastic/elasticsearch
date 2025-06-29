@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -195,15 +196,23 @@ public class EsqlSession {
             parsed = explain.query();
             parsedPlanString = parsed.toString();
         }
-        analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
-            @Override
-            public void onResponse(LogicalPlan analyzedPlan) {
-                preMapper.preMapper(
-                    analyzedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
-                );
+        analyzedPlan(
+            parsed,
+            executionInfo,
+            request.filter(),
+            configuration.pragmas(),
+            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+                @Override
+                public void onResponse(LogicalPlan analyzedPlan) {
+                    preMapper.preMapper(
+                        analyzedPlan,
+                        listener.delegateFailureAndWrap(
+                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
+                        )
+                    );
+                }
             }
-        });
+        );
     }
 
     /**
@@ -251,21 +260,19 @@ public class EsqlSession {
 
         // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
         // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-        physicalPlan.forEachUp(FragmentExec.class, f -> {
-            f.fragment().forEachUp(InlineJoin.class, ij -> {
-                // extract the right side of the plan and replace its source
-                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                // mark the new root node as optimized
-                subplan.setOptimized();
-                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
-            });
-        });
+        physicalPlan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(InlineJoin.class, ij -> {
+            // extract the right side of the plan and replace its source
+            LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+            // mark the new root node as optimized
+            subplan.setOptimized();
+            PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+            subplans.add(new PlanTuple(subqueryPlan, ij.right()));
+        }));
 
         Iterator<PlanTuple> iterator = subplans.iterator();
 
         // TODO: merge into one method
-        if (subplans.size() > 0) {
+        if (subplans.isEmpty() == false) {
             // code-path to execute subplans
             executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
@@ -326,7 +333,7 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration.pragmas());
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
@@ -335,6 +342,7 @@ public class EsqlSession {
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        QueryPragmas pragmas,
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         if (parsed.analyzed()) {
@@ -369,13 +377,13 @@ public class EsqlSession {
         initializeClusterData(indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
-            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, pragmas, l)
         )
             .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
             .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(index, preAnalysisResult, l); });
+            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, l));
         }
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
@@ -421,7 +429,8 @@ public class EsqlSession {
             table.indexPattern(),
             fieldNames,
             null,
-            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
+            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution)),
+            configuration.pragmas()
         );
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
@@ -490,7 +499,8 @@ public class EsqlSession {
                         } else {
                             l.onResponse(result.withIndexResolution(indexResolution));
                         }
-                    })
+                    }),
+                    configuration.pragmas()
                 );
             }
         } else {
@@ -535,7 +545,7 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener,
         ActionListener<PreAnalysisResult> l
     ) {
-        LogicalPlan plan = null;
+        LogicalPlan plan;
         var filterPresentMessage = requestFilter == null ? "without" : "with";
         var attemptMessage = requestFilter == null ? "the only" : "first";
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
@@ -642,41 +652,45 @@ public class EsqlSession {
         boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
-            if (p instanceof RegexExtract re) { // for Grok and Dissect
-                // keep the inputs needed by Grok/Dissect
-                referencesBuilder.addAll(re.input().references());
-            } else if (p instanceof Enrich enrich) {
-                AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
-                AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
-                // Enrich adds an EmptyAttribute if no match field is specified
-                // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
-                enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                referencesBuilder.addAll(enrichRefs);
-            } else if (p instanceof LookupJoin join) {
-                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
-                    keepJoinRefsBuilder.addAll(usingJoinType.columns());
+            switch (p) {
+                case RegexExtract re ->  // for Grok and Dissect
+                    // keep the inputs needed by Grok/Dissect
+                    referencesBuilder.addAll(re.input().references());
+                case Enrich enrich -> {
+                    AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
+                    AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
+                    // Enrich adds an EmptyAttribute if no match field is specified
+                    // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
+                    enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
+                    referencesBuilder.addAll(enrichRefs);
                 }
-                if (shadowingRefsBuilder.isEmpty()) {
-                    // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
-                    wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
-                } else {
-                    // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
-                    keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
+                case LookupJoin join -> {
+                    if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
+                        keepJoinRefsBuilder.addAll(usingJoinType.columns());
+                    }
+                    if (shadowingRefsBuilder.isEmpty()) {
+                        // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
+                        wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
+                    } else {
+                        // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
+                        keepJoinRefsBuilder.addAll(shadowingRefsBuilder);
+                    }
                 }
-            } else {
-                referencesBuilder.addAll(p.references());
-                if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
-                    // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
-                }
-                // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
-                p.forEachExpression(UnresolvedNamePattern.class, up -> {
-                    var ua = new UnresolvedAttribute(up.source(), up.name());
-                    referencesBuilder.add(ua);
-                    shadowingRefsBuilder.add(ua);
-                });
-                if (p instanceof Keep) {
-                    shadowingRefsBuilder.addAll(p.references());
+                case null, default -> {
+                    referencesBuilder.addAll(p.references());
+                    if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
+                        // METRICS aggs generally rely on @timestamp without the user having to mention it.
+                        referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    }
+                    // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
+                    p.forEachExpression(UnresolvedNamePattern.class, up -> {
+                        var ua = new UnresolvedAttribute(up.source(), up.name());
+                        referencesBuilder.add(ua);
+                        shadowingRefsBuilder.add(ua);
+                    });
+                    if (p instanceof Keep) {
+                        shadowingRefsBuilder.addAll(p.references());
+                    }
                 }
             }
 

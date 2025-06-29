@@ -653,8 +653,8 @@ public enum DataType {
      * If this is a "small" numeric type this contains the type ESQL will
      * widen it into, otherwise this returns {@code this}.
      */
-    public DataType widenSmallNumeric() {
-        return widenSmallNumeric == null ? this : widenSmallNumeric;
+    public DataType widenSmallNumeric(boolean supportNativeFloat) {
+        return widenSmallNumeric == null || supportNativeFloat ? this : widenSmallNumeric;
     }
 
     /**

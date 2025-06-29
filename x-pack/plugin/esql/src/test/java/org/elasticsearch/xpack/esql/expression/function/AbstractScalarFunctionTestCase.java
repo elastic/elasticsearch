@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -90,10 +91,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
+    // TODO inject from Gradle command
+    private QueryPragmas pragmas;
+
     public final void testEvaluate() {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
-        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = readFloating
+            ? buildDeepCopyOfFieldExpression(testCase, QueryPragmas.EMPTY)
+            : buildFieldExpression(testCase, QueryPragmas.EMPTY);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -228,7 +234,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
-        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        Expression expression = randomBoolean()
+            ? buildDeepCopyOfFieldExpression(testCase, pragmas)
+            : buildFieldExpression(testCase, pragmas);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -292,7 +300,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldExpression(testCase, pragmas);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -332,7 +340,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public final void testEvaluatorToString() {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldExpression(testCase, pragmas);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -348,13 +356,13 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public final void testFactoryToString() {
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = buildFieldExpression(testCase, pragmas);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        var factory = evaluator(buildFieldExpression(testCase));
+        var factory = evaluator(buildFieldExpression(testCase, pragmas));
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
@@ -362,7 +370,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
+        Expression expression = buildLiteralExpression(testCase, pragmas);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -403,7 +411,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     /**
      * Adds test cases containing unsupported parameter types that immediately fail.
      */
-    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers, QueryPragmas pragmas) {
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -413,7 +421,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(count -> allPermutations(count, pragmas))
             .filter(types -> valid.contains(types) == false)
             .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
                 throw new IllegalStateException("must implement a case for " + types);

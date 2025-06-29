@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
@@ -430,7 +431,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new Dissect.Parser(pattern, appendSeparator, new DissectParser(pattern, appendSeparator));
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
-            return Grok.pattern(Source.EMPTY, randomGrokPattern());
+            return Grok.pattern(Source.EMPTY, randomGrokPattern(), QueryPragmas.EMPTY);
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();

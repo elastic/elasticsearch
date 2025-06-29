@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,9 +58,10 @@ public class StGeohexToString extends AbstractConvertFunction implements Evaluat
             name = "grid_id",
             type = { "keyword", "long" },
             description = "Input Geohex grid-id. The input can be a single- or multi-valued column or an expression."
-        ) Expression v
+        ) Expression v,
+        QueryPragmas pragmas
     ) {
-        super(source, v);
+        super(source, v, pragmas);
     }
 
     private StGeohexToString(StreamInput in) throws IOException {
@@ -83,12 +85,12 @@ public class StGeohexToString extends AbstractConvertFunction implements Evaluat
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StGeohexToString(source(), newChildren.get(0));
+        return new StGeohexToString(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StGeohexToString::new, field());
+        return NodeInfo.create(this, StGeohexToString::new, field(), getPragmas());
     }
 
     @ConvertEvaluator(extraName = "FromLong")

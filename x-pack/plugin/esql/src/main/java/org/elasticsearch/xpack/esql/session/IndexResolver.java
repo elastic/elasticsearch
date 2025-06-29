@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
@@ -83,17 +84,18 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        ActionListener<IndexResolution> listener
+        ActionListener<IndexResolution> listener,
+        QueryPragmas pragmas
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response, pragmas)))
         );
     }
 
     // public for testing only
-    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse, QueryPragmas pragmas) {
         var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
@@ -134,7 +136,7 @@ public class IndexResolver {
 
             List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
+                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias, pragmas)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -198,11 +200,12 @@ public class IndexResolver {
         String name,
         String fullName,
         List<IndexFieldCapabilities> fcs,
-        boolean isAlias
+        boolean isAlias,
+        QueryPragmas pragmas
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
-        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
+        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType(), pragmas);
         boolean aggregatable = first.isAggregatable();
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
@@ -211,8 +214,8 @@ public class IndexResolver {
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
-                if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldCapsResponse);
+                if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType(), pragmas)) {
+                    return conflictingTypes(name, fullName, fieldCapsResponse, pragmas);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -246,12 +249,12 @@ public class IndexResolver {
         return new UnsupportedEsField(name, List.of(originalType));
     }
 
-    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse, QueryPragmas pragmas) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
-                DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
+                DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType(), pragmas);
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }

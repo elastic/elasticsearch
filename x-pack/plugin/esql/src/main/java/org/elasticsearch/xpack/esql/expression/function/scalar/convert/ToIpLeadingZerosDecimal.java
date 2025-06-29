@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,8 +37,8 @@ public class ToIpLeadingZerosDecimal extends AbstractConvertFunction {
         Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_DECIMAL)
     );
 
-    public ToIpLeadingZerosDecimal(Source source, Expression field) {
-        super(source, field);
+    public ToIpLeadingZerosDecimal(Source source, Expression field, QueryPragmas pragmas) {
+        super(source, field, pragmas);
     }
 
     private ToIpLeadingZerosDecimal(StreamInput in) throws IOException {
@@ -61,11 +62,11 @@ public class ToIpLeadingZerosDecimal extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToIpLeadingZerosDecimal(source(), newChildren.get(0));
+        return new ToIpLeadingZerosDecimal(source(), newChildren.getFirst(), getPragmas());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToIpLeadingZerosDecimal::new, field());
+        return NodeInfo.create(this, ToIpLeadingZerosDecimal::new, field(), getPragmas());
     }
 }

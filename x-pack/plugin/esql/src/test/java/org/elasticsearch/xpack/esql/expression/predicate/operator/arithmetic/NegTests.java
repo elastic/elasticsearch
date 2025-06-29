@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 
 import java.time.Duration;
@@ -115,7 +116,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
+    protected Expression build(Source source, List<Expression> args, QueryPragmas pragmas) {
         return new Neg(source, args.get(0));
     }
 

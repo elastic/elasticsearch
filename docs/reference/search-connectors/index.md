@@ -8,13 +8,13 @@ mapped_pages:
   - https://www.elastic.co/guide/en/enterprise-search/current/connectors.html
 ---
 
-# Search connectors
+# Content connectors
 
 $$$es-connectors-native$$$
 
 
 :::{note}
-This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
+This page is about Content connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::
 
 A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.

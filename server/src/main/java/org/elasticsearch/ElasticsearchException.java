@@ -118,6 +118,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String ROOT_CAUSE = "root_cause";
 
     static final String TIMED_OUT_HEADER = "X-Timed-Out";
+    static final String EXCEPTION_TYPE_HEADER = "X-Elasticsearch-Exception";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -130,7 +131,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
-        maybePutTimeoutHeader();
     }
 
     /**
@@ -145,7 +145,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
-        maybePutTimeoutHeader();
     }
 
     /**
@@ -162,7 +161,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
-        maybePutTimeoutHeader();
     }
 
     @SuppressWarnings("this-escape")
@@ -173,10 +171,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
     }
 
-    private void maybePutTimeoutHeader() {
-        if (isTimeout()) {
+    private void maybeAddErrorHeaders() {
+        if (isTimeout() && headers.containsKey(TIMED_OUT_HEADER) == false) {
             // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
             headers.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
+        if (headers.containsKey(EXCEPTION_TYPE_HEADER) == false) {
+            // TODO: cache unwrapping the cause? we do this in several places...
+            Throwable cause = unwrapCause();
+            RestStatus status = ExceptionsHelper.status(cause);
+            if (status.getStatus() >= 500) {
+                headers.put(EXCEPTION_TYPE_HEADER, List.of(cause.getClass().getSimpleName()));
+            }
         }
     }
 
@@ -243,6 +249,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a set of all header keys on this exception
      */
     public Set<String> getHeaderKeys() {
+        maybeAddErrorHeaders();
         return headers.keySet();
     }
 
@@ -251,10 +258,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * given key exists.
      */
     public List<String> getHeader(String key) {
+        maybeAddErrorHeaders();
         return headers.get(key);
     }
 
     protected Map<String, List<String>> getHeaders() {
+        maybeAddErrorHeaders();
         return headers;
     }
 
@@ -335,7 +344,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(getHeaders(), StreamOutput::writeStringCollection);
         out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
@@ -384,7 +393,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (ex != this) {
             generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, headers, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, getHeaders(), metadata, getCause(), nestedLevel);
         }
         return builder;
     }

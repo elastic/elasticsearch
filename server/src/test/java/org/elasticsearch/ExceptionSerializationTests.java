@@ -148,7 +148,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             CancellableThreadsTests.CustomException.class,
             RestResponseTests.WithHeadersException.class,
             AbstractClientHeadersTestCase.InternalException.class,
-            ElasticsearchExceptionTests.ExceptionSubclass.class
+            ElasticsearchExceptionTests.TimeoutSubclass.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();

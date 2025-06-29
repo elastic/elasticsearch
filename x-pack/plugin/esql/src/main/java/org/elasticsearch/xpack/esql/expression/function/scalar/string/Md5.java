@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,13 +19,16 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash.HashFunction;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class Md5 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MD5", Md5::new);
 
-    private static final HashFunction MD5 = HashFunction.create("MD5");
+    private final AtomicReference<HashFunction> MD5 = new AtomicReference<>();
 
     @FunctionInfo(
         returnType = "keyword",
@@ -39,9 +43,23 @@ public class Md5 extends AbstractHashFunction {
         super(in);
     }
 
+    /**
+     * As of Java 14, it is permissible for a JRE to ship without the {@code MD5} {@link MessageDigest}.
+     * We want the "md5" function in ES|QL to fail at runtime on such platforms (rather than at startup)
+     * so we build the {@link HashFunction} lazily.
+     */
     @Override
     protected HashFunction getHashFunction() {
-        return MD5;
+        HashFunction function = MD5.get();
+        if (function == null) {
+            try {
+                function = new HashFunction("MD5", MessageDigest.getInstance("MD5"));
+                MD5.compareAndSet(null, function);
+            } catch (NoSuchAlgorithmException e) {
+                throw new VerificationException("function 'md5' is not available on this platform: {}", e.getMessage());
+            }
+        }
+        return function;
     }
 
     @Override

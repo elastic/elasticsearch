@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimil
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
-import org.elasticsearch.search.vectors.DiversifyingParentBlockQueryTests;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;

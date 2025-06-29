@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 
@@ -36,6 +37,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "jinaai_embeddings_task_settings";
     public static final JinaAIEmbeddingsTaskSettings EMPTY_SETTINGS = new JinaAIEmbeddingsTaskSettings((InputType) null);
     static final String INPUT_TYPE = "input_type";
+    static final String LATE_CHUNKING = "late_chunking";
 
     public static JinaAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -53,11 +55,13 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
             validationException
         );
 
+        Boolean lateChunking = extractOptionalBoolean(map, LATE_CHUNKING, validationException);
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIEmbeddingsTaskSettings(inputType);
+        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
     /**
@@ -77,7 +81,8 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     ) {
         var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
 
-        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse);
+        return new JinaAIEmbeddingsTaskSettings(inputTypeToUse, requestTaskSettings.lateChunking);
+        // TODO: Check the above
     }
 
     private static InputType getValidInputType(
@@ -94,14 +99,22 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     }
 
     private final InputType inputType;
+    private final Boolean lateChunking;
 
     public JinaAIEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class));
+        this(in.readOptionalEnum(InputType.class), in.readOptionalBoolean());
+    }
+
+    public JinaAIEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Boolean lateChunking) {
+        validateInputType(inputType);
+        this.inputType = inputType;
+        this.lateChunking = lateChunking;
     }
 
     public JinaAIEmbeddingsTaskSettings(@Nullable InputType inputType) {
         validateInputType(inputType);
         this.inputType = inputType;
+        this.lateChunking = null;
     }
 
     private static void validateInputType(InputType inputType) {
@@ -124,12 +137,22 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
             builder.field(INPUT_TYPE, inputType);
         }
 
+        // TODO: Add a transport version
+        if (lateChunking != null) {
+            builder.field(LATE_CHUNKING, lateChunking);
+        }
+
         builder.endObject();
         return builder;
     }
 
     public InputType getInputType() {
         return inputType;
+    }
+
+    @Override
+    public Boolean isLateChunkingEnabled() {
+        return lateChunking;
     }
 
     @Override
@@ -145,6 +168,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(inputType);
+        out.writeOptionalBoolean(lateChunking);
     }
 
     @Override
@@ -152,12 +176,12 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JinaAIEmbeddingsTaskSettings that = (JinaAIEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType);
+        return Objects.equals(inputType, that.inputType) && lateChunking == that.lateChunking;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType);
+        return Objects.hash(inputType, lateChunking);
     }
 
     @Override

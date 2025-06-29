@@ -5,32 +5,33 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.request;
+package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implements ToXContentObject {
-    private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
-    private final String modelId;
+public class LlamaChatCompletionRequestEntity implements ToXContentObject {
 
-    public ElasticInferenceServiceUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, String modelId) {
+    private final LlamaChatCompletionModel model;
+    private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
+
+    public LlamaChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, LlamaChatCompletionModel model) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
-        this.modelId = Objects.requireNonNull(modelId);
+        this.model = Objects.requireNonNull(model);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(modelId, params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
         builder.endObject();
-
         return builder;
     }
 }

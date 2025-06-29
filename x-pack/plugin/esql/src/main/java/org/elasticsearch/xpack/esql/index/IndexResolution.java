@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.action.ResolutionFailure;
 
 import java.util.Map;
 import java.util.Objects;
@@ -17,35 +17,34 @@ import java.util.Set;
 public final class IndexResolution {
 
     /**
-     * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
-     * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
-     * @param unavailableShards Set of shards that were unavailable during index resolution
+     * @param index               EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
+     * @param resolvedIndices     Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
      * @param unavailableClusters Remote clusters that could not be contacted during planning
+     * @param failuresByCluster   the failures that occurred during the index resolution, grouped by cluster.
      * @return valid IndexResolution
      */
     public static IndexResolution valid(
         EsIndex index,
         Set<String> resolvedIndices,
-        Set<NoShardAvailableActionException> unavailableShards,
-        Map<String, FieldCapabilitiesFailure> unavailableClusters
+        Map<String, FieldCapabilitiesFailure> unavailableClusters,
+        Map<String, ResolutionFailure> failuresByCluster
     ) {
         Objects.requireNonNull(index, "index must not be null if it was found");
         Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
-        Objects.requireNonNull(unavailableShards, "unavailableShards must not be null");
         Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
-        return new IndexResolution(index, null, resolvedIndices, unavailableShards, unavailableClusters);
+        return new IndexResolution(index, null, resolvedIndices, unavailableClusters, failuresByCluster);
     }
 
     /**
      * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
      */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, index.concreteIndices(), Set.of(), Map.of());
+        return valid(index, index.concreteIndices(), Map.of(), Map.of());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Set.of(), Set.of(), Map.of());
+        return new IndexResolution(null, invalid, Set.of(), Map.of(), Map.of());
     }
 
     public static IndexResolution notFound(String name) {
@@ -59,22 +58,22 @@ public final class IndexResolution {
 
     // all indices found by field-caps
     private final Set<String> resolvedIndices;
-    private final Set<NoShardAvailableActionException> unavailableShards;
     // remote clusters included in the user's index expression that could not be connected to
     private final Map<String, FieldCapabilitiesFailure> unavailableClusters;
+    private final Map<String, ResolutionFailure> failures;
 
     private IndexResolution(
         EsIndex index,
         @Nullable String invalid,
         Set<String> resolvedIndices,
-        Set<NoShardAvailableActionException> unavailableShards,
-        Map<String, FieldCapabilitiesFailure> unavailableClusters
+        Map<String, FieldCapabilitiesFailure> unavailableClusters,
+        Map<String, ResolutionFailure> failures
     ) {
         this.index = index;
         this.invalid = invalid;
         this.resolvedIndices = resolvedIndices;
-        this.unavailableShards = unavailableShards;
         this.unavailableClusters = unavailableClusters;
+        this.failures = failures;
     }
 
     public boolean matches(String indexName) {
@@ -116,10 +115,10 @@ public final class IndexResolution {
     }
 
     /**
-     * @return set of unavailable shards during index resolution
+     * @return a map from cluster to failures occurred on that cluster
      */
-    public Set<NoShardAvailableActionException> getUnavailableShards() {
-        return unavailableShards;
+    public Map<String, ResolutionFailure> failures() {
+        return failures;
     }
 
     @Override

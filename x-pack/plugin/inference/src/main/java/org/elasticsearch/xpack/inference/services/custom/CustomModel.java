@@ -46,7 +46,7 @@ public class CustomModel extends Model {
             inferenceId,
             taskType,
             service,
-            CustomServiceSettings.fromMap(serviceSettings, context, taskType, inferenceId),
+            CustomServiceSettings.fromMap(serviceSettings, context, taskType),
             CustomTaskSettings.fromMap(taskSettings),
             CustomSecretSettings.fromMap(secrets)
         );
@@ -66,7 +66,7 @@ public class CustomModel extends Model {
             inferenceId,
             taskType,
             service,
-            CustomServiceSettings.fromMap(serviceSettings, context, taskType, inferenceId),
+            CustomServiceSettings.fromMap(serviceSettings, context, taskType),
             CustomTaskSettings.fromMap(taskSettings),
             CustomSecretSettings.fromMap(secrets),
             chunkingSettings

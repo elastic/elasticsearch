@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
+import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
 import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
@@ -61,7 +62,7 @@ public class CustomResponseEntityTests extends ESTestCase {
 
         var model = CustomModelTests.getTestModel(
             TaskType.TEXT_EMBEDDING,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding")
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
         var request = new CustomRequest(
             EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null, null), model.getServiceSettings().getInputTypeTranslator()),

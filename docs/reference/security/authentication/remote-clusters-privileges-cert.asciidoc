@@ -33,8 +33,8 @@ On the remote cluster that contains the leader index, the {ccr} role requires
 the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
 leader index.
 
-NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
-requires the above privileges on the **local** cluster, instead of the remote.
+NOTE: When using a user <<security-api-create-api-key, API key>>, the required privileges must be granted on the **local cluster** only. The remote cluster will authorize based on the privileges embedded in the API key; **it does not use roles**. As a result, an API key may have broader or more limited access than the same user’s current role on the remote cluster.
+For stricter and more predictable access control, consider using the <<remote-clusters-api-key, cross-cluster API key trust model>>, which gives remote clusters full control over what data is accessible via cross-cluster operations. See <<remote-clusters-migration>>
 
 NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
 then the authenticating user must have the `run_as` privilege on the remote
@@ -136,8 +136,8 @@ local and remote clusters, and then create a user with the required roles.
 On the remote cluster, the {ccs} role requires the `read` and
 `read_cross_cluster` privileges for the target indices.
 
-NOTE: If requests are authenticated with an <<security-api-create-api-key, API key>>, the API key
-requires the above privileges on the **local** cluster, instead of the remote.
+NOTE: When using a user <<security-api-create-api-key, API key>>, the required privileges must be granted on the **local cluster** only. The remote cluster will authorize based on the privileges embedded in the API key; **it does not use roles**. As a result, an API key may have broader or more limited access than the same user’s current role on the remote cluster.
+For stricter and more predictable access control, consider using the <<remote-clusters-api-key, cross-cluster API key trust model>>, which gives remote clusters full control over what data is accessible via cross-cluster operations. See <<remote-clusters-migration>>
 
 NOTE: If requests are issued <<run-as-privilege,on behalf of other users>>,
 then the authenticating user must have the `run_as` privilege on the remote

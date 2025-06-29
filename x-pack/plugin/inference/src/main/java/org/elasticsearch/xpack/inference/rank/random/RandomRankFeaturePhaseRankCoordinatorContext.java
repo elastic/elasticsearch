@@ -22,8 +22,13 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
     private final Integer seed;
 
     public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, Integer seed) {
-        super(size, from, rankWindowSize, false);
+        super(size, from, rankWindowSize, false, null);
         this.seed = seed;
+    }
+
+    @Override
+    public Integer tokenSizeLimit() {
+        return 0;
     }
 
     @Override

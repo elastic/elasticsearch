@@ -584,6 +584,9 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
   issue: https://github.com/elastic/elasticsearch/issues/130281
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/130270
 
 # Examples:
 #

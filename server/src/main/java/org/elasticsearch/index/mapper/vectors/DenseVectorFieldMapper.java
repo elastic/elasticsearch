@@ -2551,7 +2551,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnBitQuery(queryVector))
                     : createExactKnnBitQuery(queryVector);
                 knnQuery = filter == null
-                    ? createExactKnnBitQuery(queryVector)
+                    ? exactKnnQuery
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
@@ -2592,7 +2592,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnByteQuery(queryVector))
                     : createExactKnnByteQuery(queryVector);
                 knnQuery = filter == null
-                    ? createExactKnnByteQuery(queryVector)
+                    ? exactKnnQuery
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
@@ -2658,7 +2658,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnFloatQuery(queryVector))
                     : createExactKnnFloatQuery(queryVector);
                 knnQuery = filter == null
-                    ? createExactKnnFloatQuery(queryVector)
+                    ? exactKnnQuery
                     : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();

@@ -334,6 +334,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
 
         writeCentroidsAndPartitions(centroidPartitions, centroids, fieldInfo, globalCentroid, centroidOutput);
 
+        System.out.println("total parent centroids: " + centroidPartitions.size());
+        System.out.println("total child centroids: " + centroids.length);
+
         if (logger.isDebugEnabled()) {
             logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
             logger.debug("final centroid count: {}", centroids.length);

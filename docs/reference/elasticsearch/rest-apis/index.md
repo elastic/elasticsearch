@@ -239,8 +239,7 @@ The info API provides basic build, version, and cluster information.
 
 | API | Description |
 | --- | ----------- |
-| [Root Info](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/info.root) | Returns basic information about the cluster. |
-| [Main Info](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/info.main) | Returns version and build information about Elasticsearch. |
+| [Get Cluster Info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-info) | Returns basic information about the cluster. |
 
 ### [Ingest](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ingest)
 
@@ -248,11 +247,11 @@ The ingest APIs enable you to manage tasks and resources related to ingest pipel
 
 | API | Description |
 | --- | ----------- |
-| [Put Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ingest.put_pipeline) | Creates or updates an ingest pipeline. |
-| [Get Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ingest.get_pipeline) | Retrieves one or more ingest pipelines. |
-| [Delete Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ingest.delete_pipeline) | Deletes an ingest pipeline. |
-| [Simulate Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ingest.simulate) | Simulates a document through an ingest pipeline. |
-| [Processor Grok](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ingest.processor_grok) | Returns a list of built-in grok patterns. |
+| [Put Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-put-pipeline) | Creates or updates an ingest pipeline. |
+| [Get Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-get-pipeline) | Retrieves one or more ingest pipelines. |
+| [Delete Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-pipeline) | Deletes an ingest pipeline. |
+| [Simulate Pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-simulate) | Simulates a document through an ingest pipeline. |
+| [Run Grok Processor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-processor-grok) | Returns a list of built-in grok patterns. |
 
 ### [Licensing](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-license)
 
@@ -260,11 +259,11 @@ The licensing APIs enable you to manage your licenses.
 
 | API | Description |
 | --- | ----------- |
-| [Get License](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/license.get) | Retrieves the current license for the cluster. |
-| [Put License](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/license.put) | Updates the license for the cluster. |
-| [Delete License](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/license.delete) | Removes the current license. |
-| [Start Basic License](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/license.post_start_basic) | Starts a basic license. |
-| [Start Trial License](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/license.post_start_trial) | Starts a trial license. |
+| [Get License](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-get) | Retrieves the current license for the cluster. |
+| [Put License](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post) | Updates the license for the cluster. |
+| [Delete License](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-delete) | Removes the current license. |
+| [Start Basic License](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post-start-basic) | Starts a basic license. |
+| [Start Trial License](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post-start-trial) | Starts a trial license. |
 
 ### [Logstash](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-logstash)
 

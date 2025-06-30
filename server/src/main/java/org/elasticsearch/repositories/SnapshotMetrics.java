@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -21,9 +22,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public record SnapshotMetrics(
-    LongCounter snapshotsStartedCounter,
-    LongCounter snapshotsCompletedCounter,
-    LongGauge snapshotsInProgressGauge,
+    LongCounter snapshotsShardsStartedCounter,
+    LongCounter snapshotsShardsCompletedCounter,
+    LongGauge snapshotShardsInProgressGauge,
+    DoubleHistogram snapshotShardsDurationHistogram,
     LongCounter snapshotBlobsUploadedCounter,
     LongCounter snapshotBytesUploadedCounter,
     LongCounter snapshotUploadDurationCounter,
@@ -34,9 +36,10 @@ public record SnapshotMetrics(
 
     public static final SnapshotMetrics NOOP = new SnapshotMetrics(MeterRegistry.NOOP, List::of);
 
-    public static final String SNAPSHOTS_STARTED = "es.repositories.snapshots.started.total";
-    public static final String SNAPSHOTS_COMPLETED = "es.repositories.snapshots.completed.total";
-    public static final String SNAPSHOTS_IN_PROGRESS = "es.repositories.snapshots.current";
+    public static final String SNAPSHOT_SHARDS_STARTED = "es.repositories.snapshots.shards.started.total";
+    public static final String SNAPSHOT_SHARDS_COMPLETED = "es.repositories.snapshots.shards.completed.total";
+    public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
+    public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
     public static final String SNAPSHOT_UPLOAD_DURATION = "es.repositories.snapshots.upload.upload_time.total";
@@ -46,14 +49,15 @@ public record SnapshotMetrics(
 
     public SnapshotMetrics(MeterRegistry meterRegistry, Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
         this(
-            meterRegistry.registerLongCounter(SNAPSHOTS_STARTED, "shard snapshots started", "unit"),
-            meterRegistry.registerLongCounter(SNAPSHOTS_COMPLETED, "shard snapshots completed", "unit"),
+            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_STARTED, "shard snapshots started", "unit"),
+            meterRegistry.registerLongCounter(SNAPSHOT_SHARDS_COMPLETED, "shard snapshots completed", "unit"),
             meterRegistry.registerLongsGauge(
-                SNAPSHOTS_IN_PROGRESS,
+                SNAPSHOT_SHARDS_IN_PROGRESS,
                 "shard snapshots in progress",
                 "unit",
                 shardSnapshotsInProgressObserver
             ),
+            meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ns"),

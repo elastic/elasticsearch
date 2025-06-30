@@ -26,7 +26,7 @@ The values of the `_fork` column always start with `fork1`, which indicates that
 the row is coming from the first branch.
 
 The `FORK` branches can output different columns as long as there exists no
-column with the same name and different data types into two different `FORK`
+column with the same name and different data types in two different `FORK`
 branches.
 
 When a column does not exist in a `FORK` branch, but it exists in the output of

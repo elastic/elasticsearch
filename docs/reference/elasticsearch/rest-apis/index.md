@@ -112,12 +112,12 @@ The data stream APIs enable you to create and manage data streams and data strea
 
 | API | Description |
 | --- | ----------- |
-| [Create Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.create_data_stream) | Creates a new data stream. |
-| [Delete Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.delete_data_stream) | Deletes an existing data stream. |
-| [Get Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.get_data_stream) | Retrieves one or more data streams. |
-| [Modify Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.modify_data_stream) | Updates the backing index configuration for a data stream. |
-| [Promote Data Stream Write Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.promote_data_stream_write_index) | Promotes a backing index to be the write index. |
-| [Stats](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/data_stream.stats) | Returns statistics about data streams. |
+| [Create Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-data-stream) | Creates a new data stream. |
+| [Delete Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-data-stream) | Deletes an existing data stream. |
+| [Get Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-stream) | Retrieves one or more data streams. |
+| [Update Data Stream](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-modify-data-stream) | Updates the backing index configuration for a data stream. |
+| [Promote Data Stream Write Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-promote-data-stream) | Promotes a backing index to be the write index. |
+| [Stats](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-data-streams-stats) | Returns statistics about data streams. |
 
 ### [Document](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-document)
 
@@ -125,12 +125,12 @@ The document APIs enable you to create and manage documents in an {{es}} index.
 
 | API | Description |
 | --- | ----------- |
-| [Index Document](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.index) | Indexes a document into a specific index. |
-| [Get Document](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.get) | Retrieves a document by ID. |
-| [Delete Document](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.delete) | Deletes a document by ID. |
-| [Update Document](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.update) | Updates a document using a script or partial doc. |
-| [Bulk](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.bulk) | Performs multiple indexing or delete operations in a single API call. |
-| [Mget](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/document.mget) | Retrieves multiple documents by ID in one request. |
+| [Index Document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create) | Indexes a document into a specific index. |
+| [Get Document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get) | Retrieves a document by ID. |
+| [Delete Document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete) | Deletes a document by ID. |
+| [Update Document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) | Updates a document using a script or partial doc. |
+| [Bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) | Performs multiple indexing or delete operations in a single API call. |
+| [Mget](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-mget) | Retrieves multiple documents by ID in one request. |
 
 ### [Enrich](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-enrich)
 
@@ -138,10 +138,10 @@ The enrich APIs enable you to manage enrich policies. An enrich policy is a set 
 
 | API | Description |
 | --- | ----------- |
-| [Put Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/enrich.put_policy) | Creates or updates an enrich policy. |
-| [Get Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/enrich.get_policy) | Retrieves enrich policy definitions. |
-| [Delete Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/enrich.delete_policy) | Deletes an enrich policy. |
-| [Execute Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/enrich.execute_policy) | Executes an enrich policy to create an enrich index. |
+| [Put Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-put-policy) | Creates or updates an enrich policy. |
+| [Get Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-get-policy) | Retrieves enrich policy definitions. |
+| [Delete Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-delete-policy) | Deletes an enrich policy. |
+| [Execute Enrich Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy) | Executes an enrich policy to create an enrich index. |
 
 ### [EQL](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-eql)
 
@@ -149,10 +149,9 @@ The EQL APIs enable you to run EQL-related operations. Event Query Language (EQL
 
 | API | Description |
 | --- | ----------- |
-| [EQL Search](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/eql.search) | Executes an EQL query to find event sequences in time-series data. |
-| [Get EQL Search Status](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/eql.get_status) | Retrieves the status of an asynchronous EQL search. |
-| [Get EQL Search Results](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/eql.get) | Retrieves results of an asynchronous EQL search. |
-| [Delete EQL Search](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/eql.delete) | Cancels an asynchronous EQL search. |
+| [Get EQL Search Status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-get) | Retrieves the status of an asynchronous EQL search. |
+| [Get EQL Search Results](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) | Retrieves results of an asynchronous EQL search. |
+| [Delete EQL Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-delete) | Cancels an asynchronous EQL search. |
 
 ### [ES|QL](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-esql)
 
@@ -160,10 +159,10 @@ The ES|QL APIs enable you to run ES|QL-related operations. The Elasticsearch Que
 
 | API | Description |
 | --- | ----------- |
-| [ES|QL Query](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/esql.query) | Executes an ES|QL query using a SQL-like syntax. |
-| [ES|QL Async Submit](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/esql.async_submit) | Submits an ES|QL query to run asynchronously. |
-| [ES|QL Async Get](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/esql.async_get) | Retrieves results of an asynchronous ES|QL query. |
-| [ES|QL Async Delete](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/esql.async_delete) | Cancels an asynchronous ES|QL query. |
+| [ES|QL Query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-query) | Executes an ES|QL query using a SQL-like syntax. |
+| [ES|QL Async Submit](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query) | Submits an ES|QL query to run asynchronously. |
+| [ES|QL Async Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get) | Retrieves results of an asynchronous ES|QL query. |
+| [ES|QL Async Delete](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete) | Cancels an asynchronous ES|QL query. |
 
 ### [Features](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-features)
 
@@ -171,8 +170,8 @@ The feature APIs enable you to introspect and manage features provided by {{es}}
 
 | API | Description |
 | --- | ----------- |
-| [Get Features](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/features.get_features) | Lists all available features in the cluster. |
-| [Reset Features](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/features.reset_features) | Resets internal state for system features. |
+| [Get Features](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-features-get-features) | Lists all available features in the cluster. |
+| [Reset Features](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-features-reset-features) | Resets internal state for system features. |
 
 ### [Fleet](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-fleet)
 
@@ -180,10 +179,9 @@ The Fleet APIs support Fleet’s use of Elasticsearch as a data store for intern
 
 | API | Description |
 | --- | ----------- |
-| [Get Fleet Status](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/fleet.get_status) | Retrieves the current status of the Fleet server. |
-| [Fleet Setup](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/fleet.setup) | Initializes Fleet and sets up required resources. |
-| [Fleet Agents](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/fleet.agents) | Manages agents enrolled in Fleet. |
-| [Fleet Policies](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/fleet.agent_policies) | Manages agent policies used by Fleet agents. |
+| [Run Multiple Fleet Searches](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-fleet-msearch) | Runs several Fleet searches with a single API request. |
+| [Run a Fleet Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-fleet-search) | Runs a Fleet search. |
+| [Get global checkpoints](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-fleet-global-checkpoints) | Get the current global checkpoints for an index. |
 
 ### [Graph explore](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-graph)
 
@@ -191,7 +189,7 @@ The graph explore APIs enable you to extract and summarize information about the
 
 | API | Description |
 | --- | ----------- |
-| [Graph Explore](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/graph.explore) | Discovers relationships between indexed terms using relevance-based graph exploration. |
+| [Graph Explore](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-graph-explore) | Discovers relationships between indexed terms using relevance-based graph exploration. |
 
 ### [Index](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-indices)
 
@@ -199,14 +197,14 @@ The index APIs enable you to manage individual indices, index settings, aliases,
 
 | API | Description |
 | --- | ----------- |
-| [Create Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.create) | Creates a new index with optional settings and mappings. |
-| [Delete Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.delete) | Deletes an existing index. |
-| [Get Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.get) | Retrieves information about one or more indices. |
-| [Open Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.open) | Opens a closed index to make it available for operations. |
-| [Close Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.close) | Closes an index to free up resources. |
-| [Shrink Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.shrink) | Shrinks an existing index into a new index with fewer primary shards. |
-| [Split Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.split) | Splits an existing index into a new index with more primary shards. |
-| [Clone Index](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/index.clone) | Clones an existing index into a new index. |
+| [Create Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) | Creates a new index with optional settings and mappings. |
+| [Delete Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete) | Deletes an existing index. |
+| [Get Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get) | Retrieves information about one or more indices. |
+| [Open Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-open) | Opens a closed index to make it available for operations. |
+| [Close Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-close) | Closes an index to free up resources. |
+| [Shrink Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-shrink) | Shrinks an existing index into a new index with fewer primary shards. |
+| [Split Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-split) | Splits an existing index into a new index with more primary shards. |
+| [Clone Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-clone) | Clones an existing index into a new index. |
 
 ### [Index lifecycle management](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ilm)
 
@@ -214,15 +212,15 @@ The index lifecycle management APIs enable you to set up policies to automatical
 
 | API | Description |
 | --- | ----------- |
-| [Put Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.put_lifecycle) | Creates or updates an ILM policy. |
-| [Get Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.get_lifecycle) | Retrieves one or more ILM policies. |
-| [Delete Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.delete_lifecycle) | Deletes an ILM policy. |
-| [Explain Lifecycle](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.explain_lifecycle) | Shows the current lifecycle step for indices. |
-| [Move to Step](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.move_to_step) | Manually moves an index to the next step in its lifecycle. |
-| [Retry Lifecycle Step](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.retry) | Retries the current lifecycle step for failed indices. |
-| [Start ILM](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.start) | Starts the ILM plugin. |
-| [Stop ILM](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.stop) | Stops the ILM plugin. |
-| [Get ILM Status](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/ilm.get_status) | Returns the status of the ILM plugin. |
+| [Put Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-put-lifecycle) | Creates or updates an ILM policy. |
+| [Get Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-lifecycle) | Retrieves one or more ILM policies. |
+| [Delete Lifecycle Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-delete-lifecycle) | Deletes an ILM policy. |
+| [Explain Lifecycle](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-explain-lifecycle) | Shows the current lifecycle step for indices. |
+| [Move to Step](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-move-to-step) | Manually moves an index to the next step in its lifecycle. |
+| [Retry Lifecycle Step](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-retry) | Retries the current lifecycle step for failed indices. |
+| [Start ILM](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-start) | Starts the ILM plugin. |
+| [Stop ILM](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-stop) | Stops the ILM plugin. |
+| [Get ILM Status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status) | Returns the status of the ILM plugin. |
 
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
@@ -230,10 +228,10 @@ The inference APIs enable you to create inference endpoints and integrate with m
 
 | API | Description |
 | --- | ----------- |
-| [Put Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.put_model) | Uploads a new inference model. |
-| [Get Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.get_model) | Retrieves one or more inference models. |
-| [Delete Inference Model](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.delete_model) | Deletes an inference model. |
-| [Infer](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/inference.infer) | Runs inference using a deployed model. |
+| [Put Inference Endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) | Creates an inference endpoint. |
+| [Get Inference Endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-get) | Retrieves one or more inference endpoint. |
+| [Delete Inference Endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-delete) | Deletes an inference endpoint. |
+| [Infer](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-inference) | Runs inference using a deployed model. |
 
 ### [Info](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-info)
 

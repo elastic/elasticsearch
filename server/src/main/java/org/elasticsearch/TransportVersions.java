@@ -29,6 +29,12 @@ import java.util.function.IntFunction;
  */
 public class TransportVersions {
 
+    static final TreeSet<Integer> ALL_VERSIONS = new TreeSet<>();
+
+    public static void register(TransportVersionsGroup transportVersionsGroup) {
+        ALL_VERSIONS.addAll(transportVersionsGroup.getLocalAndBackportedTVIds());
+    }
+
     /*
      * NOTE: IntelliJ lies!
      * This map is used during class construction, referenced by the registerTransportVersion method.

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.AutomatonQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -326,6 +327,27 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         assertNull(filter);
+    }
+
+    /**
+     * Tests that we <strong>can</strong> extract a filter if the transport
+     * version is {@code null}. This isn't run in the "filter for transport nodes"
+     * code path. Instead, it's in the "filter for the local node" path, but
+     * we can get a quick test of that by calling this setup.
+     */
+    public void testLikeListNullTransportVersion() {
+        String query = LoggerMessageFormat.format(null, """
+             FROM test
+            |WHERE {} LIKE ("a+", "b+")
+            """, LAST_NAME);
+        var plan = plan(query, null);
+
+        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
+        assertEquals(LAST_NAME, filter.fieldName());
+        AutomatonQueryBuilder innerFilter = (AutomatonQueryBuilder) filter.next();
+        assertEquals(LAST_NAME, innerFilter.fieldName());
+        assertEquals("""
+            LIKE("a+", "b+"), caseInsensitive=false""", innerFilter.description());
     }
 
     /**

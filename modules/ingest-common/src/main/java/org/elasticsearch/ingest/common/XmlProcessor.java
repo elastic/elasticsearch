@@ -34,7 +34,7 @@ import javax.xml.stream.XMLStreamReader;
 public final class XmlProcessor extends AbstractProcessor {
 
     public static final String TYPE = "xml";
-    
+
     private static final XMLInputFactory XML_INPUT_FACTORY = createXmlInputFactory();
 
     private final String field;

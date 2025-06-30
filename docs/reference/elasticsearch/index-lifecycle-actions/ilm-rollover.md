@@ -57,8 +57,12 @@ The index will roll over once any `max_*` condition is satisfied and all `min_*`
 `max_docs`
 :   (Optional, integer) Triggers rollover after the specified maximum number of documents is reached. Documents added since the last refresh are not included in the document count. The document count does **not** include documents in replica shards.
 
-`max_size`
+`max_size` {applies_to}`stack: deprecated`
 :   (Optional, [byte units](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Triggers rollover when the index reaches a certain size. This is the total size of all primary shards in the index. Replicas are not counted toward the maximum index size.
+
+    :::{admonition} Deprecated
+    The `max_size` rollover attribute will be removed in a future version. Use `max_primary_shard_size` instead. 
+    :::
 
     ::::{tip}
     To see the current index size, use the [_cat indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API. The `pri.store.size` value shows the combined size of all primary shards.

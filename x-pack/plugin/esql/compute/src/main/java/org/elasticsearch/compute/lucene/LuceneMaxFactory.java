@@ -108,6 +108,7 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
+    private final List<? extends ShardContext> contexts;
     private final String fieldName;
     private final NumberType numberType;
 
@@ -130,13 +131,14 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             false,
             ScoreMode.COMPLETE_NO_SCORES
         );
+        this.contexts = contexts;
         this.fieldName = fieldName;
         this.numberType = numberType;
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        return new LuceneMinMaxOperator(driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
+        return new LuceneMinMaxOperator(contexts, driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
     }
 
     @Override

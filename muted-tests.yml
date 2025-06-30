@@ -590,6 +590,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyOnFrom SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130296
+- class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
+  method: testSuccessfulExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130306
 
 # Examples:
 #

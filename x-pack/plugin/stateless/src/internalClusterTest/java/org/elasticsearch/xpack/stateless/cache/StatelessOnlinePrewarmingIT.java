@@ -54,6 +54,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.ArrayList;
@@ -67,6 +68,7 @@ import static co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarming
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase {
 
@@ -124,14 +126,30 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
                 .build()
         );
         ensureGreen(indexName);
-
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
+        // (e.g. when a reader is opened or when a search operation is executed)
+        String shardReadThreadPool = Stateless.SHARD_READ_THREAD_POOL;
+        // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
+        // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
+        long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        boolean atLeastOneRefresh = false;
         for (int i = 0; i < 10; i++) {
             indexDocs(indexName, 1000);
             if (randomBoolean()) {
+                // note that we open a reader on the search side when we refresh. opening a reader will read some
+                // segments and warm them up in the cache so we need to wait for the reads triggered by the refresh to complete before
+                // we can assert on the warmed bytes
+                refresh(indexName);
+                atLeastOneRefresh = true;
+            }
+            if (i == 9 && atLeastOneRefresh == false) {
+                // let's make sure we have at least one refresh
                 refresh(indexName);
             }
         }
         flush(indexName);
+        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, preRefreshCompletedDownloadTasks);
 
         IndexShard indexShard = findSearchShard(indexName);
         var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
@@ -188,12 +206,14 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         // no more bytes warmed as the shard was already prewarmed and no more writes have been executed
         assertThat(bytesWarmedAfterSecondPrewarming, is(bytesWarmedAfterFirstPrewarming));
 
+        long numberOfCompletedTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
         // let's create some more segments and trigger prewarming via a search operation
         for (int i = 0; i < 5; i++) {
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
         flush(indexName);
+        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, numberOfCompletedTasksAfterPrewarming);
 
         logger.info("-> searching index after additional indexing");
         // clear the cache to make sure prewarming doesn't race with readers opening
@@ -209,9 +229,11 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
 
         // evict everything from the cache
         cacheService.forceEvict(key -> true);
-
+        long bytesWarmedBeforeSearchRequest = searchDirectory.totalBytesWarmed();
         // assert appropriate cache-miss metrics are published when searching
         assertResponse(prepareSearch(indexName), response -> assertThat(response.getHits().getTotalHits().value(), is(10_000L)));
+        // wait for some prewarming to complete (it executes in parallel with the search operation)
+        assertBusy(() -> assertThat(searchDirectory.totalBytesWarmed() - bytesWarmedAfterSecondPrewarming, is(greaterThan(0L))));
         // There is at least one `population.throughput.histogram` measurement
         CachePopulationReason cachePopulationReason = CachePopulationReason.OnlinePrewarming;
         CachePopulationSource cachePopulationSource = CachePopulationSource.BlobStore;
@@ -234,6 +256,31 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
             cachePopulationReason,
             cachePopulationSource
         );
+    }
+
+    private static long getNumberOfCompletedTasks(ThreadPool threadPool, String shardReadThreadPool) {
+        final ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(shardReadThreadPool))
+            .findFirst()
+            .orElseThrow();
+        return stats.completed();
+    }
+
+    private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
+        throws Exception {
+        assertBusy(() -> {
+            final ThreadPoolStats.Stats stats = threadPool.stats()
+                .stats()
+                .stream()
+                .filter(s -> s.name().equals(executorName))
+                .findFirst()
+                .orElse(null);
+            assertThat(stats, is(notNullValue()));
+            assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
+            assertThat(stats.active() + stats.queue(), is(0));
+        });
     }
 
     private static void assertContainsMeasurement(

@@ -105,7 +105,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     public void testSelectBlocks() {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(
-            new TupleBlockSourceOperator(
+            new TupleLongLongBlockSourceOperator(
                 context.blockFactory(),
                 LongStream.range(0, 1000).mapToObj(l -> Tuple.tuple(randomLong(), randomFrom(1L, 7L, 14L, 20L)))
             )

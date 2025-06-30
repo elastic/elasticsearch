@@ -375,7 +375,7 @@ public interface Repository extends LifecycleComponent {
     /**
      * Get the current count of snapshots in progress
      *
-     * @return The current number of shard snapshots in progress
+     * @return The current number of shard snapshots in progress metric value, or null if this repository doesn't track that
      */
     @Nullable
     default LongWithAttributes getShardSnapshotsInProgress() {

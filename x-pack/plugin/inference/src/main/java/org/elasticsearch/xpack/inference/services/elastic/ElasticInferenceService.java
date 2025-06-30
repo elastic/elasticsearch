@@ -180,11 +180,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(
-                        DEFAULT_ELSER_2_MODEL_ID,
-                        null,
-                        null
-                    ),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,

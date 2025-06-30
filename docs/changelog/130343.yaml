@@ -1,5 +1,0 @@
-pr: 130343
-summary: ST_GEOHEX fix for excessive object creation in bounded grids
-area: ES|QL
-type: tech debt
-issues: []

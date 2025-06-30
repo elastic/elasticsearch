@@ -58,7 +58,7 @@ public class KnnScoreDocQuery extends Query {
             return knnQuery;
         }
         TopDocs topDocs = searcher.search(query, k);
-        assert topDocs.scoreDocs.length == k;
+        assert topDocs.scoreDocs.length <= k : "Expected at most [" + k + "] score docs, but got [" + topDocs.scoreDocs.length + "]";
         return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
     }
 

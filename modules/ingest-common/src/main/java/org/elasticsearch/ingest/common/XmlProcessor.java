@@ -34,6 +34,8 @@ import javax.xml.stream.XMLStreamReader;
 public final class XmlProcessor extends AbstractProcessor {
 
     public static final String TYPE = "xml";
+    
+    private static final XMLInputFactory XML_INPUT_FACTORY = createXmlInputFactory();
 
     private final String field;
     private final String targetField;
@@ -158,6 +160,19 @@ public final class XmlProcessor extends AbstractProcessor {
     }
 
     /**
+     * Creates and configures a secure XMLInputFactory for XML parsing.
+     * This factory is configured to prevent XXE attacks and optimize parsing.
+     */
+    private static XMLInputFactory createXmlInputFactory() {
+        XMLInputFactory factory = XMLInputFactory.newInstance();
+        factory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, false);
+        factory.setProperty(XMLInputFactory.IS_COALESCING, true);
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        return factory;
+    }
+
+    /**
      * Determines if a value should be considered empty for filtering purposes.
      */
     private boolean isEmptyValue(Object value) {
@@ -181,14 +196,8 @@ public final class XmlProcessor extends AbstractProcessor {
             return null;
         }
 
-        XMLInputFactory factory = XMLInputFactory.newInstance();
-        factory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, false);
-        factory.setProperty(XMLInputFactory.IS_COALESCING, true);
-        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
-        factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
-
         try (StringReader reader = new StringReader(xmlString)) {
-            XMLStreamReader xmlReader = factory.createXMLStreamReader(reader);
+            XMLStreamReader xmlReader = XML_INPUT_FACTORY.createXMLStreamReader(reader);
 
             // Skip to the first element
             while (xmlReader.hasNext() && xmlReader.getEventType() != XMLStreamConstants.START_ELEMENT) {

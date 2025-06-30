@@ -84,6 +84,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
+            // a[23] = "age_in_millis"
         )
     );
     static {
@@ -531,8 +532,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     LIFECYCLE_DATE_FIELD.getPreferredName(),
                     lifecycleDate
                 );
-                builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
-                builder.field(AGE_IN_MILLIS_FIELD.getPreferredName(), getAge(nowSupplier).getMillis());
+
+                final TimeValue ageNow = getAge(nowSupplier);
+                builder.field(AGE_FIELD.getPreferredName(), ageNow.toHumanReadableString(2));
+                builder.field(AGE_IN_MILLIS_FIELD.getPreferredName(), ageNow.getMillis());
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

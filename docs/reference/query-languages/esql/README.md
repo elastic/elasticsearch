@@ -110,7 +110,7 @@ To help differentiate between the static and generated content, the generated co
 > [!IMPORTANT]
 > Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.). This is a major departure from the practice of each minor version having its own dedicated documentation branch.
 
-Instead, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions on the `main` branch.
+Instead, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions because 9.0+ docs are all published from the `main` branch.
 
 This allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
 
@@ -163,7 +163,8 @@ For example, the second item in this list is in technical preview as of version 
 - `PREVIEW` - Feature is in technical preview
 - `GA` - Feature is generally available  
 
-> [!NOTE] Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`: 
+> [!NOTE] 
+> Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`: 
 > - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number. 
 >  - This will be updated automatically when the version is released.
 

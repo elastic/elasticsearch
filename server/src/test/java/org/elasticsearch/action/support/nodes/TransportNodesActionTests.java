@@ -10,6 +10,7 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -67,7 +68,9 @@ import java.util.function.ObjLongConsumer;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
@@ -356,13 +359,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final List<TestNodeResponse> nodeResponses = new ArrayList<>();
         for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
-            final var response = new TestNodeResponse(capturedRequest.node());
-            nodeResponses.add(response);
-            try {
-                transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
-            } finally {
-                response.decRef();
-            }
+            nodeResponses.add(completeOneRequest(capturedRequest));
         }
 
         // Wait for the overall response starts to processing the node responses in a loop
@@ -376,6 +373,62 @@ public class TransportNodesActionTests extends ESTestCase {
         safeAwait(barrier);
         safeGet(future);
         assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+    }
+
+    public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
+        final var action = getTestTransportNodesAction();
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        for (int i = 0; i < capturedRequests.length - 1; i++) {
+            final var capturedRequest = capturedRequests[i];
+            nodeResponses.add(completeOneRequest(capturedRequest));
+        }
+
+        final var raceBarrier = new CyclicBarrier(3);
+        final Thread completeThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            completeOneRequest(capturedRequests[capturedRequests.length - 1]);
+        });
+        final Thread cancelThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            TaskCancelHelper.cancel(cancellableTask, "simulated");
+        });
+        completeThread.start();
+        cancelThread.start();
+        safeAwait(raceBarrier);
+
+        try {
+            final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
+            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
+            assertFalse(cancellableTask.isCancelled());
+        } catch (Exception e) {
+            final var taskCancelledException = (TaskCancelledException) ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
+            assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
+            assertTrue(cancellableTask.isCancelled());
+        }
+        assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+
+        completeThread.join(10_000);
+        cancelThread.join(10_000);
+        assertFalse(completeThread.isAlive());
+        assertFalse(cancelThread.isAlive());
+    }
+
+    private TestNodeResponse completeOneRequest(CapturingTransport.CapturedRequest capturedRequest) {
+        final var response = new TestNodeResponse(capturedRequest.node());
+        try {
+            transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
+        } finally {
+            response.decRef();
+        }
+        return response;
     }
 
     @BeforeClass

@@ -100,7 +100,7 @@ public interface Repository extends LifecycleComponent {
     class SnapshotMetricsFactory implements Factory {
 
         @Override
-        public Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+        public final Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception {
             throw new UnsupportedOperationException("This repository requires a SnapshotMetrics implementation");
         }
     }

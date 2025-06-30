@@ -73,7 +73,9 @@ public class BlobStoreSnapshotMetrics {
 
     public void shardSnapshotCompleted(long durationInMillis) {
         snapshotMetrics.snapshotsShardsCompletedCounter().increment();
-        snapshotMetrics.snapshotShardsDurationHistogram().record(durationInMillis / 1_000f);
+        if (durationInMillis > 0) {
+            snapshotMetrics.snapshotShardsDurationHistogram().record(durationInMillis / 1_000f);
+        }
         numberOfShardSnapshotsCompleted.inc();
         shardSnapshotsInProgress.dec();
     }

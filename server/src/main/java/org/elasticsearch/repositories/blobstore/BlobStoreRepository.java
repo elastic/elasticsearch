@@ -3214,13 +3214,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
-        final long startTimeInMillis = threadPool.absoluteTimeInMillis();
         blobStoreSnapshotMetrics.shardSnapshotStarted();
-        context.addListener(
-            ActionListener.running(
-                () -> blobStoreSnapshotMetrics.shardSnapshotCompleted(threadPool.absoluteTimeInMillis() - startTimeInMillis)
-            )
-        );
+        context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status().getTotalTime())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
@@ -3230,6 +3225,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotId snapshotId = context.snapshotId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
         snapshotStatus.updateStatusDescription("snapshot task runner: setting up shard snapshot");
+        final long startTime = threadPool.absoluteTimeInMillis();
         try {
             final ShardGeneration generation = snapshotStatus.generation();
             final BlobContainer shardContainer = shardContainer(context.indexId(), shardId);
@@ -3351,7 +3347,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             snapshotStatus.updateStatusDescription("snapshot task runner: starting shard snapshot");
             snapshotStatus.moveToStarted(
-                startTimeInMillis,
+                startTime,
                 indexIncrementalFileCount,
                 indexTotalNumberOfFiles,
                 indexIncrementalSize,

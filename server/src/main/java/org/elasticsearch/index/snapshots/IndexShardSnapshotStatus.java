@@ -191,6 +191,10 @@ public class IndexShardSnapshotStatus {
         return stage.get();
     }
 
+    public long getTotalTime() {
+        return totalTime;
+    }
+
     public void addAbortListener(ActionListener<AbortStatus> listener) {
         abortListeners.addListener(listener);
     }

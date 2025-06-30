@@ -401,7 +401,7 @@ public class TransportNodesActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        int numNodes = 5; // randomIntBetween(3, 10);
+        int numNodes = randomIntBetween(3, 10);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {

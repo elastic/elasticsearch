@@ -47,17 +47,12 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
         return new Rerank(instance.source(), child, inferenceId, queryText, fields, instance.scoreAttribute());
     }
 
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
-
     private List<Alias> randomFields() {
         return randomList(0, 10, AliasTests::randomAlias);
     }
 
     private Literal string(String value) {
-        return new Literal(EMPTY, value, DataType.KEYWORD);
+        return Literal.keyword(EMPTY, value);
     }
 
     private Attribute scoreAttribute() {

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.ChangePointOperator;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,7 +41,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Furthermore, ChangePoint should be called with at most 1000 data points. That's
  * enforced by the Limit in the surrogate plan.
  */
-public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware {
+public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, LicenseAware {
 
     private final Attribute value;
     private final Attribute key;
@@ -152,5 +155,10 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
         if (value.dataType().isNumeric() == false) {
             failures.add(fail(this, "change point value [" + value.name() + "] must be numeric"));
         }
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return MachineLearning.CHANGE_POINT_AGG_FEATURE.check(state);
     }
 }

@@ -9,287 +9,340 @@
 
 package org.elasticsearch.search.stats;
 
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestSearchContext;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-public class ShardSearchStatsTests extends ESTestCase {
+public class ShardSearchStatsTests extends IndexShardTestCase {
 
     private static final long TEN_MILLIS = 10;
 
+    private ShardSearchStats shardSearchStatsListener;
+
+    @Before
+    public void setup() {
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        SearchStatsSettings searchStatsSettings = new SearchStatsSettings(clusterSettings);
+        this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
+    }
+
     public void testDfsPhase() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        listener.onPreDfsPhase(sc);
-        listener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getDfsCurrent());
-        assertEquals(1, stats.getDfsCount());
-        assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getDfsCurrent());
+            assertEquals(1, stats.getDfsCount());
+            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testDfsPhase_withGroups() {
-        String[] groups = new String[] { "group1" };
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(Arrays.asList(groups));
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getDfsCurrent());
+            assertEquals(1, stats.getDfsCount());
+            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        listener.onPreDfsPhase(sc);
-        listener.onDfsPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats searchStats = listener.stats(groups);
-        SearchStats.Stats stats = searchStats.getTotal();
-        assertEquals(0, stats.getDfsCurrent());
-        assertEquals(1, stats.getDfsCount());
-        assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
-
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertEquals(0, stats.getDfsCurrent());
-        assertEquals(1, stats.getDfsCount());
-        assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getDfsCurrent());
+            assertEquals(1, stats.getDfsCount());
+            assertEquals(TEN_MILLIS, stats.getDfsTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testDfsPhase_Failure() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreDfsPhase(sc);
+            shardSearchStatsListener.onFailedDfsPhase(sc);
 
-        listener.onPreDfsPhase(sc);
-        listener.onFailedDfsPhase(sc);
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getDfsCurrent());
-        assertEquals(0, stats.getDfsCount());
-        assertEquals(1, stats.getDfsFailure());
-    }
-
-    public void testQueryPhase_SuggestOnly() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        SearchSourceBuilder ssb = new SearchSourceBuilder().suggest(new SuggestBuilder());
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
-        when(req.source()).thenReturn(ssb);
-
-        listener.onPreQueryPhase(sc);
-        listener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getSuggestCurrent());
-        assertEquals(1, stats.getSuggestCount());
-        assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(0, stats.getQueryCount());
-        assertEquals(0, stats.getQueryTimeInMillis());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getDfsCurrent());
+            assertEquals(0, stats.getDfsCount());
+            assertEquals(1, stats.getDfsFailure());
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testQueryPhase() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        listener.onPreQueryPhase(sc);
-        listener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(1, stats.getQueryCount());
-        assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
-    public void testQueryPhase_withGroups() {
-        String[] groups = new String[] { "group1" };
+    public void testQueryPhase_SuggestOnly() {
+        try (SearchContext sc = createSearchContext(true)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(Arrays.asList(groups));
-
-        listener.onPreQueryPhase(sc);
-        listener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats searchStats = listener.stats("_all");
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(1, stats.getQueryCount());
-        assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
-
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(1, stats.getQueryCount());
-        assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
-    public void testQueryPhase_withGroups_SuggestOnly() {
-        String[] groups = new String[] { "group1" };
+    public void testQueryPhase_withGroup() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        SearchSourceBuilder ssb = new SearchSourceBuilder().suggest(new SuggestBuilder());
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
-        when(req.source()).thenReturn(ssb);
-        when(sc.groupStats()).thenReturn(Arrays.asList(groups));
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        listener.onPreQueryPhase(sc);
-        listener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(1, stats.getQueryCount());
+            assertEquals(TEN_MILLIS, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
 
-        SearchStats searchStats = listener.stats("_all");
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getSuggestCurrent());
-        assertEquals(1, stats.getSuggestCount());
-        assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(0, stats.getQueryCount());
-        assertEquals(0, stats.getQueryTimeInMillis());
+    public void testQueryPhase_withGroup_SuggestOnly() {
+        try (SearchContext sc = createSearchContext(true)) {
 
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertEquals(0, stats.getSuggestCurrent());
-        assertEquals(1, stats.getSuggestCount());
-        assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(0, stats.getQueryCount());
-        assertEquals(0, stats.getQueryTimeInMillis());
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(1, stats.getSuggestCount());
+            assertEquals(TEN_MILLIS, stats.getSuggestTimeInMillis());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testQueryPhase_SuggestOnly_Failure() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        SearchSourceBuilder ssb = new SearchSourceBuilder().suggest(new SuggestBuilder());
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
-        when(req.source()).thenReturn(ssb);
+        try (SearchContext sc = createSearchContext(true)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc);
 
-        listener.onPreQueryPhase(sc);
-        listener.onFailedQueryPhase(sc);
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getSuggestCurrent());
-        assertEquals(0, stats.getSuggestCount());
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(0, stats.getQueryCount());
-        assertEquals(0, stats.getQueryFailure());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getSuggestCurrent());
+            assertEquals(0, stats.getSuggestCount());
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(0, stats.getQueryFailure());
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testQueryPhase_Failure() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onFailedQueryPhase(sc);
 
-        listener.onPreQueryPhase(sc);
-        listener.onFailedQueryPhase(sc);
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getQueryCurrent());
-        assertEquals(0, stats.getQueryCount());
-        assertEquals(1, stats.getQueryFailure());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getQueryCurrent());
+            assertEquals(0, stats.getQueryCount());
+            assertEquals(1, stats.getQueryFailure());
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
     public void testFetchPhase() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        ShardSearchRequest req = mock(ShardSearchRequest.class);
-        when(sc.request()).thenReturn(req);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        listener.onPreFetchPhase(sc);
-        listener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getFetchCurrent());
-        assertEquals(1, stats.getFetchCount());
-        assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
-    public void testFetchPhase_withGroups() {
-        String[] groups = new String[] { "group1" };
+    public void testFetchPhase_withGroup() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
 
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(Arrays.asList(groups));
+            SearchStats searchStats = shardSearchStatsListener.stats("_all");
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
 
-        listener.onPreFetchPhase(sc);
-        listener.onFetchPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-
-        SearchStats searchStats = listener.stats("_all");
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getFetchCurrent());
-        assertEquals(1, stats.getFetchCount());
-        assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
-
-        stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
-        assertEquals(0, stats.getFetchCurrent());
-        assertEquals(1, stats.getFetchCount());
-        assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
+            stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(1, stats.getFetchCount());
+            assertEquals(TEN_MILLIS, stats.getFetchTimeInMillis());
+            assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
     }
 
     public void testFetchPhase_Failure() {
-        ShardSearchStats listener = new ShardSearchStats();
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(null);
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreFetchPhase(sc);
+            shardSearchStatsListener.onFailedFetchPhase(sc);
 
-        listener.onPreFetchPhase(sc);
-        listener.onFailedFetchPhase(sc);
-
-        SearchStats.Stats stats = listener.stats().getTotal();
-        assertEquals(0, stats.getFetchCurrent());
-        assertEquals(0, stats.getFetchCount());
-        assertEquals(1, stats.getFetchFailure());
+            SearchStats.Stats stats = shardSearchStatsListener.stats().getTotal();
+            assertEquals(0, stats.getFetchCurrent());
+            assertEquals(0, stats.getFetchCount());
+            assertEquals(1, stats.getFetchFailure());
+            assertEquals(0.0, stats.getSearchLoadRate(), 0);
+        }
     }
 
-    public void testReaderContext() {
-        ShardSearchStats listener = new ShardSearchStats();
-        ReaderContext rc = mock(ReaderContext.class);
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(null);
+    public void testReaderContext() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try (ReaderContext rc = createReaderContext(indexShard)) {
+            shardSearchStatsListener.onNewReaderContext(rc);
+            SearchStats stats = shardSearchStatsListener.stats();
+            assertEquals(1, stats.getOpenContexts());
 
-        listener.onNewReaderContext(rc);
-        SearchStats stats = listener.stats();
-        assertEquals(1, stats.getOpenContexts());
-
-        listener.onFreeReaderContext(rc);
-        stats = listener.stats();
-        assertEquals(0, stats.getOpenContexts());
+            shardSearchStatsListener.onFreeReaderContext(rc);
+            stats = shardSearchStatsListener.stats();
+            assertEquals(0, stats.getOpenContexts());
+        } finally {
+            closeShards(indexShard);
+        }
     }
 
-    public void testScrollContext() {
-        ShardSearchStats listener = new ShardSearchStats();
-        ReaderContext rc = mock(ReaderContext.class);
-        SearchContext sc = mock(SearchContext.class);
-        when(sc.groupStats()).thenReturn(null);
+    public void testScrollContext() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try (ReaderContext rc = createReaderContext(indexShard)) {
+            shardSearchStatsListener.onNewScrollContext(rc);
+            SearchStats stats = shardSearchStatsListener.stats();
+            assertEquals(1, stats.getTotal().getScrollCurrent());
 
-        listener.onNewScrollContext(rc);
-        SearchStats stats = listener.stats();
-        assertEquals(1, stats.getTotal().getScrollCurrent());
+            shardSearchStatsListener.onFreeScrollContext(rc);
+            stats = shardSearchStatsListener.stats();
+            assertEquals(0, stats.getTotal().getScrollCurrent());
+            assertEquals(1, stats.getTotal().getScrollCount());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
 
-        listener.onFreeScrollContext(rc);
-        stats = listener.stats();
-        assertEquals(0, stats.getTotal().getScrollCurrent());
-        assertEquals(1, stats.getTotal().getScrollCount());
-        assertTrue(stats.getTotal().getScrollTimeInMillis() > 0);
+    private static ReaderContext createReaderContext(IndexShard indexShard) {
+        return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+    }
+
+    private static SearchContext createSearchContext(boolean suggested) {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP
+        );
+        return new TestSearchContext(searchExecutionContext) {
+            private final SearchRequest searchquest = new SearchRequest().allowPartialSearchResults(true);
+            private final ShardSearchRequest request = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                suggested ? searchquest.source(new SearchSourceBuilder().suggest(new SuggestBuilder())) : searchquest,
+                new ShardId("index", "indexUUID", 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1f,
+                0L,
+                null
+            );
+
+            @Override
+            public ShardSearchRequest request() {
+                return request;
+            }
+
+            @Override
+            public List<String> groupStats() {
+                return Arrays.asList("group1");
+            }
+        };
     }
 }

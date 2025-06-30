@@ -191,6 +191,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
+            var shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
             LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher);
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
@@ -208,7 +209,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                     ),
                     List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                         throw new UnsupportedOperationException();
-                    })),
+                    }, 0.2)),
                     0
                 )
             );
@@ -273,7 +274,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
-            ctx -> query,
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),

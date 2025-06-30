@@ -851,6 +851,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             // by its FieldMapper#parse()
             throw e;
         }
+
         for (Map.Entry<Metric, Number> parsed : metricsParsed.entrySet()) {
             NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(parsed.getKey());
             delegateFieldMapper.indexValue(context, parsed.getValue());

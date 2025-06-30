@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
@@ -112,14 +113,15 @@ public class HttpClientManager implements Closeable {
         ThreadPool threadPool,
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
-        SSLService sslService
+        SSLService sslService,
+        TimeValue connectionTtl
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
         SSLIOSessionStrategy sslioSessionStrategy = sslService.sslIOSessionStrategy(
             sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
         );
 
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy);
+        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
@@ -146,7 +148,7 @@ public class HttpClientManager implements Closeable {
         this.addSettingsUpdateConsumers(clusterService);
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy) {
+    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy, TimeValue connectionTtl) {
         ConnectingIOReactor ioReactor;
         try {
             var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
@@ -162,7 +164,15 @@ public class HttpClientManager implements Closeable {
             .register("https", sslStrategy)
             .build();
 
-        return new PoolingNHttpClientConnectionManager(ioReactor, registry);
+        return new PoolingNHttpClientConnectionManager(
+            ioReactor,
+            null,
+            registry,
+            null,
+            null,
+            Math.toIntExact(connectionTtl.getMillis()),
+            TimeUnit.MILLISECONDS
+        );
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() {

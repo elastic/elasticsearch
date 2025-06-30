@@ -48,8 +48,34 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
+}
+
+version = VersionProperties.elasticsearch
+
+/**
+ * Here we package and aggregation zip file containing all maven artifacts we want to
+ * publish to maven central.
+ * The aggregation is done by picking all projects that have the elasticsearch.publish plugin applied,
+ * indicating the artifact is meant for beeing published to maven central.
+ * */
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }
 
 /**
@@ -295,12 +321,13 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    if(project.path == ':') {
+    if (project.path == ':') {
       resolveJavaToolChain = true
 
       // ensure we have best possible caching of bwc builds
       dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
       dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
@@ -319,49 +346,50 @@ allprojects {
   }
 
   ext.withReleaseBuild = { Closure config ->
-    if(buildParams.snapshotBuild == false) {
+    if (buildParams.snapshotBuild == false) {
       config.call()
+    }
+  }
+
+  def splitForCI = { proj, partString ->
+    proj.tasks.register("check$partString") {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
+
+    proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
+      if(name.endsWith("#bwcTest$partString")) {
+        proj.project.getTasks().register(name) {
+          task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
+        }
+      }
+    }
+    
+    proj.tasks.register("bcUpgradeTest$partString") {
+      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
     }
   }
 
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart4') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part4")
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
-        tasks.register('checkPart3') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part3")
       } else if (project.path.contains("multi-node")) {
-        tasks.register('checkPart5') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part5")
       } else {
-        tasks.register('checkPart2') {
-          dependsOn 'check'
-          withReleaseBuild {
-            dependsOn 'assemble'
-          }
-        }
+        splitForCI(project, "Part2")
       }
+    } else if(project.path.startsWith(":qa:")) {
+      splitForCI(project, "Part6")
     } else {
-      tasks.register('checkPart1') {
-        dependsOn 'check'
-        withReleaseBuild {
-          dependsOn 'assemble'
-        }
-      }
+      splitForCI(project, "Part1")
     }
     tasks.register('functionalTests') {
       dependsOn 'check'
@@ -430,6 +458,10 @@ tasks.named("updateDaemonJvm") {
     ),
     BuildPlatformFactory.of(
       org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
       org.gradle.platform.OperatingSystem.WINDOWS
     ),
     // anyone still using x86 osx?

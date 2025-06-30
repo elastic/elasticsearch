@@ -12,11 +12,6 @@ It provides stemming for Ukrainian using the [Morfologik project](https://github
 
 ## Installation [analysis-ukrainian-install]
 
-::::{warning}
-Version 9.0.0-beta1 of the Elastic Stack has not yet been released. The plugin might not be available.
-::::
-
-
 This plugin can be installed using the plugin manager:
 
 ```sh
@@ -25,7 +20,7 @@ sudo bin/elasticsearch-plugin install analysis-ukrainian
 
 The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
 
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-9.0.0-beta1.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-9.0.0-beta1.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-9.0.0-beta1.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-9.0.0-beta1.zip.asc).
+You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-{{version}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-{{version}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-{{version}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-ukrainian/analysis-ukrainian-{{version}}.zip.asc).
 
 
 ## Removal [analysis-ukrainian-remove]

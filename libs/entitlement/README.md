@@ -35,7 +35,7 @@ NotEntitledException: component [(server)], module [org.apache.lucene.misc], cla
 
 ### How to add an Elasticsearch module/plugin policy
 
-A policy is defined in an `entitlements-policy.yaml` file within an Elasticsearch module/plugin under `src/main/plugin-metadata`. Policy files contain lists of entitlements that should be allowed, grouped by Java module name, which acts as the policy scope. For example, the `transport-netty4` Elasticsearch module's policy file contains an entitlement to accept `inbound_network` connections, limited to the `io.netty.transport` and `io.netty.common` Java modules.
+A policy is defined in an `entitlement-policy.yaml` file within an Elasticsearch module/plugin under `src/main/plugin-metadata`. Policy files contain lists of entitlements that should be allowed, grouped by Java module name, which acts as the policy scope. For example, the `transport-netty4` Elasticsearch module's policy file contains an entitlement to accept `inbound_network` connections, limited to the `io.netty.transport` and `io.netty.common` Java modules.
 
 Elasticsearch modules/plugins that are not yet modularized (i.e. do not have `module-info.java`) will need to use single `ALL-UNNAMED` scope. For example, the `reindex` Elasticsearch module's policy file contains a single `ALL-UNNAMED` scope, with an entitlement to perform `outbound_network`; all code in `reindex` will be able to connect to the network. It is not possible to use the `ALL-UNNAMED` scope for modularized modules/plugins.
 
@@ -92,12 +92,16 @@ If the entitlement should or could not be granted (e.g. because the offending co
 
 #### Suppress a benign warning
 
-For a benign `NotEntitledException` that is caught, we probably want to ignore the warning.
-Double-check with Core/Infra before embarking on this, because it's a nontrivial amount of work, which goes beyond changes to Elasticsearch and may involve multiple PRs in multiple repos. We want to make sure this is the way to go before spending time on it.
+For a benign `NotEntitledException` that is caught, we probably want to suppress (ignore) the warning.
 
-Suppressing the warning involves adding a setting to the `log4j2.properties` files; you can follow [this PR](https://github.com/elastic/elasticsearch/pull/124883) as an example. Use a consistent naming convention, e.g. `logger.entitlements_<plugin_name>.name`. Avoid using extra dots, use `_` instead.
+Suppressing the warning involves adding two lines to the `log4j2.properties` files: one specifying the logger name,
+and the other specifying the level of `ERROR`, thereby silencing the warning.
+Each component has its own `log4j2.properties` file, but they are bundled together by the build process, so make sure to use a globally unique name for each setting you add.
+The naming convention is `logger.entitlements_<plugin_name>.name`.
+If a plugin needs more than one override, additional suffixes can be added to `<plugin_name>` to distinguish them.
+The `<plugin_name>` portion of the name must contain no dots or other punctuation besides underscores.
 
-Each component has its own `log4j2.properties` file. Place the file in `src/main/config`: the build process will take care of bundling the file.
+You can follow [this PR](https://github.com/elastic/elasticsearch/pull/124883) as an example.
 
 #### Patching a policy via system properties
 
@@ -166,7 +170,7 @@ java.lang.IllegalStateException: Invalid module name in policy: layer [server] d
 
 IMPORTANT: this patching mechanism is intended to be used **only** for emergencies; once a missing entitlement is identified, the fix needs to be applied to the codebase, by raising a PR or submitting a bug via Github so that the bundled policies can be fixed.
 
-### How to migrate a from a Java Security Manager Policy to an entitlement policy
+### How to migrate from a Java Security Manager Policy to an entitlement policy
 
 Translating Java Security Permissions to Entitlements is usually not too difficult;
 - many permissions are not used anymore. The Entitlement system is targeting sensitive actions we identified as crucial to our code; any other permission is not checked anymore. Also, we do not have  any entitlement related to reflection or access checks: Elasticsearch runs modularized, and we leverage and trust the Java module mechanism to enforce access and visibility.

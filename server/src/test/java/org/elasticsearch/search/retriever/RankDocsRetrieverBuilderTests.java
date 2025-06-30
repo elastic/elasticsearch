@@ -97,7 +97,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
     }
 
     private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder(QueryRewriteContext queryRewriteContext) throws IOException {
-        return new RankDocsRetrieverBuilder(randomIntBetween(1, 100), innerRetrievers(queryRewriteContext), rankDocsSupplier());
+        return new RankDocsRetrieverBuilder(randomIntBetween(1, 100), innerRetrievers(queryRewriteContext), rankDocsSupplier(), null);
     }
 
     public void testExtractToSearchSourceBuilder() throws IOException {

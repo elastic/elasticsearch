@@ -21,10 +21,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -33,6 +35,8 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -52,23 +56,38 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
     );
 
     private static SystemDataStreamDescriptor createSystemDataStreamDescriptor(IndexVersion indexVersion) {
-        return new SystemDataStreamDescriptor(
-            TEST_DATA_STREAM_NAME,
-            "system data stream test",
-            SystemDataStreamDescriptor.Type.EXTERNAL,
-            ComposableIndexTemplate.builder()
-                .template(
-                    Template.builder()
-                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true))
-                        .settings(indexSettings(indexVersion, 1, 0))
-                )
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .build(),
-            Map.of(),
-            List.of("product"),
-            ORIGIN,
-            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
-        );
+        try {
+            return new SystemDataStreamDescriptor(
+                TEST_DATA_STREAM_NAME,
+                "system data stream test",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                ComposableIndexTemplate.builder()
+                    .template(
+                        Template.builder()
+                            .mappings(new CompressedXContent("""
+                                {
+                                    "properties": {
+                                      "@timestamp" : {
+                                        "type": "date"
+                                      },
+                                      "count": {
+                                        "type": "long"
+                                      }
+                                    }
+                                }"""))
+                            .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true))
+                            .settings(indexSettings(indexVersion, 1, 0))
+                    )
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build(),
+                Map.of(),
+                List.of("product"),
+                ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -87,6 +106,7 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(DataStreamTestPlugin.class);
+        plugins.add(MapperExtrasPlugin.class);
         return plugins;
     }
 
@@ -109,6 +129,20 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
         }
 
         BulkResponse actionGet = bulkBuilder.get();
+        assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
+
+        // Index docs to failure store too
+        bulkBuilder = client().prepareBulk();
+        for (int i = 0; i < INDEX_DOC_COUNT; i++) {
+            IndexRequestBuilder requestBuilder = ESIntegTestCase.prepareIndex(dataStreamName)
+                .setId(Integer.toString(i))
+                .setRequireDataStream(true)
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .setSource(DataStream.TIMESTAMP_FIELD_NAME, 1741271969000L, "count", "not-a-number");
+            bulkBuilder.add(requestBuilder);
+        }
+
+        actionGet = bulkBuilder.get();
         assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
     }
 
@@ -133,6 +167,16 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
         assertThat(backingIndices, hasSize(2));
         for (Index backingIndex : backingIndices) {
             IndexMetadata indexMetadata = finalMetadata.index(backingIndex);
+            assertThat(indexMetadata.isSystem(), is(true));
+            assertThat(indexMetadata.getCreationVersion(), is(IndexVersion.current()));
+        }
+
+        // Migrate action does not migrate the failure store indices
+        // here we check that they are preserved.
+        List<Index> failureIndices = dataStream.getFailureIndices();
+        assertThat(failureIndices, hasSize(1));
+        for (Index failureIndex : failureIndices) {
+            IndexMetadata indexMetadata = finalMetadata.index(failureIndex);
             assertThat(indexMetadata.isSystem(), is(true));
             assertThat(indexMetadata.getCreationVersion(), is(IndexVersion.current()));
         }

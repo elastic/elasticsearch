@@ -44,33 +44,40 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
+public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader implements OffHeapStats {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES818BinaryQuantizedVectorsReader.class);
 
-    private final Map<String, FieldEntry> fields = new HashMap<>();
+    private final Map<String, FieldEntry> fields;
     private final IndexInput quantizedVectorData;
     private final FlatVectorsReader rawVectorsReader;
     private final ES818BinaryFlatVectorsScorer vectorScorer;
 
+    @SuppressWarnings("this-escape")
     ES818BinaryQuantizedVectorsReader(
         SegmentReadState state,
         FlatVectorsReader rawVectorsReader,
         ES818BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
         super(vectorsScorer);
+        this.fields = new HashMap<>();
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
         int versionMeta = -1;
@@ -100,7 +107,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             quantizedVectorData = openDataInput(
                 state,
                 versionMeta,
-                ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION,
+                VECTOR_DATA_EXTENSION,
                 ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Quantized vectors are accessed randomly from their node ID stored in the HNSW
                 // graph.
@@ -112,6 +119,24 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 IOUtils.closeWhileHandlingException(this);
             }
         }
+    }
+
+    private ES818BinaryQuantizedVectorsReader(ES818BinaryQuantizedVectorsReader clone, FlatVectorsReader rawVectorsReader) {
+        super(clone.vectorScorer);
+        this.rawVectorsReader = rawVectorsReader;
+        this.vectorScorer = clone.vectorScorer;
+        this.quantizedVectorData = clone.quantizedVectorData;
+        this.fields = clone.fields;
+    }
+
+    // For testing
+    FlatVectorsReader getRawVectorsReader() {
+        return rawVectorsReader;
+    }
+
+    @Override
+    public FlatVectorsReader getMergeInstance() {
+        return new ES818BinaryQuantizedVectorsReader(this, rawVectorsReader.getMergeInstance());
     }
 
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
@@ -154,7 +179,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
-        if (fi == null) {
+        if (fi == null || fi.size() == 0) {
             return null;
         }
         return vectorScorer.getRandomVectorScorer(
@@ -250,6 +275,19 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
         size += RamUsageEstimator.sizeOfMap(fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
         size += rawVectorsReader.ramBytesUsed();
         return size;
+    }
+
+    @Override
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        Objects.requireNonNull(fieldInfo);
+        var raw = OffHeapByteSizeUtils.getOffHeapByteSize(rawVectorsReader, fieldInfo);
+        var fieldEntry = fields.get(fieldInfo.name);
+        if (fieldEntry == null) {
+            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
+            return raw;
+        }
+        var quant = Map.of(VECTOR_DATA_EXTENSION, fieldEntry.vectorDataLength());
+        return OffHeapByteSizeUtils.mergeOffHeapByteSizeMaps(raw, quant);
     }
 
     public float[] getCentroid(String field) {

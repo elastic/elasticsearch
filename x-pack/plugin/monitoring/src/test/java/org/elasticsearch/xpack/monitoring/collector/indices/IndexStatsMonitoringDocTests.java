@@ -404,6 +404,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             no
         );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
@@ -426,7 +427,8 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
-            no
+            no,
+            Double.valueOf(no)
         );
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));
 

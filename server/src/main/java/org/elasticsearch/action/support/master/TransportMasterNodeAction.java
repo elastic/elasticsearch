@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
@@ -304,20 +305,41 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     threadPool.getThreadContext()
                 );
             }
+            // We track whether we already notified the listener or started executing the action, to avoid invoking the listener twice.
+            // Because of that second part, we can not use ActionListener#notifyOnce.
+            final var waitComplete = Predicates.once();
+            if (task instanceof CancellableTask cancellableTask) {
+                cancellableTask.addListener(() -> {
+                    if (waitComplete.getAsBoolean() == false) {
+                        return;
+                    }
+                    listener.onFailure(new TaskCancelledException("Task was cancelled"));
+                    logger.trace("task [{}] was cancelled, notifying listener", task.getId());
+                });
+            }
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
+                    if (waitComplete.getAsBoolean() == false) {
+                        return;
+                    }
                     logger.trace("retrying with cluster state version [{}]", state.version());
                     doStart(state);
                 }
 
                 @Override
                 public void onClusterServiceClose() {
+                    if (waitComplete.getAsBoolean() == false) {
+                        return;
+                    }
                     listener.onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
+                    if (waitComplete.getAsBoolean() == false) {
+                        return;
+                    }
                     logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                 }

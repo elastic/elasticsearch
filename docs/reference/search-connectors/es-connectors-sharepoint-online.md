@@ -49,7 +49,7 @@ To get started, first log in to SharePoint Online and access your administrative
 
 Follow these steps:
 
-* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Azure Active Directory**.
+* Sign in to [https://portal.azure.com/](https://portal.azure.com/) and click on **Microsoft Entra ID** (formerly Azure Active Directory).
 * Locate **App Registrations** and Click **New Registration**.
 * Give your app a name - like "Search".
 * Leave the **Redirect URIs** blank for now.
@@ -133,9 +133,9 @@ Refer to the following documentation for setting [SharePoint permissions](https:
 
 #### Granting `Sites.Selected` permissions [es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
 
-To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+To configure `Sites.Selected` permissions, follow these steps in the Microsoft Entra ID (formerly Azure Active Directory) portal. These permissions enable precise access control to specific SharePoint sites.
 
-1. Sign in to the [Azure Active Directory portal](https://portal.azure.com/).
+1. Sign in to the [Microsoft Entra ID (formerly Azure Active Directory) portal](https://portal.azure.com/).
 2. Navigate to **App registrations** and locate the application created for the connector.
 3. Under **API permissions**, click **Add permission**.
 4. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.
@@ -591,6 +591,19 @@ make ftest NAME=sharepoint_online DATA_SIZE=small
         If the configuration `Enumerate All Sites?` is enabled, incremental syncs may not behave as expected. Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
 
         **Workaround**: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
+
+* **ACL is not properly inherited for Site Pages and List Items inside of a folder with Unique Permissions when DLS is enabled with Fetch unique list item permissions, Fetch unique page permissions or Fetch drive item permissions**
+
+    There is a known issue with ACL propagation when List Items, Site Pages or Drive Items are located inside of a folder that has Unique permissions enabled. Consider the following example:
+
+    ```
+    [0] Root Site (Access: All)
+    [1]  Subsite Travel (Access: inherit)
+    [2]    Folder "/es" (Access: Spanish Employees)
+    [3]      Page "destinations.html" (Access: inherit)
+    ```
+
+    Expected permissions for `destinations.html` should be `Access: Spanish Employees`, but will be `Access: All`, because permissions will be assumed from Subsite Travel, rather than folder "/es".
 
 
 Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for all connectors.

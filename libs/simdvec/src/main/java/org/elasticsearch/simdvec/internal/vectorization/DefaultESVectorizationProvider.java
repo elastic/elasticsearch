@@ -9,6 +9,12 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+
+import java.io.IOException;
+
 final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     private final ESVectorUtilSupport vectorUtilSupport;
 
@@ -19,5 +25,15 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ESVectorUtilSupport getVectorUtilSupport() {
         return vectorUtilSupport;
+    }
+
+    @Override
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        return new ES91OSQVectorsScorer(input, dimension);
+    }
+
+    @Override
+    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return new ES91Int4VectorsScorer(input, dimension);
     }
 }

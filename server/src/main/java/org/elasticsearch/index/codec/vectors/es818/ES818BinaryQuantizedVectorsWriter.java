@@ -44,11 +44,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,6 +84,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      *
      * @param vectorsScorer the scorer to use for scoring vectors
      */
+    @SuppressWarnings("this-escape")
     protected ES818BinaryQuantizedVectorsWriter(
         ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
@@ -763,6 +765,10 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             );
         }
 
+        int quantizedDimension() {
+            return byteBuffer.array().length;
+        }
+
         public int size() {
             return size;
         }
@@ -887,8 +893,8 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public RandomVectorScorer scorer(int ord) throws IOException {
-            return supplier.scorer(ord);
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return supplier.scorer();
         }
 
         @Override

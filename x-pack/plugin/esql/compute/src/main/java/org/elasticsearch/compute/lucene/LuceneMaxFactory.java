@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.data.Block;
@@ -22,8 +21,6 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
-
-import static org.elasticsearch.compute.lucene.LuceneOperator.weightFunction;
 
 /**
  * Factory that generates an operator that finds the max value of a field using the {@link LuceneMinMaxOperator}.
@@ -111,26 +108,37 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
+    private final List<? extends ShardContext> contexts;
     private final String fieldName;
     private final NumberType numberType;
 
     public LuceneMaxFactory(
         List<? extends ShardContext> contexts,
-        Function<ShardContext, Query> queryFunction,
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,
         String fieldName,
         NumberType numberType,
         int limit
     ) {
-        super(contexts, weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES), dataPartitioning, taskConcurrency, limit, false);
+        super(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            taskConcurrency,
+            limit,
+            false,
+            ScoreMode.COMPLETE_NO_SCORES
+        );
+        this.contexts = contexts;
         this.fieldName = fieldName;
         this.numberType = numberType;
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        return new LuceneMinMaxOperator(driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
+        return new LuceneMinMaxOperator(contexts, driverContext.blockFactory(), sliceQueue, fieldName, numberType, limit, Long.MIN_VALUE);
     }
 
     @Override

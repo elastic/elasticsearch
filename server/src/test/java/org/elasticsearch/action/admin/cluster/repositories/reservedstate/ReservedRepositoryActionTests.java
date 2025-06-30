@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -42,8 +44,7 @@ import static org.mockito.Mockito.spy;
  */
 public class ReservedRepositoryActionTests extends ESTestCase {
 
-    private TransformState<ClusterState> processJSON(ReservedRepositoryAction action, TransformState<ClusterState> prevState, String json)
-        throws Exception {
+    private TransformState processJSON(ReservedRepositoryAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -53,7 +54,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String badPolicyJSON = """
@@ -76,12 +77,12 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
 
-        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -110,7 +111,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of("repo1"));
+        TransformState prevState = new TransformState(state, Set.of("repo1"));
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
@@ -126,7 +127,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
     private RepositoriesService mockRepositoriesService() {
         var fsFactory = new Repository.Factory() {
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 var repo = mock(Repository.class);
                 doAnswer(invocation -> metadata).when(repo).getMetadata();
                 return repo;
@@ -147,12 +148,12 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         );
 
         doAnswer(invocation -> {
-            var request = (PutRepositoryRequest) invocation.getArguments()[0];
+            var request = (PutRepositoryRequest) invocation.getArguments()[1];
             if (request.type().equals("inter_planetary")) {
                 throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepositoryCanBeCreated(any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(eq(ProjectId.DEFAULT), any());
 
         return repositoriesService;
     }

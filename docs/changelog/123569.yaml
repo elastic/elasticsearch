@@ -1,5 +1,0 @@
-pr: 123569
-summary: Abort pending deletion on `IndicesService` close
-area: Store
-type: enhancement
-issues: []

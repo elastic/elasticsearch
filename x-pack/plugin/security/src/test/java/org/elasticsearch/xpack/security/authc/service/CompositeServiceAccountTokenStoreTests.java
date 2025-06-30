@@ -13,7 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -58,7 +60,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
                 .getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store1Success, tokenSource));
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store1Success));
             return null;
         }).when(store1).authenticate(eq(token), any());
 
@@ -66,7 +68,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
                 .getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store2Success, tokenSource));
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store2Success));
             return null;
         }).when(store2).authenticate(eq(token), any());
 
@@ -74,7 +76,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
                 .getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store3Success, tokenSource));
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store3Success));
             return null;
         }).when(store3).authenticate(eq(token), any());
 

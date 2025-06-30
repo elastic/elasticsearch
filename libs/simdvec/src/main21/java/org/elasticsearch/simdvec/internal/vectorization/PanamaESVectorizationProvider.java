@@ -9,6 +9,14 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
+import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+
+import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+
 final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     private final ESVectorUtilSupport vectorUtilSupport;
@@ -20,5 +28,27 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ESVectorUtilSupport getVectorUtilSupport() {
         return vectorUtilSupport;
+    }
+
+    @Override
+    public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && input instanceof MemorySegmentAccessInput msai) {
+            MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
+            if (ms != null) {
+                return new MemorySegmentES91OSQVectorsScorer(input, dimension, ms);
+            }
+        }
+        return new ES91OSQVectorsScorer(input, dimension);
+    }
+
+    @Override
+    public ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && input instanceof MemorySegmentAccessInput msai) {
+            MemorySegment ms = msai.segmentSliceOrNull(0, input.length());
+            if (ms != null) {
+                return new MemorySegmentES91Int4VectorsScorer(input, dimension, ms);
+            }
+        }
+        return new ES91Int4VectorsScorer(input, dimension);
     }
 }

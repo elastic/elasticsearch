@@ -18,18 +18,25 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +57,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
+    public static final CompressedXContent EMPTY_MAPPINGS;
+    static {
+        try {
+            EMPTY_MAPPINGS = new CompressedXContent(Map.of());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
@@ -309,6 +324,92 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return builder;
     }
 
+    /*
+     * Merges the given settings into the settings in this ComposableIndexTemplate. Any null values in the
+     * given settings are removed from the settings in the returned ComposableIndexTemplate. If this
+     * ComposableIndexTemplate has no settings, the given settings are the only ones in the returned template
+     * (with any null values removed). If this ComposableIndexTemplate has no template, an empty template with
+     * those settings is created. If the given settings are empty, this ComposableIndexTemplate is just
+     * returned unchanged. This method never changes this object.
+     */
+    public ComposableIndexTemplate mergeSettings(Settings settings) {
+        Objects.requireNonNull(settings);
+        if (Settings.EMPTY.equals(settings)) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        Settings templateSettings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateSettings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateSettings = this.template().settings();
+        }
+        mergedTemplateBuilder.settings(templateSettings == null ? settings : templateSettings.merge(settings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    public ComposableIndexTemplate mergeMappings(CompressedXContent mappings) throws IOException {
+        Objects.requireNonNull(mappings);
+        if (Mapping.EMPTY.toCompressedXContent().equals(mappings) && this.template() != null && this.template().mappings() != null) {
+            return this;
+        }
+        ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();
+        Template.Builder mergedTemplateBuilder;
+        CompressedXContent templateMappings;
+        if (this.template() == null) {
+            mergedTemplateBuilder = Template.builder();
+            templateMappings = null;
+        } else {
+            mergedTemplateBuilder = Template.builder(this.template());
+            templateMappings = this.template().mappings();
+        }
+        mergedTemplateBuilder.mappings(templateMappings == null ? mappings : merge(templateMappings, mappings));
+        mergedIndexTemplateBuilder.template(mergedTemplateBuilder);
+        return mergedIndexTemplateBuilder.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private CompressedXContent merge(CompressedXContent originalMapping, CompressedXContent mappingAddition) throws IOException {
+        Map<String, Object> mappingAdditionMap = XContentHelper.convertToMap(mappingAddition.uncompressed(), true, XContentType.JSON).v2();
+        Map<String, Object> combinedMappingMap = new HashMap<>();
+        if (originalMapping != null) {
+            Map<String, Object> originalMappingMap = XContentHelper.convertToMap(originalMapping.uncompressed(), true, XContentType.JSON)
+                .v2();
+            if (originalMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                combinedMappingMap.putAll((Map<String, ?>) originalMappingMap.get(MapperService.SINGLE_MAPPING_NAME));
+            } else {
+                combinedMappingMap.putAll(originalMappingMap);
+            }
+        }
+        XContentHelper.update(combinedMappingMap, mappingAdditionMap, true);
+        return convertMappingMapToXContent(combinedMappingMap);
+    }
+
+    private static CompressedXContent convertMappingMapToXContent(Map<String, Object> rawAdditionalMapping) throws IOException {
+        CompressedXContent compressedXContent;
+        if (rawAdditionalMapping.isEmpty()) {
+            compressedXContent = EMPTY_MAPPINGS;
+        } else {
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, rawAdditionalMapping)) {
+                compressedXContent = mappingFromXContent(parser);
+            }
+        }
+        return compressedXContent;
+    }
+
+    private static CompressedXContent mappingFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -383,9 +484,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
-            }
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
         }
 
         private final boolean hidden;

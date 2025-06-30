@@ -49,6 +49,7 @@ spotless {
     /*
      * Generated files go here.
      */
+    toggleOffOn('begin generated imports', 'end generated imports')
     targetExclude "src/main/generated/**/*.java"
   }
 }
@@ -79,6 +80,14 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
   ]
 }
 
+def addOccurrence(props, Occurrence) {
+  def newProps = props.collectEntries { [(it.key): it.value] }
+  newProps["Occurrence"] = Occurrence
+  newProps["First"] = Occurrence == "First" ? "true" : ""
+  newProps["Last"] = Occurrence == "Last" ? "true" : ""
+  return newProps
+}
+
 tasks.named('stringTemplates').configure {
   var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
@@ -92,7 +101,7 @@ tasks.named('stringTemplates').configure {
     "",
     "BYTES_REF",
     "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF",
-    "",
+    "BytesRefArray",
     "BytesRefHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
@@ -640,6 +649,33 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/StdDevDoubleAggregator.java"
   }
 
+  File sampleAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SampleAggregator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBooleanAggregator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBytesRefAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleDoubleAggregator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleLongAggregator.java"
+  }
+
   File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
   template {
     it.properties = intProperties
@@ -862,4 +898,30 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
   }
 
+  // TODO: add {value}_over_time for other types: boolean, bytes_refs
+  File valueOverTimeAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueOverTimeAggregator.java.st")
+  ["First", "Last"].forEach { Occurrence ->
+    {
+      template {
+        it.properties = addOccurrence(intProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeIntAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(longProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeLongAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(floatProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeFloatAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(doubleProperties, Occurrence)
+        it.inputFile = valueOverTimeAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}OverTimeDoubleAggregator.java"
+      }
+    }
+  }
 }

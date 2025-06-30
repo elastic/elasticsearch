@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -124,11 +126,30 @@ public class ClusterServiceUtils {
         return createClusterService(threadPool, localNode, Settings.EMPTY, clusterSettings);
     }
 
+    public static ClusterService createClusterService(ThreadPool threadPool, Settings providedSettings) {
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            providedSettings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
     public static ClusterService createClusterService(
         ThreadPool threadPool,
         DiscoveryNode localNode,
         Settings providedSettings,
         ClusterSettings clusterSettings
+    ) {
+        return createClusterService(threadPool, localNode, providedSettings, clusterSettings, null);
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        DiscoveryNode localNode,
+        Settings providedSettings,
+        ClusterSettings clusterSettings,
+        ProjectId projectId
     ) {
         Settings settings = Settings.builder()
             .put("node.name", "test")
@@ -142,12 +163,14 @@ public class ClusterServiceUtils {
             new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
-        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .putCompatibilityVersions(localNode.getId(), CompatibilityVersionsUtils.staticCurrent())
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
-            .build();
-        clusterService.getClusterApplierService().setInitialState(initialClusterState);
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK);
+        if (projectId != null) {
+            builder.putProjectMetadata(ProjectMetadata.builder(projectId));
+        }
+        clusterService.getClusterApplierService().setInitialState(builder.build());
         clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
@@ -273,6 +296,23 @@ public class ClusterServiceUtils {
      *         completed exceptionally on the scheduler thread that belongs to {@code clusterService}.
      */
     public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
+        return addTemporaryStateListener(clusterService, predicate, ESTestCase.SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Creates a {@link ClusterStateListener} which subscribes to the given {@link ClusterService} and waits for it to apply a cluster state
+     * that satisfies {@code predicate}, at which point it unsubscribes itself.
+     *
+     * @return A {@link SubscribableListener} which is completed when the first cluster state matching {@code predicate} is applied by the
+     *         given {@code clusterService}. If the current cluster state already matches {@code predicate} then the returned listener is
+     *         already complete. If no matching cluster state is seen within the provided {@code timeout} then the listener is
+     *         completed exceptionally on the scheduler thread that belongs to {@code clusterService}.
+     */
+    public static SubscribableListener<Void> addTemporaryStateListener(
+        ClusterService clusterService,
+        Predicate<ClusterState> predicate,
+        TimeValue timeout
+    ) {
         final var listener = new SubscribableListener<Void>();
         final ClusterStateListener clusterStateListener = new ClusterStateListener() {
             @Override
@@ -296,7 +336,7 @@ public class ClusterServiceUtils {
         if (predicate.test(clusterService.state())) {
             listener.onResponse(null);
         } else {
-            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            listener.addTimeout(timeout, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
         return listener;
     }

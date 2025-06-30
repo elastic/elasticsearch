@@ -12,7 +12,7 @@ In Elasticsearch, there is no dedicated `array` data type. Any field can contain
 * an array of arrays: [ `1`, [ `2`, `3` ]] which is the equivalent of [ `1`, `2`, `3` ]
 * an array of objects: [ `{ "name": "Mary", "age": 12 }`, `{ "name": "John", "age": 10 }`]
 
-::::{admonition} Arrays with `object` field type vs `nested` type
+::::{admonition} Arrays with object field type vs nested type
 :class: note
 
 Arrays of objects in Elasticsearch do not behave as you would expect: queries may match fields across different objects in the array, leading to unexpected results. By default, arrays of objects are [flattened](/reference/elasticsearch/mapping-reference/nested.md#nested-arrays-flattening-objects) during indexing. To ensure queries match values within the same object, use the [`nested`](/reference/elasticsearch/mapping-reference/nested.md) data type instead of the [`object`](/reference/elasticsearch/mapping-reference/object.md) data type.
@@ -26,7 +26,7 @@ When adding a field dynamically, the first value in the array determines the fie
 
 Arrays with a mixture of data types are *not* supported: [ `10`, `"some string"` ]
 
-An array may contain `null` values, which are either replaced by the configured [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md) or skipped entirely. An empty array `[]` is treated as a missing field — a field with no values.
+An array may contain `null` values, which are either replaced by the configured [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md) or skipped entirely. An empty array `[]` is treated as a missing field — a field with no values.
 
 Nothing needs to be pre-configured in order to use arrays in documents, they are supported out of the box:
 

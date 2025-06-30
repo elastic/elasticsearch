@@ -30,7 +30,7 @@ public abstract class InferenceExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(inferenceId());
     }

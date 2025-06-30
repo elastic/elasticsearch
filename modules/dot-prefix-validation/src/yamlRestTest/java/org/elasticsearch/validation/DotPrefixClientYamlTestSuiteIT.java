@@ -23,8 +23,6 @@ import org.junit.ClassRule;
 
 import java.util.Objects;
 
-import static org.elasticsearch.test.cluster.FeatureFlag.FAILURE_STORE_ENABLED;
-
 public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DotPrefixClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
@@ -49,7 +47,6 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .feature(FAILURE_STORE_ENABLED)
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password");

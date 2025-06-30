@@ -9,17 +9,19 @@ lexer grammar Expression;
 //
 // Expression - used by many commands
 //
+COMPLETION : 'completion'     -> pushMode(EXPRESSION_MODE);
 DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
 EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_RERANK : {this.isDevVersion()}? 'rerank'              -> pushMode(EXPRESSION_MODE);
+DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE);
+DEV_RERANK : {this.isDevVersion()}? 'rerank'           -> pushMode(EXPRESSION_MODE);
 
 
 mode EXPRESSION_MODE;
@@ -85,7 +87,6 @@ DECIMAL_LITERAL
 
 
 AND : 'and';
-AS: 'as';
 ASC : 'asc';
 ASSIGN : '=';
 BY : 'by';

@@ -33,8 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -93,8 +94,13 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
     private FileSettingsService fileSettingsService;
-    private FileSettingsHealthIndicatorService healthIndicatorService;
+    private FileSettingsHealthTracker healthIndicatorTracker;
     private Path watchedFile;
+
+    /**
+     * We're not testing health info publication here.
+     */
+    public static final FileSettingsHealthIndicatorPublisher NOOP_PUBLISHER = (f, a) -> {};
 
     @Before
     public void setUp() throws Exception {
@@ -141,8 +147,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of()
             )
         );
-        healthIndicatorService = spy(new FileSettingsHealthIndicatorService(Settings.EMPTY));
-        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorService));
+        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY, NOOP_PUBLISHER));
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorTracker));
         watchedFile = fileSettingsService.watchedFile();
     }
 
@@ -174,8 +180,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
-        verify(healthIndicatorService, times(1)).startOccurred();
-        verify(healthIndicatorService, times(1)).stopOccurred();
+        verify(healthIndicatorTracker, times(1)).startOccurred();
+        verify(healthIndicatorTracker, times(1)).stopOccurred();
     }
 
     public void testOperatorDirName() {
@@ -228,9 +234,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
+        assertEquals(YELLOW, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(1)).changeOccurred();
+        verify(healthIndicatorTracker, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
     }
 
     @SuppressWarnings("unchecked")
@@ -263,9 +269,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).successOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(1)).changeOccurred();
+        verify(healthIndicatorTracker, times(1)).successOccurred();
     }
 
     @SuppressWarnings("unchecked")
@@ -275,6 +281,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
+        // Await on some latches when files change so we can sync up
         CountDownLatch processFileCreationLatch = new CountDownLatch(1);
         doAnswer(i -> {
             try {
@@ -283,16 +290,6 @@ public class FileSettingsServiceTests extends ESTestCase {
                 processFileCreationLatch.countDown();
             }
         }).when(fileSettingsService).processFile(eq(watchedFile), eq(true));
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(watchedFile, "{}");
-
-        fileSettingsService.start();
-        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-
-        longAwait(processFileCreationLatch);
-
         CountDownLatch processFileChangeLatch = new CountDownLatch(1);
         doAnswer(i -> {
             try {
@@ -301,6 +298,19 @@ public class FileSettingsServiceTests extends ESTestCase {
                 processFileChangeLatch.countDown();
             }
         }).when(fileSettingsService).processFile(eq(watchedFile), eq(false));
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(watchedFile, "{}");
+
+        // It's important to configure all the mocks before calling start() here,
+        // because otherwise there can be races between configuration and use of mocks
+        // which leads to a UnfinishedStubbingException.
+
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        longAwait(processFileCreationLatch);
 
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
@@ -314,9 +324,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(false));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(2)).changeOccurred();
-        verify(healthIndicatorService, times(2)).successOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(2)).changeOccurred();
+        verify(healthIndicatorTracker, times(2)).successOccurred();
     }
 
     public void testInvalidJSON() throws Exception {
@@ -328,10 +338,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // Don't really care about the initial state
         Files.createDirectories(fileSettingsService.watchedFileDir());
         doNothing().when(fileSettingsService).processInitialFilesMissing();
-        fileSettingsService.start();
-        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // Now break the JSON and wait
+        // Prepare to await on a barrier when the file changes so we can sync up
         CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
         doAnswer((Answer<?>) invocation -> {
             try {
@@ -340,6 +348,12 @@ public class FileSettingsServiceTests extends ESTestCase {
                 awaitOrBust(fileChangeBarrier);
             }
         }).when(fileSettingsService).onProcessFileChangesException(eq(watchedFile), any());
+
+        // Kick off the service
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+
+        // Now break the JSON and wait
         writeTestFile(watchedFile, "test_invalid_JSON");
         awaitOrBust(fileChangeBarrier);
 
@@ -354,8 +368,8 @@ public class FileSettingsServiceTests extends ESTestCase {
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
+        assertEquals(YELLOW, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
     }
 
     /**
@@ -421,8 +435,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.close();
 
         // When the service is stopped, the health indicator should be green
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService).stopOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker).stopOccurred();
 
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
@@ -495,6 +509,10 @@ public class FileSettingsServiceTests extends ESTestCase {
             Thread.currentThread().interrupt();
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
+    }
+
+    private HealthIndicatorResult currentHealthIndicatorResult() {
+        return new FileSettingsService.FileSettingsHealthIndicatorService().calculate(healthIndicatorTracker.getCurrentInfo());
     }
 
 }

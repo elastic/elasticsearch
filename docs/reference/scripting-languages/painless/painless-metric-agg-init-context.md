@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-metric-agg-init-context.html
+products:
+  - id: painless
 ---
 
 # Metric aggregation initialization context [painless-metric-agg-init-context]

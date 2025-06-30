@@ -10,10 +10,13 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -48,8 +51,21 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
-    public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
+    private final ShardRefCounted shardRefCounters;
+
+    public ShardRefCounted shardRefCounted() {
+        return shardRefCounters;
+    }
+
+    public DocVector(
+        ShardRefCounted shardRefCounters,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        Boolean singleSegmentNonDecreasing
+    ) {
         super(shards.getPositionCount(), shards.blockFactory());
+        this.shardRefCounters = shardRefCounters;
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
@@ -65,6 +81,21 @@ public final class DocVector extends AbstractVector implements Vector {
             );
         }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
+
+        forEachShardRefCounter(RefCounted::mustIncRef);
+    }
+
+    public DocVector(
+        ShardRefCounted shardRefCounters,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        int[] docMapForwards,
+        int[] docMapBackwards
+    ) {
+        this(shardRefCounters, shards, segments, docs, null);
+        this.shardSegmentDocMapForwards = docMapForwards;
+        this.shardSegmentDocMapBackwards = docMapBackwards;
     }
 
     public IntVector shards() {
@@ -209,8 +240,12 @@ public final class DocVector extends AbstractVector implements Vector {
         }
     }
 
+    public static long sizeOfSegmentDocMap(int positionCount) {
+        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * positionCount);
+    }
+
     private long sizeOfSegmentDocMap() {
-        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * shards.getPositionCount());
+        return sizeOfSegmentDocMap(getPositionCount());
     }
 
     @Override
@@ -228,7 +263,7 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.filter(positions);
             filteredSegments = segments.filter(positions);
             filteredDocs = docs.filter(positions);
-            result = new DocVector(filteredShards, filteredSegments, filteredDocs, null);
+            result = new DocVector(shardRefCounters, filteredShards, filteredSegments, filteredDocs, null);
             return result;
         } finally {
             if (result == null) {
@@ -307,5 +342,20 @@ public final class DocVector extends AbstractVector implements Vector {
             segments,
             docs
         );
+        forEachShardRefCounter(RefCounted::decRef);
+    }
+
+    private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
+        switch (shards) {
+            case ConstantIntVector constantIntVector -> consumer.accept(shardRefCounters.get(constantIntVector.getInt(0)));
+            case ConstantNullVector ignored -> {
+                // Noop
+            }
+            default -> {
+                for (int i = 0; i < shards.getPositionCount(); i++) {
+                    consumer.accept(shardRefCounters.get(shards.getInt(i)));
+                }
+            }
+        }
     }
 }

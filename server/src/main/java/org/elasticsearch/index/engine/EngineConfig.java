@@ -29,6 +29,7 @@ import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -146,6 +147,10 @@ public final class EngineConfig {
 
     private final boolean promotableToPrimary;
 
+    private final EngineResetLock engineResetLock;
+
+    private final MergeMetrics mergeMetrics;
+
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
@@ -177,7 +182,9 @@ public final class EngineConfig {
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
-        MapperService mapperService
+        MapperService mapperService,
+        EngineResetLock engineResetLock,
+        MergeMetrics mergeMetrics
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -224,6 +231,8 @@ public final class EngineConfig {
         this.promotableToPrimary = promotableToPrimary;
         // always use compound on flush - reduces # of file-handles on refresh
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
+        this.engineResetLock = engineResetLock;
+        this.mergeMetrics = mergeMetrics;
     }
 
     /**
@@ -467,5 +476,13 @@ public final class EngineConfig {
 
     public MapperService getMapperService() {
         return mapperService;
+    }
+
+    public EngineResetLock getEngineResetLock() {
+        return engineResetLock;
+    }
+
+    public MergeMetrics getMergeMetrics() {
+        return mergeMetrics;
     }
 }

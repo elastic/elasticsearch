@@ -54,6 +54,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryFailure;
         private long fetchFailure;
 
+        // This tracks the search execution time across different phases (e.g., query, fetch, etc.), favouring more recent
+        // values by assigning them greater significance than older values.
+        private double recentSearchLoad;
+
         private Stats() {
             // for internal use, initializes all counts to 0
         }
@@ -76,7 +80,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long scrollCurrent,
             long suggestCount,
             long suggestTimeInMillis,
-            long suggestCurrent
+            long suggestCurrent,
+            double recentSearchLoad
         ) {
             this.dfsCount = dfsCount;
             this.dfsTimeInMillis = dfsTimeInMillis;
@@ -100,6 +105,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.suggestCount = suggestCount;
             this.suggestTimeInMillis = suggestTimeInMillis;
             this.suggestCurrent = suggestCurrent;
+
+            this.recentSearchLoad = recentSearchLoad;
+
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -129,6 +137,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 queryFailure = in.readVLong();
                 fetchFailure = in.readVLong();
+            }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+                recentSearchLoad = in.readDouble();
             }
         }
 
@@ -161,6 +173,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 out.writeVLong(queryFailure);
                 out.writeVLong(fetchFailure);
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_LOAD_PER_INDEX_STATS)) {
+                out.writeDouble(recentSearchLoad);
+            }
         }
 
         public void add(Stats stats) {
@@ -186,6 +202,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCount += stats.suggestCount;
             suggestTimeInMillis += stats.suggestTimeInMillis;
             suggestCurrent += stats.suggestCurrent;
+
+            recentSearchLoad += stats.recentSearchLoad;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -208,6 +226,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             suggestCount += stats.suggestCount;
             suggestTimeInMillis += stats.suggestTimeInMillis;
+
+            recentSearchLoad += stats.recentSearchLoad;
         }
 
         public long getDfsCount() {
@@ -302,6 +322,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return suggestCurrent;
         }
 
+        public double getSearchLoadRate() {
+            return recentSearchLoad;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -331,6 +355,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, getSuggestTime());
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
+            builder.field(Fields.RECENT_SEARCH_LOAD, recentSearchLoad);
+
             return builder;
         }
 
@@ -356,7 +382,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 && scrollCurrent == that.scrollCurrent
                 && suggestCount == that.suggestCount
                 && suggestTimeInMillis == that.suggestTimeInMillis
-                && suggestCurrent == that.suggestCurrent;
+                && suggestCurrent == that.suggestCurrent
+                && recentSearchLoad == that.recentSearchLoad;
         }
 
         @Override
@@ -379,7 +406,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 scrollCurrent,
                 suggestCount,
                 suggestTimeInMillis,
-                suggestCurrent
+                suggestCurrent,
+                recentSearchLoad
             );
         }
     }
@@ -502,6 +530,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String RECENT_SEARCH_LOAD = "recent_search_load";
     }
 
     @Override

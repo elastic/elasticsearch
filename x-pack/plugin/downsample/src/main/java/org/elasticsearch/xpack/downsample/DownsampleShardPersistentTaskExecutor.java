@@ -11,11 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -57,10 +58,12 @@ import java.util.concurrent.Executor;
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
+    private final boolean isStateless;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
+    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, Settings settings, final Executor executor) {
         super(taskName, executor);
         this.client = Objects.requireNonNull(client);
+        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -142,21 +145,36 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 
-        final ShardRouting shardRouting = indexShardRouting.primaryShard();
-        if (shardRouting.started() == false) {
-            return NO_NODE_FOUND;
-        }
-
-        return candidateNodes.stream()
-            .filter(candidateNode -> candidateNode.getId().equals(shardRouting.currentNodeId()))
+        // We find the nodes that hold the eligible shards.
+        // If the current node of such a shard is a candidate node, then we assign the task there.
+        // This code is inefficient, but we are relying on the laziness of the intermediate operations
+        // and the assumption that the first shard we examine has high chances of being assigned to a candidate node.
+        return indexShardRouting.activeShards()
+            .stream()
+            .filter(this::isEligible)
+            .map(ShardRouting::currentNodeId)
+            .filter(nodeId -> isCandidateNode(candidateNodes, nodeId))
             .findAny()
-            .map(
-                node -> new PersistentTasksCustomMetadata.Assignment(
-                    node.getId(),
-                    "downsampling using node holding shard [" + shardId + "]"
-                )
-            )
+            .map(nodeId -> new PersistentTasksCustomMetadata.Assignment(nodeId, "downsampling using node holding shard [" + shardId + "]"))
             .orElse(NO_NODE_FOUND);
+    }
+
+    /**
+     * Only shards that can be searched can be used as the source of a downsampling task.
+     * In stateless deployment, this means that shards that CANNOT be promoted to primary can be used.
+     * For simplicity, in non-stateless deployments we use the primary shard.
+     */
+    private boolean isEligible(ShardRouting shardRouting) {
+        return shardRouting.started() && (isStateless ? shardRouting.isPromotableToPrimary() == false : shardRouting.primary());
+    }
+
+    private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {
+        for (DiscoveryNode candidateNode : candidateNodes) {
+            if (candidateNode.getId().equals(nodeId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -260,7 +278,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             super(NAME);
         }
 
-        public static class Request extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
+        public static class Request extends LegacyActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
             private final BytesRef lastDownsampleTsid;

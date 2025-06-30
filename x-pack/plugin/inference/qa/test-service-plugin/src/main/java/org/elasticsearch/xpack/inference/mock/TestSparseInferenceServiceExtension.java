@@ -29,14 +29,13 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +63,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "test_service";
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -115,8 +114,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeSparseEmbeddingResults(input));
-                case TEXT_EMBEDDING -> listener.onResponse(makeTextEmbeddingResults(input));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -157,7 +155,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             }
         }
 
-        private SparseEmbeddingResults makeSparseEmbeddingResults(List<String> input) {
+        private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<WeightedToken>();
@@ -167,18 +165,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
             return new SparseEmbeddingResults(embeddings);
-        }
-
-        private TextEmbeddingFloatResults makeTextEmbeddingResults(List<String> input) {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
-            for (int i = 0; i < input.size(); i++) {
-                var values = new float[5];
-                for (int j = 0; j < 5; j++) {
-                    values[j] = random.nextFloat();
-                }
-                embeddings.add(new TextEmbeddingFloatResults.Embedding(values));
-            }
-            return new TextEmbeddingFloatResults(embeddings);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs) {

@@ -1,0 +1,5 @@
+pr: 130083
+summary: Fix timeout bug in DBQ deletion of unused and orphan ML data
+area: Machine Learning
+type: bug
+issues: []

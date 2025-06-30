@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-context-examples.html
+products:
+  - id: painless
 ---
 
 # Context example data [painless-context-examples]

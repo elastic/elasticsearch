@@ -25,6 +25,7 @@ import java.net.ResponseCache;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.StandardProtocolFamily;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
@@ -200,6 +201,20 @@ class NetworkAccessCheckActions {
                 // We expect to fail, not a valid address to connect to.
                 // "connect" will be called and exercise the Entitlement check, we don't care if it fails afterward for this known reason.
             }
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenProtocol() throws IOException {
+        SocketChannel.open(StandardProtocolFamily.INET).close();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void socketChannelOpenAddress() throws IOException {
+        try {
+            SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
+        } catch (SocketException ex) {
+            // Some sort of SocketException is expected, we are trying to connect to port 0
         }
     }
 

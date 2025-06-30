@@ -61,7 +61,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected abstract void assertSimpleOutput(List<Block> input, Block result);
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         return simpleWithMode(mode, Function.identity());
     }
 

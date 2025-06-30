@@ -58,7 +58,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
  */
-public class Bucket extends GroupingFunction implements PostOptimizationVerificationAware, TwoOptionalArguments {
+public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        PostOptimizationVerificationAware,
+        TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -113,7 +116,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                     it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
-                description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
+                description = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """

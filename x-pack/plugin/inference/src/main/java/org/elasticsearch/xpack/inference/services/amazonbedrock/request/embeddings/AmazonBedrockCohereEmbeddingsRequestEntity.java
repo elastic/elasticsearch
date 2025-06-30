@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +19,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
-public record AmazonBedrockCohereEmbeddingsRequestEntity(List<String> input, @Nullable InputType inputType) implements ToXContentObject {
+public record AmazonBedrockCohereEmbeddingsRequestEntity(
+    List<String> input,
+    @Nullable InputType inputType,
+    AmazonBedrockEmbeddingsTaskSettings taskSettings
+) implements ToXContentObject {
 
     private static final String TEXTS_FIELD = "texts";
     private static final String INPUT_TYPE_FIELD = "input_type";
@@ -26,9 +31,11 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(List<String> input, @Nu
     private static final String SEARCH_QUERY = "search_query";
     private static final String CLUSTERING = "clustering";
     private static final String CLASSIFICATION = "classification";
+    private static final String TRUNCATE = "truncate";
 
     public AmazonBedrockCohereEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
+        Objects.requireNonNull(taskSettings);
     }
 
     @Override
@@ -41,6 +48,10 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(List<String> input, @Nu
         } else {
             // input_type is required so default to document
             builder.field(INPUT_TYPE_FIELD, SEARCH_DOCUMENT);
+        }
+
+        if (taskSettings.cohereTruncation() != null) {
+            builder.field(TRUNCATE, taskSettings.cohereTruncation().name());
         }
 
         builder.endObject();

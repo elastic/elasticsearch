@@ -2898,7 +2898,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(" > 10[INTEGER]]] optimized incorrectly due to missing references [emp_no{f}#"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118531")
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 

@@ -37,6 +37,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), isRemote);
     }
 
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
+        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), false);
+    }
+
     public LookupJoin(
         Source source,
         LogicalPlan left,
@@ -48,6 +52,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         boolean isRemote
     ) {
         this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), isRemote);
+    }
+
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
+        this(source, left, right, joinConfig, false);
     }
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {

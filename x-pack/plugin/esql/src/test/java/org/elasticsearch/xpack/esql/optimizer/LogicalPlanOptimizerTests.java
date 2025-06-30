@@ -1244,7 +1244,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
         var join = switch (randomIntBetween(0, 2)) {
             case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };

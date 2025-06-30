@@ -436,6 +436,7 @@ public class EsqlSession {
         if (executionInfo.getClusters().isEmpty()) {
             patternWithRemotes = localPattern;
         } else {
+            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
             patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
                 .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
                 .collect(Collectors.joining(","));
@@ -462,6 +463,10 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Receive and process lookup index resolutions from resolveAsMergedMapping.
+     * This processes the lookup index data for a single index, updates and returns the {@link PreAnalysisResult} result
+     */
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
         String index,
@@ -474,9 +479,9 @@ public class EsqlSession {
             return result.addLookupIndexResolution(index, newIndexResolution);
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
-            // Local only case, still do some checks
+            // Local only case, still do some checks, since we moved analysis checks here
             if (newIndexResolution.get().indexNameWithModes().size() > 1) {
-                throw new VerificationException("multiple resolutions for lookup index [" + index + "] in local cluster");
+                throw new VerificationException("multiple resolutions for lookup index [" + index + "]");
             }
             var indexMode = newIndexResolution.get().indexNameWithModes().entrySet().iterator().next().getValue();
             if (indexMode != IndexMode.LOOKUP) {
@@ -495,7 +500,12 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "invalid [" + indexName + "] resolution in lookup mode to an index in [" + indexMode + "] mode"
+                    "invalid ["
+                        + indexName
+                        + "] resolution in lookup mode to an index in ["
+                        + indexMode
+                        + "] mode "
+                        + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
             }
             // Each cluster should have only one resolution for the lookup index
@@ -526,6 +536,7 @@ public class EsqlSession {
         });
 
         // If all indices resolve to the same name, we can use that for BWC
+        // Older clusters only can handle one name in LOOKUP JOIN
         var indexNames = clustersWithResolvedIndices.values()
             .stream()
             .map(n -> RemoteClusterAware.splitIndexName(n)[1])
@@ -548,6 +559,12 @@ public class EsqlSession {
 
     }
 
+    /**
+     * Older clusters can only handle one name in LOCAL JOIN - verify that all the remotes involved
+     * are recent enough to be able to handle multiple indices.
+     * This is only checked if there are actually multiple indices, which happens when remotes have a different
+     * concrete indices aliased to the same index name.
+     */
     private void validateRemoteVersions(EsqlExecutionInfo executionInfo) {
         Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
         clusters.forEach(cluster -> {
@@ -559,9 +576,11 @@ public class EsqlSession {
                     skipClusterOrError(
                         clusterAlias,
                         executionInfo,
-                        "remote cluster version ["
+                        "remote cluster ["
+                            + clusterAlias
+                            + "] has version ["
                             + connection.getTransportVersion()
-                            + "] does not support multiple indices in LOOKUP JOIN, skipping"
+                            + "] that does not support multiple indices in LOOKUP JOIN, skipping"
                     );
                 }
             }

@@ -1,5 +1,12 @@
 pr: 129013
-summary: "WIP: Remote lookup join implementation"
+summary: "Add remote index support to LOOKUP JOIN"
 area: ES|QL
-type: enhancement
-issues: []
+type: feature
+issues: [ ]
+highlight:
+  title: Add remote index support to LOOKUP JOIN
+  body: |-
+    Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
+    ```
+    FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
+    ```

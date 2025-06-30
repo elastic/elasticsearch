@@ -736,6 +736,9 @@ public class LocalExecutionPlanner {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
+        // After enabling remote joins, we can have one of the two situations here:
+        // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
+        // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
         Map.Entry<String, IndexMode> entry;
         if (localSourceExec.indexNameWithModes().size() == 1) {
             entry = localSourceExec.indexNameWithModes().entrySet().iterator().next();
@@ -756,6 +759,7 @@ public class LocalExecutionPlanner {
             throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
         String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        // No prefix is ok, prefix with this cluster is ok, something else is not
         if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
             throw new IllegalArgumentException(
                 "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)

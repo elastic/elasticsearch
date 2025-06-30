@@ -165,9 +165,9 @@ public abstract class TransportNodesAction<
 
             @Override
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
-                // ref releases all happen-before here so no need to be synchronized
                 return l -> {
                     if (responsesHandled.compareAndSet(false, true)) {
+                        // ref releases all happen-before here so no need to be synchronized
                         try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
                             newResponseAsync(task, request, actionContext, responses, exceptions, l);
                         }

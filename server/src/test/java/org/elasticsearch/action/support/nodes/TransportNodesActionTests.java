@@ -58,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -320,7 +321,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
-    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() {
+    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() throws Exception {
         final var barrier = new CyclicBarrier(2);
         final var action = new TestTransportNodesAction(
             clusterService,
@@ -357,9 +358,8 @@ public class TransportNodesActionTests extends ESTestCase {
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.execute(cancellableTask, new TestNodesRequest(), future);
 
-        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
         for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
-            nodeResponses.add(completeOneRequest(capturedRequest));
+            completeOneRequest(capturedRequest);
         }
 
         // Wait for the overall response starts to processing the node responses in a loop
@@ -371,14 +371,19 @@ public class TransportNodesActionTests extends ESTestCase {
 
         // Let the process continue it should be successful since the cancellation came after processing started
         safeAwait(barrier);
-        safeGet(future);
-        assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+        assertResponseReleased(safeGet(future));
     }
 
     public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
         final var action = getTestTransportNodesAction();
 
-        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final CountDownLatch onCancelledLatch = new CountDownLatch(1);
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
+            @Override
+            protected void onCancelled() {
+                onCancelledLatch.countDown();
+            }
+        };
 
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.execute(cancellableTask, new TestNodesRequest(), future);
@@ -405,20 +410,35 @@ public class TransportNodesActionTests extends ESTestCase {
 
         try {
             final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
-            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
             assertFalse(cancellableTask.isCancelled());
+            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
+            assertResponseReleased(testNodesResponse);
         } catch (Exception e) {
             final var taskCancelledException = (TaskCancelledException) ExceptionsHelper.unwrap(e, TaskCancelledException.class);
             assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
             assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
             assertTrue(cancellableTask.isCancelled());
+            safeAwait(onCancelledLatch);
+            assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
         }
-        assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
 
         completeThread.join(10_000);
         cancelThread.join(10_000);
         assertFalse(completeThread.isAlive());
         assertFalse(cancelThread.isAlive());
+    }
+
+    private void assertResponseReleased(TestNodesResponse response) {
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
     }
 
     private TestNodeResponse completeOneRequest(CapturingTransport.CapturedRequest capturedRequest) {

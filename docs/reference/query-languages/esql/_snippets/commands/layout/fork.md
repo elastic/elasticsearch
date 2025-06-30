@@ -5,8 +5,8 @@ serverless: preview
 stack: preview 9.1.0
 ```
 
-The `FORK` processing command runs multiple execution branches and outputs the
-results back into a single table.
+The `FORK` processing command creates multiple execution branches to operate 
+on the same input data and combines the results in a single output table.
 
 **Syntax**
 
@@ -17,17 +17,15 @@ FORK ( <processing_commands> ) ( <processing_commands> ) ... ( <processing_comma
 **Description**
 
 The `FORK` processing command feeds the input rows into multiple execution
-branches and outputs the results into a single table, enhanced with a
-discriminator column called `_fork`.
+branches and outputs the results into a single table, with a discriminator column (`_fork`) to identify which branch each row came from.
 
-The values of the discriminator column `_fork` are `fork1`, `fork2`, ... and
-they designate which `FORK` branch the current row is coming from.
+The values of the discriminator column `_fork` are `fork1`, `fork2`, etc. and
+they designate which `FORK` branch the current row comes from.
 The values of the `_fork` column always start with `fork1`, which indicates that
-the row is coming from the first branch.
+the row comes from the first branch.
 
-The `FORK` branches can output different columns as long as there exists no
-column with the same name and different data types in two different `FORK`
-branches.
+`FORK` branches can output different columns, but columns with the 
+same name must have the same data type across all branches.
 
 When a column does not exist in a `FORK` branch, but it exists in the output of
 other branches, `FORK` will add `null` values to the rows that have missing
@@ -56,8 +54,7 @@ Using more than one `FORK` command in a query is not supported.
 **Examples**
 
 In the following example, each `FORK` branch returns one row.
-Notice how `FORK` adds a `_fork` that indicates from which row the branch is
-coming:
+Notice how `FORK` adds a `_fork` column that indicates which row the branch originates from:
 
 :::{include} ../examples/fork.csv-spec/simpleFork.md
 

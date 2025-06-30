@@ -988,4 +988,35 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
         assertEquals(List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
     }
+
+    public void testUnsignedLongTermQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+
+        // Test term query with an unsigned long value
+        assertEquals(LongPoint.newExactQuery("field", 0L), ft.termQuery("0", MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("field", 9223372036854775807L), ft.termQuery("9223372036854775807", MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("field", 18446744073709551615L), ft.termQuery("18446744073709551615", MOCK_CONTEXT));
+
+        // Test invalid term query that is outside of the unsigned long range
+        assertTrue(ft.termQuery("18446744073709551616", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery("-1", MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testUnsignedLongRangeQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+
+        // Test valid range query for unsigned long values
+        assertEquals(
+            LongPoint.newRangeQuery("field", 0L, 9223372036854775807L),
+            ft.rangeQuery("0", "9223372036854775807", true, true, MOCK_CONTEXT)
+        );
+        assertEquals(
+            LongPoint.newRangeQuery("field", 0L, 18446744073709551615L),
+            ft.rangeQuery("0", "18446744073709551615", true, true, MOCK_CONTEXT)
+        );
+
+        // Test invalid range query outside the range of unsigned long values
+        assertTrue(ft.rangeQuery("-1", "9223372036854775807", true, true, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.rangeQuery("0", "18446744073709551616", true, true, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
 }

@@ -268,9 +268,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
 
-        var clusters = answer.get("_clusters");
-        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+        assertNotPartial(answer);
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -286,6 +284,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+    }
+
+    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+
+        return answer;
     }
 
     /**

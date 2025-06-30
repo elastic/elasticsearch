@@ -62,6 +62,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -1242,13 +1243,21 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        Mode mode,
+        boolean checkPartialResults
+    ) throws IOException {
+        var results = mode == ASYNC
+            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
+            : runEsqlSync(requestObject, assertWarnings);
+        return checkPartialResults ? assertNotPartial(results) : results;
+    }
+
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
         throws IOException {
-        if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
-        } else {
-            return runEsqlSync(requestObject, assertWarnings);
-        }
+        return runEsql(requestObject, assertWarnings, mode, true);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {

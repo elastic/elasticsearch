@@ -505,7 +505,14 @@ public class MultiClustersIT extends ESRestTestCase {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
             mapMatcher = mapMatcher.entry("is_partial", true);
             assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            // TODO: check that the remote is skipped
+            // check that the remote is skipped
+            @SuppressWarnings("unchecked")
+            Map<String, Object> clusters = (Map<String, Object>) result.get("_clusters");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> remoteCluster = (Map<String, Object>) details.get("remote_cluster");
+            assertThat(remoteCluster.get("status"), equalTo("skipped"));
         } finally {
             wipeLookupIndices();
         }

@@ -7,6 +7,7 @@ highlight:
   title: Add remote index support to LOOKUP JOIN
   body: |-
     Queries containing LOOKUP JOIN now can be preformed on cross-cluster indices, for example:
-    ```
+    [source,yaml]
+    ----------------------------
     FROM logs-*, remote:logs-* | LOOKUP JOIN clients on ip | SORT timestamp | LIMIT 100
-    ```
+    ----------------------------

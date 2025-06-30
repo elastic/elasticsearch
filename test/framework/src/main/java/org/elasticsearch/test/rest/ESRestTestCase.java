@@ -2699,9 +2699,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static MapMatcher getProfileMatcher() {
-        return matchesMap().entry("query", instanceOf(Map.class))
+        return matchesMap() //
+            .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
-            .entry("drivers", instanceOf(List.class));
+            .entry("drivers", instanceOf(List.class))
+            .entry("plans", instanceOf(List.class));
     }
 
     protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial, boolean includeDocumentsFound) {

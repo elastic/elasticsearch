@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -131,7 +130,7 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link FilterAggregationBuilder} aggregation with the given name.
      */
     public static FilterAggregationBuilder filter(String name, QueryBuilder filter) {
         return new FilterAggregationBuilder(name, filter);
@@ -152,42 +151,42 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link SamplerAggregationBuilder} aggregation with the given name.
      */
     public static SamplerAggregationBuilder sampler(String name) {
         return new SamplerAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link DiversifiedAggregationBuilder} aggregation with the given name.
      */
     public static DiversifiedAggregationBuilder diversifiedSampler(String name) {
         return new DiversifiedAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link GlobalAggregationBuilder} aggregation with the given name.
      */
     public static GlobalAggregationBuilder global(String name) {
         return new GlobalAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link MissingAggregationBuilder} aggregation with the given name.
      */
     public static MissingAggregationBuilder missing(String name) {
         return new MissingAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link NestedAggregationBuilder} aggregation with the given name.
      */
     public static NestedAggregationBuilder nested(String name, String path) {
         return new NestedAggregationBuilder(name, path);
     }
 
     /**
-     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
+     * Create a new {@link ReverseNestedAggregationBuilder} aggregation with the given name.
      */
     public static ReverseNestedAggregationBuilder reverseNested(String name) {
         return new ReverseNestedAggregationBuilder(name);

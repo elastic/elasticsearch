@@ -35,7 +35,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -477,7 +476,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 TopHits topHits = global.getAggregations().get("hits");
                 assertThat(topHits, notNullValue());
                 assertThat(topHits.getName(), equalTo("hits"));
-                assertThat((TopHits) ((InternalAggregation) global).getProperty("hits"), sameInstance(topHits));
+                assertThat((TopHits) global.getProperty("hits"), sameInstance(topHits));
             }
         );
     }

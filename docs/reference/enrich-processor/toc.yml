@@ -46,3 +46,4 @@ toc:
   - file: urldecode-processor.md
   - file: uri-parts-processor.md
   - file: user-agent-processor.md
+  - file: xml-processor.md

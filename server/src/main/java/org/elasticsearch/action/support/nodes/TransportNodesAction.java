@@ -96,6 +96,8 @@ public abstract class TransportNodesAction<
 
         final var concreteNodes = Objects.requireNonNull(resolveRequest(request, clusterService.state()));
 
+        final ThreadedActionListener<CheckedConsumer<ActionListener<NodesResponse>, Exception>> finalListener =
+            new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)));
         new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
             final ActionContext actionContext = createActionContext(task, request);
@@ -177,7 +179,7 @@ public abstract class TransportNodesAction<
                         assert task instanceof CancellableTask : "expect CancellableTask, but got: " + task;
                         final var cancellableTask = (CancellableTask) task;
                         assert cancellableTask.isCancelled();
-                        throw new TaskCancelledException("task cancelled [" + cancellableTask.getReasonCancelled() + "]");
+                        cancellableTask.notifyIfCancelled(finalListener);
                     }
                 };
             }
@@ -186,11 +188,7 @@ public abstract class TransportNodesAction<
             public String toString() {
                 return actionName;
             }
-        }.run(
-            task,
-            Iterators.forArray(concreteNodes),
-            new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
-        );
+        }.run(task, Iterators.forArray(concreteNodes), finalListener);
     }
 
     private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {

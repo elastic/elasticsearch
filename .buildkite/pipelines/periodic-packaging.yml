@@ -9,6 +9,7 @@ steps:
           setup:
             image:
               - debian-11
+              - debian-12
               - opensuse-leap-15
               - oraclelinux-7
               - oraclelinux-8
@@ -304,8 +305,8 @@ steps:
         env:
           BWC_VERSION: 7.16.3
 
-      - label: "{{matrix.image}} / 7.17.29 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.29
+      - label: "{{matrix.image}} / 7.17.30 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.30
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -318,7 +319,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 7.17.29
+          BWC_VERSION: 7.17.30
 
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.0.1
@@ -592,8 +593,8 @@ steps:
         env:
           BWC_VERSION: 8.16.7
 
-      - label: "{{matrix.image}} / 8.17.7 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.7
+      - label: "{{matrix.image}} / 8.17.9 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.9
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -606,7 +607,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.17.7
+          BWC_VERSION: 8.17.9
 
   - group: packaging-tests-windows
     steps:

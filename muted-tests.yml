@@ -521,9 +521,6 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/129517
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testSnapshotShutdownProgressTracker
-  issue: https://github.com/elastic/elasticsearch/issues/129752
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
@@ -581,6 +578,18 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
   issue: https://github.com/elastic/elasticsearch/issues/130281
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testProfile
+  issue: https://github.com/elastic/elasticsearch/issues/130270
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyOnFrom SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/130296
+- class: org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutorTests
+  method: testSuccessfulExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130306
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/10_basic/Dense vector stats}
+  issue: https://github.com/elastic/elasticsearch/issues/130307
 
 # Examples:
 #

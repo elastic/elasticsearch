@@ -50,7 +50,6 @@ tasks.named("yamlRestTest").configure {
     '^cluster.desired_balance/10_basic/*',
     '^cluster.stats/10_basic/snapshot stats reported in get cluster stats',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
-    '^health/10_basic/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',

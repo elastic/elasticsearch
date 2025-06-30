@@ -126,7 +126,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     private final Map<String, Object> metadata;
     private final Settings settings;
-    private final CompressedXContent mappings;
+    private final CompressedXContent mappings; // always stored with json content type
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
@@ -1591,6 +1591,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
             && hidden == that.hidden
             && system == that.system
             && replicated == that.replicated
@@ -1609,6 +1610,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             generation,
             metadata,
             settings,
+            mappings,
             hidden,
             system,
             replicated,

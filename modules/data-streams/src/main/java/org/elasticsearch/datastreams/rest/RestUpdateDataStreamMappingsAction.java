@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.rest;
 
 import org.elasticsearch.action.datastreams.UpdateDataStreamMappingsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -19,11 +20,9 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -45,16 +44,7 @@ public class RestUpdateDataStreamMappingsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         CompressedXContent mappings;
         try (XContentParser parser = request.contentParser()) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                mappings = new CompressedXContent(Base64.getDecoder().decode(parser.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                mappings = new CompressedXContent(parser.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                mappings = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
+            mappings = Template.parseMappings(parser);
         }
         boolean dryRun = request.paramAsBoolean("dry_run", false);
 

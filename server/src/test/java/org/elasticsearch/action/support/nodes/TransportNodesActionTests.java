@@ -60,7 +60,6 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
@@ -318,7 +317,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
-    public void testCompletionAndCancellationShouldMutualExclusivelyHandleResponses() {
+    public void testCompletionAndCancellationShouldMutualExclusivelyHandleResponses() throws Exception {
         final var barrier = new CyclicBarrier(2);
         final var action = new TestTransportNodesAction(
             clusterService,
@@ -336,9 +335,10 @@ public class TransportNodesActionTests extends ESTestCase {
                 List<FailedNodeException> failures,
                 ActionListener<TestNodesResponse> listener
             ) {
-                final var waited = new AtomicBoolean();
+                boolean waited = false;
                 for (var response : testNodeResponses) {
-                    if (waited.compareAndSet(false, true)) {
+                    if (waited == false) {
+                        waited = true;
                         safeAwait(barrier);
                         safeAwait(barrier);
                     }
@@ -348,6 +348,9 @@ public class TransportNodesActionTests extends ESTestCase {
         };
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final var cancelledFuture = new PlainActionFuture<Void>();
+        cancellableTask.addListener(() -> cancelledFuture.onResponse(null));
+
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.execute(cancellableTask, new TestNodesRequest(), future);
 
@@ -367,8 +370,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         // Cancel the task while the overall response is being processed
         TaskCancelHelper.cancel(cancellableTask, "simulated");
+        safeGet(cancelledFuture);
 
-        // Let the process continue to process the node responses and it should be successful
+        // Let the process continue it should be successful since the cancellation came after processing started
         safeAwait(barrier);
         safeGet(future);
         assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));

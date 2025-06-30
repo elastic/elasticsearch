@@ -31,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -172,7 +173,11 @@ public abstract class TransportNodesAction<
                             newResponseAsync(task, request, actionContext, responses, exceptions, l);
                         }
                     } else {
-                        newResponseAsync(task, request, actionContext, List.of(), exceptions, l);
+                        logger.debug("task cancelled after all responses were collected");
+                        assert task instanceof CancellableTask : "expect CancellableTask, but got: " + task;
+                        final var cancellableTask = (CancellableTask) task;
+                        assert cancellableTask.isCancelled();
+                        throw new TaskCancelledException("task cancelled [" + cancellableTask.getReasonCancelled() + "]");
                     }
                 };
             }

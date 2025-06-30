@@ -53,7 +53,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             Role.EMPTY,
             getRequestInfo(""),
-            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
+            emptyProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty());
@@ -132,7 +132,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
+            emptyProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty());
@@ -143,7 +143,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
+            emptyProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty());

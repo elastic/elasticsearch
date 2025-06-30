@@ -2845,4 +2845,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static ProjectState projectStateWithEmptyProject() {
         return projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()));
     }
+
+    /**
+     * Constructs an empty {@link ProjectMetadata} with a random ID.
+     */
+    public static ProjectMetadata emptyProject() {
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    }
 }

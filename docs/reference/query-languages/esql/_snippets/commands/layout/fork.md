@@ -5,7 +5,7 @@ serverless: preview
 stack: preview 9.1.0
 ```
 
-The `FORK` processing command creates multiple execution branches to operate 
+The `FORK` processing command creates multiple execution branches to operate
 on the same input data and combines the results in a single output table.
 
 **Syntax**
@@ -24,7 +24,7 @@ they designate which `FORK` branch the current row comes from.
 The values of the `_fork` column always start with `fork1`, which indicates that
 the row comes from the first branch.
 
-`FORK` branches can output different columns, but columns with the 
+`FORK` branches can output different columns, but columns with the
 same name must have the same data type across all branches.
 
 When a column does not exist in a `FORK` branch, but it exists in the output of
@@ -39,17 +39,11 @@ this behaviour.
 
 `FORK` branches receive an implicit `LIMIT 1000` if no `LIMIT` is provided.
 
-::::{note}
-`FORK` supports at most 8 execution branches.
-::::
+Limitations and usage:
 
-::::{note}
-Using remote cluster references and `FORK` is not supported.
-::::
-
-::::{note}
-Using more than one `FORK` command in a query is not supported.
-::::
+- `FORK` supports at most 8 execution branches.
+- Using remote cluster references and `FORK` is not supported.
+- Using more than one `FORK` command in a query is not supported.
 
 **Examples**
 

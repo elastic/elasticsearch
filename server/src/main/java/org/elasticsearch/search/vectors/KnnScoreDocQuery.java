@@ -219,7 +219,7 @@ public class KnnScoreDocQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ScoreAndDocQuery";
+        return "DocAndScoreQuery[" + docs[0] + ",...][" + scores[0] + ",...]," + maxScore;
     }
 
     @Override

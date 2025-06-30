@@ -1302,7 +1302,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "vector_operations_count" : 4,
         "query" : [
             {
-                "type" : "DocAndScoreQuery",
+                "type" : "KnnScoreDocQuery",
                 "description" : "DocAndScore[100]",
                 "time_in_nanos" : 444414,
                 "breakdown" : {

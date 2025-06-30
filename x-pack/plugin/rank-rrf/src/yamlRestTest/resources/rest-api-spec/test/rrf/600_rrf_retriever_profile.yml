@@ -120,7 +120,7 @@ setup:
   - match: { profile.shards.0.searches.0.query.0.children.1.type: BooleanQuery }
   - length: { profile.shards.0.searches.0.query.0.children.1.children: 2 }
   - match: { profile.shards.0.searches.0.query.0.children.1.children.0.type: TermQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: DocAndScoreQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: KnnScoreDocQuery }
 
 ---
 "profile standard and knn dfs retrievers":
@@ -213,7 +213,7 @@ setup:
   - exists: profile.shards.0.dfs
   - length: { profile.shards.0.dfs.knn: 1 }
   - length: { profile.shards.0.dfs.knn.0.query: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: DocAndScoreQuery }
+  - match: { profile.shards.0.dfs.knn.0.query.0.type: KnnScoreDocQuery }
 
   - match: { profile.shards.0.searches.0.query.0.type: ConstantScoreQuery }
   - length: { profile.shards.0.searches.0.query.0.children: 1 }

@@ -36,16 +36,6 @@ public final class PhysicalVerifier {
         if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
             return failures;
         }
-        // Do the same for remote lookup joins
-        // var fragment = plan.collectFirstChildren(FragmentExec.class::isInstance);
-        // if (fragment.isEmpty() == false) {
-        // // LookupJoin gets rewritten as Join by surrogate()
-        // FragmentExec f = (FragmentExec) fragment.get(0);
-        // var ljoins = f.fragment().collectFirstChildren(Join.class::isInstance);
-        // if (ljoins.isEmpty() == false) {
-        // return failures;
-        // }
-        // }
 
         plan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {

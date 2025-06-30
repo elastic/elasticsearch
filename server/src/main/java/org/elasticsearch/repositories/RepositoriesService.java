@@ -156,7 +156,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
-        this.snapshotMetrics = new SnapshotMetrics(meterRegistry, this::getSnapshotsInProgress);
+        this.snapshotMetrics = new SnapshotMetrics(meterRegistry, this::getShardSnapshotsInProgress);
     }
 
     /**
@@ -1091,7 +1091,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    private Collection<LongWithAttributes> getSnapshotsInProgress() {
+    private Collection<LongWithAttributes> getShardSnapshotsInProgress() {
         return repositories.values()
             .stream()
             .flatMap(repositories -> repositories.values().stream())

@@ -213,7 +213,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
         ) {
             return Map.of(
                 REPO_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new TestRepository(
+                (projectId, metadata) -> new TestRepository(
                     projectId,
                     metadata,
                     env,

@@ -152,7 +152,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         ) {
             return Map.of(
                 FAULTY_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new FaultyRepository(
+                (projectId, metadata) -> new FaultyRepository(
                     projectId,
                     metadata,
                     env,
@@ -162,7 +162,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     recoverySettings
                 ),
                 INSTRUMENTED_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new InstrumentedRepo(
+                (projectId, metadata) -> new InstrumentedRepo(
                     projectId,
                     metadata,
                     env,
@@ -172,7 +172,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     recoverySettings
                 ),
                 FILTER_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new FilterFsRepository(
+                (projectId, metadata) -> new FilterFsRepository(
                     projectId,
                     metadata,
                     env,

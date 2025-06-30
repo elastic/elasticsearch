@@ -65,7 +65,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         ) {
             return Map.of(
                 REPO_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new LatencySimulatingBlobStoreRepository(
+                (projectId, metadata) -> new LatencySimulatingBlobStoreRepository(
                     projectId,
                     metadata,
                     env,

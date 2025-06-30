@@ -71,7 +71,7 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     ) {
         return Collections.singletonMap(
             "hdfs",
-            (projectId, metadata, snapshotMetrics) -> new HdfsRepository(
+            (projectId, metadata) -> new HdfsRepository(
                 projectId,
                 metadata,
                 env,

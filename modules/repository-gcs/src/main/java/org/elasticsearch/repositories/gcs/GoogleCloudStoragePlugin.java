@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +23,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
@@ -55,20 +58,23 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         RecoverySettings recoverySettings,
         RepositoriesMetrics repositoriesMetrics
     ) {
-        return Collections.singletonMap(
-            GoogleCloudStorageRepository.TYPE,
-            (projectId, metadata, snapshotMetrics) -> new GoogleCloudStorageRepository(
-                projectId,
-                metadata,
-                namedXContentRegistry,
-                this.storageService,
-                clusterService,
-                bigArrays,
-                recoverySettings,
-                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
-                snapshotMetrics
-            )
-        );
+        return Collections.singletonMap(GoogleCloudStorageRepository.TYPE, new Repository.SnapshotMetricsFactory() {
+
+            @Override
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
+                return new GoogleCloudStorageRepository(
+                    projectId,
+                    metadata,
+                    namedXContentRegistry,
+                    GoogleCloudStoragePlugin.this.storageService,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                    snapshotMetrics
+                );
+            }
+        });
     }
 
     @Override

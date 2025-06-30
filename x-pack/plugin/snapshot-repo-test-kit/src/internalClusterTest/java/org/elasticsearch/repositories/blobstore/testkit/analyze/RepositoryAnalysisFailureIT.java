@@ -547,7 +547,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
-                (projectId, metadata, snapshotMetrics) -> new DisruptableRepository(
+                (projectId, metadata) -> new DisruptableRepository(
                     projectId,
                     metadata,
                     namedXContentRegistry,

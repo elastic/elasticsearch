@@ -63,13 +63,26 @@ public interface Repository extends LifecycleComponent {
          * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
          * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) throws Exception;
+        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception;
+
+        /**
+         * Constructs a repository.
+         *
+         * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata  metadata for the repository including name and settings
+         * @param snapshotMetrics the singleton SnapshotMetrics instance
+         */
+        default Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics)
+            throws Exception {
+            return create(projectId, metadata);
+        }
 
         /**
          * Constructs a repository.
          * @param projectId   the project-id for the repository or {@code null} if the repository is at the cluster level.
          * @param metadata    metadata for the repository including name and settings
          * @param typeLookup  a function that returns the repository factory for the given repository type.
+         * @param snapshotMetrics the singleton SnapshotMetrics instance
          */
         default Repository create(
             @Nullable ProjectId projectId,
@@ -78,6 +91,17 @@ public interface Repository extends LifecycleComponent {
             SnapshotMetrics snapshotMetrics
         ) throws Exception {
             return create(projectId, metadata, snapshotMetrics);
+        }
+    }
+
+    /**
+     * A convenience class for {@link Factory} instances that require a {@link SnapshotMetrics} instance
+     */
+    class SnapshotMetricsFactory implements Factory {
+
+        @Override
+        public Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+            throw new UnsupportedOperationException("This repository requires a SnapshotMetrics implementation");
         }
     }
 

@@ -10,6 +10,8 @@
 package org.elasticsearch.repositories.azure;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -24,6 +26,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,20 +65,24 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         RecoverySettings recoverySettings,
         RepositoriesMetrics repositoriesMetrics
     ) {
-        return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata, snapshotMetrics) -> {
-            AzureStorageService storageService = azureStoreService.get();
-            assert storageService != null;
-            return new AzureRepository(
-                projectId,
-                metadata,
-                namedXContentRegistry,
-                storageService,
-                clusterService,
-                bigArrays,
-                recoverySettings,
-                repositoriesMetrics,
-                snapshotMetrics
-            );
+        return Collections.singletonMap(AzureRepository.TYPE, new Repository.SnapshotMetricsFactory() {
+
+            @Override
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
+                AzureStorageService storageService = azureStoreService.get();
+                assert storageService != null;
+                return new AzureRepository(
+                    projectId,
+                    metadata,
+                    namedXContentRegistry,
+                    storageService,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    repositoriesMetrics,
+                    snapshotMetrics
+                );
+            }
         });
     }
 

@@ -120,7 +120,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                (projectId, metadata, snapshotMetrics) -> new TestDelayedRepo(
+                (projectId, metadata) -> new TestDelayedRepo(
                     projectId,
                     metadata,
                     env,

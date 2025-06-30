@@ -218,7 +218,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         ) {
             return Collections.singletonMap(
                 TYPE,
-                (projectId, metadata, snapshotMetrics) -> new CountingMockRepository(
+                (projectId, metadata) -> new CountingMockRepository(
                     projectId,
                     metadata,
                     env,

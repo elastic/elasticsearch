@@ -54,7 +54,7 @@ public final class RepositoriesModule {
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
-            (projectId, metadata, snapshotMetrics) -> new FsRepository(
+            (projectId, metadata) -> new FsRepository(
                 projectId,
                 metadata,
                 env,

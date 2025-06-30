@@ -22,6 +22,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
@@ -45,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -274,39 +276,42 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             RecoverySettings recoverySettings,
             RepositoriesMetrics repositoriesMetrics
         ) {
-            return Collections.singletonMap(
-                GoogleCloudStorageRepository.TYPE,
-                (projectId, metadata, snapshotMetrics) -> new GoogleCloudStorageRepository(
-                    projectId,
-                    metadata,
-                    registry,
-                    this.storageService,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    new GcsRepositoryStatsCollector(),
-                    snapshotMetrics
-                ) {
-                    @Override
-                    protected GoogleCloudStorageBlobStore createBlobStore() {
-                        return new GoogleCloudStorageBlobStore(
-                            metadata.settings().get("bucket"),
-                            "test",
-                            metadata.name(),
-                            storageService,
-                            bigArrays,
-                            randomIntBetween(1, 8) * 1024,
-                            BackoffPolicy.noBackoff(),
-                            this.statsCollector()
-                        ) {
-                            @Override
-                            long getLargeBlobThresholdInBytes() {
-                                return ByteSizeUnit.MB.toBytes(1);
-                            }
-                        };
-                    }
+            return Collections.singletonMap(GoogleCloudStorageRepository.TYPE, new Repository.SnapshotMetricsFactory() {
+
+                @Override
+                public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
+                    return new GoogleCloudStorageRepository(
+                        projectId,
+                        metadata,
+                        registry,
+                        TestGoogleCloudStoragePlugin.this.storageService,
+                        clusterService,
+                        bigArrays,
+                        recoverySettings,
+                        new GcsRepositoryStatsCollector(),
+                        snapshotMetrics
+                    ) {
+                        @Override
+                        protected GoogleCloudStorageBlobStore createBlobStore() {
+                            return new GoogleCloudStorageBlobStore(
+                                metadata.settings().get("bucket"),
+                                "test",
+                                metadata.name(),
+                                storageService,
+                                bigArrays,
+                                randomIntBetween(1, 8) * 1024,
+                                BackoffPolicy.noBackoff(),
+                                this.statsCollector()
+                            ) {
+                                @Override
+                                long getLargeBlobThresholdInBytes() {
+                                    return ByteSizeUnit.MB.toBytes(1);
+                                }
+                            };
+                        }
+                    };
                 }
-            );
+            });
         }
     }
 

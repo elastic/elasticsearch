@@ -61,6 +61,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -239,6 +240,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -754,6 +756,7 @@ class NodeConstruction {
             repositoriesService,
             rerouteServiceReference::get
         );
+        final SetOnce<Consumer<DesiredBalance>> reconciliationFuncRef = new SetOnce<>();
         final ClusterModule clusterModule = new ClusterModule(
             settings,
             clusterService,
@@ -764,7 +767,8 @@ class NodeConstruction {
             systemIndices,
             projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
-            telemetryProvider
+            telemetryProvider,
+            reconciliationFuncRef::get
         );
         modules.add(clusterModule);
 
@@ -1117,6 +1121,7 @@ class NodeConstruction {
             actionModule.getActionFilters(),
             systemIndices
         );
+        reconciliationFuncRef.set(snapshotsService::updateReconciledDesiredBalance);
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,

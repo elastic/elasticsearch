@@ -121,7 +121,8 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             computer,
             (state, action) -> state,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),

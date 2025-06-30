@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
@@ -42,7 +42,10 @@ public class ReleaseNotesGeneratorTest {
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, QualifiedVersion.of("8.2.0-SNAPSHOT"), entries);
 
         // then:
-        assertThat(actualOutput, equalTo(expectedOutput));
+        String[] expectedLines = expectedOutput.replace("\r", "").split("\n");
+        String[] actualLines = actualOutput.split("\n");
+
+        assertThat(actualLines, arrayContaining(expectedLines));
     }
 
     private Set<ChangelogEntry> getEntries() {

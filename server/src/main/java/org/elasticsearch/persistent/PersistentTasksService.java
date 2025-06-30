@@ -296,6 +296,7 @@ public class PersistentTasksService {
     /**
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */
+    @Deprecated(forRemoval = true)  // Use the explict cluster/project version instead
     public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
         sendRemoveRequest(null, taskId, timeout, listener);
     }

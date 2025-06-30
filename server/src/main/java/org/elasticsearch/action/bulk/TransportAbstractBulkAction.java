@@ -69,8 +69,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private final IngestActionForwarder ingestForwarder;
     protected final LongSupplier relativeTimeNanosProvider;
     protected final Executor coordinationExecutor;
-    protected final Executor writeExecutor;
-    protected final Executor systemWriteExecutor;
+    protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
 
     public TransportAbstractBulkAction(
@@ -94,8 +93,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         this.systemIndices = systemIndices;
         this.projectResolver = projectResolver;
         this.coordinationExecutor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
-        this.writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        this.systemWriteExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        this.systemCoordinationExecutor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE_COORDINATION);
         this.ingestForwarder = new IngestActionForwarder(transportService);
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
@@ -134,14 +132,14 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         // Use coordinationExecutor for dispatching coordination tasks
-        ensureClusterStateThenForkAndExecute(task, bulkRequest, coordinationExecutor, isOnlySystem, releasingListener);
+        final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
     }
 
     private void ensureClusterStateThenForkAndExecute(
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        boolean isOnlySystem,
         ActionListener<BulkResponse> releasingListener
     ) {
         final ClusterState initialState = clusterService.state();
@@ -163,7 +161,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    forkAndExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+                    forkAndExecute(task, bulkRequest, executor, releasingListener);
                 }
 
                 @Override
@@ -177,32 +175,21 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(projectId, ClusterBlockLevel.WRITE));
         } else {
-            forkAndExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+            forkAndExecute(task, bulkRequest, executor, releasingListener);
         }
     }
 
-    private void forkAndExecute(
-        Task task,
-        BulkRequest bulkRequest,
-        Executor executor,
-        boolean isOnlySystem,
-        ActionListener<BulkResponse> releasingListener
-    ) {
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, isOnlySystem, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(
-        Task task,
-        BulkRequest bulkRequest,
-        Executor executor,
-        boolean isOnlySystem,
-        ActionListener<BulkResponse> listener
-    ) throws IOException {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
@@ -291,7 +278,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executor, isOnlySystem, project, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executor, project, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -305,7 +292,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest original,
         Executor executor,
-        boolean isOnlySystem,
         ProjectMetadata metadata,
         ActionListener<BulkResponse> listener
     ) {
@@ -339,7 +325,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() throws IOException {
-                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, isOnlySystem, actionListener);
+                                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
                             @Override
@@ -362,8 +348,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     }
                 }
             },
-            // Use the appropriate write executor for actual ingest processing
-            isOnlySystem ? systemWriteExecutor : writeExecutor
+            executor
         );
     }
 
@@ -419,11 +404,10 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        boolean isOnlySystem,
         ActionListener<BulkResponse> listener
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
-        if (applyPipelines(task, bulkRequest, executor, isOnlySystem, listener) == false) {
+        if (applyPipelines(task, bulkRequest, executor, listener) == false) {
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }

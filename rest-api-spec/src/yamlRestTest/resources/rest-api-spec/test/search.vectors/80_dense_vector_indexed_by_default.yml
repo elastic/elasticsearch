@@ -25,7 +25,6 @@ setup:
   - match: { test.mappings.properties.vector.dims: 5 }
   - match: { test.mappings.properties.vector.index: true }
   - match: { test.mappings.properties.vector.similarity: cosine }
-
 ---
 "Indexed by default with specified similarity and index options":
   - do:
@@ -49,48 +48,19 @@ setup:
       indices.get_mapping:
         index: test
 
-  - match: { test.mappings.properties.vector.type: dense_vector }
-  - match: { test.mappings.properties.vector.dims: 5 }
-  - match: { test.mappings.properties.vector.index: true }
-  - match: { test.mappings.properties.vector.similarity: dot_product }
-  - match: { test.mappings.properties.vector.index_options.type: hnsw }
-  - match: { test.mappings.properties.vector.index_options.m: 32 }
-  - match: { test.mappings.properties.vector.index_options.ef_construction: 200 }
-
----
-"Indexed by default with specified similarity and index options with early_termination":
-  - requires:
-      cluster_features: [ "search.vectors.mappers.expose_hnsw_early_termination" ]
-      reason: "requires early termination for hnsw to be exposed"
-  - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 5
-                similarity: dot_product
-                index_options:
-                  type: hnsw
-                  m: 32
-                  ef_construction: 200
-
-  - match: { acknowledged: true }
-
-  - do:
-      indices.get_mapping:
-        index: test
-
-  - match: { test.mappings.properties.vector.type: dense_vector }
-  - match: { test.mappings.properties.vector.dims: 5 }
-  - match: { test.mappings.properties.vector.index: true }
-  - match: { test.mappings.properties.vector.similarity: dot_product }
-  - match: { test.mappings.properties.vector.index_options.type: hnsw }
-  - match: { test.mappings.properties.vector.index_options.m: 32 }
-  - match: { test.mappings.properties.vector.index_options.ef_construction: 200 }
-  - match: { test.mappings.properties.vector.index_options.early_termination: false }
+  - match:
+      test:
+        mappings:
+          properties:
+            vector:
+              type: dense_vector
+              dims: 5
+              index: true
+              similarity: dot_product
+              index_options:
+                type: hnsw
+                m: 32
+                ef_construction: 200
 
 ---
 "Not indexed vector":
@@ -156,9 +126,6 @@ setup:
   - requires:
       cluster_features: "gte_v8.14.0"
       reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
-  - requires:
-      cluster_features: [ "search.vectors.mappers.expose_hnsw_early_termination" ]
-      reason: "requires early termination for hnsw to be exposed"
   - do:
       indices.create:
         index: test_default_index_options
@@ -180,7 +147,6 @@ setup:
   - match: { test_default_index_options.mappings.properties.vector.index: true }
   - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
   - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
-  - match: { test_default_index_options.mappings.properties.vector.index_options.early_termination: false }
 ---
 "Default index options for dense_vector element type byte":
   - requires:

@@ -178,7 +178,6 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_2_2 = def(9_030_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT = def(9_031_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW = def(9_032_0_00, Version.LUCENE_10_2_2);
-    public static final IndexVersion EXPOSE_EARLY_TERMINATION = def(9_033_0_00, Version.LUCENE_10_2_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

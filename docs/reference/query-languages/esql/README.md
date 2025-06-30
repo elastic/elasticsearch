@@ -163,6 +163,8 @@ For example, the second item in this list is in technical preview as of version 
 
 - `PREVIEW` - Feature is in technical preview
 - `GA` - Feature is generally available  
+- `DEPRECATED` - Feature is deprecated and will be removed in a future release
+- `UNAVAILABLE` - Feature is not available in the current version, but may be available in future releases
 
 > [!NOTE] 
 > Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`: 

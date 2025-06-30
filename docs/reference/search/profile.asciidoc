@@ -1340,12 +1340,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
     }   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
-// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
-// TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
-// TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]
-// TESTRESPONSE[s/DocAndScoreQuery/KnnScoreDocQuery/]
-// TESTRESPONSE[s/DocAndScore/KnnScoreDocQuery/]
+// TEST[skip:response format changes in #130254]
 
 In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,

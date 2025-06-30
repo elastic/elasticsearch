@@ -176,7 +176,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     public static final Setting<Boolean> HNSW_EARLY_TERMINATION = Setting.boolSetting(
-        "index.dense_vector.hnsw_early_termination",
+        "index.dense_vector.hnsw_enable_early_termination",
         DEFAULT_HNSW_EARLY_TERMINATION,
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic,

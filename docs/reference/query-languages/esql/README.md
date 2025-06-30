@@ -108,9 +108,10 @@ To help differentiate between the static and generated content, the generated co
 ## Version differentiation in Docs V3
 
 > [!IMPORTANT]
-> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.). This is a significant departure from the practice of each minor version having its own dedicated documentation branch.
+> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.). 
+> This means there won't be a different page for `9.1`, `9.2`, and so on. Instead, all changes landing in subsequent minor releases **will appear on the same page**.
 
-Instead, we publish one docs set off of the `main` branch and we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
+Because we now publish just one docs set off of the `main` branch, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
 
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
 

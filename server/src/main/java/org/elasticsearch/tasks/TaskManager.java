@@ -82,7 +82,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private TaskResultsService taskResultsService;
 
-    private final String initialNodeId;
+    // Used by tests that call register before setting the lastDiscoveryNodes.
+    private final String nodeId;
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final Tracer tracer;
@@ -102,12 +103,12 @@ public class TaskManager implements ClusterStateApplier {
         this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
     }
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, @Nullable String initialNodeId) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, @Nullable String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
-        this.initialNodeId = initialNodeId;
+        this.nodeId = nodeId;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -149,7 +150,7 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        String localNodeId = Optional.ofNullable(lastDiscoveryNodes.getLocalNodeId()).orElse(initialNodeId);
+        String localNodeId = Optional.ofNullable(lastDiscoveryNodes.getLocalNodeId()).orElse(nodeId);
         Task task = request.createTask(
             new TaskId(localNodeId, taskIdGenerator.incrementAndGet()),
             type,

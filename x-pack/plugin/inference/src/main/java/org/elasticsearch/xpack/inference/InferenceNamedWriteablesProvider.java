@@ -106,6 +106,10 @@ import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServ
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.MixedbreadEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.embeddings.MixedbreadEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -164,6 +168,7 @@ public class InferenceNamedWriteablesProvider {
         addIbmWatsonxNamedWritables(namedWriteables);
         addGoogleVertexAiNamedWriteables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
+        addMixedbreadNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
         addAnthropicNamedWritables(namedWriteables);
         addAmazonBedrockNamedWriteables(namedWriteables);
@@ -274,6 +279,34 @@ public class InferenceNamedWriteablesProvider {
         );
 
         // note - no task settings for Mistral embeddings...
+    }
+
+    private static void addMixedbreadNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                MixedbreadEmbeddingsServiceSettings.NAME,
+                MixedbreadEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                MixedbreadEmbeddingsTaskSettings.NAME,
+                MixedbreadEmbeddingsTaskSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                MixedbreadRerankServiceSettings.NAME,
+                MixedbreadRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, MixedbreadRerankTaskSettings.NAME, MixedbreadRerankTaskSettings::new)
+        );
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

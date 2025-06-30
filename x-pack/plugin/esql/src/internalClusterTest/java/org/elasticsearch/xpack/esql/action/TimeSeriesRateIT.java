@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class TimeSeriesRateIT extends AbstractEsqlIntegTestCase {
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         assumeTrue("time series available in snapshot builds only", Build.current().isSnapshot());
         return super.run(request);
     }

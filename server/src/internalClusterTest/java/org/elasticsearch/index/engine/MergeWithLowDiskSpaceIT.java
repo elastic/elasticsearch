@@ -168,7 +168,6 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         setTotalSpace(node, Long.MAX_VALUE);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = internalCluster().getInstance(IndicesService.class, node)
             .getThreadPoolMergeExecutorService();
-        TestTelemetryPlugin testTelemetryPlugin = getTelemetryPlugin(node);
         // create some index
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -228,7 +227,6 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         // wait for the merge call to return
         safeGet(forceMergeFuture);
         IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(indexName).setMerge(true).get();
-        testTelemetryPlugin.collect();
         // assert index stats and telemetry report no merging in progress (after force merge returned)
         long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();
         assertThat(currentMergeCount, equalTo(0L));
@@ -245,14 +243,5 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
     public void setTotalSpace(String dataNodeName, long totalSpace) {
         getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
         refreshClusterInfo();
-    }
-
-    private TestTelemetryPlugin getTelemetryPlugin(String dataNodeName) {
-        var plugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        plugin.resetMeter();
-        return plugin;
     }
 }

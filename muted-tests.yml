@@ -488,21 +488,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
   issue: https://github.com/elastic/elasticsearch/issues/129296
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexWithNoPermissions
-  issue: https://github.com/elastic/elasticsearch/issues/129471
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexAndPolicyDifferentUsers
-  issue: https://github.com/elastic/elasticsearch/issues/129479
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanViewExplainOnUnmanagedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/129480
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/129481
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512

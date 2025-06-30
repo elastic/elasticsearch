@@ -67,6 +67,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 return p;
             }
 
+            // TODO: INLINESTATS unit testing for tracking this set
             if (p instanceof InlineJoin ij) {
                 inlineJoinRightOutput.addAll(ij.right().outputSet());
             }
@@ -78,6 +79,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck = false;
                 if (p instanceof Aggregate aggregate) {
+                    // TODO: INLINESTATS https://github.com/elastic/elasticsearch/pull/128917#discussion_r2175162099
                     var remaining = removeUnused(aggregate.aggregates(), used, inlineJoinRightOutput);
 
                     if (remaining != null) {

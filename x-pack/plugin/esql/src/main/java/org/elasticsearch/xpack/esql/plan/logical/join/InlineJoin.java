@@ -77,6 +77,8 @@ public class InlineJoin extends Join {
 
     /**
      * Replaces the stubbed source with the actual source.
+     * NOTE: this will replace all {@link StubRelation}s found with the source and the method is meant to be used to replace one node only
+     * when being called on a plan that has only ONE StubRelation in it.
      */
     public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
         // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
@@ -129,7 +131,7 @@ public class InlineJoin extends Join {
         optimizedPlan.forEachUp(InlineJoin.class, ij -> {
             // extract the right side of the plan and replace its source
             if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {
-                var p = InlineJoin.replaceStub(ij.left(), ij.right());
+                var p = replaceStub(ij.left(), ij.right());
                 p.setOptimized();
                 subPlan.set(new LogicalPlanTuple(p, ij.right()));
             }

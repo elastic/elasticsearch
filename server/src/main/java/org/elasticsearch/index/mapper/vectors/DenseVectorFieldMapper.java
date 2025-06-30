@@ -1340,15 +1340,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public abstract static class DenseVectorIndexOptions implements IndexOptions {
         final VectorIndexType type;
-        final IndexVersion indexVersion;
 
         DenseVectorIndexOptions(VectorIndexType type) {
-            this(type, null);
-        }
-
-        DenseVectorIndexOptions(VectorIndexType type, IndexVersion indexVersion) {
             this.type = type;
-            this.indexVersion = indexVersion;
         }
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
@@ -1418,11 +1412,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(type);
             this.rescoreVector = rescoreVector;
         }
-
-        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector, IndexVersion indexVersion) {
-            super(type, indexVersion);
-            this.rescoreVector = rescoreVector;
-        }
     }
 
     public enum VectorIndexType {
@@ -1476,6 +1465,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, rescoreVector);
             }
 

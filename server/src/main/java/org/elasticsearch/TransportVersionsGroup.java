@@ -47,8 +47,7 @@ public class TransportVersionsGroup {
     }
 
     public boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(localTV)
-            || backportTVs.stream().anyMatch(version::isPatchFrom);
+        return version.onOrAfter(localTV) || backportTVs.stream().anyMatch(version::isPatchFrom);
     }
 
     public List<Integer> getLocalAndBackportedTVIds() {

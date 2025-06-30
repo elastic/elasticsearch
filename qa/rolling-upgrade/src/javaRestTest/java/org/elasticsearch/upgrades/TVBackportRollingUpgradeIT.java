@@ -10,13 +10,13 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.apache.logging.log4j.Logger;
 
 public class TVBackportRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public TVBackportRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
+
     // We'd be most interested to see this failing on the patch issue where 9.0 thinks it's ahead of 8.x but it's not.
     /*
         v2  TV1,TV3,

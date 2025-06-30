@@ -192,7 +192,7 @@ fails when alias or pattern resolves to multiple:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [update_lookup_join_error_messages]
+          capabilities: [enable_lookup_join_on_remote]
       reason: "checks updated error messages"
   - do:
       esql.query:

@@ -193,7 +193,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         },
                         {
@@ -277,7 +277,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         },
                         {

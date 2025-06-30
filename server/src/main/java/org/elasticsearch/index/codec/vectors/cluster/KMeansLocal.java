@@ -26,6 +26,11 @@ import java.util.Random;
  */
 class KMeansLocal {
 
+    // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
+    // For vectors that are closer than this distance to the centroid, we use the squared distance to find the
+    // second closest centroid.
+    private static final float SOAR_MIN_DISTANCE = 1e-16f;
+
     final int sampleSize;
     final int maxIterations;
     final int clustersPerNeighborhood;
@@ -190,14 +195,17 @@ class KMeansLocal {
 
             int currAssignment = assignments[i];
             float[] currentCentroid = centroids[currAssignment];
-            for (int j = 0; j < vectors.dimension(); j++) {
-                float diff = vector[j] - currentCentroid[j];
-                diffs[j] = diff;
-            }
 
             // TODO: cache these?
             // float vectorCentroidDist = assignmentDistances[i];
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
+
+            if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
+                for (int j = 0; j < vectors.dimension(); j++) {
+                    float diff = vector[j] - currentCentroid[j];
+                    diffs[j] = diff;
+                }
+            }
 
             int bestAssignment = -1;
             float minSoar = Float.MAX_VALUE;
@@ -207,13 +215,19 @@ class KMeansLocal {
                     continue;
                 }
                 float[] neighborCentroid = centroids[neighbor];
-                float soar = ESVectorUtil.soarDistance(vector, neighborCentroid, diffs, soarLambda, vectorCentroidDist);
+                final float soar;
+                if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
+                    soar = ESVectorUtil.soarDistance(vector, neighborCentroid, diffs, soarLambda, vectorCentroidDist);
+                } else {
+                    // if the vector is very close to the centroid, we look for the second-nearest centroid
+                    soar = VectorUtil.squareDistance(vector, neighborCentroid);
+                }
                 if (soar < minSoar) {
                     bestAssignment = neighbor;
                     minSoar = soar;
                 }
             }
-
+            assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
             spilledAssignments[i] = bestAssignment;
         }
 

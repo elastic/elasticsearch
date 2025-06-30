@@ -66,8 +66,10 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
             Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
             assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
-            Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
-            assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
+            if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
+                Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
+                assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
+            }
         }
     }
 

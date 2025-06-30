@@ -71,6 +71,9 @@ $$$search-throttled$$$`search_throttled`
 `system_write`
 :   For write operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
+`system_write_coordination`
+:   For bulk request coordination operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
+
 `system_critical_read`
 :   For critical read operations on system indices. Thread pool type is `fixed` with a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 

@@ -32,7 +32,6 @@ tasks.named("yamlRestTest").configure {
     '^analytics/top_metrics/*',
     '^analytics/usage/*',
     '^data_streams/10_data_stream_resolvability/*',
-    '^deprecation/10_basic/*',
     '^dlm/10_usage/*',
     '^esql/60_usage/*',
     '^health/10_usage/*',

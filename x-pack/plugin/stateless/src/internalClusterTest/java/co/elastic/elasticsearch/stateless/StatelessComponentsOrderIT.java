@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 
@@ -31,6 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 
 public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
 
@@ -52,7 +53,7 @@ public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
     public void testClosingNodeShouldWaitForOngoingMerge() throws Exception {
         startMasterOnlyNode();
         var nodeSettings = Settings.builder()
-            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            .put(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final String indexNode = startIndexNode(nodeSettings);
@@ -119,7 +120,7 @@ public class StatelessComponentsOrderIT extends AbstractStatelessIntegTestCase {
             return new IndexBlobStoreCacheDirectory(cacheService, shardId) {
                 @Override
                 protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
-                    if (Stateless.MERGE_THREAD_POOL.equals(EsExecutors.executorName(Thread.currentThread()))) {
+                    if (ThreadPool.Names.MERGE.equals(EsExecutors.executorName(Thread.currentThread()))) {
                         mergeReadStartedLatch.countDown();
                         safeAwait(cacheEvictedLatch);
                     }

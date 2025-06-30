@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.FilterMergePolicy;
@@ -55,6 +54,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
@@ -107,7 +107,7 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            .put(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(100));

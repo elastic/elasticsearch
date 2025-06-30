@@ -42,6 +42,8 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
@@ -99,6 +101,13 @@ public class IndexEngine extends InternalEngine {
 
     public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
+    public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
+    // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
+    public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
+        "stateless.merge.force_refresh_size",
+        ByteSizeValue.ofMb(64),
+        Setting.Property.NodeScope
+    );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
@@ -179,8 +188,7 @@ public class IndexEngine extends InternalEngine {
         this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
-        this.mergeForceRefreshSize = ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings())
-            .getBytes();
+        this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
@@ -740,43 +748,16 @@ public class IndexEngine extends InternalEngine {
         @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         MergeMetrics mergeMetrics
     ) {
-        if (ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.get(indexSettings.getSettings())) {
-            return new ThreadPoolMergeScheduler(
+        if (threadPoolMergeExecutorService != null) {
+            return new StatelessThreadPoolMergeScheduler(
                 shardId,
-                ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings()),
-                engineConfig.getThreadPool(),
-                () -> mergeMetrics, // Have to use supplier as this method is called from super ctor
-                (mergeId, merge) -> cacheWarmingService.warmCacheForMerge(mergeId, shardId, store, merge, fileName -> {
-                    BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
-                    BlobLocation blobLocation = statelessCommitService.getBlobLocation(shardId, fileName);
-                    if (blobLocation != null && latestUploadedBcc != null) {
-                        // Only return the location if the file is uploaded as we don't want to try warming an un-uploaded file
-                        if (blobLocation.getBatchedCompoundCommitTermAndGeneration()
-                            .compareTo(latestUploadedBcc.primaryTermAndGeneration()) <= 0) {
-                            return blobLocation;
-                        }
-                    }
-                    return null;
-                }),
-                () -> forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId),
-                this::onAfterMerge,
-                this::mergeException,
-                this::onMergeEnqueued,
-                this::onMergeExecutedOrAborted,
-                this::estimateMergeBytes
+                indexSettings,
+                threadPoolMergeExecutorService,
+                this::estimateMergeBytes,
+                mergeMetrics
             );
         } else {
-            if (threadPoolMergeExecutorService != null) {
-                return new StatelessThreadPoolMergeScheduler(
-                    shardId,
-                    indexSettings,
-                    threadPoolMergeExecutorService,
-                    this::estimateMergeBytes,
-                    mergeMetrics
-                );
-            } else {
-                return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
-            }
+            return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService, mergeMetrics);
         }
     }
 
@@ -805,7 +786,7 @@ public class IndexEngine extends InternalEngine {
             MergeMetrics mergeMetrics
         ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider, mergeMetrics);
-            prewarm = ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings());
+            prewarm = MERGE_PREWARM.get(indexSettings.getSettings());
         }
 
         @Override

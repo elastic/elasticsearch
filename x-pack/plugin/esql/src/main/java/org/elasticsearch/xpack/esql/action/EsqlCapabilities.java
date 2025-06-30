@@ -1215,7 +1215,12 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

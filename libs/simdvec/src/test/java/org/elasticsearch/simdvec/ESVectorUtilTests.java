@@ -268,7 +268,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
-    public void testSoarOverspillScore() {
+    public void testSoarDistance() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-5f * size;
         var vector = new float[size];
@@ -279,8 +279,10 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             centroid[i] = random().nextFloat();
             preResidual[i] = random().nextFloat();
         }
-        var expected = defaultedProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
-        var result = defOrPanamaProvider.getVectorUtilSupport().soarResidual(vector, centroid, preResidual);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat();
+        var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        var result = defOrPanamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
         assertEquals(expected, result, deltaEps);
     }
 

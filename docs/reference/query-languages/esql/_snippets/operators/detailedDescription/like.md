@@ -25,10 +25,6 @@ serverless: ga
 Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
 the expression will return true if any of the patterns match.
 
-```{applies_to}
-stack: ga 9.1
-serverless: ga
-```
 ```esql
 ROW message = "foobar"
 | WHERE message like ("foo*", "bar?")

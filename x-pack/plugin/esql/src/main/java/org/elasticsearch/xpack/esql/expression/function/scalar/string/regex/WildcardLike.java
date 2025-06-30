@@ -61,10 +61,6 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
         the expression will return true if any of the patterns match.
 
-        ```{applies_to}
-        stack: ga 9.1
-        serverless: ga
-        ```
         <<load-esql-example, file=where-like tag=likeListDocExample>>
 
         """, operator = NAME, examples = @Example(file = "docs", tag = "like"))

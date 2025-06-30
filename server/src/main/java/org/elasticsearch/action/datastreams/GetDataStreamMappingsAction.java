@@ -129,7 +129,7 @@ public class GetDataStreamMappingsAction extends ActionType<GetDataStreamMapping
             Map<String, Object> uncompressedEffectiveMappings = XContentHelper.convertToMap(
                 effectiveMappings.uncompressed(),
                 true,
-                builder.contentType()
+                XContentType.JSON
             ).v2();
             builder.field("effective_mappings");
             builder.map(uncompressedEffectiveMappings);

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -81,8 +82,9 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ClusterState state,
         ActionListener<UpdateDataStreamMappingsAction.Response> listener
     ) throws Exception {
+        ProjectId projectId = projectResolver.getProjectId();
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
-            state.projectState(projectResolver.getProjectId()).metadata(),
+            state.metadata().getProject(projectId),
             IndicesOptions.DEFAULT,
             request.indices()
         );
@@ -98,6 +100,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         countDownListener.onResponse(null);
         for (String dataStreamName : dataStreamNames) {
             updateSingleDataStream(
+                projectId,
                 dataStreamName,
                 request.getMappings(),
                 request.masterNodeTimeout(),
@@ -123,6 +126,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     }
 
     private void updateSingleDataStream(
+        ProjectId projectId,
         String dataStreamName,
         CompressedXContent mappingsOverrides,
         TimeValue masterNodeTimeout,
@@ -144,7 +148,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
             return;
         }
         metadataDataStreamsService.updateMappings(
-            projectResolver.getProjectId(),
+            projectId,
             masterNodeTimeout,
             ackTimeout,
             dataStreamName,
@@ -159,9 +163,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(
-                                    clusterService.state().projectState(projectResolver.getProjectId()).metadata()
-                                )
+                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId))
                             )
                         );
                     } catch (IOException e) {

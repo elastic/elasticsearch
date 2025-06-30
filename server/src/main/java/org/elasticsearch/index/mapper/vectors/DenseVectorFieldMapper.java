@@ -2553,40 +2553,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query maybeWrapPatience(Query knnQuery) {
             Query finalQuery = knnQuery;
-            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery) {
-                finalQuery = maybeWrapPatienceByte(knnByteVectorQuery);
-            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery) {
-                finalQuery = maybeWrapPatienceFloat(knnFloatVectorQuery);
+            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery && canApplyPatienceQuery()) {
+                finalQuery = PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery);
+            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery && canApplyPatienceQuery()) {
+                finalQuery = PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery);
             }
             return finalQuery;
         }
 
-        private Query maybeWrapPatienceByte(KnnByteVectorQuery knnQuery) {
-            Query returnedQuery = knnQuery;
-            if (indexOptions instanceof HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery);
-            } else if (indexOptions instanceof Int8HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery);
-            } else if (indexOptions instanceof Int4HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery);
-            } else if (indexOptions instanceof BBQHnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromByteQuery(knnQuery);
-            }
-            return returnedQuery;
-        }
-
-        private Query maybeWrapPatienceFloat(KnnFloatVectorQuery knnQuery) {
-            Query returnedQuery = knnQuery;
-            if (indexOptions instanceof HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery);
-            } else if (indexOptions instanceof Int8HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery);
-            } else if (indexOptions instanceof Int4HnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery);
-            } else if (indexOptions instanceof BBQHnswIndexOptions) {
-                returnedQuery = PatienceKnnVectorQuery.fromFloatQuery(knnQuery);
-            }
-            return returnedQuery;
+        private boolean canApplyPatienceQuery() {
+            return indexOptions instanceof HnswIndexOptions
+                || indexOptions instanceof Int8HnswIndexOptions
+                || indexOptions instanceof Int4HnswIndexOptions
+                || indexOptions instanceof BBQHnswIndexOptions;
         }
 
         private Query createKnnFloatQuery(

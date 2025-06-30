@@ -519,7 +519,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(boostNotAllowedIndexVersion(), fieldMapping(b -> {
-                minimalMapping(b, boostNotAllowedIndexVersion());
+                minimalMapping(b);
                 b.field("boost", 2.0);
             }))
         );

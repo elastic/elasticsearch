@@ -320,7 +320,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
-    public void testCompletionAndCancellationShouldMutualExclusivelyHandleResponses() throws Exception {
+    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() {
         final var barrier = new CyclicBarrier(2);
         final var action = new TestTransportNodesAction(
             clusterService,

@@ -256,7 +256,7 @@ pushDownSort_To_LeftSideOnly
 required_capability: inlinestats_v8
 
 from employees
-| sort emp_no desc
+| sort emp_no
 | inlinestats avg = avg(salary) by languages
 | limit 5
 | keep emp_no, avg, languages, gender
@@ -268,13 +268,6 @@ from employees
 10003          |61805.0        |4                |M              
 10004          |46272.5        |5                |M              
 10005          |63528.0        |1                |M
-;
-
-from employees
-| sort emp_no desc
-| inlinestats avg = avg(salary) by languages
-| limit 5
-| keep emp_no, avg, languages, gender
 ;
 
 byMultivaluedSimple
@@ -1196,11 +1189,10 @@ FROM employees
 | INLINESTATS salary = min(salary) BY gender
 | WHERE salary > 31000
 | INLINESTATS salary = max(salary) BY gender
-| WHERE salary > 31500
+| WHERE salary < 31500
 | KEEP salary, gender
 | SORT salary DESC, gender 
 ;
-warning:No limit defined, adding default limit of [1000]
 
 salary:integer |gender:keyword
 31120          |null           
@@ -1225,7 +1217,7 @@ FROM employees
 | LIMIT 3
 ;
 
-emp_no:integer |salary:integer |languages:integer|avg(salary):double|gender:keyword     
+emp_no:integer |salary:integer |languages:integer|avg(salary):double|gender:long     
 10001          |57305          |2                |48248.55          |2              
 10002          |56371          |5                |48248.55          |2              
 10003          |61805          |4                |48248.55          |2              

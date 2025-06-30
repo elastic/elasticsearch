@@ -11,7 +11,9 @@ navigation_title: Serverless Project Management API
 
 # Elastic Cloud Serverless Project Management API [serverless-project-management-api]
 
-You can manage serverless projects using the [Elastic Cloud Serverless Project Management APIs](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/).
+On this page, you can find examples of how to interact with the [Elastic Cloud Serverless Project Management APIs](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/). 
+
+To learn about API principles, authentication, and how to use the OpenAPI specification, refer to the [Elastic Cloud Serverless Project Management APIs](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/) documentation.
 
 The available APIs are grouped by project type:
 
@@ -19,16 +21,9 @@ The available APIs are grouped by project type:
 - APIs for [Observatibility projects](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/group/endpoint-observability-projects)
 - APIs for [Security projects](https://www.elastic.co/docs/api/doc/elastic-cloud-serverless/group/endpoint-security-projects)
 
-The following examples show how to interact with the APIs, covering common operations such as:
-- [Creating a project](#general-manage-project-with-api-create-a-serverless-elasticsearch-project)
-- [Retrieving project details](#general-manage-project-with-api-get-project)
-- [Retrieving the project's status](#general-manage-project-with-api-get-project-status)
-- [Resetting credentials](#general-manage-project-with-api-reset-credentials)
-- [Deleting a project](#general-manage-project-with-api-delete-project)
-- [Updating a project](#general-manage-project-with-api-update-project)
-- [Listing regions where projects can be created](#general-manage-project-with-api-list-available-regions)
+To try the examples in this section, [set up an API key](#general-manage-project-with-api-set-up-api-key) and [create an {{es-serverless}} project](#general-manage-project-with-api-create-a-serverless-elasticsearch-project).
 
-## Set up an API key
+## Set up an API key [general-manage-project-with-api-set-up-api-key]
 
 1. [Create an API key](https://www.elastic.co/docs/deploy-manage/api-keys/elastic-cloud-api-keys).
 2. Store the generated API key as an environment variable so that you don’t need to specify it again for each request:
@@ -76,7 +71,19 @@ You can store the project ID as an environment variable for the next requests:
 export PROJECT_ID=cace8e65457043698ed3d99da2f053f6
 ```
 
-## Get project [general-manage-project-with-api-get-project]
+## API examples
+
+The following examples show how to interact with the APIs, covering common operations such as:
+
+- [Creating a project](#general-manage-project-with-api-create-a-serverless-elasticsearch-project)
+- [Retrieving project details](#general-manage-project-with-api-get-project)
+- [Retrieving the project's status](#general-manage-project-with-api-get-project-status)
+- [Resetting credentials](#general-manage-project-with-api-reset-credentials)
+- [Deleting a project](#general-manage-project-with-api-delete-project)
+- [Updating a project](#general-manage-project-with-api-update-project)
+- [Listing regions where projects can be created](#general-manage-project-with-api-list-available-regions)
+
+### Get project [general-manage-project-with-api-get-project]
 
 You can retrieve your project details through an API call:
 
@@ -85,7 +92,7 @@ curl -H "Authorization: ApiKey $API_KEY" \
     "https://api.elastic-cloud.com/api/v1/serverless/projects/elasticsearch/${PROJECT_ID}"
 ```
 
-## Get project status [general-manage-project-with-api-get-project-status]
+### Get project status [general-manage-project-with-api-get-project-status]
 
 The 'status' endpoint indicates whether the project is initialized and ready to be used. In the response, the project's `phase` will change from "initializing" to "initialized" when it is ready:
 
@@ -102,7 +109,7 @@ Example response:
 }
 ```
 
-## Reset Credentials [general-manage-project-with-api-reset-credentials]
+### Reset Credentials [general-manage-project-with-api-reset-credentials]
 
 If you lose the credentials provided at the time of the project creation, you can reset the credentials by using the following endpoint:
 
@@ -112,7 +119,7 @@ curl -H "Authorization: ApiKey $API_KEY" \
     "https://api.elastic-cloud.com/api/v1/serverless/projects/elasticsearch/${PROJECT_ID}/_reset-credentials"
 ```
 
-## Delete Project [general-manage-project-with-api-delete-project]
+### Delete Project [general-manage-project-with-api-delete-project]
 
 You can delete your project via the API:
 
@@ -121,7 +128,7 @@ curl -XDELETE -H "Authorization: ApiKey $API_KEY" \
     "https://api.elastic-cloud.com/api/v1/serverless/projects/elasticsearch/${PROJECT_ID}"
 ```
 
-## Update Project [general-manage-project-with-api-update-project]
+### Update Project [general-manage-project-with-api-update-project]
 
 You can update your project using a PATCH request. Only the fields included in the body of the request will be updated.
 
@@ -135,7 +142,7 @@ curl -H "Authorization: ApiKey $API_KEY" \
      }'
 ```
 
-## List available regions [general-manage-project-with-api-list-available-regions]
+### List available regions [general-manage-project-with-api-list-available-regions]
 
 You can obtain the list of regions where projects can be created using the API:
 

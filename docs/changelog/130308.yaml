@@ -1,0 +1,5 @@
+pr: 130308
+summary: Remove `tmp_fdt_no_mmap` feature flag
+area: Logs
+type: bug
+issues: []

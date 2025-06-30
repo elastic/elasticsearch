@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -99,6 +100,7 @@ public abstract class TransportNodesAction<
             final ActionContext actionContext = createActionContext(task, request);
             final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
+            final AtomicBoolean responsesHandled = new AtomicBoolean(false);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
@@ -109,12 +111,14 @@ public abstract class TransportNodesAction<
             private void addReleaseOnCancellationListener() {
                 if (task instanceof CancellableTask cancellableTask) {
                     cancellableTask.addListener(() -> {
-                        final List<NodeResponse> drainedResponses;
-                        synchronized (responses) {
-                            drainedResponses = List.copyOf(responses);
-                            responses.clear();
+                        if (responsesHandled.compareAndSet(false, true)) {
+                            final List<NodeResponse> drainedResponses;
+                            synchronized (responses) {
+                                drainedResponses = List.copyOf(responses);
+                                responses.clear();
+                            }
+                            Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
                         }
-                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
                     });
                 }
             }
@@ -163,13 +167,12 @@ public abstract class TransportNodesAction<
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
                 return l -> {
-                    final List<NodeResponse> completedResponses;
-                    synchronized (responses) {
-                        completedResponses = List.copyOf(responses);
-                        responses.clear();
-                    }
-                    try (var ignored = Releasables.wrap(Iterators.map(completedResponses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, actionContext, completedResponses, exceptions, l);
+                    if (responsesHandled.compareAndSet(false, true)) {
+                        try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
+                            newResponseAsync(task, request, actionContext, responses, exceptions, l);
+                        }
+                    } else {
+                        newResponseAsync(task, request, actionContext, List.of(), exceptions, l);
                     }
                 };
             }

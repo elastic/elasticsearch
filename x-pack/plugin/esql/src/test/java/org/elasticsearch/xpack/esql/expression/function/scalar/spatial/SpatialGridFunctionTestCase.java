@@ -106,7 +106,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
                     if (literalPrecision) {
                         precisionData = precisionData.forceLiteral();
-                        evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
+                        evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0]";
                     }
                     TestCaseSupplier.TypedData boundsData;
                     // Create a rectangle as bounds

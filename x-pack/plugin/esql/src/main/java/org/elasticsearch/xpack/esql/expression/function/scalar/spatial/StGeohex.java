@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.H3;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -49,12 +51,10 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
      */
     protected static class GeoHexBoundedGrid implements BoundedGrid {
         private final int precision;
-        private final GeoBoundingBox bbox;
         private final GeoHexBoundedPredicate bounds;
 
-        public GeoHexBoundedGrid(int precision, GeoBoundingBox bbox) {
+        private GeoHexBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
-            this.bbox = bbox;
             this.bounds = new GeoHexBoundedPredicate(bbox);
         }
 
@@ -73,9 +73,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             return precision;
         }
 
-        @Override
-        public String toString() {
-            return "[" + bbox + "]";
+        protected static class Factory {
+            private final int precision;
+            private final GeoBoundingBox bbox;
+
+            Factory(int precision, GeoBoundingBox bbox) {
+                this.precision = checkPrecisionRange(precision);
+                this.bbox = bbox;
+            }
+
+            public GeoHexBoundedGrid get(DriverContext context) {
+                return new GeoHexBoundedGrid(precision, bbox);
+            }
         }
     }
 
@@ -178,10 +187,14 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             }
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
-            GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
+            GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
-                ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), bounds)
-                : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
+                ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField()),
+                    bounds::get
+                )
+                : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
             return spatialDocsValues
@@ -214,7 +227,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHexBoundedGrid bounds) {
+    static void fromFieldAndLiteralAndLiteral(
+        LongBlock.Builder results,
+        int p,
+        BytesRefBlock in,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHexBoundedGrid bounds
+    ) {
         fromWKB(results, p, in, bounds);
     }
 
@@ -223,7 +241,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed GeoHexBoundedGrid bounds
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHexBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
     }

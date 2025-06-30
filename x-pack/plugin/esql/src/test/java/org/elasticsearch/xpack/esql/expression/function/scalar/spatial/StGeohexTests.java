@@ -51,7 +51,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
     }
 
     private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid(precision, bbox);
+        StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid.Factory(precision, bbox).get(null);
         return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
     }
 

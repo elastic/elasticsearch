@@ -51,7 +51,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     }
 
     private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid(precision, bbox);
+        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
         return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
     }
 

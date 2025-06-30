@@ -32,11 +32,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = randomAggregates();
-        if (randomBoolean()) {
-            return new Aggregate(source, child, groupings, aggregates);
-        } else {
-            return new TimeSeriesAggregate(source, child, groupings, aggregates, null);
-        }
+        return new Aggregate(source, child, groupings, aggregates);
     }
 
     public static List<? extends NamedExpression> randomAggregates() {
@@ -75,11 +71,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
             );
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
         }
-        if (instance instanceof TimeSeriesAggregate) {
-            return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, null);
-        } else {
-            return new Aggregate(instance.source(), child, groupings, aggregates);
-        }
+        return new Aggregate(instance.source(), child, groupings, aggregates);
     }
 
     @Override

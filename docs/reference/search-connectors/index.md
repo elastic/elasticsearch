@@ -40,7 +40,9 @@ The columns provide specific information about each connector:
 - **Incremental syncs**: Specifies the version in which incremental syncs are supported, if applicable.
 - **Document level security**: Specifies the version in which document level security is supported, if applicable.
 
-| Connector | Status | [Advanced sync rules](./es-sync-rules#es-sync-rules-advanced) | [Local binary extraction service](./es-connectors-content-extraction.md#es-connectors-content-extraction-local) | [Incremental syncs](./content-syncs#es-connectors-sync-types-incremental) | [Document level security](./document-level-security.md) | Source code |
+
+
+| Connector | Status | [Advanced sync rules](./es-sync-rules.md#es-sync-rules-advanced) | [Local binary extraction service](./es-connectors-content-extraction.md#es-connectors-content-extraction-local) | [Incremental syncs](./content-syncs.md#es-connectors-sync-types-incremental) | [Document level security](./document-level-security.md) | Source code |
 | ------- | --------------- | -- | -- | -- | -- | -- |
 | [Azure Blob](/reference/search-connectors/es-connectors-azure-blob.md) | **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/azure_blob_storage.py) |
 | [Box](/reference/search-connectors/es-connectors-box.md)  | **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/box.py) |

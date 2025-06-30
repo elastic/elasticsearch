@@ -19,7 +19,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -78,6 +80,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
 
     /*
      * [NOTE ON THREADING]
@@ -115,7 +118,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ClusterService clusterService,
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -128,11 +132,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             threadPool.executor(ThreadPool.Names.MANAGEMENT) // see [NOTE ON THREADING]
         );
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetSnapshotsRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -144,13 +149,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     ) {
         assert task instanceof CancellableTask : task + " not cancellable";
 
-        final var resolvedRepositories = ResolvedRepositories.resolve(state.metadata().getProject(), request.repositories());
+        final var projectId = projectResolver.getProjectId();
+        final var resolvedRepositories = ResolvedRepositories.resolve(state.metadata().getProject(projectId), request.repositories());
         if (resolvedRepositories.hasMissingRepositories()) {
             throw new RepositoryMissingException(String.join(", ", resolvedRepositories.missing()));
         }
 
         new GetSnapshotsOperation(
             (CancellableTask) task,
+            projectId,
             resolvedRepositories.repositoryMetadata(),
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -178,6 +185,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private class GetSnapshotsOperation {
         private final CancellableTask cancellableTask;
 
+        private final ProjectId projectId;
         // repositories
         private final List<RepositoryMetadata> repositories;
 
@@ -217,6 +225,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
+            ProjectId projectId,
             List<RepositoryMetadata> repositories,
             String[] snapshots,
             boolean ignoreUnavailable,
@@ -233,6 +242,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             EnumSet<SnapshotState> states
         ) {
             this.cancellableTask = cancellableTask;
+            this.projectId = projectId;
             this.repositories = repositories;
             this.ignoreUnavailable = ignoreUnavailable;
             this.sortBy = sortBy;
@@ -310,7 +320,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
                                 cancellableTask.ensureNotCancelled();
                                 ensureRequiredNamesPresent(repositoryName, repositoryData);
-                                return getAsyncSnapshotInfoIterator(repositoriesService.repository(repositoryName), repositoryData);
+                                return getAsyncSnapshotInfoIterator(
+                                    repositoriesService.repository(projectId, repositoryName),
+                                    repositoryData
+                                );
                             })
                             .addListener(asyncRepositoryContentsListener)
                     ),
@@ -362,7 +375,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (snapshotNamePredicate == SnapshotNamePredicate.MATCH_CURRENT_ONLY) {
                 listener.onResponse(null);
             } else {
-                repositoriesService.repository(repositoryName).getRepositoryData(executor, listener);
+                repositoriesService.repository(projectId, repositoryName).getRepositoryData(executor, listener);
             }
         }
 
@@ -386,7 +399,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
 
             final var unmatchedRequiredNames = new HashSet<>(snapshotNamePredicate.requiredNames());
-            for (final var snapshotInProgress : snapshotsInProgress.forRepo(repositoryName)) {
+            for (final var snapshotInProgress : snapshotsInProgress.forRepo(projectId, repositoryName)) {
                 unmatchedRequiredNames.remove(snapshotInProgress.snapshot().getSnapshotId().getName());
             }
             if (unmatchedRequiredNames.isEmpty()) {
@@ -464,7 +477,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         ActionListener.completeWith(
                             listener,
                             () -> new SnapshotInfo(
-                                new Snapshot(repository.getMetadata().name(), snapshotId),
+                                new Snapshot(repository.getProjectId(), repository.getMetadata().name(), snapshotId),
                                 indicesLookup.getOrDefault(snapshotId, Collections.emptyList()),
                                 Collections.emptyList(),
                                 Collections.emptyList(),
@@ -490,18 +503,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final var indicesLookup = getIndicesLookup(repositoryData);
             return Iterators.concat(
                 // matching in-progress snapshots first
-                Iterators.map(
-                    Iterators.filter(snapshotsInProgress.forRepo(repository.getMetadata().name()).iterator(), snapshotInProgress -> {
-                        final var snapshotId = snapshotInProgress.snapshot().getSnapshotId();
-                        if (snapshotNamePredicate.test(snapshotId.getName(), true)) {
-                            matchingInProgressSnapshots.add(snapshotId);
-                            return true;
-                        } else {
-                            return false;
-                        }
-                    }),
-                    this::forSnapshotInProgress
-                ),
+                Iterators.map(Iterators.filter(snapshotsInProgress.forRepo(repository.getProjectRepo()).iterator(), snapshotInProgress -> {
+                    final var snapshotId = snapshotInProgress.snapshot().getSnapshotId();
+                    if (snapshotNamePredicate.test(snapshotId.getName(), true)) {
+                        matchingInProgressSnapshots.add(snapshotId);
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }), this::forSnapshotInProgress),
                 repositoryData == null
                     // Only returning in-progress snapshots:
                     ? Collections.emptyIterator()

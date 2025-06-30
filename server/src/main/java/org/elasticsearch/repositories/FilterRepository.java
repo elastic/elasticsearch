@@ -67,8 +67,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        return in.getSnapshotGlobalMetadata(snapshotId);
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
+        return in.getSnapshotGlobalMetadata(snapshotId, fromProjectMetadata);
     }
 
     @Override

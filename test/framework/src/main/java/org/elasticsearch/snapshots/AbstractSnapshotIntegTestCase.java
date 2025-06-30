@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -423,7 +425,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     .replace(IndexVersion.current().toString(), version.toString())
             )
         ) {
-            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(new ProjectRepo(ProjectId.DEFAULT, repoName), parser);
         }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         BlobStoreRepository.SNAPSHOT_FORMAT.write(
@@ -545,6 +547,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
+                    false,
                     UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),

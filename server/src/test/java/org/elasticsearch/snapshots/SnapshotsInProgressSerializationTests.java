@@ -35,7 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;

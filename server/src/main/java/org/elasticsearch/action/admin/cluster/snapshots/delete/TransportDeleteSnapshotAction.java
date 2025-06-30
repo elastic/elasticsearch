@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -32,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNodeAction<DeleteSnapshotRequest> {
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/delete");
     private final SnapshotsService snapshotsService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteSnapshotAction(
@@ -39,7 +41,8 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -51,12 +54,13 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -74,6 +78,6 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        snapshotsService.deleteSnapshots(request, listener.map(v -> AcknowledgedResponse.TRUE));
+        snapshotsService.deleteSnapshots(projectResolver.getProjectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

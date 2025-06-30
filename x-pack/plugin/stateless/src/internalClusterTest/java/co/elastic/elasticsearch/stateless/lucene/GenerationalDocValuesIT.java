@@ -41,7 +41,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngineTestUtils;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -112,6 +111,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Map.entry;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.contains;
@@ -479,7 +479,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            .put(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
@@ -512,7 +512,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                 // Ensure that commits are uploaded in the order that we want
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
                 // Need at least 2 threads as we will block two
-                .put(Stateless.MERGE_THREAD_POOL_SETTING + ".max", randomIntBetween(2, 4))
+                .put("thread_pool." + ThreadPool.Names.MERGE + ".max", randomIntBetween(2, 4))
                 .build()
         );
 

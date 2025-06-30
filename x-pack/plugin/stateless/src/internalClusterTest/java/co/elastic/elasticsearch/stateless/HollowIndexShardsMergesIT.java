@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.FilterMergePolicy;
@@ -52,6 +51,7 @@ import static co.elastic.elasticsearch.stateless.StatelessMergeIT.blockMergePool
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -130,7 +130,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            .put(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
@@ -139,7 +139,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
         var indexNodeSettings = Settings.builder()
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
-            .put(Stateless.MERGE_THREAD_POOL_SETTING + ".max", maxNumberOfMergeThreads)
+            .put("thread_pool." + ThreadPool.Names.MERGE + ".max", maxNumberOfMergeThreads)
             .build();
 
         var indexNodeA = startMasterAndIndexNode(indexNodeSettings);
@@ -160,7 +160,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
                 long position,
                 long length
             ) throws IOException {
-                if (Thread.currentThread().getName().contains(Stateless.MERGE_THREAD_POOL)) {
+                if (Thread.currentThread().getName().contains(ThreadPool.Names.MERGE)) {
                     mergesRunningLatch.countDown();
                     safeAwait(blockRunningMergesLatch);
                 }
@@ -329,7 +329,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
         var nodesStatsResponse = client().admin().cluster().prepareNodesStats(node).setThreadPool(true).get();
         assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
         var nodeStats = nodesStatsResponse.getNodes().get(0);
-        return nodeStats.getThreadPool().stats().stream().filter(s -> Stateless.MERGE_THREAD_POOL.equals(s.name())).findAny().get();
+        return nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get();
     }
 
     private static void assertShardEngineIsInstanceOf(String indexName, int shardId, String node, Class<?> engineType) {

@@ -85,7 +85,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -319,8 +318,6 @@ public class Stateless extends Plugin
     public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
     public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
     public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
-    public static final String MERGE_THREAD_POOL = "stateless.merge";
-    public static final String MERGE_THREAD_POOL_SETTING = "stateless." + MERGE_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
@@ -964,15 +961,7 @@ public class Stateless extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 UPLOAD_PREWARM_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                MERGE_THREAD_POOL,
-                mergeCoreThreads,
-                mergeMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                MERGE_THREAD_POOL_SETTING
-            ), };
+            ) };
     }
 
     public MemoryMetricsService getMemoryMetricsService() {
@@ -1073,9 +1062,8 @@ public class Stateless extends Plugin
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
-            ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER,
-            ThreadPoolMergeScheduler.MERGE_PREWARM,
-            ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE,
+            IndexEngine.MERGE_PREWARM,
+            IndexEngine.MERGE_FORCE_REFRESH_SIZE,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,

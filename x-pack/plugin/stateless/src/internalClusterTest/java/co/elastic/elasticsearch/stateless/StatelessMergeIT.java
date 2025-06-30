@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -59,6 +58,7 @@ import java.util.function.IntSupplier;
 import java.util.function.UnaryOperator;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -77,7 +77,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+        return super.nodeSettings().put(USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // Occasionally the abstract stateless test will set this low causing many flushes in these test. We want to control the flushes
             // in these tests.
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 30);
@@ -119,13 +119,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         assertThat(
             mergeCount,
             equalTo(
-                nodeStats.getThreadPool()
-                    .stats()
-                    .stream()
-                    .filter(s -> Stateless.MERGE_THREAD_POOL.equals(s.name()))
-                    .findAny()
-                    .get()
-                    .completed()
+                nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed()
             )
         );
     }
@@ -231,9 +225,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         // Two external refreshes occur during initial recovery. We'll expect to also have one for a merge if we force it.
         final long expectedRefreshes = forceRefresh ? 3L : 2L;
 
-        startMasterAndIndexNode(
-            Settings.builder().put(ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE.getKey(), refreshThreshold).build()
-        );
+        startMasterAndIndexNode(Settings.builder().put(IndexEngine.MERGE_FORCE_REFRESH_SIZE.getKey(), refreshThreshold).build());
         startSearchNode();
 
         final String indexName = randomIdentifier();
@@ -424,7 +416,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
     }
 
     public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
-        final var threadCount = threadPool.info(Stateless.MERGE_THREAD_POOL).getMax();
+        final var threadCount = threadPool.info(ThreadPool.Names.MERGE).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {
             @Override
@@ -444,7 +436,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(Stateless.MERGE_THREAD_POOL).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.MERGE).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }

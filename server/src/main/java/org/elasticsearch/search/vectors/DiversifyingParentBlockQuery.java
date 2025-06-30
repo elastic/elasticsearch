@@ -133,7 +133,7 @@ public class DiversifyingParentBlockQuery extends Query {
                                 @Override
                                 public int advance(int target) throws IOException {
                                     if (exhausted) {
-                                        return NO_MORE_DOCS;
+                                        return currentDoc = NO_MORE_DOCS;
                                     }
                                     if (currentDoc == -1 || innerIterator.docID() < target) {
                                         if (innerIterator.advance(target) == NO_MORE_DOCS) {

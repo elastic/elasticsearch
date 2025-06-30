@@ -53,10 +53,6 @@ public class RankFeatureDoc extends RankDoc {
         this.featureData = featureData;
     }
 
-    public void featureData(String featureData) {
-        this.featureData = List.of(featureData);
-    }
-
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {

@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 
@@ -33,12 +34,16 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final boolean failuresAllowed;
     protected final RerankSnippetInput snippets;
 
+    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed) {
+        this(size, from, rankWindowSize, failuresAllowed, null);
+    }
+
     public RankFeaturePhaseRankCoordinatorContext(
         int size,
         int from,
         int rankWindowSize,
         boolean failuresAllowed,
-        RerankSnippetInput snippets
+        @Nullable RerankSnippetInput snippets
     ) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
@@ -55,7 +60,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         return snippets;
     }
 
-    public abstract Integer tokenSizeLimit();
+    /**
+     * @return If snippets are requested, this should be overridden with the token size limit of the associated model.
+     */
+    public Integer tokenSizeLimit() {
+        return 0;
+    }
 
     /**
      * Computes the updated scores for a list of features (i.e. document-based data). We also pass along an ActionListener

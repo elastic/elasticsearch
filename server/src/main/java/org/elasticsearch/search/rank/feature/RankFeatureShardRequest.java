@@ -41,7 +41,16 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
     private final int[] docIds;
 
     private final RerankSnippetInput snippets;
-    private final int tokenSizeLimit;
+    private final Integer tokenSizeLimit;
+
+    public RankFeatureShardRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId contextId,
+        ShardSearchRequest shardSearchRequest,
+        List<Integer> docIds
+    ) {
+        this(originalIndices, contextId, shardSearchRequest, docIds, null, null);
+    }
 
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
@@ -49,7 +58,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
         @Nullable RerankSnippetInput snippets,
-        int tokenSizeLimit
+        Integer tokenSizeLimit
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
@@ -67,10 +76,10 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             snippets = in.readOptionalWriteable(RerankSnippetInput::new);
-            this.tokenSizeLimit = in.readVInt();
+            this.tokenSizeLimit = in.readOptionalInt();
         } else {
             snippets = null;
-            this.tokenSizeLimit = 0;
+            this.tokenSizeLimit = null;
         }
     }
 
@@ -83,7 +92,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         out.writeOptionalWriteable(contextId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
             out.writeOptionalWriteable(snippets);
-            out.writeVInt(tokenSizeLimit);
+            out.writeOptionalInt(tokenSizeLimit);
         }
     }
 
@@ -119,7 +128,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         return snippets;
     }
 
-    public int getTokenSizeLimit() {
+    public Integer getTokenSizeLimit() {
         return tokenSizeLimit;
     }
 

@@ -54,7 +54,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 SearchHit hit = hits.getHits()[i];
                 DocumentField docField = hit.field(field);
                 if (docField != null && snippets == null) {
-                    rankFeatureDocs[i].featureData(docField.getValue().toString());
+                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 }
                 Map<String, HighlightField> highlightFields = hit.getHighlightFields();
                 if (highlightFields != null) {

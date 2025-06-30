@@ -12,7 +12,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -47,7 +46,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     }
 
     @Override
-    public final InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
+    public final InternalAggregation doReduce(InternalAggregations aggregations) {
         preCollection();
         List<AggregationPath.PathElement> parsedPath = AggregationPath.parse(bucketsPaths()[0]).getPathElements();
         for (Aggregation aggregation : aggregations) {

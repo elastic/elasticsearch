@@ -135,7 +135,8 @@ public final class RepositoriesModule {
             internalRepositoryTypes,
             threadPool,
             client,
-            preRestoreChecks
+            preRestoreChecks,
+            telemetryProvider.getMeterRegistry()
         );
     }
 

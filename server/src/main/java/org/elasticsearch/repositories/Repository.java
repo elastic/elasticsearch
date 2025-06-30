@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -66,16 +67,41 @@ public interface Repository extends LifecycleComponent {
 
         /**
          * Constructs a repository.
+         *
+         * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
+         * @param metadata  metadata for the repository including name and settings
+         * @param snapshotMetrics the singleton SnapshotMetrics instance
+         */
+        default Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics)
+            throws Exception {
+            return create(projectId, metadata);
+        }
+
+        /**
+         * Constructs a repository.
          * @param projectId   the project-id for the repository or {@code null} if the repository is at the cluster level.
          * @param metadata    metadata for the repository including name and settings
          * @param typeLookup  a function that returns the repository factory for the given repository type.
+         * @param snapshotMetrics the singleton SnapshotMetrics instance
          */
         default Repository create(
             @Nullable ProjectId projectId,
             RepositoryMetadata metadata,
-            Function<String, Repository.Factory> typeLookup
+            Function<String, Repository.Factory> typeLookup,
+            SnapshotMetrics snapshotMetrics
         ) throws Exception {
-            return create(projectId, metadata);
+            return create(projectId, metadata, snapshotMetrics);
+        }
+    }
+
+    /**
+     * A convenience class for {@link Factory} instances that require a {@link SnapshotMetrics} instance
+     */
+    class SnapshotMetricsFactory implements Factory {
+
+        @Override
+        public Repository create(ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+            throw new UnsupportedOperationException("This repository requires a SnapshotMetrics implementation");
         }
     }
 
@@ -344,5 +370,15 @@ public interface Repository extends LifecycleComponent {
 
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
+    }
+
+    /**
+     * Get the current count of snapshots in progress
+     *
+     * @return The current number of shard snapshots in progress
+     */
+    @Nullable
+    default LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
     }
 }

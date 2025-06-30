@@ -340,6 +340,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 ActionListener<TestNodesResponse> listener
             ) {
                 boolean waited = false;
+                // Process node responses in a loop and ensure no ConcurrentModificationException, see also #128852
                 for (var response : testNodeResponses) {
                     if (waited == false) {
                         waited = true;

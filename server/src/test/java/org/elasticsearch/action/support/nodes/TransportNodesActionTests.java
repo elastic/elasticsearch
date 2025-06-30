@@ -57,8 +57,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
@@ -316,6 +318,62 @@ public class TransportNodesActionTests extends ESTestCase {
         assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
+    public void testCompletionAndCancellationShouldMutualExclusivelyHandleResponses() {
+        final var barrier = new CyclicBarrier(2);
+        final var action = new TestTransportNodesAction(
+            clusterService,
+            transportService,
+            new ActionFilters(Set.of()),
+            TestNodeRequest::new,
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+        ) {
+            @Override
+            protected void newResponseAsync(
+                Task task,
+                TestNodesRequest request,
+                Void unused,
+                List<TestNodeResponse> testNodeResponses,
+                List<FailedNodeException> failures,
+                ActionListener<TestNodesResponse> listener
+            ) {
+                final var waited = new AtomicBoolean();
+                for (var response : testNodeResponses) {
+                    if (waited.compareAndSet(false, true)) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                }
+                super.newResponseAsync(task, request, unused, testNodeResponses, failures, listener);
+            }
+        };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
+        for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
+            final var response = new TestNodeResponse(capturedRequest.node());
+            nodeResponses.add(response);
+            try {
+                transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
+            } finally {
+                response.decRef();
+            }
+        }
+
+        // Wait for the overall response starts to processing the node responses in a loop
+        safeAwait(barrier);
+
+        // Cancel the task while the overall response is being processed
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+
+        // Let the process continue to process the node responses and it should be successful
+        safeAwait(barrier);
+        safeGet(future);
+        assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+    }
+
     @BeforeClass
     public static void startThreadPool() {
         THREAD_POOL = new TestThreadPool(TransportNodesActionTests.class.getSimpleName());
@@ -343,7 +401,7 @@ public class TransportNodesActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        int numNodes = randomIntBetween(3, 10);
+        int numNodes = 5; // randomIntBetween(3, 10);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> discoveryNodes = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {

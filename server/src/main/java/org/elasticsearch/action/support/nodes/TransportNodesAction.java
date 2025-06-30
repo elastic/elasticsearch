@@ -163,8 +163,13 @@ public abstract class TransportNodesAction<
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
                 return l -> {
-                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, actionContext, responses, exceptions, l);
+                    final List<NodeResponse> completedResponses;
+                    synchronized (responses) {
+                        completedResponses = List.copyOf(responses);
+                        responses.clear();
+                    }
+                    try (var ignored = Releasables.wrap(Iterators.map(completedResponses.iterator(), r -> r::decRef))) {
+                        newResponseAsync(task, request, actionContext, completedResponses, exceptions, l);
                     }
                 };
             }

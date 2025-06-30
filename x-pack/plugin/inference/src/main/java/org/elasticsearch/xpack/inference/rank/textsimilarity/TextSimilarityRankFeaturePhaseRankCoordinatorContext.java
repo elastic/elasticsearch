@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -210,22 +211,23 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     private float[] extractScoresFromRankedSnippets(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
-        int numSnippets = rankedDocs.size() / featureDocs.length;
         float[] scores = new float[featureDocs.length];
         boolean[] hasScore = new boolean[featureDocs.length];
 
-        for (int i = 0; i < rankedDocs.size(); i++) {
-            // TODO this naively assumes that we always get the requested number of snippets per ranked document
-            RankedDocsResults.RankedDoc rankedDoc = rankedDocs.get(i);
-            int docId = rankedDoc.index() / numSnippets;
-            float score = rankedDoc.relevanceScore();
+        // We need to correlate the index/doc values of each RankedDoc in correlation with its associated RankFeatureDoc.
+        int[] rankedDocToFeatureDoc = Arrays.stream(featureDocs)
+            .flatMapToInt(
+                doc -> java.util.stream.IntStream.generate(() -> Arrays.asList(featureDocs).indexOf(doc)).limit(doc.featureData.size())
+            )
+            .limit(rankedDocs.size())
+            .toArray();
 
-            if (hasScore[docId] == false) {
-                scores[docId] = score;
-                hasScore[docId] = true;
-            } else {
-                scores[docId] = Math.max(scores[docId], score);
-            }
+        for (int i = 0; i < rankedDocs.size(); i++) {
+            RankedDocsResults.RankedDoc rankedDoc = rankedDocs.get(i);
+            int docId = rankedDocToFeatureDoc[rankedDoc.index()];
+            float score = rankedDoc.relevanceScore();
+            scores[docId] = hasScore[docId] == false ? score : Math.max(scores[docId], score);
+            hasScore[docId] = true;
         }
 
         float[] result = new float[featureDocs.length];

@@ -44,6 +44,7 @@ public class RestUpdateDataStreamMappingsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         CompressedXContent mappings;
         try (XContentParser parser = request.contentParser()) {
+            parser.nextToken(); // advance the parser to the expected location
             mappings = Template.parseMappings(parser);
         }
         boolean dryRun = request.paramAsBoolean("dry_run", false);

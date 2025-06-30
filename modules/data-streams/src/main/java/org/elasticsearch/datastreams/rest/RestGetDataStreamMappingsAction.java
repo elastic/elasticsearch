@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetDataStreamMappingsAction extends BaseRestHandler {
     @Override
     public String getName() {
-        return "gett_data_stream_mappings_action";
+        return "get_data_stream_mappings_action";
     }
 
     @Override

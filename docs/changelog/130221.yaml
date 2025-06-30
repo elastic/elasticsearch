@@ -1,0 +1,5 @@
+pr: 130221
+summary: Fix incorrect accounting of semantic text indexing memory pressure
+area: Distributed
+type: bug
+issues: []

@@ -52,11 +52,10 @@ public final class QueryBuilderResolver {
     }
 
     private static QueryRewriteContext queryRewriteContext(TransportActionServices services, Set<String> indexNames) {
-        final var project = services.projectResolver().getProjectMetadata(services.clusterService().state());
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            project,
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),
             System.currentTimeMillis()

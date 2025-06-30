@@ -1,0 +1,5 @@
+pr: 130300
+summary: Waiting for desired allocation before starting shard snapshot
+area: Snapshot/Restore
+type: enhancement
+issues: []

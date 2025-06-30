@@ -29,6 +29,10 @@ import java.util.function.IntFunction;
  */
 public class TransportVersions {
 
+    // If there's a next minor, it's the next minor, otherwise the next major if next major, otherwise null for main.
+    // Probably won't ever have a patch version?
+    public static final Integer CUTTOFF_TRANSPORT_VERSION = 8_772_0_00; // can be null for major version boundaries and main.
+
     /*
      * NOTE: IntelliJ lies!
      * This map is used during class construction, referenced by the registerTransportVersion method.
@@ -323,6 +327,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
+//    public static final TransportVersionsGroup FOO = new TransportVersionsGroup(9_112_0_00, 3, 4,5, 2 );
+
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -398,6 +404,11 @@ public class TransportVersions {
 
     // the highest transport version constant defined
     static final TransportVersion LATEST_DEFINED;
+
+    static {
+
+    }
+
     static {
         LATEST_DEFINED = DEFINED_VERSIONS.getLast();
 

@@ -98,7 +98,6 @@ import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappin
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -1333,7 +1332,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         var nodeSettings = Settings.builder()
             // Enable using the merge executor service (and disable using the stateless merge scheduler)
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-            .put(MERGE_THREAD_POOL_SCHEDULER.getKey(), false)
             .put(MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING.getKey(), true)
             // Avoid accounting for indexing operation memory requirements as they skew the basic memory metrics
             .put(INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING.getKey(), false)

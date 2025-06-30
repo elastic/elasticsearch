@@ -57,8 +57,10 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
             task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });
 
-        project.getTasks().withType(Test.class).matching(test -> List.of("test").contains(test.getName())).configureEach(test -> {
-            test.systemProperty("es.entitlement.enableForTests", "true");
-        });
+        if (project.getRootProject().getName().equals("elasticsearch")) {
+            project.getTasks().withType(Test.class).matching(test -> List.of("test").contains(test.getName())).configureEach(test -> {
+                test.systemProperty("es.entitlement.enableForTests", "true");
+            });
+        }
     }
 }

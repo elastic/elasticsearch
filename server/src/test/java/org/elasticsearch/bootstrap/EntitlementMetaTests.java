@@ -10,6 +10,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
@@ -41,6 +42,7 @@ import java.nio.file.Path;
  */
 public class EntitlementMetaTests extends ESTestCase {
     public void testSelfTestPasses() {
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTest());
         Elasticsearch.entitlementSelfTest();
     }
 

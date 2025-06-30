@@ -24,7 +24,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -35,9 +34,11 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -232,57 +233,64 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
-        configureJavaBasePatch(project);
+        configureJavaBaseModuleOptions(project);
         configureEntitlements(project);
     }
 
     /**
-     * Computes and sets the {@code --patch-module=java.base} JVM command line option.
-     * <p>
-     * Since each module can be patched only once, this method computes all patching required for {@code java.base}.
+     * Computes and sets the {@code --patch-module=java.base} and {@code --add-opens=java.base} JVM command line options.
      */
-    private void configureJavaBasePatch(Project project) {
+    private void configureJavaBaseModuleOptions(Project project) {
+        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
+            FileCollection patchedImmutableCollections = patchedImmutableCollections(project);
+            if (patchedImmutableCollections != null) {
+                test.getInputs().files(patchedImmutableCollections);
+                test.systemProperty("tests.hackImmutableCollections", "true");
+            }
+
+            FileCollection entitlementBridgeJar = entitlementBridgeJar(project);
+            if (entitlementBridgeJar != null) {
+                test.getInputs().files(entitlementBridgeJar);
+            }
+
+            test.getJvmArgumentProviders().add(() -> {
+                String javaBasePatch = Stream.concat(
+                    singleFilePath(patchedImmutableCollections).map(str -> str + "/java.base"),
+                    singleFilePath(entitlementBridgeJar)
+                ).collect(joining(File.pathSeparator));
+
+                return javaBasePatch.isEmpty()
+                    ? List.of()
+                    : List.of("--patch-module=java.base=" + javaBasePatch, "--add-opens=java.base/java.util=ALL-UNNAMED");
+            });
+        });
+    }
+
+    private Stream<String> singleFilePath(FileCollection collection) {
+        return Stream.ofNullable(collection).map(FileCollection::getSingleFile).map(File::toString);
+    }
+
+    private static FileCollection patchedImmutableCollections(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
-            return; // build tests may not have this project, just skip
+            return null; // build tests may not have this project, just skip
         }
         String configurationName = "immutableCollectionsPatch";
         FileCollection patchedFileCollection = project.getConfigurations()
             .create(configurationName, config -> config.setCanBeConsumed(false));
         var deps = project.getDependencies();
         deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+        return patchedFileCollection;
+    }
 
-        // If ElasticsearchJavaBasePlugin has specified a dependency on the entitlement bridge jar,
-        // then it needs to be added to the --patch-module=java.base command line option.
-        ConfigurationContainer configurations = project.getConfigurations();
-
-        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
-            test.getInputs().files(patchedFileCollection);
-            test.systemProperty("tests.hackImmutableCollections", "true");
-
-            Configuration bridgeConfig = configurations.findByName("entitlementBridge");
-            String bridgeJarPart;
-            if (bridgeConfig == null) {
-                bridgeJarPart = "";
-            } else {
-                test.getInputs().files(bridgeConfig);
-                bridgeJarPart = File.pathSeparator + bridgeConfig.getSingleFile().getAbsolutePath();
-            }
-
-            test.getJvmArgumentProviders()
-                .add(
-                    () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base" + bridgeJarPart,
-                        "--add-opens=java.base/java.util=ALL-UNNAMED"
-                    )
-                );
-        });
+    private static FileCollection entitlementBridgeJar(Project project) {
+        return project.getConfigurations().findByName("entitlementBridgeJar");
     }
 
     /**
      * Sets the required JVM options and system properties to enable entitlement enforcement on tests.
      * <p>
-     * One command line option is set in {@link #configureJavaBasePatch} out of necessity,
+     * One command line option is set in {@link #configureJavaBaseModuleOptions} out of necessity,
      * since the command line can have only one {@code --patch-module} option for a given module.
      */
     private static void configureEntitlements(Project project) {

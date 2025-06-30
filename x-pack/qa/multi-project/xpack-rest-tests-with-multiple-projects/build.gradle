@@ -35,7 +35,6 @@ tasks.named("yamlRestTest").configure {
     '^deprecation/10_basic/*',
     '^dlm/10_usage/*',
     '^esql/60_usage/*',
-    '^esql/180_match_operator/*',
     '^health/10_usage/*',
     '^ilm/80_health/*',
     '^logsdb/10_usage/*',

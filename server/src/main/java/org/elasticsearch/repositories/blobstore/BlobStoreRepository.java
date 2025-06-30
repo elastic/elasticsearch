@@ -3488,7 +3488,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 snapshotStatus.updateStatusDescription("all files uploaded: done");
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
-                blobStoreSnapshotMetrics.shardSnapshotCompleted();
                 context.onResponse(shardSnapshotResult);
             }, e -> {
                 try {

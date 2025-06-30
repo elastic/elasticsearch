@@ -168,6 +168,24 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         // `foo` index doesn't exist, so the request will currently be successful, but with partial results
         var isPartial = result.get("is_partial");
         assertThat(isPartial, is(true));
+        assertThat(
+            result,
+            matchesMap().entry(
+                "_clusters",
+                matchesMap().entry(
+                    "details",
+                    matchesMap().entry(
+                        "remote_cluster",
+                        matchesMap().entry(
+                            "failures",
+                            matchesList().item(
+                                matchesMap().entry("reason", matchesMap().entry("reason", "no such index [foo]").extraOk()).extraOk()
+                            )
+                        ).extraOk()
+                    ).extraOk()
+                ).extraOk()
+            ).extraOk()
+        );
         @SuppressWarnings("unchecked")
         var columns = (List<List<Object>>) result.get("columns");
         assertThat(

@@ -1524,14 +1524,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (shouldLog()) {
             LOGGER.info("entity={}", result);
         }
-
         return result;
-    }
-
-    protected static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType, boolean allowPartialResults)
-        throws IOException {
-        var response = EsqlTestUtils.entityToMap(entity, expectedContentType);
-        return allowPartialResults ? response : assertNotPartial(response);
     }
 
     static void addAsyncParameters(RequestObjectBuilder requestObject, boolean keepOnCompletion) throws IOException {

@@ -127,18 +127,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
     private final SnapshotMetrics snapshotMetrics;
 
-    public RepositoriesService(
-        Settings settings,
-        ClusterService clusterService,
-        Map<String, Repository.Factory> typesRegistry,
-        Map<String, Repository.Factory> internalTypesRegistry,
-        ThreadPool threadPool,
-        NodeClient client,
-        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
-    ) {
-        this(settings, clusterService, typesRegistry, internalTypesRegistry, threadPool, client, preRestoreChecks, MeterRegistry.NOOP);
-    }
-
     @SuppressWarnings("this-escape")
     public RepositoriesService(
         Settings settings,

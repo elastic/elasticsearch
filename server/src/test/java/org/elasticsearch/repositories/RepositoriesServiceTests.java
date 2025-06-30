@@ -53,6 +53,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -155,7 +156,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of()
+            List.of(),
+            MeterRegistry.NOOP
         );
 
         clusterService.start();

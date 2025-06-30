@@ -721,6 +721,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             "missing index"
         );
 
+        public static final String WAITING_FOR_DESIRED_ALLOCATION = "waiting for desired allocation";
+
         /**
          * Initializes status with state {@link ShardState#INIT}.
          */
@@ -747,6 +749,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
 
+        public static ShardSnapshotStatus waitForDesiredAllocation(ShardGeneration shardGeneration) {
+            return new ShardSnapshotStatus(null, ShardState.WAITING, shardGeneration, WAITING_FOR_DESIRED_ALLOCATION);
+        }
+
+        public boolean isWaitingForDesiredAllocation() {
+            return nodeId == null && state == ShardState.WAITING && WAITING_FOR_DESIRED_ALLOCATION.equals(reason);
+        }
+
         public ShardSnapshotStatus(
             @Nullable String nodeId,
             ShardState state,
@@ -765,8 +775,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private boolean assertConsistent() {
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
-            assert (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
-                || nodeId != null : "Null node id for state [" + state + "]";
+            assert isWaitingForDesiredAllocation()
+                || (state != ShardState.INIT && state != ShardState.WAITING && state != ShardState.PAUSED_FOR_NODE_REMOVAL)
+                || nodeId != null : "Mis-match node id [" + nodeId + "] for state [" + state + "]";
             assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null)
                 : "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
             assert state == ShardState.SUCCESS || shardSnapshotResult == null;

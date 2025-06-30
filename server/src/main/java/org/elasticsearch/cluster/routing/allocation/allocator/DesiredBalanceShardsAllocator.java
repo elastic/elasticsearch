@@ -48,6 +48,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -90,6 +92,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
+    private final Supplier<Consumer<DesiredBalance>> reconciledDesiredBalancerConsumer;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
     /**
      * Manages balancer round results in order to report on the balancer activity in a configurable manner.
@@ -116,7 +119,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        Supplier<Consumer<DesiredBalance>> reconciledDesiredBalancerConsumer
     ) {
         this(
             delegateAllocator,
@@ -125,7 +129,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
             telemetryProvider,
-            nodeAllocationStatsAndWeightsCalculator
+            nodeAllocationStatsAndWeightsCalculator,
+            reconciledDesiredBalancerConsumer
         );
     }
 
@@ -136,10 +141,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        Supplier<Consumer<DesiredBalance>> reconciledDesiredBalancerConsumer
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
+        this.reconciledDesiredBalancerConsumer = reconciledDesiredBalancerConsumer;
         this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
@@ -473,6 +480,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             var latest = findLatest(batchExecutionContext.taskContexts());
             var newState = applyBalance(batchExecutionContext, latest);
             discardSupersededTasks(batchExecutionContext.taskContexts(), latest);
+            reconciledDesiredBalancerConsumer.get().accept(latest.getTask().desiredBalance);
             return newState;
         }
 

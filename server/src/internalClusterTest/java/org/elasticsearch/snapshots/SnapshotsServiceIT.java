@@ -11,26 +11,216 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
+
+    public void testShardSnapshotWaitForDesiredAllocation() throws Exception {
+        createRepository("test-repo", "fs");
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        final int numDataNodes = internalCluster().numDataNodes();
+        final var indexName = "index";
+        createIndex(indexName, indexSettings(numDataNodes, 0).build());
+        indexRandomDocs(indexName, between(42, 100));
+        ensureGreen(indexName);
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final Set<String> dataNodeIds = clusterService.state().nodes().getDataNodes().keySet();
+        logger.info("--> all data nodes: {}", dataNodeIds);
+
+        final Index index = clusterService().state().routingTable(ProjectId.DEFAULT).index(indexName).getIndex();
+        final var shardsAllocator = (DesiredBalanceShardsAllocator) internalCluster().getCurrentMasterNodeInstance(ShardsAllocator.class);
+
+        // Get all the node IDs that hosting at least one shard of the index
+        final var initialNodeIdsForAllocation = internalCluster().nodesInclude(indexName)
+            .stream()
+            .map(ESIntegTestCase::getNodeId)
+            .collect(Collectors.toUnmodifiableSet());
+
+        // Delay shard snapshot status updates so that we control when snapshot is completed
+        final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
+        final Set<CheckedRunnable<Exception>> updateShardRunnables = ConcurrentCollections.newConcurrentSet();
+        final var allRunnablesReadyLatch = new AtomicReference<>(new CountDownLatch(1));
+        masterTransportService.addRequestHandlingBehavior(
+            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                final var updateRequest = asInstanceOf(UpdateIndexShardSnapshotStatusRequest.class, request);
+                if (updateRequest.shardId().getIndex().equals(index)) {
+                    updateShardRunnables.add(() -> handler.messageReceived(request, channel, task));
+                    if (updateShardRunnables.size() == numDataNodes) {
+                        allRunnablesReadyLatch.get().countDown();
+                    }
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        // Start snap-0 asynchronously and it will be delayed at shard snapshot status updates
+        safeGet(
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "snap-0")
+                .setWaitForCompletion(false)
+                .setIndices(indexName)
+                .execute()
+        );
+        safeAwait(allRunnablesReadyLatch.get());
+
+        // Start snap-1 asynchronously and all shards will be queued because snap-0 is in progress
+        safeGet(
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "snap-1")
+                .setWaitForCompletion(false)
+                .setIndices(indexName)
+                .execute()
+        );
+
+        // Ensure all shards of snap-1 are queued
+        safeAwait(ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
+            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
+            final SnapshotsInProgress.Entry snapshotEntry = snapshotsInProgress.asStream()
+                .filter(entry -> entry.snapshot().getSnapshotId().getName().equals("snap-1"))
+                .findFirst()
+                .orElse(null);
+            if (snapshotEntry == null) {
+                return false;
+            }
+            final List<SnapshotsInProgress.ShardState> states = snapshotEntry.shards()
+                .values()
+                .stream()
+                .map(SnapshotsInProgress.ShardSnapshotStatus::state)
+                .toList();
+            if (states.size() != numDataNodes) {
+                return false;
+            }
+            return states.stream().allMatch(state -> state == SnapshotsInProgress.ShardState.QUEUED);
+        }));
+
+        // Create undesired allocation by allowing allocation on only one node
+        final String nodeIdAllowAllocation = randomFrom(dataNodeIds);
+        logger.info("--> update settings to allow allocation on node [{}]", nodeIdAllowAllocation);
+        updateIndexSettings(
+            Settings.builder()
+                .put(
+                    "index.routing.allocation.exclude._id",
+                    Strings.collectionToCommaDelimitedString(
+                        dataNodeIds.stream().filter(nodeId -> nodeId.equals(nodeIdAllowAllocation) == false).toList()
+                    )
+                )
+        );
+        ClusterRerouteUtils.reroute(client());
+        // Desired balance should be updated to allow allocation on nodeIdAllowAllocation
+        final DesiredBalance desiredBalance = shardsAllocator.getDesiredBalance();
+        for (int j = 0; j < numDataNodes; j++) {
+            final ShardAssignment assignment = desiredBalance.getAssignment(new ShardId(index, j));
+            assertThat(assignment.nodeIds(), contains(nodeIdAllowAllocation));
+            logger.info("--> after update settings shard [{}] Assignment {}", j, assignment);
+        }
+
+        // All shards are still not moved because they are locked down by snap-0
+        assertThat(
+            internalCluster().nodesInclude(indexName).stream().map(ESIntegTestCase::getNodeId).collect(Collectors.toUnmodifiableSet()),
+            equalTo(initialNodeIdsForAllocation)
+        );
+        final var hostingNodeIds = internalCluster().nodesInclude(indexName)
+            .stream()
+            .map(ESIntegTestCase::getNodeId)
+            .collect(Collectors.toUnmodifiableSet());
+
+        // Add a listener to ensure shards of snap-1 going through the state of waiting for desired allocation
+        final var waitingForDesiredAllocationListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            final SnapshotsInProgress.Entry snapshotEntry = snapshotsInProgress.asStream()
+                .filter(entry -> entry.snapshot().getSnapshotId().getName().equals("snap-1"))
+                .findFirst()
+                .orElseThrow();
+            return snapshotEntry.shards().entrySet().stream().anyMatch(entry -> entry.getValue().isWaitingForDesiredAllocation());
+        });
+
+        // Complete snap-0 to allow relocation of shards
+        final var snap0UpdateShardRunnables = Set.copyOf(updateShardRunnables);
+        updateShardRunnables.clear();
+        allRunnablesReadyLatch.set(new CountDownLatch(1));
+        for (CheckedRunnable<Exception> runnable : snap0UpdateShardRunnables) {
+            runnable.run();
+        }
+
+        // We should see shards of snap-1 change to waiting for desired allocation as an intermediate state
+        safeAwait(waitingForDesiredAllocationListener);
+
+        // Wait for snap-0 to be ready to complete. This means relocations are completed.
+        safeAwait(allRunnablesReadyLatch.get());
+
+        // Shards should be relocated to the desired node before snap-1 is completed
+        assertThat(
+            internalCluster().nodesInclude(indexName).stream().map(ESIntegTestCase::getNodeId).collect(Collectors.toUnmodifiableSet()),
+            contains(nodeIdAllowAllocation)
+        );
+
+        // Let snap-1 complete
+        for (var runnable : updateShardRunnables) {
+            runnable.run();
+        }
+        safeAwait(ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> SnapshotsInProgress.get(state).isEmpty()));
+
+        // Both snapshots are completed successfully
+        final var getSnapshotsResponse = safeGet(
+            client().admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo", "snap-*").execute()
+        );
+        assertThat(
+            getSnapshotsResponse.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(),
+            containsInAnyOrder("snap-0", "snap-1")
+        );
+        assertTrue(getSnapshotsResponse.getSnapshots().stream().map(SnapshotInfo::state).allMatch(state -> state == SnapshotState.SUCCESS));
+    }
 
     public void testDeletingSnapshotsIsLoggedAfterClusterStateIsProcessed() throws Exception {
         createRepository("test-repo", "fs");

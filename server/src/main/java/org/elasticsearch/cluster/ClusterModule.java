@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
@@ -104,6 +105,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -144,7 +146,8 @@ public class ClusterModule extends AbstractModule {
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         WriteLoadForecaster writeLoadForecaster,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        Supplier<Consumer<DesiredBalance>> reconciledDesiredBalancerConsumer
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -170,7 +173,8 @@ public class ClusterModule extends AbstractModule {
             this::reconcile,
             writeLoadForecaster,
             telemetryProvider,
-            nodeAllocationStatsAndWeightsCalculator
+            nodeAllocationStatsAndWeightsCalculator,
+            reconciledDesiredBalancerConsumer
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
@@ -480,7 +484,8 @@ public class ClusterModule extends AbstractModule {
         DesiredBalanceReconcilerAction reconciler,
         WriteLoadForecaster writeLoadForecaster,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        Supplier<Consumer<DesiredBalance>> reconciledDesiredBalancerConsumer
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
@@ -496,7 +501,8 @@ public class ClusterModule extends AbstractModule {
                 clusterService,
                 reconciler,
                 telemetryProvider,
-                nodeAllocationStatsAndWeightsCalculator
+                nodeAllocationStatsAndWeightsCalculator,
+                reconciledDesiredBalancerConsumer
             )
         );
 

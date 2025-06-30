@@ -174,7 +174,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -302,7 +303,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -421,7 +423,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -549,7 +552,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -653,7 +657,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -746,7 +751,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -800,7 +806,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -850,7 +857,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         ) {
             @Override
             public void resetDesiredBalance() {
@@ -946,7 +954,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             (clusterState, rerouteStrategy) -> null,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            () -> (desiredBalance) -> {}
         ) {
 
             private ActionListener<Void> lastListener;

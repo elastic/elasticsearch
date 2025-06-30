@@ -58,6 +58,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -125,6 +127,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -200,6 +203,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
     private final ShardSnapshotUpdateCompletionHandler shardSnapshotUpdateCompletionHandler;
+
+    private final AtomicReference<DesiredBalance> reconciledDesiredBalance = new AtomicReference<>(DesiredBalance.NOT_MASTER);
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -1192,7 +1197,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * @param knownFailures already known failed shard snapshots, but more may be found in this method
      * @return an updated map of shard statuses
      */
-    private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
+    private ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
         SnapshotsInProgress.Entry snapshotEntry,
         RoutingTable routingTable,
         DiscoveryNodes nodes,
@@ -1249,13 +1254,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             }
                             continue;
                         } else if (shardRouting.primaryShard().started()) {
-                            // Shard that we were waiting for has started on a node, let's process it
-                            snapshotChanged = true;
-                            logger.debug("""
-                                Starting shard [{}] with shard generation [{}] that we were waiting to start on node [{}]. Previous \
-                                shard state [{}]
-                                """, shardId, shardStatus.generation(), shardStatus.nodeId(), shardStatus.state());
-                            shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                            if (shardStatus.isWaitingForDesiredAllocation()) {
+                                final ShardAssignment assignment = reconciledDesiredBalance.get().getAssignment(shardId);
+                                if (assignment == null || assignment.nodeIds().contains(primaryNodeId)) {
+                                    snapshotChanged = true;
+                                    logger.debug(
+                                        "Shard [{}] started on desired allocation node [{}] for shard generation [{}]",
+                                        shardId,
+                                        primaryNodeId,
+                                        shardStatus.generation()
+                                    );
+                                    shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                                } else {
+                                    // Keep it as waiting for balance
+                                    shards.put(shardId, shardStatus);
+                                }
+                            } else {
+                                // Shard that we were waiting for has started on a node, let's process it
+                                snapshotChanged = true;
+                                logger.debug("""
+                                    Starting shard [{}] with shard generation [{}] that we were waiting to start on node [{}]. Previous \
+                                    shard state [{}]
+                                    """, shardId, shardStatus.generation(), shardStatus.nodeId(), shardStatus.state());
+                                shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                            }
                             continue;
                         } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
                             // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait
@@ -1352,6 +1374,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             return false;
         });
+    }
+
+    public void updateReconciledDesiredBalance(DesiredBalance desiredBalance) {
+        MasterService.assertMasterUpdateOrTestThread();
+        reconciledDesiredBalance.set(desiredBalance);
     }
 
     /**
@@ -2895,7 +2922,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.indices().values(),
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
-                                repoName
+                                repoName,
+                                reconciledDesiredBalance.get()
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());
@@ -3014,7 +3042,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Collection<IndexId> indices,
         boolean useShardGenerations,
         RepositoryData repositoryData,
-        String repoName
+        String repoName,
+        DesiredBalance desiredBalance
     ) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
@@ -3058,7 +3087,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
-                            snapshotsInProgress::isNodeIdForRemoval
+                            snapshotsInProgress::isNodeIdForRemoval,
+                            desiredBalance
                         );
                     }
                     builder.put(shardId, shardSnapshotStatus);
@@ -3080,7 +3110,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private static ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
-        Predicate<String> nodeIdRemovalPredicate
+        Predicate<String> nodeIdRemovalPredicate,
+        DesiredBalance desiredBalance
     ) {
         ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
@@ -3097,7 +3128,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 "primary shard hasn't been started yet"
             );
         } else {
-            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+            final ShardAssignment assignment = desiredBalance.getAssignment(primary.shardId());
+            if (assignment == null || assignment.nodeIds().contains(primary.currentNodeId())) {
+                shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+            } else {
+                shardSnapshotStatus = ShardSnapshotStatus.waitForDesiredAllocation(shardRepoGeneration);
+            }
         }
         return shardSnapshotStatus;
     }
@@ -3242,6 +3278,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         // initial cluster state for update computation
         private final ClusterState initialState;
+        private final DesiredBalance desiredBalance;
 
         // tests whether node IDs are currently marked for removal
         private final Predicate<String> nodeIdRemovalPredicate;
@@ -3263,10 +3300,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
          */
         SnapshotShardsUpdateContext(
             ClusterStateTaskExecutor.BatchExecutionContext<SnapshotTask> batchExecutionContext,
-            ShardSnapshotUpdateCompletionHandler completionHandler
+            ShardSnapshotUpdateCompletionHandler completionHandler,
+            DesiredBalance desiredBalance
         ) {
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
+            this.desiredBalance = desiredBalance;
             this.nodeIdRemovalPredicate = SnapshotsInProgress.get(initialState)::isNodeIdForRemoval;
             this.completionHandler = completionHandler;
 
@@ -3611,7 +3650,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 } else {
                     shardRouting = indexRouting.shard(repoShardId.shardId()).primaryShard();
                 }
-                final ShardSnapshotStatus shardSnapshotStatus = initShardSnapshotStatus(generation, shardRouting, nodeIdRemovalPredicate);
+                final ShardSnapshotStatus shardSnapshotStatus = initShardSnapshotStatus(
+                    generation,
+                    shardRouting,
+                    nodeIdRemovalPredicate,
+                    desiredBalance
+                );
                 final ShardId routingShardId = shardRouting != null ? shardRouting.shardId() : new ShardId(index, repoShardId.shardId());
                 if (shardSnapshotStatus.isActive()) {
                     startShardOperation(shardsBuilder(), routingShardId, shardSnapshotStatus);
@@ -4087,7 +4131,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ClusterState state = batchExecutionContext.initialState();
             final SnapshotShardsUpdateContext shardsUpdateContext = new SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                shardSnapshotUpdateCompletionHandler
+                shardSnapshotUpdateCompletionHandler,
+                reconciledDesiredBalance.get()
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
 
@@ -4287,7 +4332,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 indexIds.values(),
                 useShardGenerations(version),
                 repositoryData,
-                repositoryName
+                repositoryName,
+                reconciledDesiredBalance.get()
             );
             if (request.partial() == false) {
                 Set<String> missing = new TreeSet<>(); // sorted for more usable message

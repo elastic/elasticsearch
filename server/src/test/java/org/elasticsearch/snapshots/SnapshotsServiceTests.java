@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -745,7 +746,8 @@ public class SnapshotsServiceTests extends ESTestCase {
             final SnapshotsInProgress existing = SnapshotsInProgress.get(batchExecutionContext.initialState());
             final var context = new SnapshotsService.SnapshotShardsUpdateContext(
                 batchExecutionContext,
-                /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {}
+                /* on completion handler */ (shardSnapshotUpdateResult, newlyCompletedEntries, updatedRepositories) -> {},
+                DesiredBalance.BECOME_MASTER_INITIAL
             );
             final SnapshotsInProgress updated = context.computeUpdatedState();
             context.setupSuccessfulPublicationCallbacks(updated);

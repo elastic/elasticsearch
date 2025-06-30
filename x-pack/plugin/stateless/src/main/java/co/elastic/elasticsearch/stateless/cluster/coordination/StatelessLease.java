@@ -25,8 +25,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.util.Optional;
 
 public record StatelessLease(long currentTerm, long nodeLeftGeneration) implements Comparable<StatelessLease> {
-    private static final long UNSUPPORTED = -1L;
-
     public static final StatelessLease ZERO = new StatelessLease(0, 0);
 
     BytesReference asBytes() {
@@ -34,17 +32,10 @@ public record StatelessLease(long currentTerm, long nodeLeftGeneration) implemen
             return BytesArray.EMPTY;
         }
         final byte[] bytes;
-        // If node left generation is unsupported, this lease was written by a cluster with a node whose version is prior to the time
-        // when node left generation was introduced. Do not introduce the value until the entire cluster is upgraded and a node-left
-        // event occurs.
-        if (nodeLeftGeneration == UNSUPPORTED) {
-            bytes = new byte[Long.BYTES];
-            ByteUtils.writeLongBE(currentTerm, bytes, 0);
-        } else {
-            bytes = new byte[Long.BYTES * 2];
-            ByteUtils.writeLongBE(currentTerm, bytes, 0);
-            ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Long.BYTES);
-        }
+        assert nodeLeftGeneration >= 0;
+        bytes = new byte[Long.BYTES * 2];
+        ByteUtils.writeLongBE(currentTerm, bytes, 0);
+        ByteUtils.writeLongBE(nodeLeftGeneration, bytes, Long.BYTES);
         return new BytesArray(bytes);
     }
 

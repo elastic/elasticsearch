@@ -1,0 +1,5 @@
+pr: 129013
+summary: "WIP: Remote lookup join implementation"
+area: ES|QL
+type: enhancement
+issues: []

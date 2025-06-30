@@ -38,7 +38,7 @@ on the same input data and combines the results in a single output table. A disc
 `FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
 ::::
 
-Limitations and usage:
+**Limitations**
 
 - `FORK` supports at most 8 execution branches.
 - Using remote cluster references and `FORK` is not supported.

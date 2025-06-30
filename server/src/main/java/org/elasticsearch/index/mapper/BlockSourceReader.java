@@ -469,7 +469,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     /**
      * Convert a {@link String} into a utf-8 {@link BytesRef}.
      */
-    static BytesRef toBytesRef(BytesRef scratch, String v) {
+    public static BytesRef toBytesRef(BytesRef scratch, String v) {
         int len = UnicodeUtil.maxUTF8Length(v.length());
         if (scratch.bytes.length < len) {
             scratch.bytes = new byte[len];

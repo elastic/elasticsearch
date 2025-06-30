@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -35,7 +36,7 @@ record CmdLineArgs(
     KnnIndexTester.IndexType indexType,
     int numCandidates,
     int k,
-    int nProbe,
+    int[] nProbes,
     int ivfClusterSize,
     int overSamplingFactor,
     int hnswM,
@@ -86,7 +87,7 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
         PARSER.declareInt(Builder::setK, K_FIELD);
-        PARSER.declareInt(Builder::setNProbe, N_PROBE_FIELD);
+        PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
         PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
@@ -115,7 +116,7 @@ record CmdLineArgs(
         builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
         builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(N_PROBE_FIELD.getPreferredName(), nProbe);
+        builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
         builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
         builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
@@ -144,7 +145,7 @@ record CmdLineArgs(
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private int numCandidates = 1000;
         private int k = 10;
-        private int nProbe = 10;
+        private int[] nProbes = new int[] { 10 };
         private int ivfClusterSize = 1000;
         private int overSamplingFactor = 1;
         private int hnswM = 16;
@@ -193,8 +194,8 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setNProbe(int nProbe) {
-            this.nProbe = nProbe;
+        public Builder setNProbe(List<Integer> nProbes) {
+            this.nProbes = nProbes.stream().mapToInt(Integer::intValue).toArray();
             return this;
         }
 
@@ -262,8 +263,10 @@ record CmdLineArgs(
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
             }
-            if (dimensions <= 0) {
-                throw new IllegalArgumentException("dimensions must be a positive integer");
+            if (dimensions <= 0 && dimensions != -1) {
+                throw new IllegalArgumentException(
+                    "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
+                );
             }
             return new CmdLineArgs(
                 docVectors,
@@ -273,7 +276,7 @@ record CmdLineArgs(
                 indexType,
                 numCandidates,
                 k,
-                nProbe,
+                nProbes,
                 ivfClusterSize,
                 overSamplingFactor,
                 hnswM,

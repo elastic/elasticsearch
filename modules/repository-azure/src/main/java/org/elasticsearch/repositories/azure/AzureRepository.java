@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -118,7 +119,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final RepositoriesMetrics repositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
             projectId,
@@ -128,7 +130,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;

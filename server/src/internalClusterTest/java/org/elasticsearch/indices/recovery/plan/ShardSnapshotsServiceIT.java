@@ -80,7 +80,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         ) {
             return Collections.singletonMap(
                 TYPE,
-                (projectId, metadata) -> new FailingRepo(
+                (projectId, metadata, snapshotMetrics) -> new FailingRepo(
                     projectId,
                     metadata,
                     env,

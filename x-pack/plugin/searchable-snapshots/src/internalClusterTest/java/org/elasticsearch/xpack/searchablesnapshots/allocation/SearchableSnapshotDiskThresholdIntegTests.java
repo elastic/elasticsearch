@@ -381,7 +381,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         ) {
             return Collections.singletonMap(
                 TYPE,
-                (projectId, metadata) -> new CustomMockRepository(
+                (projectId, metadata, snapshotMetrics) -> new CustomMockRepository(
                     projectId,
                     metadata,
                     env,

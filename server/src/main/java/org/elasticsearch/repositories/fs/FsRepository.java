@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -84,7 +85,16 @@ public class FsRepository extends BlobStoreRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(
+            projectId,
+            metadata,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            BlobPath.EMPTY,
+            SnapshotMetrics.NOOP
+        );
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

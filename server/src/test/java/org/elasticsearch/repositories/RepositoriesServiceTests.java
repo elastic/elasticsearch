@@ -138,15 +138,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
-            (projectId, metadata1) -> new TestRepository(projectId, metadata1),
+            (projectId, metadata1, snapshotMetrics) -> new TestRepository(projectId, metadata1),
             UnstableRepository.TYPE,
-            (projectId, metadata2) -> new UnstableRepository(projectId, metadata2),
+            (projectId, metadata2, snapshotMetrics) -> new UnstableRepository(projectId, metadata2),
             VerificationFailRepository.TYPE,
-            (projectId, metadata3) -> new VerificationFailRepository(projectId, metadata3),
+            (projectId, metadata3, snapshotMetrics) -> new VerificationFailRepository(projectId, metadata3),
             MeteredRepositoryTypeA.TYPE,
-            (projectId, metadata) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
+            (projectId, metadata, snapshotMetrics) -> new MeteredRepositoryTypeA(projectId, metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
-            (projectId, metadata) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
+            (projectId, metadata, snapshotMetrics) -> new MeteredRepositoryTypeB(projectId, metadata, clusterService)
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
@@ -832,7 +832,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a")
+                Map.of("bucket", "bucket-a"),
+                SnapshotMetrics.NOOP
             );
         }
 
@@ -860,7 +861,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b")
+                Map.of("bucket", "bucket-b"),
+                SnapshotMetrics.NOOP
             );
         }
 

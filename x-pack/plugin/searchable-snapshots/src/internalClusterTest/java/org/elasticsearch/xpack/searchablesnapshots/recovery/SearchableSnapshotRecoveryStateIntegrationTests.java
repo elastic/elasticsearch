@@ -248,7 +248,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         ) {
             return Collections.singletonMap(
                 "test-fs",
-                (projectId, metadata) -> new FsRepository(
+                (projectId, metadata, snapshotMetrics) -> new FsRepository(
                     projectId,
                     metadata,
                     env,

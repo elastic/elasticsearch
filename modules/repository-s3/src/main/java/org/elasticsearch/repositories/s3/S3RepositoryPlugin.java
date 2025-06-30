@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -65,7 +66,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final S3RepositoriesMetrics s3RepositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         return new S3Repository(
             projectId,
@@ -75,7 +77,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             clusterService,
             bigArrays,
             recoverySettings,
-            s3RepositoriesMetrics
+            s3RepositoriesMetrics,
+            snapshotMetrics
         );
     }
 
@@ -118,14 +121,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            (projectId, metadata) -> createRepository(
+            (projectId, metadata, snapshotMetrics) -> createRepository(
                 projectId,
                 metadata,
                 registry,
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                s3RepositoriesMetrics
+                s3RepositoriesMetrics,
+                snapshotMetrics
             )
         );
     }

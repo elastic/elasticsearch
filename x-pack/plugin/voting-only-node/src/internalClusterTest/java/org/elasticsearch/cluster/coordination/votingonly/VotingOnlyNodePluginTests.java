@@ -265,7 +265,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",
-                (projectId, metadata) -> new AccessVerifyingRepo(
+                (projectId, metadata, snapshotMetrics) -> new AccessVerifyingRepo(
                     projectId,
                     metadata,
                     env,

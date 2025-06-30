@@ -39,6 +39,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -283,7 +284,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final S3RepositoriesMetrics s3RepositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
             projectId,
@@ -293,7 +295,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.service = service;
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;

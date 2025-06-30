@@ -138,7 +138,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestDelayedRepo.TYPE,
-                (projectId, metadata) -> new TestDelayedRepo(
+                (projectId, metadata, snapshotMetrics) -> new TestDelayedRepo(
                     projectId,
                     metadata,
                     env,
@@ -210,7 +210,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 TestRestartBeforeListenersRepo.TYPE,
-                (projectId, metadata) -> new TestRestartBeforeListenersRepo(
+                (projectId, metadata, snapshotMetrics) -> new TestRestartBeforeListenersRepo(
                     projectId,
                     metadata,
                     env,

@@ -57,7 +57,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
-            (projectId, metadata) -> new GoogleCloudStorageRepository(
+            (projectId, metadata, snapshotMetrics) -> new GoogleCloudStorageRepository(
                 projectId,
                 metadata,
                 namedXContentRegistry,
@@ -65,7 +65,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                snapshotMetrics
             )
         );
     }

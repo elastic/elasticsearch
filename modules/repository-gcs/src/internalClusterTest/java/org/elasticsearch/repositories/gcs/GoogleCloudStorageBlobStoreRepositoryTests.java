@@ -276,7 +276,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
-                (projectId, metadata) -> new GoogleCloudStorageRepository(
+                (projectId, metadata, snapshotMetrics) -> new GoogleCloudStorageRepository(
                     projectId,
                     metadata,
                     registry,
@@ -284,7 +284,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new GcsRepositoryStatsCollector()
+                    new GcsRepositoryStatsCollector(),
+                    snapshotMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {

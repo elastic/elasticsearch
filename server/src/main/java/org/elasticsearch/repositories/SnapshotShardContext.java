@@ -12,6 +12,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -67,7 +68,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(commitRef.closingBefore(listener));
+        super(createListener(commitRef.closingBefore(listener)));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;
@@ -77,6 +78,12 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
         this.snapshotStartTime = snapshotStartTime;
+    }
+
+    private static SubscribableListener<ShardSnapshotResult> createListener(ActionListener<ShardSnapshotResult> listener) {
+        final SubscribableListener<ShardSnapshotResult> objectSubscribableListener = new SubscribableListener<>();
+        objectSubscribableListener.addListener(listener);
+        return objectSubscribableListener;
     }
 
     public Store store() {
@@ -130,5 +137,9 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
             assert false : "commit ref closed early in state " + snapshotStatus;
             throw new IndexShardSnapshotFailedException(store.shardId(), "Store got closed concurrently");
         }
+    }
+
+    public void addListener(ActionListener<ShardSnapshotResult> listener) {
+        ((SubscribableListener<ShardSnapshotResult>) this.delegate).addListener(listener);
     }
 }

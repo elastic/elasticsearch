@@ -58,6 +58,8 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -123,6 +125,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
+    private final SnapshotMetrics snapshotMetrics;
+
+    public RepositoriesService(
+        Settings settings,
+        ClusterService clusterService,
+        Map<String, Repository.Factory> typesRegistry,
+        Map<String, Repository.Factory> internalTypesRegistry,
+        ThreadPool threadPool,
+        NodeClient client,
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
+    ) {
+        this(settings, clusterService, typesRegistry, internalTypesRegistry, threadPool, client, preRestoreChecks, MeterRegistry.NOOP);
+    }
 
     @SuppressWarnings("this-escape")
     public RepositoriesService(
@@ -132,7 +147,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
         NodeClient client,
-        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks,
+        MeterRegistry meterRegistry
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -152,6 +168,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
+        this.snapshotMetrics = new SnapshotMetrics(meterRegistry, this::getSnapshotsInProgress);
     }
 
     /**
@@ -750,7 +767,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             projectId,
                             repositoryMetadata,
                             typesRegistry,
-                            RepositoriesService::createUnknownTypeRepository
+                            RepositoriesService::createUnknownTypeRepository,
+                            snapshotMetrics
                         );
                     } catch (RepositoryException ex) {
                         // TODO: this catch is bogus, it means the old repo is already closed,
@@ -765,7 +783,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         projectId,
                         repositoryMetadata,
                         typesRegistry,
-                        RepositoriesService::createUnknownTypeRepository
+                        RepositoriesService::createUnknownTypeRepository,
+                        snapshotMetrics
                     );
                 } catch (RepositoryException ex) {
                     logger.warn(() -> "failed to create repository " + projectRepoString(projectId, repositoryMetadata.name()), ex);
@@ -941,7 +960,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 projectId,
                 metadata,
                 internalTypesRegistry,
-                RepositoriesService::throwRepositoryTypeDoesNotExists
+                RepositoriesService::throwRepositoryTypeDoesNotExists,
+                snapshotMetrics
             );
             final var newRepos = new HashMap<>(existingRepos);
             newRepos.put(name, repo);
@@ -1021,7 +1041,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         @Nullable ProjectId projectId,
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory,
+        SnapshotMetrics snapshotMetrics
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
@@ -1030,7 +1051,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         Repository repository = null;
         try {
-            repository = factory.create(projectId, repositoryMetadata, factories::get);
+            repository = factory.create(projectId, repositoryMetadata, factories::get, snapshotMetrics);
             repository.start();
             return repository;
         } catch (Exception e) {
@@ -1061,7 +1082,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             Objects.requireNonNull(projectId),
             repositoryMetadata,
             typesRegistry,
-            RepositoriesService::throwRepositoryTypeDoesNotExists
+            RepositoriesService::throwRepositoryTypeDoesNotExists,
+            snapshotMetrics
         );
     }
 
@@ -1072,7 +1094,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
         assert DiscoveryNode.isStateless(clusterService.getSettings())
             : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
-        return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
+        return createRepository(
+            null,
+            repositoryMetadata,
+            typesRegistry,
+            RepositoriesService::throwRepositoryTypeDoesNotExists,
+            snapshotMetrics
+        );
+    }
+
+    private Collection<LongWithAttributes> getSnapshotsInProgress() {
+        return repositories.values()
+            .stream()
+            .flatMap(repositories -> repositories.values().stream())
+            .map(Repository::getShardSnapshotsInProgress)
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {

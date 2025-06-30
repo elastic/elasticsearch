@@ -43,6 +43,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -257,20 +258,29 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
-                throws Exception {
+            public Repository create(
+                ProjectId projectId,
+                RepositoryMetadata metadata,
+                Function<String, Repository.Factory> typeLookup,
+                SnapshotMetrics snapshotMetrics
+            ) throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 return new SourceOnlySnapshotRepository(
-                    factory.create(projectId, new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                    factory.create(
+                        projectId,
+                        new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()),
+                        typeLookup,
+                        snapshotMetrics
+                    )
                 );
             }
         };

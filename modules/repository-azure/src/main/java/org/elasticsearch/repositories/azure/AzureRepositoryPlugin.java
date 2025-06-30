@@ -62,7 +62,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         RecoverySettings recoverySettings,
         RepositoriesMetrics repositoriesMetrics
     ) {
-        return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata) -> {
+        return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata, snapshotMetrics) -> {
             AzureStorageService storageService = azureStoreService.get();
             assert storageService != null;
             return new AzureRepository(
@@ -73,7 +73,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                repositoriesMetrics
+                repositoriesMetrics,
+                snapshotMetrics
             );
         });
     }

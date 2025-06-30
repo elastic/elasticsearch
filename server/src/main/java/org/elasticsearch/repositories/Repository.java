@@ -26,6 +26,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ public interface Repository extends LifecycleComponent {
          * @param projectId the project-id for the repository or {@code null} if the repository is at the cluster level.
          * @param metadata  metadata for the repository including name and settings
          */
-        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception;
+        Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) throws Exception;
 
         /**
          * Constructs a repository.
@@ -73,9 +74,10 @@ public interface Repository extends LifecycleComponent {
         default Repository create(
             @Nullable ProjectId projectId,
             RepositoryMetadata metadata,
-            Function<String, Repository.Factory> typeLookup
+            Function<String, Repository.Factory> typeLookup,
+            SnapshotMetrics snapshotMetrics
         ) throws Exception {
-            return create(projectId, metadata);
+            return create(projectId, metadata, snapshotMetrics);
         }
     }
 
@@ -344,5 +346,15 @@ public interface Repository extends LifecycleComponent {
 
     static boolean assertSnapshotMetaThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
+    }
+
+    /**
+     * Get the current count of snapshots in progress
+     *
+     * @return The current number of shard snapshots in progress
+     */
+    @Nullable
+    default LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
     }
 }

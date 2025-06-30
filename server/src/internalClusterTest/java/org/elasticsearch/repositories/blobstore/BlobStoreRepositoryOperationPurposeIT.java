@@ -101,7 +101,7 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                (projectId, metadata) -> new AssertingRepository(
+                (projectId, metadata, snapshotMetrics) -> new AssertingRepository(
                     projectId,
                     metadata,
                     env,

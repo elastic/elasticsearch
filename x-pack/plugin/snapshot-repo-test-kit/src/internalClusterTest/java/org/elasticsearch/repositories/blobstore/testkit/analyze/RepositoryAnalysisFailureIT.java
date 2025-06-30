@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -546,7 +547,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
-                (projectId, metadata) -> new DisruptableRepository(
+                (projectId, metadata, snapshotMetrics) -> new DisruptableRepository(
                     projectId,
                     metadata,
                     namedXContentRegistry,
@@ -572,7 +573,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings,
             BlobPath basePath
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, SnapshotMetrics.NOOP);
         }
 
         void setBlobStore(BlobStore blobStore) {

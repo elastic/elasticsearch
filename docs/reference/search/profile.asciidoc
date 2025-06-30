@@ -1303,7 +1303,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "query" : [
             {
                 "type" : "KnnScoreDocQuery",
-                "description" : "DocAndScore[100]",
+                "description" : "KnnScoreDocQuery[100]",
                 "time_in_nanos" : 444414,
                 "breakdown" : {
                   "set_min_competitive_score_count" : 0,
@@ -1344,6 +1344,8 @@ One of the `dfs.knn` sections for a shard looks like the following:
 // TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
 // TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
 // TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]
+// TESTRESPONSE[s/DocAndScoreQuery/KnnScoreDocQuery/]
+// TESTRESPONSE[s/DocAndScore/KnnScoreDocQuery/]
 
 In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,

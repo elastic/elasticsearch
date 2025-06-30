@@ -74,6 +74,9 @@ setup:
 
 ---
 "profile standard and knn query":
+  - requires:
+      cluster_features: ["search.knn.query.bugfix.130254"]
+      reason: "Bug fix introduced via PR #130254"
 
   - do:
       search:
@@ -173,8 +176,8 @@ setup:
 "using query and dfs knn search":
 
   - requires:
-      cluster_features: ["gte_v8.16.0"]
-      reason: "deprecation added in 8.16"
+      cluster_features: ["search.knn.query.bugfix.130254"]
+      reason: "Bug fix introduced via PR #130254"
       test_runner_features: warnings
 
   - do:

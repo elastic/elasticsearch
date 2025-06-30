@@ -15,8 +15,10 @@ import org.elasticsearch.core.Releasables;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  *  Interface for reducing {@link InternalAggregations} to a single one in a streaming fashion.
@@ -57,12 +59,20 @@ public final class AggregatorsReducer implements Releasable {
      * returns the reduced {@link InternalAggregations}.
      */
     public InternalAggregations get() {
+        return InternalAggregations.from(get(Function.identity()));
+    }
+
+    public List<InternalAggregation> get(Function<InternalAggregation, InternalAggregation> mapping) {
         final Collection<AggregatorReducer> reducers = aggByName.values();
         final List<InternalAggregation> aggs = new ArrayList<>(reducers.size());
-        for (AggregatorReducer reducer : reducers) {
-            aggs.add(reducer.get());
+        for (Iterator<AggregatorReducer> iterator = reducers.iterator(); iterator.hasNext();) {
+            AggregatorReducer reducer = iterator.next();
+            iterator.remove();
+            try (reducer) {
+                aggs.add(mapping.apply(reducer.get()));
+            }
         }
-        return InternalAggregations.from(aggs);
+        return aggs;
     }
 
     @Override

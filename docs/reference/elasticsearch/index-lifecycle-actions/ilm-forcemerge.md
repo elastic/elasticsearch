@@ -25,7 +25,7 @@ If you experience a force merge task queue backlog, you might need to increase t
 Note that `thread_pool.force_merge.size` is an advanced setting. Adjusting it can cause cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
 ::::
 
-Force merging will be performed by the node hosting the shard. The [node's role](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-settings.md#node-roles) frequently matches the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) of the {{ilm-init}}'s phase of the index, but this is not guaranteed. For example: 
+Force merging will be performed by the node hosting the shard. The [node's role](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-settings.md#node-roles) frequently matches the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) of the {{ilm-init}}'s phase of the index, you may choose to adjust this behavior. For example: 
 * A force merge in the `hot` phase will use hot nodes. Merges may be faster on this potentially higher performance hardware but may have the tradeoff of impacting ingestion. 
 * A force merge in the `warm` phase will use warm nodes. Merges may take longer to perform on potentially lower performance hardware but will avoid impacting ingestion in the `hot` tier.
 * A force merge in the `cold` or `frozen` phase [{{ilm-init}} Searchable Snapshots](./ilm-searchable-snapshot.md) using `force_merge_index` happens on the preceeding data tier.

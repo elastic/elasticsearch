@@ -177,7 +177,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if (mainSourceSet != null && testSourceSet != null) {
+            if ("test".equals(test.getName()) && mainSourceSet != null && testSourceSet != null) {
                 FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
                 FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                 FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
@@ -236,6 +236,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         configureEntitlements(project);
     }
 
+    /**
+     * Computes and sets the {@code --patch-module=java.base} JVM command line option.
+     * <p>
+     * Since each module can be patched only once, this method computes all patching required for {@code java.base}.
+     */
     private void configureJavaBasePatch(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
@@ -255,13 +260,13 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getInputs().files(patchedFileCollection);
             test.systemProperty("tests.hackImmutableCollections", "true");
 
-            Configuration bridgeJarConfig = configurations.findByName("entitlementBridgeJar");
+            Configuration bridgeConfig = configurations.findByName("entitlementBridge");
             String bridgeJarPart;
-            if (bridgeJarConfig == null) {
+            if (bridgeConfig == null) {
                 bridgeJarPart = "";
             } else {
-                test.getInputs().files(bridgeJarConfig);
-                bridgeJarPart = File.pathSeparator + bridgeJarConfig.getSingleFile().getAbsolutePath();
+                test.getInputs().files(bridgeConfig);
+                bridgeJarPart = File.pathSeparator + bridgeConfig.getSingleFile().getAbsolutePath();
             }
 
             test.getJvmArgumentProviders()
@@ -274,24 +279,30 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         });
     }
 
+    /**
+     * Sets the required JVM options and system properties to enable entitlement enforcement on tests.
+     * <p>
+     * One command line option is set in {@link #configureJavaBasePatch} out of necessity,
+     * since the command line can have only one {@code --patch-module} option for a given module.
+     */
     private static void configureEntitlements(Project project) {
-        Configuration agentJarConfig = project.getConfigurations().create("entitlementAgentJar");
+        Configuration agentConfig = project.getConfigurations().create("entitlementAgent");
         Project agent = project.findProject(":libs:entitlement:agent");
         if (agent != null) {
-            agentJarConfig.defaultDependencies(
+            agentConfig.defaultDependencies(
                 deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent"))); }
             );
         }
-        FileCollection agentFiles = agentJarConfig;
+        FileCollection agentFiles = agentConfig;
 
-        Configuration bridgeJarConfig = project.getConfigurations().create("entitlementBridgeJar");
+        Configuration bridgeConfig = project.getConfigurations().create("entitlementBridge");
         Project bridge = project.findProject(":libs:entitlement:bridge");
         if (bridge != null) {
-            bridgeJarConfig.defaultDependencies(
+            bridgeConfig.defaultDependencies(
                 deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
             );
         }
-        FileCollection bridgeFiles = bridgeJarConfig;
+        FileCollection bridgeFiles = bridgeConfig;
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             // See also SystemJvmOptions.maybeAttachEntitlementAgent.

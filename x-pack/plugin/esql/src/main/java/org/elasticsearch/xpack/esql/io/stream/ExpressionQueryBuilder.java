@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,13 +98,11 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (expression instanceof TranslationAware translationAware) {
-            Automaton automaton = translationAware.asLuceneQuery();
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
                 return new MatchNoDocsQuery("Field [" + fieldName + "] does not exist");
             }
-            String description = translationAware.getLuceneQueryDescription();
-            return fieldType.automatonQuery(automaton, CONSTANT_SCORE_REWRITE, context, description);
+            return translationAware.asLuceneQuery(fieldType, CONSTANT_SCORE_REWRITE, context);
         } else {
             throw new UnsupportedOperationException("ExpressionQueryBuilder does not support non-automaton expressions");
         }

@@ -331,8 +331,8 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Similar to wildcardQuery, except that we change the behavior for
-     * this method for IndexFieldMapper
+     * Similar to wildcardQuery, except that we change the behavior for ESQL
+     * to behave like a string LIKE query, where the value is matched as a string
      */
     public Query wildcardLikeQuery(
         String value,

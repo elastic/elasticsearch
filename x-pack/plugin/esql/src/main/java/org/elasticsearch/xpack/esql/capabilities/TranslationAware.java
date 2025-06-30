@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
-import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -49,19 +51,21 @@ public interface TranslationAware {
     Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     /**
-     * Translates the implementing expression into a Lucene {@link Automaton}.
+     * Translates this expression into a Lucene {@link org.apache.lucene.search.Query}.
+     * <p>
+     * Implementations should use the provided field type, rewrite method, and search execution context
+     * to construct an appropriate Lucene query for this expression.
+     * By default, this method throws {@link UnsupportedOperationException}; override it in subclasses
+     * that support Lucene query translation.
+     * </p>
      */
-    default Automaton asLuceneQuery() {
+    default org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
         throw new UnsupportedOperationException("asLuceneQuery is not implemented for " + getClass().getName());
-    };
-
-    /**
-     * Returns a description of the Lucene query that this expression translates to.
-     * This is used for debugging and logging purposes.
-     */
-    default String getLuceneQueryDescription() {
-        throw new UnsupportedOperationException("getLuceneQueryDescription is not implemented for " + getClass().getName());
-    };
+    }
 
     /**
      * Subinterface for expressions that can only process single values (and null out on MVs).

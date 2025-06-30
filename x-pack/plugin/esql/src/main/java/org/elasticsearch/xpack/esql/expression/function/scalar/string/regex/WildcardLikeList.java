@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -150,12 +153,16 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     }
 
     @Override
-    public Automaton asLuceneQuery() {
-        return pattern().createAutomaton(caseInsensitive());
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        Automaton automaton = pattern().createAutomaton(caseInsensitive());
+        return fieldType.automatonQuery(automaton, constantScoreRewrite, context, getLuceneQueryDescription());
     }
 
-    @Override
-    public String getLuceneQueryDescription() {
+    private String getLuceneQueryDescription() {
         // we use the information used to create the automaton to describe the query here
         String patternDesc = pattern().patternList().stream().map(WildcardPattern::pattern).collect(Collectors.joining("\", \""));
         return "LIKE(\"" + patternDesc + "\"), caseInsensitive=" + caseInsensitive();

@@ -563,6 +563,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/10_basic/Dense vector stats}
   issue: https://github.com/elastic/elasticsearch/issues/130307
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=nodes.stats/11_indices_metrics/Lucene segment level fields stats}
+  issue: https://github.com/elastic/elasticsearch/issues/130360
 
 # Examples:
 #

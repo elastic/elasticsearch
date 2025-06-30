@@ -1058,6 +1058,7 @@ public abstract class DocsV3Support {
                 builder.field("type", switch (info.type()) {
                     case SCALAR -> "scalar";
                     case AGGREGATE -> "agg";
+                    case TIME_SERIES_AGGREGATE -> "time_series_agg";
                     case GROUPING -> "grouping";
                 });
             }

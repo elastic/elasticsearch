@@ -109,7 +109,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
         var failureRolloverOnWrite = instance.getFailureComponent().isRolloverOnWrite();
-        var failureAutoShardingEvent = instance.getDataComponent().getAutoShardingEvent();
+        var failureAutoShardingEvent = instance.getFailureComponent().getAutoShardingEvent();
         switch (between(0, 17)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
@@ -198,7 +198,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamOptions,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, indices, rolloverOnWrite, autoShardingEvent),
             new DataStream.DataStreamIndices(
-                DataStream.BACKING_INDEX_PREFIX,
+                DataStream.FAILURE_STORE_PREFIX,
                 failureIndices,
                 failureRolloverOnWrite,
                 failureAutoShardingEvent

@@ -275,7 +275,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
             if (field.getIndexOptions().isFlat()) {
-                assertThat(query, instanceOf(DenseVectorQuery.class));
+                assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
                 assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }
@@ -292,7 +292,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
             );
             if (field.getIndexOptions().isFlat()) {
-                assertThat(query, instanceOf(DenseVectorQuery.class));
+                assertThat(query, instanceOf(DiversifyingParentBlockQuery.class));
             } else {
                 assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
             }

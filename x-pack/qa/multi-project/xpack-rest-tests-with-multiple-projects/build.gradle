@@ -105,6 +105,7 @@ tasks.named("yamlRestTest").configure {
     '^rollup/rollup_search/*',
     '^rollup/start_job/*',
     '^rollup/stop_job/*',
+    '^searchable_snapshots/10_usage/*', // The usage API is project-aware, so this test can be unmuted once snapshot repositories are project-aware
     '^searchable_snapshots/20_synthetic_source/*',
     '^security/authz/14_cat_indices/*',
     '^security/authz/14_cat_indices/Test explicit request while multiple opened/*',

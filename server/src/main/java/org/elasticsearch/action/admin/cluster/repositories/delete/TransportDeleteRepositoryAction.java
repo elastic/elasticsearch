@@ -85,4 +85,16 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     public Set<String> modifiedKeys(DeleteRepositoryRequest request) {
         return Set.of(request.name());
     }
+
+    @Override
+    protected void validateForReservedState(DeleteRepositoryRequest request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request.toString()
+        );
+    }
 }

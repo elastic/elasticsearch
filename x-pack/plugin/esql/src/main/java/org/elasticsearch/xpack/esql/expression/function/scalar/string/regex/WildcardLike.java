@@ -38,8 +38,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
         usually acts on a field placed on the left-hand side of the operator, but it can
         also act on a constant (literal) expression. The right-hand side of the operator
-        represents the pattern or a list of patterns. If a list of patterns is provided,
-        the expression will return true if any of the patterns match.
+        represents the pattern.
 
         The following wildcard characters are supported:
 
@@ -51,11 +50,23 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
         <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
-        <<load-esql-example, file=where-like tag=likeListDocExample>>
-
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+
+        ```{applies_to}
+        stack: ga 9.1
+        serverless: ga
+        ```
+        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
+
+        ```{applies_to}
+        stack: ga 9.1
+        serverless: ga
+        ```
+        <<load-esql-example, file=where-like tag=likeListDocExample>>
+
         """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,

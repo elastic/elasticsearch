@@ -39,8 +39,8 @@ public class DenseEmbeddingOperatorTests extends InferenceOperatorTestCase<TextE
 
     private static final String TEST_PARAMS_FORMATING = "dims=%s, embedding_type=%s";
 
-    private final static List<Integer> DIMENSIONS = List.of(1, 32, 128, 512, 2048, 5096);
-    private final static List<Class<? extends TextEmbeddingResults<?>>> EMBEDDING_TYPES = List.of(
+    private static final List<Integer> DIMENSIONS = List.of(1, 32, 128, 512, 2048, 5096);
+    private static final List<Class<? extends TextEmbeddingResults<?>>> EMBEDDING_TYPES = List.of(
         TextEmbeddingBitResults.class,
         TextEmbeddingByteResults.class,
         TextEmbeddingFloatResults.class

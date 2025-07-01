@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DenseEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
 
-    private final static List<Integer> DIMENSIONS = List.of(1, 32, 128, 512, 2048, 5096);
-    private final static List<Integer> INPUT_SIZES = List.of(10, 100, 1_000, 10_000);
-    private final static List<Integer> BATCH_SIZES = List.of(1, 10, 100, 1000);
-    private final static List<Class<? extends TextEmbeddingResults<?>>> EMBEDDING_TYPES = List.of(
+    private static final List<Integer> DIMENSIONS = List.of(1, 32, 128, 512, 2048, 5096);
+    private static final List<Integer> INPUT_SIZES = List.of(10, 100, 1_000, 10_000);
+    private static final List<Integer> BATCH_SIZES = List.of(1, 10, 100, 1000);
+    private static final List<Class<? extends TextEmbeddingResults<?>>> EMBEDDING_TYPES = List.of(
         TextEmbeddingBitResults.class,
         TextEmbeddingByteResults.class,
         TextEmbeddingFloatResults.class

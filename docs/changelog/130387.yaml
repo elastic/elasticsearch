@@ -1,0 +1,5 @@
+pr: 130387
+summary: Push `==` to `text` fields to lucene
+area: ES|QL
+type: enhancement
+issues: []

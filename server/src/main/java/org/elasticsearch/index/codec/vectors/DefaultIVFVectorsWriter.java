@@ -27,8 +27,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
@@ -342,38 +342,67 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             logger.debug("final centroid count: {}", centroids.length);
         }
 
-        int[] centroidVectorCount = new int[centroids.length];
-        for (int i = 0; i < assignments.length; i++) {
-            centroidVectorCount[assignments[i]]++;
-            // if soar assignments are present, count them as well
-            if (soarAssignments.length > i && soarAssignments[i] != -1) {
-                centroidVectorCount[soarAssignments[i]]++;
-            }
-        }
-
-        int[][] assignmentsByCluster = new int[centroids.length][];
-        for (int c = 0; c < centroids.length; c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
-        }
-        Arrays.fill(centroidVectorCount, 0);
-
-        for (int i = 0; i < assignments.length; i++) {
-            int c = assignments[i];
-            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
-            // if soar assignments are present, add them to the cluster as well
-            if (soarAssignments.length > i) {
-                int s = soarAssignments[i];
-                if (s != -1) {
-                    assignmentsByCluster[s][centroidVectorCount[s]++] = i;
-                }
-            }
-        }
+        int[][] assignmentsByCluster = mapAssignmentsByCluster(centroids.length, assignments, soarAssignments, centroidOrds);
 
         if (cacheCentroids) {
             return new CentroidAssignments(centroidPartitions.size(), centroids, assignmentsByCluster);
         } else {
             return new CentroidAssignments(centroidPartitions.size(), centroids.length, assignmentsByCluster);
         }
+    }
+
+    // FIXME: clean this up
+    static int[][] mapAssignmentsByCluster(int centroidCount, int[] assignments, int[] soarAssignments, int[] centroidOrds) {
+        int[] centroidVectorCount = new int[centroidCount];
+        for (int i = 0; i < assignments.length; i++) {
+            int c = -1;
+            // FIXME: create a reverse mapping prior to this step? .. expensive
+            for (int j = 0; j < centroidOrds.length; j++) {
+                if (assignments[i] == centroidOrds[j]) {
+                    c = j;
+                }
+            }
+            centroidVectorCount[c]++;
+            // if soar assignments are present, count them as well
+            if (soarAssignments.length > i && soarAssignments[i] != -1) {
+                int s = -1;
+                for (int j = 0; j < centroidOrds.length; j++) {
+                    if (soarAssignments[i] == centroidOrds[j]) {
+                        s = j;
+                    }
+                }
+                centroidVectorCount[s]++;
+            }
+        }
+
+        int[][] assignmentsByCluster = new int[centroidCount][];
+        for (int c = 0; c < centroidCount; c++) {
+            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+        }
+        Arrays.fill(centroidVectorCount, 0);
+
+        for (int i = 0; i < assignments.length; i++) {
+            int c = -1;
+            for (int j = 0; j < centroidOrds.length; j++) {
+                if (assignments[i] == centroidOrds[j]) {
+                    c = j;
+                }
+            }
+            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
+            // if soar assignments are present, add them to the cluster as well
+            if (soarAssignments.length > i) {
+                int s = -1;
+                for (int j = 0; j < centroidOrds.length; j++) {
+                    if (soarAssignments[i] == centroidOrds[j]) {
+                        s = j;
+                    }
+                }
+                if (s != -1) {
+                    assignmentsByCluster[s][centroidVectorCount[s]++] = i;
+                }
+            }
+        }
+        return assignmentsByCluster;
     }
 
     // TODO unify with OSQ format

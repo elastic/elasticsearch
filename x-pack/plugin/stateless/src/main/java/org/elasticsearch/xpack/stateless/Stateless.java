@@ -1078,6 +1078,7 @@ public class Stateless extends Plugin
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
             MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+            MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

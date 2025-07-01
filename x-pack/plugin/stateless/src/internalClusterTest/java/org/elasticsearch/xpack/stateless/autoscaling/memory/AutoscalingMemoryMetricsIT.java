@@ -85,7 +85,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.AutoscalingIndexingMetricsIT.markNodesForShutdown;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_PERCENT;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
@@ -945,15 +945,20 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }
         // switch to the adaptive method
         {
+            var settingsMap = Map.<String, Object>of(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), ByteSizeValue.MINUS_ONE);
+            double adaptiveExtraOverheadRatio = 0.5; // default value
+            if (randomBoolean()) {
+                adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
+                settingsMap = new HashMap<>(settingsMap);
+                settingsMap.put(ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio);
+            }
             assertAcked(
-                admin().cluster()
-                    .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .setPersistentSettings(Map.of(FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), ByteSizeValue.MINUS_ONE))
+                admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settingsMap)
             );
             assertBusy(() -> assertThat(memoryMetricService.fixedShardMemoryOverhead, equalTo(ByteSizeValue.MINUS_ONE)));
             long adaptiveEstimate = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
                 * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalSegmentFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-            long extraForAdaptive = adaptiveEstimate * ADAPTIVE_EXTRA_OVERHEAD_PERCENT / 100;
+            long extraForAdaptive = (long) (adaptiveEstimate * adaptiveExtraOverheadRatio);
             var totalMemoryInBytes = memoryMetricService.getSearchTierMemoryMetrics().totalMemoryInBytes();
             assertThat(
                 totalMemoryInBytes,

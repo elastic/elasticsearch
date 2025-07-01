@@ -211,7 +211,7 @@ public class KnnIndexTester {
                 for (int i = 0; i < results.length; i++) {
                     int nProbe = nProbes[i];
                     KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, nProbe);
-                    knnSearcher.runSearch(results[i]);
+                    knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
                 }
             }
             formattedResults.results.addAll(List.of(results));

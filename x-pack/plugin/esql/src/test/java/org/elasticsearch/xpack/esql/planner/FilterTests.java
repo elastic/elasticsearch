@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.AutomatonQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -45,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -65,6 +68,7 @@ public class FilterTests extends ESTestCase {
 
     // use a field that already exists in the mapping
     private static final String EMP_NO = "emp_no";
+    private static final String LAST_NAME = "last_name";
     private static final String OTHER_FIELD = "salary";
 
     private static EsqlParser parser;
@@ -104,7 +108,7 @@ public class FilterTests extends ESTestCase {
             |WHERE {} > 10
             """, OTHER_FIELD), restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         assertEquals(restFilter.toString(), filter.toString());
     }
 
@@ -117,7 +121,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, value);
         var plan = plan(query, null);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var expected = singleValueQuery(query, unscore(rangeQuery(EMP_NO).gt(value)), EMP_NO, ((SingleValueQuery.Builder) filter).source());
         assertEquals(expected.toString(), filter.toString());
     }
@@ -132,7 +136,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, value);
         var plan = plan(query, restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
         var queryFilter = singleValueQuery(
             query,
@@ -155,7 +159,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, EMP_NO, highValue);
         var plan = plan(query, restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
         var left = singleValueQuery(
             query,
@@ -184,7 +188,7 @@ public class FilterTests extends ESTestCase {
             |WHERE {} > {} OR {} < {}
             """, OTHER_FIELD, lowValue, EMP_NO, highValue), restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var expected = restFilter;
         assertEquals(expected.toString(), filter.toString());
     }
@@ -200,7 +204,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, EMP_NO, highValue);
         var plan = plan(query, restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var shoulds = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).should();
         var left = singleValueQuery(
             query,
@@ -231,7 +235,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, OTHER_FIELD, eqValue, EMP_NO, highValue);
         var plan = plan(query, restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
         var left = singleValueQuery(
             query,
@@ -265,7 +269,7 @@ public class FilterTests extends ESTestCase {
             """, EMP_NO, lowValue, EMP_NO, eqValue, EMP_NO, highValue);
         var plan = plan(query, restFilter);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
         var queryFilter = singleValueQuery(
             query,
@@ -286,7 +290,7 @@ public class FilterTests extends ESTestCase {
             |WHERE {} > {}
             """, EMP_NO, OTHER_FIELD, EMP_NO, eqValue), null);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         assertThat(filter, nullValue());
     }
 
@@ -298,7 +302,7 @@ public class FilterTests extends ESTestCase {
             |WHERE to_int(to_string({})) == {}
             """, EMP_NO, eqValue), null);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         assertThat(filter, nullValue());
     }
 
@@ -310,8 +314,40 @@ public class FilterTests extends ESTestCase {
             |WHERE to_int(to_string({})) + 987 == {}
             """, EMP_NO, eqValue), null);
 
-        var filter = filterQueryForTransportNodes(plan);
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
         assertThat(filter, nullValue());
+    }
+
+    public void testLikeList() {
+        String query = LoggerMessageFormat.format(null, """
+             FROM test
+            |WHERE {} LIKE ("a+", "b+")
+            """, LAST_NAME);
+        var plan = plan(query, null);
+
+        var filter = filterQueryForTransportNodes(TransportVersion.current(), plan);
+        assertNull(filter);
+    }
+
+    /**
+     * Tests that we <strong>can</strong> extract a filter if the transport
+     * version is {@code null}. This isn't run in the "filter for transport nodes"
+     * code path. Instead, it's in the "filter for the local node" path, but
+     * we can get a quick test of that by calling this setup.
+     */
+    public void testLikeListNullTransportVersion() {
+        String query = LoggerMessageFormat.format(null, """
+             FROM test
+            |WHERE {} LIKE ("a+", "b+")
+            """, LAST_NAME);
+        var plan = plan(query, null);
+
+        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
+        assertEquals(LAST_NAME, filter.fieldName());
+        AutomatonQueryBuilder innerFilter = (AutomatonQueryBuilder) filter.next();
+        assertEquals(LAST_NAME, innerFilter.fieldName());
+        assertEquals("""
+            LIKE("a+", "b+"), caseInsensitive=false""", innerFilter.description());
     }
 
     /**
@@ -360,8 +396,8 @@ public class FilterTests extends ESTestCase {
         return unscore(rangeQuery(field).lt("2020-12-34"));
     }
 
-    private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, EMP_NO::equals);
+    private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
+        return PlannerUtils.detectFilter(minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
     }
 
     @Override

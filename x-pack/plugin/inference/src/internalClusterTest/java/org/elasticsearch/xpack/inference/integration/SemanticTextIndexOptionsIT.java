@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.PostStartBasicAction;
@@ -26,14 +27,17 @@ import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.license.PutLicenseRequest;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -112,7 +116,12 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
 
+        // Downgrade the license and restart the cluster to force the model registry to rebuild
         setLicense("basic");
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME);
+        assertLicense(License.LicenseType.BASIC);
+
         IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
@@ -135,7 +144,12 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
 
+        // Downgrade the license and restart the cluster to force the model registry to rebuild
         setLicense("basic");
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME);
+        assertLicense(License.LicenseType.BASIC);
+
         assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
 
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
@@ -255,6 +269,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         return filteredMap;
     }
 
+    // TODO: Pass LicenseType to this method
     private static void setLicense(String type) throws Exception {
         if (type.equals("basic")) {
             assertAcked(
@@ -276,5 +291,10 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
                 )
             );
         }
+    }
+
+    private static void assertLicense(License.LicenseType type) {
+        var getLicenseResponse = safeGet(client().execute(GetLicenseAction.INSTANCE, new GetLicenseRequest(TEST_REQUEST_TIMEOUT)));
+        assertThat(getLicenseResponse.license().type(), equalTo(type.getTypeName()));
     }
 }

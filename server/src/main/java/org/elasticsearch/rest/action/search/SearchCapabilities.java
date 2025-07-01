@@ -12,6 +12,8 @@ package org.elasticsearch.rest.action.search;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestSearchAction}.
  */
@@ -52,6 +54,7 @@ public final class SearchCapabilities {
     private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
     private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
     private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String SYNTHETIC_VECTORS_SETTING = "synthetic_vectors_setting";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -75,6 +78,9 @@ public final class SearchCapabilities {
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
         capabilities.add(EXCLUDE_VECTORS_PARAM);
         capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        if (SYNTHETIC_VECTORS) {
+            capabilities.add(SYNTHETIC_VECTORS_SETTING);
+        }
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

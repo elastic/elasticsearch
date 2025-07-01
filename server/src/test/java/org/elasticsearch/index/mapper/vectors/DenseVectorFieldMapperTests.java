@@ -11,21 +11,28 @@ package org.elasticsearch.index.mapper.vectors;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
@@ -54,6 +61,7 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -66,9 +74,11 @@ import java.util.Set;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2067,9 +2077,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current()).elementType(ElementType.FLOAT)
-            .dimensions(dimensions)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false).elementType(
+            ElementType.FLOAT
+        ).dimensions(dimensions).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
@@ -2897,6 +2907,249 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.endObject();
             })));
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
+        }
+    }
+
+    public void testSyntheticVectorsMinimalValidDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, false, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsFullDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, true, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsWithUnmappedFields() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, true, true);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsMissingRootFields() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, false, false, false, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testSyntheticVectorsPartialNestedContent() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDoc(type, true, true, true, false, false);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    public void testFlatPathDocument() throws IOException {
+        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
+        for (XContentType type : XContentType.values()) {
+            BytesReference source = generateRandomDocWithFlatPath(type);
+            assertSyntheticVectors(buildVectorMapping(), source, type);
+        }
+    }
+
+    private static String buildVectorMapping() throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject(); // root
+            builder.startObject("_doc");
+            builder.field("dynamic", "false");
+
+            builder.startObject("properties");
+
+            // field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            // another_field
+            builder.startObject("another_field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // obj
+            builder.startObject("obj");
+            builder.startObject("properties");
+
+            // nested
+            builder.startObject("nested");
+            builder.field("type", "nested");
+            builder.startObject("properties");
+
+            // nested.field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // nested.emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            // double_nested
+            builder.startObject("double_nested");
+            builder.field("type", "nested");
+            builder.startObject("properties");
+
+            // double_nested.field
+            builder.startObject("field");
+            builder.field("type", "keyword");
+            builder.endObject();
+
+            // double_nested.emb
+            builder.startObject("emb");
+            builder.field("type", "dense_vector");
+            builder.field("dims", 3);
+            builder.field("similarity", "cosine");
+            builder.endObject();
+
+            builder.endObject(); // double_nested.properties
+            builder.endObject(); // double_nested
+
+            builder.endObject(); // nested.properties
+            builder.endObject(); // nested
+
+            builder.endObject(); // obj.properties
+            builder.endObject(); // obj
+
+            builder.endObject(); // properties
+            builder.endObject(); // _doc
+            builder.endObject(); // root
+
+            return Strings.toString(builder);
+        }
+    }
+
+    private BytesReference generateRandomDoc(
+        XContentType xContentType,
+        boolean includeRootField,
+        boolean includeVector,
+        boolean includeNested,
+        boolean includeDoubleNested,
+        boolean includeUnmapped
+    ) throws IOException {
+        try (var builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+
+            if (includeRootField) {
+                builder.field("field", randomAlphaOfLengthBetween(1, 2));
+            }
+
+            if (includeVector) {
+                builder.array("emb", new float[] { 1, 2, 3 });
+            }
+
+            if (includeUnmapped) {
+                builder.field("unmapped_field", "extra");
+            }
+
+            builder.startObject("obj");
+            if (includeNested) {
+                builder.startArray("nested");
+
+                // Entry with just a field
+                builder.startObject();
+                builder.field("field", randomAlphaOfLengthBetween(3, 6));
+                builder.endObject();
+
+                // Empty object
+                builder.startObject();
+                builder.endObject();
+
+                // Entry with emb and double_nested
+                if (includeDoubleNested) {
+                    builder.startObject();
+                    builder.array("emb", new float[] { 1, 2, 3 });
+                    builder.field("field", "nested_val");
+                    builder.startArray("double_nested");
+                    for (int i = 0; i < 2; i++) {
+                        builder.startObject();
+                        builder.array("emb", new float[] { 1, 2, 3 });
+                        builder.field("field", "dn_field");
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                    builder.endObject();
+                }
+
+                builder.endArray();
+            }
+            builder.endObject();
+
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    private BytesReference generateRandomDocWithFlatPath(XContentType xContentType) throws IOException {
+        try (var builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+
+            // Root-level fields
+            builder.field("field", randomAlphaOfLengthBetween(1, 2));
+            builder.array("emb", new float[] { 1, 2, 3 });
+            builder.field("another_field", randomAlphaOfLengthBetween(3, 5));
+
+            // Simulated flattened "obj.nested"
+            builder.startObject("obj.nested");
+
+            builder.field("field", randomAlphaOfLengthBetween(4, 8));
+            builder.array("emb", new float[] { 1, 2, 3 });
+
+            builder.startArray("double_nested");
+            for (int i = 0; i < randomIntBetween(1, 2); i++) {
+                builder.startObject();
+                builder.field("field", randomAlphaOfLengthBetween(4, 8));
+                builder.array("emb", new float[] { 1, 2, 3 });
+                builder.endObject();
+            }
+            builder.endArray();
+
+            builder.endObject(); // end obj.nested
+
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    private void assertSyntheticVectors(String mapping, BytesReference source, XContentType xContentType) throws IOException {
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping);
+        var parsedDoc = mapperService.documentMapper().parse(new SourceToParse("0", source, xContentType));
+        try (var directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig(random(), new StandardAnalyzer());
+            try (var iw = new RandomIndexWriter(random(), directory, config)) {
+                parsedDoc.updateSeqID(0, 1);
+                parsedDoc.version().setLongValue(0);
+                iw.addDocuments(parsedDoc.docs());
+            }
+            try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                var provider = SourceProvider.fromLookup(
+                    mapperService.mappingLookup(),
+                    null,
+                    mapperService.getMapperMetrics().sourceFieldMetrics()
+                );
+                var searchSource = provider.getSource(indexReader.leaves().get(0), parsedDoc.docs().size() - 1);
+                assertToXContentEquivalent(source, searchSource.internalSourceRef(), xContentType);
+            }
         }
     }
 

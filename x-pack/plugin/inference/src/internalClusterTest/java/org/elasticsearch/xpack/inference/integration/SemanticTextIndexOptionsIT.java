@@ -123,11 +123,38 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
             safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())
         );
 
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceId, inferenceFieldName, indexOptions);
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, indexOptions);
         var getFieldMappingsResponse = safeGet(
             client().execute(GetFieldMappingsAction.INSTANCE, new GetFieldMappingsRequest().indices(INDEX_NAME).fields(inferenceFieldName))
         );
         assertThat(getFieldMappingsResponse.fieldMappings(INDEX_NAME, inferenceFieldName).sourceAsMap(), equalTo(expectedFieldMapping));
+    }
+
+    public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
+        final String inferenceId = "test-inference-id-2";
+        final String inferenceFieldName = "inference_field";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+
+        setLicense("basic");
+        assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
+
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+            inferenceFieldName,
+            inferenceId,
+            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+        );
+        var getFieldMappingsResponse = safeGet(
+            client().execute(
+                GetFieldMappingsAction.INSTANCE,
+                new GetFieldMappingsRequest().indices(INDEX_NAME).fields(inferenceFieldName).includeDefaults(true)
+            )
+        );
+
+        // Filter out null/empty values from params we didn't set to make comparison easier
+        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(
+            getFieldMappingsResponse.fieldMappings(INDEX_NAME, inferenceFieldName).sourceAsMap()
+        );
+        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
@@ -205,6 +232,27 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         }
 
         return expectedFieldMapping;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> filterNullOrEmptyValues(Map<String, Object> map) {
+        Map<String, Object> filteredMap = new HashMap<>();
+        for (var entry : map.entrySet()) {
+            Object value = entry.getValue();
+            if (entry.getValue() instanceof Map<?, ?> mapValue) {
+                if (mapValue.isEmpty()) {
+                    continue;
+                }
+
+                value = filterNullOrEmptyValues((Map<String, Object>) mapValue);
+            }
+
+            if (value != null) {
+                filteredMap.put(entry.getKey(), value);
+            }
+        }
+
+        return filteredMap;
     }
 
     private static void setLicense(String type) throws Exception {

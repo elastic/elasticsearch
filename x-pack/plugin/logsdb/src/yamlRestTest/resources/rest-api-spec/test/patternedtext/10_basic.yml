@@ -1,4 +1,7 @@
 setup:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       indices.create:
@@ -38,6 +41,9 @@ setup:
 
 ---
 Field caps:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       field_caps:
@@ -49,6 +55,9 @@ Field caps:
 
 ---
 Exist query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -63,6 +72,9 @@ Exist query:
 
 ---
 Match query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -77,6 +89,9 @@ Match query:
 
 ---
 Match Phrase query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -91,6 +106,9 @@ Match Phrase query:
 
 ---
 Match Phrase Prefix query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -106,6 +124,9 @@ Match Phrase Prefix query:
 
 ---
 Query String query with phrase:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -122,6 +143,9 @@ Query String query with phrase:
 
 ---
 Regexp query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -136,6 +160,9 @@ Regexp query:
 
 ---
 Wildcard query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -150,6 +177,9 @@ Wildcard query:
 
 ---
 Prefix query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -164,6 +194,9 @@ Prefix query:
 
 ---
 Fuzzy query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -178,6 +211,9 @@ Fuzzy query:
 
 ---
 Span query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       catch: bad_request
@@ -190,6 +226,9 @@ Span query:
 
 ---
 Term intervals query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -206,6 +245,9 @@ Term intervals query:
 
 ---
 Prefix intervals query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -221,6 +263,9 @@ Prefix intervals query:
 
 ---
 Wildcard intervals query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -236,6 +281,9 @@ Wildcard intervals query:
 
 ---
 Fuzzy intervals query:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -251,6 +299,9 @@ Fuzzy intervals query:
 
 ---
 Wildcard highlighting:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       search:
@@ -269,6 +320,9 @@ Wildcard highlighting:
 
 ---
 tsdb:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
 
   - do:
       indices.create:
@@ -310,6 +364,10 @@ tsdb:
 
 ---
 Multiple values:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "patterned_text mappings are used in this test"
+
   - do:
       indices.create:
         index: test1

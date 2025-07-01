@@ -622,15 +622,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() {
         String dataStreamName = DATA_STREAM_NAME;
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple(dataStreamName, 1)),
             List.of(),
             Instant.now().toEpochMilli(),
             builder().build(),
             1
-        ).metadata().getProject(projectId);
+        );
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
         Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .build();
@@ -693,15 +691,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceOldNode() {
         logsdbLicenseService.setSyntheticSourceFallback(true);
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(true, Version.V_8_16_0);
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple(DATA_STREAM_NAME, 1)),
             List.of(),
             Instant.now().toEpochMilli(),
             builder().build(),
             1
-        ).metadata().getProject(projectId);
+        );
         Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .build();
         var result = provider.getAdditionalIndexSettings(
@@ -722,15 +718,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         final Settings settings = Settings.EMPTY;
 
         String dataStreamName = DATA_STREAM_NAME;
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple(dataStreamName, 1)),
             List.of(),
             Instant.now().toEpochMilli(),
             builder().build(),
             1
-        ).metadata().getProject(projectId);
+        );
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
@@ -743,14 +737,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
 
         dataStreamName = "logs-app1-0";
-        project = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(Tuple.tuple(dataStreamName, 1)),
             List.of(),
             Instant.now().toEpochMilli(),
             builder().build(),
             1
-        ).metadata().getProject(projectId);
+        );
 
         result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),

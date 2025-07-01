@@ -10,11 +10,13 @@ package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -46,24 +48,20 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
-            List.of(new Tuple<>(dataStreamName, 2)),
-            otherIndices
-        );
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
-            cs.projectState(projectId),
+            projectStateFromProject(project),
             req,
             validator,
             Settings.EMPTY
         );
-        assertThat(newState.metadata().getProject(projectId).dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().getProject(projectId).indices().size(), equalTo(otherIndices.size()));
+        final var newProject = newState.metadata().getProject(project.id());
+        assertThat(newProject.dataStreams().size(), equalTo(0));
+        assertThat(newProject.indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().getProject(projectId).indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newProject.indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
@@ -71,36 +69,34 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>(dataStreamName, 2)),
             otherIndices,
             System.currentTimeMillis(),
             Settings.EMPTY,
             1,
-            false
+            false,
+            true
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName });
         ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
-            cs.projectState(projectId),
+            projectStateFromProject(project),
             req,
             validator,
             Settings.EMPTY
         );
-        assertThat(newState.metadata().getProject(projectId).dataStreams().size(), equalTo(0));
-        assertThat(newState.metadata().getProject(projectId).indices().size(), equalTo(otherIndices.size()));
+        final var newProject = newState.metadata().getProject(project.id());
+        assertThat(newProject.dataStreams().size(), equalTo(0));
+        assertThat(newProject.indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
-            assertThat(newState.metadata().getProject(projectId).indices().get(indexName).getIndex().getName(), equalTo(indexName));
+            assertThat(newProject.indices().get(indexName).getIndex().getName(), equalTo(indexName));
         }
     }
 
     public void testDeleteMultipleDataStreams() {
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
@@ -113,17 +109,18 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ba*", "eggplant" });
         ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
-            cs.projectState(projectId),
+            projectStateFromProject(project),
             req,
             validator,
             Settings.EMPTY
         );
-        assertThat(newState.metadata().getProject(projectId).dataStreams().size(), equalTo(1));
-        DataStream remainingDataStream = newState.metadata().getProject(projectId).dataStreams().get(dataStreamNames[0]);
+        final var newProject = newState.metadata().getProject(project.id());
+        assertThat(newProject.dataStreams().size(), equalTo(1));
+        DataStream remainingDataStream = newProject.dataStreams().get(dataStreamNames[0]);
         assertNotNull(remainingDataStream);
-        assertThat(newState.metadata().getProject(projectId).indices().size(), equalTo(remainingDataStream.getIndices().size()));
+        assertThat(newProject.indices().size(), equalTo(remainingDataStream.getIndices().size()));
         for (Index i : remainingDataStream.getIndices()) {
-            assertThat(newState.metadata().getProject(projectId).indices().get(i.getName()).getIndex(), equalTo(i));
+            assertThat(newProject.indices().get(i.getName()).getIndex(), equalTo(i));
         }
     }
 
@@ -132,12 +129,12 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         final String dataStreamName2 = "my-data-stream2";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
             otherIndices
         );
+        final var projectId = project.id();
+        final ClusterState cs = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(createEntry(dataStreamName, "repo1", false))
             .withAddedEntry(createEntry(dataStreamName2, "repo2", true));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
@@ -178,9 +175,7 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        final var projectId = randomProjectIdOrDefault();
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            projectId,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
@@ -189,12 +184,13 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
             ),
             List.of()
         );
+        final ClusterState cs = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
 
         expectThrows(
             ResourceNotFoundException.class,
             () -> TransportDeleteDataStreamAction.removeDataStream(
                 iner,
-                cs.projectState(projectId),
+                cs.projectState(project.id()),
                 new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName }),
                 validator,
                 Settings.EMPTY
@@ -207,20 +203,15 @@ public class TransportDeleteDataStreamActionTests extends ESTestCase {
         );
         ClusterState newState = TransportDeleteDataStreamAction.removeDataStream(
             iner,
-            cs.projectState(projectId),
+            cs.projectState(project.id()),
             req,
             validator,
             Settings.EMPTY
         );
         assertThat(newState, sameInstance(cs));
-        assertThat(
-            newState.metadata().getProject(projectId).dataStreams().size(),
-            equalTo(cs.metadata().getProject(projectId).dataStreams().size())
-        );
-        assertThat(
-            newState.metadata().getProject(projectId).dataStreams().keySet(),
-            containsInAnyOrder(cs.metadata().getProject(projectId).dataStreams().keySet().toArray(Strings.EMPTY_ARRAY))
-        );
+        final var newProject = newState.metadata().getProject(project.id());
+        assertThat(newProject.dataStreams().size(), equalTo(project.dataStreams().size()));
+        assertThat(newProject.dataStreams().keySet(), containsInAnyOrder(project.dataStreams().keySet().toArray(Strings.EMPTY_ARRAY)));
     }
 
 }

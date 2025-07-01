@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -129,10 +128,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         HeaderWarning.setThreadContext(threadContext);
         String dataStream = randomAlphaOfLength(5);
         TimeValue defaultRetention = randomTimeValue(2, 100, TimeUnit.DAYS);
-        final var projectId = randomProjectIdOrDefault();
-        ProjectMetadata before = ClusterState.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(projectId, List.of(new Tuple<>(dataStream, 2)), List.of())
-        ).build().metadata().getProject(projectId);
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
 
         Settings settingsWithDefaultRetention = builder().put(
             DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(),

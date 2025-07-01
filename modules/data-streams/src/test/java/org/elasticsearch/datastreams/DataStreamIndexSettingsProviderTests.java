@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -318,16 +317,14 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-        final var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                projectId,
+            DataStreamTestHelper.getProjectWithDataStreams(
                 List.of(Tuple.tuple(dataStreamName, 1)),
                 List.of(),
                 twoHoursAgo.toEpochMilli(),
                 builder().build(),
                 1
-            ).metadata().getProject(projectId)
+            )
         );
         DataStream ds = projectBuilder.dataStream(dataStreamName);
         projectBuilder.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
@@ -406,18 +403,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-        final var projectId = randomProjectIdOrDefault();
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                projectId,
-                List.of(Tuple.tuple(dataStreamName, 1)),
-                List.of(),
-                twoHoursAgo.toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        ProjectMetadata projectMetadata = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            twoHoursAgo.toEpochMilli(),
+            builder().build(),
+            1
         );
-        ProjectMetadata projectMetadata = mb.build().getProject(projectId);
 
         Settings settings = Settings.EMPTY;
         Settings result = provider.getAdditionalIndexSettings(

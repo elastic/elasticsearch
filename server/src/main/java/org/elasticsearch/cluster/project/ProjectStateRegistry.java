@@ -47,8 +47,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
     public ProjectStateRegistry(StreamInput in) throws IOException {
         projectsSettings = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
-            projectsMarkedForDeletion = in.readCollectionAsSet(ProjectId::readFrom);
-            projectsMarkedForDeletionGeneration = in.readZLong();
+            projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
+            projectsMarkedForDeletionGeneration = in.readVLong();
         } else {
             projectsMarkedForDeletion = Collections.emptySet();
             projectsMarkedForDeletionGeneration = 0;
@@ -120,7 +120,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
         out.writeMap(projectsSettings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             out.writeCollection(projectsMarkedForDeletion);
-            out.writeZLong(projectsMarkedForDeletionGeneration);
+            out.writeVLong(projectsMarkedForDeletionGeneration);
         } else {
             // There should be no deletion unless all MP nodes are at or after PROJECT_STATE_REGISTRY_RECORDS_DELETIONS
             assert projectsMarkedForDeletion.isEmpty();
@@ -202,6 +202,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
         public ProjectStateRegistry build() {
             final var unknownButUnderDeletion = Sets.difference(projectsMarkedForDeletion, projectsSettings.keys());
             if (unknownButUnderDeletion.isEmpty() == false) {
+                assert unknownButUnderDeletion.stream().noneMatch(projectsSettings::containsKey);
                 throw new IllegalArgumentException(
                     "Cannot mark projects for deletion that are not in the registry: " + unknownButUnderDeletion
                 );

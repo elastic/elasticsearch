@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.embedding;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
@@ -36,14 +37,12 @@ public class DenseEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
         TextEmbeddingFloatResults.class
     );
 
-    private final static String TEST_PARAMS_FORMATING = "dims=%d, input_size=%d, batch_size=%d, embedding_type=%s";
-
     private final int dimensions;
     private final int inputPageSize;
     private final int batchSize;
     private final Class<? extends TextEmbeddingResults<?>> embeddingType;
 
-    @ParametersFactory(argumentFormatting = TEST_PARAMS_FORMATING)
+    @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
         params.add(new Object[] {});
@@ -66,10 +65,10 @@ public class DenseEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
     }
 
     public DenseEmbeddingOperatorOutputBuilderTests(
-        int dimensions,
-        int inputPageSize,
-        int batchSize,
-        Class<? extends TextEmbeddingBitResults> embeddingType
+        @Name("dimensions") int dimensions,
+        @Name("inputPageSize") int inputPageSize,
+        @Name("batchSize") int batchSize,
+        @Name("embeddingType") Class<? extends TextEmbeddingBitResults> embeddingType
     ) {
         this.dimensions = dimensions;
         this.inputPageSize = inputPageSize;

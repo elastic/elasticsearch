@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.embedding;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
@@ -37,8 +38,6 @@ public class DenseEmbeddingOperatorTests extends InferenceOperatorTestCase<TextE
 
     private static final String SIMPLE_INFERENCE_ID = "test_dense_embedding";
 
-    private static final String TEST_PARAMS_FORMATING = "dims=%s, embedding_type=%s";
-
     private static final List<Integer> DIMENSIONS = List.of(1, 32, 128, 512, 2048, 5096);
     private static final List<Class<? extends TextEmbeddingResults<?>>> EMBEDDING_TYPES = List.of(
         TextEmbeddingBitResults.class,
@@ -46,7 +45,7 @@ public class DenseEmbeddingOperatorTests extends InferenceOperatorTestCase<TextE
         TextEmbeddingFloatResults.class
     );
 
-    @ParametersFactory(argumentFormatting = TEST_PARAMS_FORMATING)
+    @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
         params.add(new Object[] {});
@@ -71,7 +70,10 @@ public class DenseEmbeddingOperatorTests extends InferenceOperatorTestCase<TextE
     private final int dimensions;
     private final Class<? extends TextEmbeddingResults<?>> embeddingType;
 
-    public DenseEmbeddingOperatorTests(int dimensions, Class<? extends TextEmbeddingResults<?>> embeddingType) {
+    public DenseEmbeddingOperatorTests(
+        @Name("dimensions") int dimensions,
+        @Name("embeddingType") Class<? extends TextEmbeddingResults<?>> embeddingType
+    ) {
         this.dimensions = dimensions;
         this.embeddingType = embeddingType;
     }

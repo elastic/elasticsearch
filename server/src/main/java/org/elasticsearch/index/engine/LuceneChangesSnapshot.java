@@ -22,11 +22,16 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceLoader.SyntheticVectorsLoader;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -42,6 +47,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
 
     private int storedFieldsReaderOrd = -1;
     private StoredFieldsReader storedFieldsReader = null;
+    private final SyntheticVectorsLoader syntheticVectorPatchLoader;
+    private SyntheticVectorsLoader.Leaf syntheticVectorPatchLoaderLeaf;
 
     private final Thread creationThread; // for assertion
 
@@ -76,6 +83,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
+        this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 
@@ -218,7 +226,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
                     storedFieldsReader = ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader();
                     storedFieldsReaderOrd = leaf.ord;
-                    setNextSourceMetadataReader(leaf);
+                    setNextSyntheticFieldsReader(leaf);
                 } else {
                     storedFieldsReader = null;
                     storedFieldsReaderOrd = -1;
@@ -232,10 +240,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
-            setNextSourceMetadataReader(leaf);
+            setNextSyntheticFieldsReader(leaf);
             leaf.reader().storedFields().document(segmentDocID, fields);
         }
-        final BytesReference source = fields.source() != null ? addSourceMetadata(fields.source(), segmentDocID) : null;
+        final BytesReference source = fields.source() != null && fields.source().length() > 0
+            ? addSyntheticFields(Source.fromBytes(fields.source()), segmentDocID).internalSourceRef()
+            : fields.source();
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
@@ -279,6 +289,27 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 + "]";
         lastSeenSeqNo = op.seqNo();
         return op;
+    }
+
+    @Override
+    protected void setNextSyntheticFieldsReader(LeafReaderContext context) throws IOException {
+        if (syntheticVectorPatchLoader != null) {
+            syntheticVectorPatchLoaderLeaf = syntheticVectorPatchLoader.leaf(context);
+        }
+    }
+
+    @Override
+    protected Source addSyntheticFields(Source source, int segmentDocID) throws IOException {
+        if (syntheticVectorPatchLoaderLeaf == null) {
+            return super.addSyntheticFields(source, segmentDocID);
+        }
+        List<SourceLoader.SyntheticVectorPatch> patches = new ArrayList<>();
+        syntheticVectorPatchLoaderLeaf.load(segmentDocID, patches);
+        if (patches.size() == 0) {
+            return super.addSyntheticFields(source, segmentDocID);
+        }
+        var newSource = SourceLoader.applySyntheticVectors(source, patches);
+        return super.addSyntheticFields(newSource, segmentDocID);
     }
 
     private static final class ParallelArray {

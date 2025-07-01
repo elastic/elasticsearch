@@ -39,7 +39,8 @@ public abstract class TranslogOperationAsserter {
                     return true;
                 }
                 if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
-                    || engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false) {
+                    || engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false
+                    || engineConfig.getMapperService().mappingLookup().syntheticVectorFields().isEmpty() == false) {
                     return super.assertSameIndexOperation(synthesizeSource(engineConfig, o1), o2)
                         || super.assertSameIndexOperation(o1, synthesizeSource(engineConfig, o2));
                 }

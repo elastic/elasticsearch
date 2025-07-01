@@ -70,7 +70,9 @@ public class MetricsDBRestAction extends BaseRestHandler {
 
     private RestResponse successResponse(MessageLite response) throws IOException {
         var responseBytes = ByteBuffer.allocate(response.getSerializedSize());
-        response.writeTo(CodedOutputStream.newInstance(responseBytes));
+        CodedOutputStream outputStream = CodedOutputStream.newInstance(responseBytes);
+        response.writeTo(outputStream);
+        outputStream.flush();
 
         return new RestResponse(RestStatus.OK, "application/x-protobuf", BytesReference.fromByteBuffer(responseBytes));
     }

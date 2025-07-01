@@ -81,3 +81,6 @@ before the lookup when possible.
 
 :::{include} ../examples/lookup-join.csv-spec/filterOnRightSide.md
 :::
+
+:::{include} ../types/lookup-join.md
+:::

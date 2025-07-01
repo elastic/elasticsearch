@@ -836,12 +836,28 @@ public abstract class DocsV3Support {
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
         private final LogicalPlan command;
+        private List<EsqlFunctionRegistry.ArgSignature> args;
         private final XPackLicenseState licenseState;
 
+        /** Used in CommandLicenseTests to generate Kibana docs with licensing information for commands */
         public CommandsDocsSupport(String name, Class<?> testClass, LogicalPlan command, XPackLicenseState licenseState) {
             super("commands", name, testClass, Map::of);
             this.command = command;
             this.licenseState = licenseState;
+        }
+
+        /** Used in LookupJoinTypesIT to generate table of supported types for join field */
+        public CommandsDocsSupport(
+            String name,
+            Class<?> testClass,
+            LogicalPlan command,
+            List<EsqlFunctionRegistry.ArgSignature> args,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("commands", name, testClass, signatures);
+            this.command = command;
+            this.args = args;
+            this.licenseState = null;
         }
 
         @Override
@@ -851,8 +867,14 @@ public abstract class DocsV3Support {
 
         @Override
         public void renderDocs() throws Exception {
-            // Currently we only render kibana definition files, but we could expand to rendering much more if we decide to
-            renderKibanaCommandDefinition();
+            // Currently we only render either signatures or kibana definition files,
+            // but we could expand to rendering much more if we decide to
+            if (args != null) {
+                renderTypes(name, args);
+            }
+            if (licenseState != null) {
+                renderKibanaCommandDefinition();
+            }
         }
 
         void renderKibanaCommandDefinition() throws Exception {

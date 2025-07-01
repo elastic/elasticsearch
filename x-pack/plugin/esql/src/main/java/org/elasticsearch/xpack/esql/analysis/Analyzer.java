@@ -2068,6 +2068,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
 
                 Expression convertExpression;
+                // Counting on aggregate metric double has unique behavior in that we cannot just provide the number of
+                // documents, instead we have to look inside the aggregate metric double's count field and sum those together.
+                // Grabbing the count value with FromAggregateMetricDouble the same way we do with min/max/sum would result in
+                // a single Int field, and incorrectly be treated as 1 document (instead of however many originally went into
+                // the aggregate metric double).
                 if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
                     convertExpression = new ToAggregateMetricDouble(fa.source(), resolved);
                 } else if (type == AGGREGATE_METRIC_DOUBLE) {

@@ -109,7 +109,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         assertDownsampleIndexFieldsAndDimensions(sourceIndex, targetIndex, downsampleConfig);
     }
 
-    public void testEsqlTSAfterDownsampling() throws Exception {
+    public void testAggMetricInEsqlTSAfterDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
         putTSDBIndexTemplate("my-template", List.of("metrics-foo"), settings, """
@@ -198,7 +198,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         );
         assertAcked(client().execute(TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(sourceIndex)).actionGet());
 
-        // index to the next backing index
+        // index to the next backing index; random time between 31 and 59m in the future to because default look_ahead_time is 30m and we
+        // don't want to conflict with the previous backing index
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
             String ts = randomDateForRange(now.plusSeconds(60 * 31).toEpochMilli(), now.plusSeconds(60 * 59).toEpochMilli());
             try {
@@ -231,30 +232,29 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     )
                 )
             );
-
         }
-        // test that implicit casting within time aggregation query works
-        try (
-            var resp = esqlCommand(
-                "TS "
-                    + dataStreamName
-                    + " | STATS min = sum(min_over_time(cpu)), max = sum(max_over_time(cpu)) by cluster, bucket(@timestamp, 1 hour)"
-            )
-        ) {
-            var columns = resp.columns();
-            assertThat(columns, hasSize(4));
-            assertThat(
-                resp.columns(),
-                equalTo(
-                    List.of(
-                        new ColumnInfoImpl("min", "double", null),
-                        new ColumnInfoImpl("max", "double", null),
-                        new ColumnInfoImpl("cluster", "keyword", null),
-                        new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
-                    )
-                )
-            );
-            // TODO: verify the numbers are accurate
+
+        // test _over_time commands with implicit casting of aggregate_metric_double
+        for (String innerCommand : List.of("min_over_time", "max_over_time", "avg_over_time", "count_over_time")) {
+            for (String outerCommand : List.of("min", "max", "sum", "count")) {
+                String command = outerCommand + " (" + innerCommand + "(cpu))";
+                String expectedType = innerCommand.equals("count_over_time") || outerCommand.equals("count") ? "long" : "double";
+                try (var resp = esqlCommand("TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
+                    var columns = resp.columns();
+                    assertThat(columns, hasSize(3));
+                    assertThat(
+                        resp.columns(),
+                        equalTo(
+                            List.of(
+                                new ColumnInfoImpl(command, expectedType, null),
+                                new ColumnInfoImpl("cluster", "keyword", null),
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                            )
+                        )
+                    );
+                    // TODO: verify the numbers are accurate
+                }
+            }
         }
     }
 

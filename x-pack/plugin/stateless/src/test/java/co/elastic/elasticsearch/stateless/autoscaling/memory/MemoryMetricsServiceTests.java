@@ -889,14 +889,17 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             )
         );
 
-        // Node 0 heap estimate should have increased
-        final long node0EstimateAfterMergeEstimate;
+        // All heap estimates should have increased
+        final long node0EstimateAfterMergeEstimate, node1EstimateAfterMergeEstimate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+
             node0EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node0.getId());
             assertThat(node0EstimateAfterMergeEstimate, greaterThan(node0EstimateAfterUpdate));
-            assertThat(perNodeMemoryMetrics.get(node1.getId()), equalTo(node1EstimateAfterUpdate));
+
+            node1EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node1.getId());
+            assertThat(node1EstimateAfterMergeEstimate, greaterThan(node1EstimateAfterUpdate));
         }
 
         // update indexing operations heap memory requirement
@@ -908,7 +911,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             assertThat(perNodeMemoryMetrics.get(node0.getId()), greaterThan(node0EstimateAfterMergeEstimate));
-            assertThat(perNodeMemoryMetrics.get(node1.getId()), greaterThan(node1EstimateAfterUpdate));
+            assertThat(perNodeMemoryMetrics.get(node1.getId()), greaterThan(node1EstimateAfterMergeEstimate));
         }
     }
 

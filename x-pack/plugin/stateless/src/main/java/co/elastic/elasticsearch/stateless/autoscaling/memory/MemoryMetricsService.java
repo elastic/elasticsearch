@@ -52,7 +52,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -220,6 +219,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     public Map<String, Long> getPerNodeMemoryMetrics(DiscoveryNodes discoveryNodes) {
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
+        final long mergeMemoryEstimate = mergeMemoryEstimation();
         final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
         final Map<String, EstimatedHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
         for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetrics.entrySet()) {
@@ -238,7 +238,8 @@ public class MemoryMetricsService implements ClusterStateListener {
                 return new EstimatedHeapUsageBuilder(
                     discoveryNode,
                     nodeBaseHeapEstimateInBytes,
-                    minimumRequiredHeapForHandlingLargeIndexingOps
+                    minimumRequiredHeapForHandlingLargeIndexingOps,
+                    mergeMemoryEstimate
                 );
             });
             if (builderForNode != null) {
@@ -733,6 +734,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         private final DiscoveryNode discoveryNode;
         private final long nodeBaseHeapEstimateInBytes;
         private final long minimumRequiredHeapForAcceptingLargeIndexingOps;
+        private final long shardMergeMemoryEstimate;
         private final Set<String> seenIndices = new HashSet<>();
         private long mappingSizeInBytes;
         private long totalSegments;
@@ -742,11 +744,13 @@ public class MemoryMetricsService implements ClusterStateListener {
         EstimatedHeapUsageBuilder(
             @Nullable DiscoveryNode discoveryNode,
             long nodeBaseHeapEstimateInBytes,
-            long minimumRequiredHeapForAcceptingLargeIndexingOps
+            long minimumRequiredHeapForAcceptingLargeIndexingOps,
+            long shardMergeMemoryEstimate
         ) {
             this.discoveryNode = discoveryNode;
             this.nodeBaseHeapEstimateInBytes = nodeBaseHeapEstimateInBytes;
             this.minimumRequiredHeapForAcceptingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps;
+            this.shardMergeMemoryEstimate = shardMergeMemoryEstimate;
         }
 
         void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
@@ -759,10 +763,6 @@ public class MemoryMetricsService implements ClusterStateListener {
         }
 
         long getHeapUsageEstimate() {
-            final long shardMergeMemoryEstimate = Optional.ofNullable(discoveryNode)
-                .map(node -> maxShardMergeMemoryEstimatePerNode.get(node.getEphemeralId()))
-                .map(publication -> publication.estimate().estimateInBytes())
-                .orElse(0L);
             final long shardMemoryUsageInBytes = estimateShardMemoryUsageInBytes(totalShards, totalSegments, totalFields);
             return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
                 + minimumRequiredHeapForAcceptingLargeIndexingOps;

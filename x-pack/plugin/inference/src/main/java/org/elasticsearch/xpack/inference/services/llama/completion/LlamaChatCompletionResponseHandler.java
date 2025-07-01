@@ -7,20 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.llama.completion;
 
-import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.llama.response.LlamaErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Locale;
-import java.util.concurrent.Flow;
 
 public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
@@ -48,14 +43,5 @@ public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatComplet
         } else {
             return super.buildError(message, request, result, errorResponse);
         }
-    }
-
-    @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
-        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new LlamaStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
-        flow.subscribe(serverSentEventProcessor);
-        serverSentEventProcessor.subscribe(openAiProcessor);
-        return new StreamingUnifiedChatCompletionResults(openAiProcessor);
     }
 }

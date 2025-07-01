@@ -58,10 +58,10 @@ public abstract class DiskBBQBulkWriter {
     private static void writeCorrection(OptimizedScalarQuantizer.QuantizationResult correction, IndexOutput out) throws IOException {
         out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
         out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
         int targetComponentSum = correction.quantizedComponentSum();
         assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
         out.writeShort((short) targetComponentSum);
-        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
     }
 
     public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {

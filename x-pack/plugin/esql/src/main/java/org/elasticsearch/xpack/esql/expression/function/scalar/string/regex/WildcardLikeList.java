@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,10 +120,8 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        if(configuration != null && configuration.stringLikeOnIndex() == false) {
-            throw new IllegalArgumentException(
-                "LIKE with LIST cannot be used with string_like_on_index enabled. Use LIKE instead."
-            );
+        if (configuration != null && configuration.stringLikeOnIndex() == false) {
+            throw new IllegalArgumentException("LIKE with LIST cannot be used with string_like_on_index enabled. Use LIKE instead.");
         }
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);

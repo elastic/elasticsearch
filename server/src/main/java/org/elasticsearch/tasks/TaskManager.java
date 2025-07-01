@@ -49,7 +49,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -82,7 +81,6 @@ public class TaskManager implements ClusterStateApplier {
 
     private TaskResultsService taskResultsService;
 
-    // Used by tests that call register before setting the lastDiscoveryNodes.
     private final String nodeId;
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
@@ -150,9 +148,8 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        String localNodeId = Optional.ofNullable(lastDiscoveryNodes.getLocalNodeId()).orElse(nodeId);
         Task task = request.createTask(
-            new TaskId(localNodeId, taskIdGenerator.incrementAndGet()),
+            new TaskId(nodeId, taskIdGenerator.incrementAndGet()),
             type,
             action,
             request.getParentTask(),

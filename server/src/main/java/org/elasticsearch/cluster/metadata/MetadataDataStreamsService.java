@@ -469,7 +469,7 @@ public class MetadataDataStreamsService {
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
         Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
-        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, mergedTemplate.template().mappings(), indicesService);
+        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, ComposableIndexTemplate.EMPTY_MAPPINGS, indicesService);
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }

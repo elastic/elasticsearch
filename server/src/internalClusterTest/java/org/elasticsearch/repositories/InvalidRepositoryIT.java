@@ -59,7 +59,16 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(
+                projectId,
+                metadata,
+                environment,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                SnapshotMetrics.NOOP
+            );
             List<String> unstableNodes = UNSTABLE_NODES.get(metadata.settings());
             if (unstableNodes.contains(clusterService.getNodeName())) {
                 throw new RepositoryException(metadata.name(), "Failed to create repository: current node is not stable");

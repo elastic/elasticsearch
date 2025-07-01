@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -407,7 +408,16 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(
+                projectId,
+                metadata,
+                environment,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                SnapshotMetrics.NOOP
+            );
         }
 
         private void unlockRestore() {

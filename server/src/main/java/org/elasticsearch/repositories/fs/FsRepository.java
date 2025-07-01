@@ -85,16 +85,23 @@ public class FsRepository extends BlobStoreRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(
-            projectId,
-            metadata,
-            namedXContentRegistry,
-            clusterService,
-            bigArrays,
-            recoverySettings,
-            BlobPath.EMPTY,
-            SnapshotMetrics.NOOP
-        );
+        this(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, SnapshotMetrics.NOOP);
+    }
+
+    /**
+     * Constructs a shared file system repository.
+     */
+    public FsRepository(
+        ProjectId projectId,
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

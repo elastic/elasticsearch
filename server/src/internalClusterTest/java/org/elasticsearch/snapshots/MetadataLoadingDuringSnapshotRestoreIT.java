@@ -26,6 +26,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -185,7 +186,16 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(
+                projectId,
+                metadata,
+                environment,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                SnapshotMetrics.NOOP
+            );
         }
 
         @Override

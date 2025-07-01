@@ -10,6 +10,8 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,18 +54,22 @@ public final class RepositoriesModule {
     ) {
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
-        factories.put(
-            FsRepository.TYPE,
-            (projectId, metadata) -> new FsRepository(
-                projectId,
-                metadata,
-                env,
-                namedXContentRegistry,
-                clusterService,
-                bigArrays,
-                recoverySettings
-            )
-        );
+        factories.put(FsRepository.TYPE, new Repository.SnapshotMetricsFactory() {
+
+            @Override
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
+                return new FsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    snapshotMetrics
+                );
+            }
+        });
 
         for (RepositoryPlugin repoPlugin : repoPlugins) {
             Map<String, Repository.Factory> newRepoTypes = repoPlugin.getRepositories(

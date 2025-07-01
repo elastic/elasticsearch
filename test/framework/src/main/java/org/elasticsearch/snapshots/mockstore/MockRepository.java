@@ -40,6 +40,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -88,18 +89,22 @@ public class MockRepository extends FsRepository {
             RecoverySettings recoverySettings,
             RepositoriesMetrics repositoriesMetrics
         ) {
-            return Collections.singletonMap(
-                "mock",
-                (projectId, metadata) -> new MockRepository(
-                    projectId,
-                    metadata,
-                    env,
-                    namedXContentRegistry,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings
-                )
-            );
+            return Collections.singletonMap("mock", new SnapshotMetricsFactory() {
+
+                @Override
+                public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
+                    return new MockRepository(
+                        projectId,
+                        metadata,
+                        env,
+                        namedXContentRegistry,
+                        clusterService,
+                        bigArrays,
+                        recoverySettings,
+                        snapshotMetrics
+                    );
+                }
+            });
         }
 
         @Override
@@ -191,7 +196,8 @@ public class MockRepository extends FsRepository {
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
     ) {
         super(
             projectId,
@@ -200,7 +206,8 @@ public class MockRepository extends FsRepository {
             namedXContentRegistry,
             clusterService,
             bigArrays,
-            recoverySettings
+            recoverySettings,
+            snapshotMetrics
         );
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);

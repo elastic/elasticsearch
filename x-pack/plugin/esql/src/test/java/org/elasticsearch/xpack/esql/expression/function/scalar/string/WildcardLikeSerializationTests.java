@@ -21,7 +21,7 @@ public class WildcardLikeSerializationTests extends AbstractExpressionSerializat
         Source source = randomSource();
         Expression child = randomChild();
         WildcardPattern pattern = new WildcardPattern(randomAlphaOfLength(4));
-        return new WildcardLike(source, child, pattern);
+        return new WildcardLike(source, child, pattern, configuration());
     }
 
     @Override
@@ -34,6 +34,6 @@ public class WildcardLikeSerializationTests extends AbstractExpressionSerializat
         } else {
             pattern = randomValueOtherThan(pattern, () -> new WildcardPattern(randomAlphaOfLength(4)));
         }
-        return new WildcardLike(source, child, pattern);
+        return new WildcardLike(source, child, pattern, configuration());
     }
 }

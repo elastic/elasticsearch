@@ -67,7 +67,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // wait for snapshot to finish to test the other metrics
         awaitNumberOfSnapshotsInProgress(0);
-        final long snapshotElapsedTime = System.nanoTime() - beforeCreateSnapshotNanos;
+        final long snapshotElapsedTimeNanos = System.nanoTime() - beforeCreateSnapshotNanos;
         collectMetrics();
 
         // sanity check blobs and bytes metrics
@@ -75,14 +75,14 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
 
         // sanity check duration values
-        final long upperBoundTimeSpentOnSnapshotThings = internalCluster().numDataNodes() * snapshotElapsedTime;
+        final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * snapshotElapsedTimeNanos;
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThings))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
         );
         assertThat(
             getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_UPLOAD_READ_DURATION),
-            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThings))
+            allOf(greaterThan(0L), lessThan(upperBoundTimeSpentOnSnapshotThingsNanos))
         );
 
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_STARTED), equalTo((long) numShards));

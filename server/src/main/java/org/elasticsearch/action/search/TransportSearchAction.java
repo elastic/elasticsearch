@@ -148,6 +148,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    // Marker to indicate this index's shards should be skipped in a search
     private static final OriginalIndices SKIPPED_INDICES = new OriginalIndices(Strings.EMPTY_ARRAY, IndicesOptions.strictExpandOpen());
 
     private final ThreadPool threadPool;
@@ -594,7 +595,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    static void adjustSearchType(SearchRequest searchRequest, boolean oneOrZeroValidShards) {
+    static void adjustSearchType(SearchRequest searchRequest, boolean oneOrZeroShardsToSearch) {
         // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
         if (searchRequest.hasKnnSearch()) {
             searchRequest.searchType(DFS_QUERY_THEN_FETCH);
@@ -609,7 +610,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         // optimize search type for cases where there is only one shard group to search on
-        if (oneOrZeroValidShards) {
+        if (oneOrZeroShardsToSearch) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
         }
@@ -1310,8 +1311,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster());
 
-        boolean oneOrZeroValidShards = shardIterators.size() == 1 || allOrAllButOneSkipped(shardIterators);
-        adjustSearchType(searchRequest, oneOrZeroValidShards);
+        adjustSearchType(searchRequest, oneOrZeroShardsToSearch(shardIterators));
 
         final DiscoveryNodes nodes = projectState.cluster().nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
@@ -1345,17 +1345,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Determines if all, or all but one, iterators are skipped.
+     * Determines if only one (or zero) search shard iterators will be searched.
      * (At this point, iterators may be marked as skipped due to index level blockers).
-     * We expect skipped iteators to be unlikely, so returning fast after we see more
+     * We expect skipped iterators to be unlikely, so returning fast after we see more
      * than one "not skipped" is an intended optimization.
      *
      * @param searchShardIterators all the shard iterators derived from indices being searched
-     * @return true if all of them are already skipped, or only one is not skipped
+     * @return true if there are no more than one shard iterators, or if there are no more than
+     * one not marked to skip
      */
-    private boolean allOrAllButOneSkipped(List<SearchShardIterator> searchShardIterators) {
-        int notSkippedCount = 0;
+    private boolean oneOrZeroShardsToSearch(List<SearchShardIterator> searchShardIterators) {
+        if (searchShardIterators.size() <= 1) {
+            return true;
+        }
 
+        int notSkippedCount = 0;
         for (SearchShardIterator searchShardIterator : searchShardIterators) {
             if (searchShardIterator.skip() == false) {
                 notSkippedCount++;
@@ -1364,7 +1368,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }
-
         return true;
     }
 

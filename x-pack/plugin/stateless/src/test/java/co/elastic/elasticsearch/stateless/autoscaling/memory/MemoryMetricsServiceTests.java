@@ -73,7 +73,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_PERCENT;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
@@ -96,7 +95,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
             MemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
-            MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING
+            MemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+            MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING
         )
     );
 
@@ -463,6 +463,10 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         ClusterState clusterState = createClusterStateWithIndices(numberOfIndices, numberOfShards);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
+        final double adaptiveExtraOverheadRatio = randomDoubleBetween(0, 1, true);
+        CLUSTER_SETTINGS.applySettings(
+            Settings.builder().put(MemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), adaptiveExtraOverheadRatio).build()
+        );
         var shardMetrics = service.getShardMemoryMetrics();
         assertThat(shardMetrics.size(), equalTo(numberOfIndices * numberOfShards));
         long totalMappingSizeInBytes = 0;
@@ -498,7 +502,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         service.fixedShardMemoryOverhead = ByteSizeValue.MINUS_ONE;
         long adaptiveEstimateBytes = totalShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + totalSegments
             * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes() + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-        long extraBytes = adaptiveEstimateBytes * ADAPTIVE_EXTRA_OVERHEAD_PERCENT / 100;
+        long extraBytes = (long) (adaptiveEstimateBytes * adaptiveExtraOverheadRatio);
         assertThat(service.estimateTierMemoryUsage().totalBytes(), equalTo(totalMappingSizeInBytes + adaptiveEstimateBytes + extraBytes));
         // switch back to the fixed method
         ByteSizeValue newOverhead = ByteSizeValue.ofBytes(between(1, 1000));

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -85,6 +86,14 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    // For the adaptive method, default to add an additional overhead of 50% of the estimate
+    public static final Setting<RatioValue> ADAPTIVE_EXTRA_OVERHEAD_SETTING = new Setting<>(
+        "serverless.autoscaling.memory_metrics.adaptive_extra_overhead",
+        "50%",
+        RatioValue::parseRatioValue,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Two methods to estimate the memory usage of IndexShard instances:
@@ -119,8 +128,6 @@ public class MemoryMetricsService implements ClusterStateListener {
     static final ByteSizeValue ADAPTIVE_SEGMENT_MEMORY_OVERHEAD = ByteSizeValue.ofKb(55);
     // The memory overhead of each field found in Lucene segments
     static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
-    // For the adaptive method, add an additional overhead of 50% of the estimate
-    static final int ADAPTIVE_EXTRA_OVERHEAD_PERCENT = 50;
 
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     // visible for testing
@@ -158,6 +165,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile TimeValue staleMetricsCheckInterval;
     private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
     private volatile boolean mergeMemoryEstimateEnabled;
+    private volatile double adaptiveExtraOverheadRatio;
     private final Map<String, ShardMergeMemoryEstimatePublication> maxShardMergeMemoryEstimatePerNode = new ConcurrentHashMap<>();
 
     public MemoryMetricsService(
@@ -180,6 +188,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
         clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
+        clusterSettings.initializeAndWatch(ADAPTIVE_EXTRA_OVERHEAD_SETTING, value -> adaptiveExtraOverheadRatio = value.getAsRatio());
         setupMetrics(meterRegistry);
     }
 
@@ -340,7 +349,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         }
         long estimateBytes = numShards * ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
             .getBytes() + numFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes();
-        long extraBytes = estimateBytes * ADAPTIVE_EXTRA_OVERHEAD_PERCENT / 100;
+        long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
         return estimateBytes + extraBytes;
     }
 

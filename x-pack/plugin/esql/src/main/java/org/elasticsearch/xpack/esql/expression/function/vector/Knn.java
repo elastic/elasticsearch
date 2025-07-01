@@ -192,6 +192,11 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private TypeResolution resolveK() {
+        if (k == null) {
+            // Function has already been rewritten and included in QueryBuilder - otherwise parsing would have failed
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
         return isType(k(), dt -> dt == INTEGER, sourceText(), THIRD, "integer").and(isFoldable(k(), sourceText(), THIRD))
             .and(isNotNull(k(), sourceText(), THIRD));
     }

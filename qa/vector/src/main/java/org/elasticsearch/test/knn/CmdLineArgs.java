@@ -318,7 +318,7 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
                 useNewFlatVectorsFormat,
                 quantizeQueryBits
             );

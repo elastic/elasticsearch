@@ -298,8 +298,8 @@ setup:
   - match: { hits.hits.0._id: "doc_2" }
   - match: { hits.hits.1._id: "doc_1" }
 
-  - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
-  - match: {hits.hits.0._explanation.details.0.details.0.description: "/subtopic.*astronomy.*/" }
+  - match: { hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
+  - match: { hits.hits.0._explanation.details.0.details.0.description: "/subtopic.*astronomy.*/" }
 
 ---
 "text similarity reranker properly handles aliases":
@@ -448,7 +448,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match_all: { }
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
@@ -477,7 +477,7 @@ setup:
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match_all: { }
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
@@ -487,3 +487,34 @@ setup:
 
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
+
+
+---
+"Text similarity reranker specifying number of snippets must be > 0":
+
+  - requires:
+      cluster_features: "text_similarity_reranker_snippets"
+      reason: snippets introduced in 9.2.0
+
+  - do:
+      catch: /num_snippets must be greater than 0/
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+              snippets:
+                num_snippets: 0
+          size: 10
+
+  - match: { status: 400 }

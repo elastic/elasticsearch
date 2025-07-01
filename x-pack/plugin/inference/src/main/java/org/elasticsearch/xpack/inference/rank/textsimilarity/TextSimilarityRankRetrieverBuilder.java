@@ -42,6 +42,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         "text_similarity_reranker_alias_handling_fix"
     );
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_MINSCORE_FIX = new NodeFeature("text_similarity_reranker_minscore_fix");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_SNIPPETS = new NodeFeature("text_similarity_reranker_snippets");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
@@ -144,6 +145,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         super(retrieverSource, rankWindowSize);
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
+        }
+        if (snippets != null && snippets.numSnippets() != null && snippets.numSnippets() < 1) {
+            throw new IllegalArgumentException("num_snippets must be greater than 0, was: " + snippets.numSnippets());
         }
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;

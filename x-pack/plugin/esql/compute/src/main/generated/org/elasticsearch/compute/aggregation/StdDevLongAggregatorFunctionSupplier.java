@@ -11,37 +11,40 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link StdDevSampleFloatAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link StdDevLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class StdDevSampleFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public StdDevSampleFloatAggregatorFunctionSupplier() {
+public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  private final int variation;
+
+  public StdDevLongAggregatorFunctionSupplier(int variation) {
+    this.variation = variation;
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return StdDevSampleFloatAggregatorFunction.intermediateStateDesc();
+    return StdDevLongAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return StdDevSampleFloatGroupingAggregatorFunction.intermediateStateDesc();
+    return StdDevLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public StdDevSampleFloatAggregatorFunction aggregator(DriverContext driverContext,
+  public StdDevLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleFloatAggregatorFunction.create(driverContext, channels);
+    return StdDevLongAggregatorFunction.create(driverContext, channels, variation);
   }
 
   @Override
-  public StdDevSampleFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public StdDevLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleFloatGroupingAggregatorFunction.create(channels, driverContext);
+    return StdDevLongGroupingAggregatorFunction.create(channels, driverContext, variation);
   }
 
   @Override
   public String describe() {
-    return "std_dev_sample of floats";
+    return "std_dev of longs";
   }
 }

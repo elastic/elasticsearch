@@ -14,16 +14,18 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StdDevSampleDoubleAggregator}.
+ * {@link AggregatorFunction} implementation for {@link StdDevFloatAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFunction {
+public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -35,16 +37,19 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
 
   private final List<Integer> channels;
 
-  public StdDevSampleDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+  private final int variation;
+
+  public StdDevFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      StdDevStates.SingleState state, int variation) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.variation = variation;
   }
 
-  public static StdDevSampleDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevSampleDoubleAggregatorFunction(driverContext, channels, StdDevSampleDoubleAggregator.initSingle());
+  public static StdDevFloatAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, int variation) {
+    return new StdDevFloatAggregatorFunction(driverContext, channels, StdDevFloatAggregator.initSingle(variation), variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,8 +69,8 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
     }
     if (mask.allTrue()) {
       // No masking
-      DoubleBlock block = page.getBlock(channels.get(0));
-      DoubleVector vector = block.asVector();
+      FloatBlock block = page.getBlock(channels.get(0));
+      FloatVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -74,8 +79,8 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
       return;
     }
     // Some positions masked away, others kept
-    DoubleBlock block = page.getBlock(channels.get(0));
-    DoubleVector vector = block.asVector();
+    FloatBlock block = page.getBlock(channels.get(0));
+    FloatVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -83,22 +88,22 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
+  private void addRawVector(FloatVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevSampleDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevFloatAggregator.combine(state, vector.getFloat(i));
     }
   }
 
-  private void addRawVector(DoubleVector vector, BooleanVector mask) {
+  private void addRawVector(FloatVector vector, BooleanVector mask) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StdDevSampleDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevFloatAggregator.combine(state, vector.getFloat(i));
     }
   }
 
-  private void addRawBlock(DoubleBlock block) {
+  private void addRawBlock(FloatBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -106,12 +111,12 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevSampleDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevFloatAggregator.combine(state, block.getFloat(i));
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
+  private void addRawBlock(FloatBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -122,7 +127,7 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevSampleDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevFloatAggregator.combine(state, block.getFloat(i));
       }
     }
   }
@@ -149,7 +154,7 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    StdDevSampleDoubleAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
+    StdDevFloatAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -159,7 +164,7 @@ public final class StdDevSampleDoubleAggregatorFunction implements AggregatorFun
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StdDevSampleDoubleAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = StdDevFloatAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

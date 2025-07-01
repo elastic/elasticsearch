@@ -11,37 +11,40 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link StdDevSampleIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link StdDevIntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class StdDevSampleIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public StdDevSampleIntAggregatorFunctionSupplier() {
+public final class StdDevIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  private final int variation;
+
+  public StdDevIntAggregatorFunctionSupplier(int variation) {
+    this.variation = variation;
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return StdDevSampleIntAggregatorFunction.intermediateStateDesc();
+    return StdDevIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return StdDevSampleIntGroupingAggregatorFunction.intermediateStateDesc();
+    return StdDevIntGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public StdDevSampleIntAggregatorFunction aggregator(DriverContext driverContext,
+  public StdDevIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleIntAggregatorFunction.create(driverContext, channels);
+    return StdDevIntAggregatorFunction.create(driverContext, channels, variation);
   }
 
   @Override
-  public StdDevSampleIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public StdDevIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleIntGroupingAggregatorFunction.create(channels, driverContext);
+    return StdDevIntGroupingAggregatorFunction.create(channels, driverContext, variation);
   }
 
   @Override
   public String describe() {
-    return "std_dev_sample of ints";
+    return "std_dev of ints";
   }
 }

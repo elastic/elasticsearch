@@ -9,30 +9,27 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDevSampleDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDevSampleIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDevSampleLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.compute.aggregation.StdDevStates;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDevSample extends AggregateFunction implements ToAggregator {
+public class StdDevSample extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StdDevSample",
@@ -101,17 +98,8 @@ public class StdDevSample extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
-        if (type == DataType.LONG) {
-            return new StdDevSampleLongAggregatorFunctionSupplier();
-        }
-        if (type == DataType.INTEGER) {
-            return new StdDevSampleIntAggregatorFunctionSupplier();
-        }
-        if (type == DataType.DOUBLE) {
-            return new StdDevSampleDoubleAggregatorFunctionSupplier();
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+    public Expression surrogate() {
+        return new StdDev(source(), field(), filter(), new Literal(source(), StdDevStates.Variation.SAMPLE.getIndex(), DataType.INTEGER));
+
     }
 }

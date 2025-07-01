@@ -14,18 +14,16 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StdDevSampleIntAggregator}.
+ * {@link AggregatorFunction} implementation for {@link StdDevDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class StdDevSampleIntAggregatorFunction implements AggregatorFunction {
+public final class StdDevDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -37,16 +35,19 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
 
   private final List<Integer> channels;
 
-  public StdDevSampleIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+  private final int variation;
+
+  public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      StdDevStates.SingleState state, int variation) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.variation = variation;
   }
 
-  public static StdDevSampleIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevSampleIntAggregatorFunction(driverContext, channels, StdDevSampleIntAggregator.initSingle());
+  public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, int variation) {
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle(variation), variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -66,8 +67,8 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
     }
     if (mask.allTrue()) {
       // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
+      DoubleBlock block = page.getBlock(channels.get(0));
+      DoubleVector vector = block.asVector();
       if (vector != null) {
         addRawVector(vector);
       } else {
@@ -76,8 +77,8 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
       return;
     }
     // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
+    DoubleBlock block = page.getBlock(channels.get(0));
+    DoubleVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector, mask);
     } else {
@@ -85,22 +86,22 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
     }
   }
 
-  private void addRawVector(IntVector vector) {
+  private void addRawVector(DoubleVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevSampleIntAggregator.combine(state, vector.getInt(i));
+      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
+  private void addRawVector(DoubleVector vector, BooleanVector mask) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StdDevSampleIntAggregator.combine(state, vector.getInt(i));
+      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
-  private void addRawBlock(IntBlock block) {
+  private void addRawBlock(DoubleBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
         continue;
@@ -108,12 +109,12 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevSampleIntAggregator.combine(state, block.getInt(i));
+        StdDevDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
+  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -124,7 +125,7 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDevSampleIntAggregator.combine(state, block.getInt(i));
+        StdDevDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
@@ -151,7 +152,7 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    StdDevSampleIntAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
+    StdDevDoubleAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -161,7 +162,7 @@ public final class StdDevSampleIntAggregatorFunction implements AggregatorFuncti
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StdDevSampleIntAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = StdDevDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

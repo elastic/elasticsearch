@@ -11,37 +11,40 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link StdDevSampleLongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link StdDevDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class StdDevSampleLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public StdDevSampleLongAggregatorFunctionSupplier() {
+public final class StdDevDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  private final int variation;
+
+  public StdDevDoubleAggregatorFunctionSupplier(int variation) {
+    this.variation = variation;
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return StdDevSampleLongAggregatorFunction.intermediateStateDesc();
+    return StdDevDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return StdDevSampleLongGroupingAggregatorFunction.intermediateStateDesc();
+    return StdDevDoubleGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public StdDevSampleLongAggregatorFunction aggregator(DriverContext driverContext,
+  public StdDevDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleLongAggregatorFunction.create(driverContext, channels);
+    return StdDevDoubleAggregatorFunction.create(driverContext, channels, variation);
   }
 
   @Override
-  public StdDevSampleLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public StdDevDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevSampleLongGroupingAggregatorFunction.create(channels, driverContext);
+    return StdDevDoubleGroupingAggregatorFunction.create(channels, driverContext, variation);
   }
 
   @Override
   public String describe() {
-    return "std_dev_sample of longs";
+    return "std_dev of doubles";
   }
 }

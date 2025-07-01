@@ -1,5 +1,0 @@
-pr: 130394
-summary: Correctly handling data stream settings when component templates are used
-area: Data streams
-type: bug
-issues: []

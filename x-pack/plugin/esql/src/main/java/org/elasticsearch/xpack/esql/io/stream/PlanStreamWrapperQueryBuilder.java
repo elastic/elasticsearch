@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -35,20 +36,23 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     private final QueryBuilder next;
 
     public PlanStreamWrapperQueryBuilder(Configuration configuration, QueryBuilder next) {
+        LogManager.getLogger(PlanStreamWrapperQueryBuilder.class).error("ASFAFDSAFDSF wrap {}", next);
         this.configuration = configuration;
         this.next = next;
     }
 
     public PlanStreamWrapperQueryBuilder(StreamInput in) throws IOException {
         configuration = Configuration.readWithoutTables(in);
+        LogManager.getLogger(PlanStreamWrapperQueryBuilder.class).error("ASFAFDSAFDSF streamread {}", configuration);
         PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
         next = planStreamInput.readNamedWriteable(QueryBuilder.class);
+        LogManager.getLogger(PlanStreamWrapperQueryBuilder.class).error("ASFAFDSAFDSF stream {}", next);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         configuration.withoutTables().writeTo(out);
-        next.writeTo(new PlanStreamOutput(out, configuration));
+        new PlanStreamOutput(out, configuration).writeNamedWriteable(next);
     }
 
     @Override

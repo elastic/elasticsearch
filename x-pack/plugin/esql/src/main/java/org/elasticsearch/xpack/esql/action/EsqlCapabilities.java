@@ -1199,6 +1199,8 @@ public class EsqlCapabilities {
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
+        LIKE_LIST_ON_INDEX_FIELDS,
+
         /**
          * Support parameters for SAMPLE command.
          */

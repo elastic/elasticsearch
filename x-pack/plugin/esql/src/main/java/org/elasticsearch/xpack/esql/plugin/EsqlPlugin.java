@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -335,6 +336,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(ExpressionQueryBuilder.ENTRY);
+        entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());

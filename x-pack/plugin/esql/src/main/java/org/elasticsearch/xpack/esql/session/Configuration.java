@@ -120,6 +120,7 @@ public class Configuration implements Writeable {
             this.allowPartialResults = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
+            // NOCOMMIT can we look this up without putting it in Configuration?
             this.stringLikeOnIndex = in.readBoolean();
         } else {
             this.stringLikeOnIndex = false;

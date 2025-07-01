@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.inference.DenseVectorEmbeddingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -479,6 +480,7 @@ public class EsqlFunctionRegistry {
                 def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
                 def(Knn.class, tri(Knn::new), "knn"),
+                def(DenseVectorEmbeddingFunction.class, bi(DenseVectorEmbeddingFunction::new), "text_dense_vector_embedding"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
                 def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),

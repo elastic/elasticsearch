@@ -163,7 +163,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         deleteInferenceEndpoints(adminClient());
-
     }
 
     public boolean logResults() {
@@ -269,9 +268,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.assertWarnings(deduplicateExactWarnings()));
 
-        var clusters = answer.get("_clusters");
-        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
-        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+        assertNotPartial(answer);
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -289,19 +286,26 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
+    static Map<String, Object> assertNotPartial(Map<String, Object> answer) {
+        var clusters = answer.get("_clusters");
+        var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+        assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
+
+        return answer;
+    }
+
     /**
      * Should warnings be de-duplicated before checking for exact matches. Defaults
      * to {@code false}, but in some environments we emit duplicate warnings. We'd prefer
      * not to emit duplicate warnings but for now it isn't worth fighting with. So! In
      * those environments we override this to deduplicate.
      * <p>
-     *     Note: This only applies to warnings declared as {@code warning:}. Those
-     *     declared as {@code warningRegex:} are always a list of
-     *     <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
-     *     warnings. There is no need to deduplicate because there's no expectation
-     *     of an exact match.
+     * Note: This only applies to warnings declared as {@code warning:}. Those
+     * declared as {@code warningRegex:} are always a list of
+     * <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
+     * warnings. There is no need to deduplicate because there's no expectation
+     * of an exact match.
      * </p>
-     *
      */
     protected boolean deduplicateExactWarnings() {
         return false;

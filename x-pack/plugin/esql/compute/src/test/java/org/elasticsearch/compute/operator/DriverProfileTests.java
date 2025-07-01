@@ -34,8 +34,8 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             10000,
             12,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
             new DriverSleeps(
                 Map.of("driver time", 1L),
@@ -54,6 +54,8 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "took_time" : "10micros",
               "cpu_nanos" : 10000,
               "cpu_time" : "10micros",
+              "documents_found" : 222,
+              "values_loaded" : 1000,
               "iterations" : 12,
               "operators" : [
                 {

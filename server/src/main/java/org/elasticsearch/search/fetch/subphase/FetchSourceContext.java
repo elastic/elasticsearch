@@ -41,6 +41,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+    public static final FetchSourceContext FETCH_ALL_SOURCE = new FetchSourceContext(true, false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
         false,
         null,

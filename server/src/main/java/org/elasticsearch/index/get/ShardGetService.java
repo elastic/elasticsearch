@@ -12,6 +12,7 @@ package org.elasticsearch.index.get;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -19,7 +20,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -54,7 +58,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -220,7 +226,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
-            FetchSourceContext.FETCH_SOURCE,
+            FetchSourceContext.FETCH_ALL_SOURCE,
             false,
             indexShard::get
         );
@@ -306,7 +312,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        var sourceFilter = fetchSourceContext.filter();
+
+        var res = maybeExcludeSyntheticVectorFields(mappingLookup, indexSettings, fetchSourceContext, null);
+        if (res.v1() != fetchSourceContext) {
+            fetchSourceContext = res.v1();
+        }
+        var sourceFilter = res.v2();
         SourceLoader loader = forceSyntheticSource
             ? new SourceLoader.Synthetic(
                 sourceFilter,
@@ -398,6 +409,77 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields,
             metadataFields
         );
+    }
+
+    /**
+     * Determines whether vector fields should be excluded from the source based on the {@link FetchSourceContext}.
+     * Returns {@code true} if vector fields are explicitly marked to be excluded and {@code false} otherwise.
+     */
+    public static boolean shouldExcludeVectorsFromSource(IndexSettings indexSettings, FetchSourceContext fetchSourceContext) {
+        if (fetchSourceContext == null || fetchSourceContext.excludeVectors() == null) {
+            return INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(indexSettings.getSettings());
+        }
+        return fetchSourceContext.excludeVectors();
+    }
+
+    /**
+     * Returns a {@link SourceFilter} that excludes vector fields not associated with semantic text fields,
+     * unless vectors are explicitly requested to be included in the source.
+     * Returns {@code null} when vectors should not be filtered out.
+     */
+    public static Tuple<FetchSourceContext, SourceFilter> maybeExcludeSyntheticVectorFields(
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        FetchSourceContext fetchSourceContext,
+        FetchFieldsContext fetchFieldsContext
+    ) {
+        if (shouldExcludeVectorsFromSource(indexSettings, fetchSourceContext) == false) {
+            return Tuple.tuple(fetchSourceContext, null);
+        }
+        var fetchFieldsAut = fetchFieldsContext != null && fetchFieldsContext.fields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
+            )
+            : null;
+        var inferenceFieldsAut = mappingLookup.inferenceFields().size() > 0
+            ? new CharacterRunAutomaton(
+                Regex.simpleMatchToAutomaton(mappingLookup.inferenceFields().keySet().stream().map(f -> f + "*").toArray(String[]::new))
+            )
+            : null;
+
+        List<String> lateExcludes = new ArrayList<>();
+        var excludes = mappingLookup.getFullNameToFieldType().values().stream().filter(MappedFieldType::isVectorEmbedding).filter(f -> {
+            // Exclude the field specified by the `fields` option
+            if (fetchFieldsAut != null && fetchFieldsAut.run(f.name())) {
+                lateExcludes.add(f.name());
+                return false;
+            }
+            // Exclude vectors from semantic text fields, as they are processed separately
+            return inferenceFieldsAut == null || inferenceFieldsAut.run(f.name()) == false;
+        }).map(f -> f.name()).collect(Collectors.toList());
+
+        var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
+        if (lateExcludes.size() > 0) {
+            /**
+             * Adds the vector field specified by the `fields` option to the excludes list of the fetch source context.
+             * This ensures that vector fields are available to sub-fetch phases, but excluded during the {@link FetchSourcePhase}.
+             */
+            if (fetchSourceContext != null && fetchSourceContext.excludes() != null) {
+                for (var exclude : fetchSourceContext.excludes()) {
+                    lateExcludes.add(exclude);
+                }
+            }
+            var newFetchSourceContext = fetchSourceContext == null
+                ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
+                : FetchSourceContext.of(
+                    fetchSourceContext.fetchSource(),
+                    fetchSourceContext.excludeVectors(),
+                    fetchSourceContext.includes(),
+                    lateExcludes.toArray(String[]::new)
+                );
+            return Tuple.tuple(newFetchSourceContext, excludes.isEmpty() ? null : sourceFilter);
+        }
+        return Tuple.tuple(fetchSourceContext, sourceFilter);
     }
 
     private static DocumentField loadIgnoredMetadataField(final DocIdAndVersion docIdAndVersion) throws IOException {

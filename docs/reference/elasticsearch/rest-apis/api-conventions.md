@@ -421,6 +421,39 @@ GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 ```
 
+### Component Selectors [api-component-selectors]
+
+A data stream component is a logical grouping of indices that help organize data inside a data stream. All data streams contain a `data` component by default. The `data` component comprises the data stream's backing indices. When searching, managing, or indexing into a data stream, the `data` component is what you are interacting with by default.
+
+Some data stream features are exposed as additional components alongside its `data` component. These other components are comprised of separate sets of backing indices. These additional components store supplemental data independent of the data stream's regular backing indices. An example of another component is the `failures` component exposed by the data stream [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md) feature, which captures documents that fail to be ingested in a separate set of backing indices on the data stream.
+
+Some APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path parameter also support *selector syntax* which defines which component on a data stream the API should operate on. To use a selector, it is appended to the index or data stream name. Selectors can be combined with other index pattern syntax like [date math](#api-date-math-index-names) and wildcards.
+
+There are currently two selector suffixes supported by {{es}} APIs:
+
+`::data`
+:   Refers to a data stream's backing indices containing regular data. Data streams always contain a data component.
+
+`::failures`
+:   This component refers to the internal indices used for a data stream's [failure store](docs-content://manage-data/data-store/data-streams/failure-store.md).
+
+As an example, [search]({{es-apis}}group/endpoint-search), [field capabilities]({{es-apis}}operation/operation-field-caps), and [index stats]({{es-apis}}operation/operation-indices-stats) APIs can all report results from a different component rather than from the default data.
+
+```console
+# Search a data stream normally
+GET my-data-stream/_search
+# Search a data stream's failure data if present
+GET my-data-stream::failures/_search
+
+# Syntax can be combined with other index pattern syntax (wildcards, multi-target, date math, cross cluster search, etc)
+GET logs-*::failures/_search
+GET logs-*::data,logs-*::failures/_count
+GET remote-cluster:logs-*-*::failures/_search
+GET *::data,*::failures,-logs-rdbms-*::failures/_stats
+GET <logs-{now/d}>::failures/_search
+```
+
+
 ## Parameters [api-conventions-parameters]
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the convention of using underscore casing.
@@ -583,4 +616,3 @@ If one of these quantities is large we’ll print it out like 10m for 10,000,000
 
 `p`
 :   Peta
-

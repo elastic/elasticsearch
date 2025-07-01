@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 /**
  * Cluster-specific deprecation checks, this is used to populate the {@code cluster_settings} field
@@ -24,7 +23,6 @@ import java.util.function.BiConsumer;
 public class ClusterDeprecationChecker {
 
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecker.class);
-    private final List<BiConsumer<List<TransformConfig>, List<DeprecationIssue>>> CHECKS = List.of(this::checkTransformSettings);
     private final NamedXContentRegistry xContentRegistry;
 
     ClusterDeprecationChecker(NamedXContentRegistry xContentRegistry) {
@@ -33,7 +31,7 @@ public class ClusterDeprecationChecker {
 
     public List<DeprecationIssue> check(List<TransformConfig> transformConfigs) {
         List<DeprecationIssue> allIssues = new ArrayList<>();
-        CHECKS.forEach(check -> check.accept(transformConfigs, allIssues));
+        checkTransformSettings(transformConfigs, allIssues);
         return allIssues;
     }
 

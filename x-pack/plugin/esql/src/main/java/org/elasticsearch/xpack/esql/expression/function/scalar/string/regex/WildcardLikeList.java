@@ -150,9 +150,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        if (configuration != null && configuration.stringLikeOnIndex() == false) {
-            throw new IllegalArgumentException("LIKE with LIST cannot be used with string_like_on_index enabled. Use LIKE instead.");
-        }
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);

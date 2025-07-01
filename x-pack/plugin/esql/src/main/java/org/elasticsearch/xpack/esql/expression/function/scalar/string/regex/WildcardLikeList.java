@@ -72,7 +72,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
             in.readNamedWriteable(Expression.class),
             new WildcardPatternList(in),
             deserializeCaseInsensitivity(in),
-            readConfiguration(in)
+            Configuration.readConfigurationHelper(in)
         );
     }
 
@@ -82,32 +82,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         out.writeNamedWriteable(field());
         pattern().writeTo(out);
         serializeCaseInsensitivity(out);
-        writeConfiguration(out);
-
-    }
-
-    static Configuration readConfiguration(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            boolean hasConfiguration = in.readBoolean();
-            if (hasConfiguration) {
-                return Configuration.readFrom(in);
-            } else {
-                return null; // For backward compatibility, configuration is not serialized before this version
-            }
-        } else {
-            return null; // For backward compatibility, configuration is not serialized before this version
-        }
-    }
-
-    void writeConfiguration(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            boolean hasConfiguration = configuration != null;
-            out.writeBoolean(hasConfiguration);
-            if (hasConfiguration) {
-                configuration.writeTo(out);
-            }
-        }
-        // else don't write configuration for backward compatibility
+        Configuration.writeConfigurationHelper(out, configuration);
     }
 
     @Override
@@ -146,6 +121,11 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if(configuration != null && configuration.stringLikeOnIndex() == false) {
+            throw new IllegalArgumentException(
+                "LIKE with LIST cannot be used with string_like_on_index enabled. Use LIKE instead."
+            );
+        }
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);

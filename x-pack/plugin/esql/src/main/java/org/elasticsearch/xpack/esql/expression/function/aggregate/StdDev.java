@@ -54,14 +54,7 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     public StdDev(Source source, Expression field, Expression filter, Expression variation) {
-        this(
-            source,
-            field,
-            filter,
-            variation != null
-                ? List.of(variation)
-                : List.of()
-        );
+        this(source, field, filter, variation != null ? List.of(variation) : List.of());
     }
 
     private StdDev(Source source, Expression field, Expression filter, List<Expression> params) {

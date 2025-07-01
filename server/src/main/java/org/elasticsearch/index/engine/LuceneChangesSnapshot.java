@@ -293,6 +293,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
 
     @Override
     protected void setNextSyntheticFieldsReader(LeafReaderContext context) throws IOException {
+        super.setNextSyntheticFieldsReader(context);
         if (syntheticVectorPatchLoader != null) {
             syntheticVectorPatchLoaderLeaf = syntheticVectorPatchLoader.leaf(context);
         }

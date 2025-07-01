@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 public class LlamaActionCreator implements LlamaActionVisitor {
 
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
-        "Failed to send Hugging Face %s request from inference entity id [%s]";
-    public static final String COMPLETION_ERROR_PREFIX = "Hugging Face completions";
+        "Failed to send Llama %s request from inference entity id [%s]";
+    public static final String COMPLETION_ERROR_PREFIX = "Llama completions";
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new LlamaEmbeddingsResponseHandler(

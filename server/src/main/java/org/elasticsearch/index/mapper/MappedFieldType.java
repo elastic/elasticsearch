@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -55,6 +56,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -389,7 +391,8 @@ public abstract class MappedFieldType {
      * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
      */
     public Query automatonQuery(
-        Automaton automaton,
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
         @Nullable MultiTermQuery.RewriteMethod method,
         SearchExecutionContext context,
         String description

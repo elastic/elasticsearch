@@ -32,6 +32,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
@@ -84,6 +85,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -1047,12 +1049,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query automatonQuery(
-            Automaton automaton,
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
             @Nullable MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context,
             String description
         ) {
-            return new AutomatonQueryWithDescription(new Term(name()), automaton, description);
+            return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
         }
     }
 

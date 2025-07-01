@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
@@ -164,12 +165,13 @@ public abstract class ConstantFieldType extends MappedFieldType {
      */
     @Override
     public Query automatonQuery(
-        Automaton automaton,
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
         @Nullable MultiTermQuery.RewriteMethod method,
         SearchExecutionContext context,
         String description
     ) {
-        CharacterRunAutomaton compiled = new CharacterRunAutomaton(automaton);
+        CharacterRunAutomaton compiled = characterRunAutomatonSupplier.get();
         boolean matches = compiled.run(getConstantFieldValue(context));
         if (matches) {
             return new MatchAllDocsQuery();

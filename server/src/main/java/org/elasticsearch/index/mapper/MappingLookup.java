@@ -51,6 +51,7 @@ public final class MappingLookup {
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
+    private final Set<String> syntheticVectorFields;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -188,12 +189,17 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
+        List<String> syntheticVectorFields = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
             }
+            if (mapper.syntheticVectorsLoader() != null) {
+                syntheticVectorFields.add(mapper.fullPath());
+            }
         }
         this.inferenceFields = Map.copyOf(inferenceFields);
+        this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -378,6 +384,11 @@ public final class MappingLookup {
         return inferenceFields;
     }
 
+    public Set<String> syntheticVectorFields() {
+        return syntheticVectorFields;
+
+    }
+
     public NestedLookup nestedLookup() {
         return nestedLookup;
     }
@@ -486,7 +497,27 @@ public final class MappingLookup {
         if (isSourceSynthetic()) {
             return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics);
         }
+        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+        if (syntheticVectorsLoader != null) {
+            return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
+    }
+
+    private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
+        if (filter == null || filter.getExcludes().length == 0) {
+            return filter;
+        }
+        List<String> newExcludes = new ArrayList<>();
+        for (var exclude : filter.getExcludes()) {
+            if (syntheticVectorFields().contains(exclude) == false) {
+                newExcludes.add(exclude);
+            }
+        }
+        if (newExcludes.isEmpty() && filter.getIncludes().length == 0) {
+            return null;
+        }
+        return new SourceFilter(filter.getIncludes(), newExcludes.toArray(String[]::new));
     }
 
     /**

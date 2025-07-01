@@ -18,8 +18,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
@@ -33,14 +35,20 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
@@ -426,24 +434,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        int originalSourceLength = context.sourceToParse().source().length();
         XContentType contentType = context.sourceToParse().getXContentType();
-        BytesReference originalSource = removeInferenceMetadataFields(
-            context.mappingLookup(),
-            context.sourceToParse().source(),
-            contentType
-        );
-        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType, false);
 
-        if (adaptedSource != null) {
-            final BytesRef ref = adaptedSource.toBytesRef();
+        final var originalSource = context.sourceToParse().source();
+        final var storedSource = stored() ? removeSyntheticSourceFields(context.mappingLookup(), originalSource, contentType) : null;
+        final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
+
+        if (adaptedStoredSource != null) {
+            final BytesRef ref = adaptedStoredSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
         boolean enableRecoverySource = context.indexSettings().isRecoverySourceEnabled();
-        if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
-            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-            BytesRef ref = originalSource.toBytesRef();
+        if (enableRecoverySource && (stored() == false || adaptedStoredSource != storedSource)) {
             if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
                 assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
                 /**
@@ -452,37 +455,58 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                  * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
                  * usage during the recovery process when loading a batch of synthetic sources.
                  */
-                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSourceLength));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
             } else {
-                context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+                // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
+                var recoverySource = removeSyntheticSourceFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
+                context.doc()
+                    .add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
                 context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
             }
         }
     }
 
     /**
-     * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source} if it is present.
-     * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
+     * Removes the synthetic source fields (_inference and synthetic vector fields) from the {@code _source} if it is present.
+     * These fields are regenerated at query or snapshot recovery time using stored fields and doc values.
      *
      * <p>For details on how the metadata is re-added, see:</p>
      * <ul>
-     *   <li>{@link SearchBasedChangesSnapshot#addSourceMetadata(BytesReference, int)}</li>
+     *   <li>{@link SearchBasedChangesSnapshot#addSyntheticFields(Source, int)}</li>
      *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
      * </ul>
      */
-    private BytesReference removeInferenceMetadataFields(
+    private BytesReference removeSyntheticSourceFields(
         MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
-    ) {
-        if (originalSource != null
-            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
-            && mappingLookup.inferenceFields().isEmpty() == false) {
-            return Source.fromBytes(originalSource, contentType)
-                .filter(new SourceFilter(new String[] {}, new String[] { InferenceMetadataFieldsMapper.NAME }))
-                .internalSourceRef();
-        } else {
+    ) throws IOException {
+        if (originalSource == null) {
+            return null;
+        }
+        Set<String> excludes = new HashSet<>();
+        if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup) && mappingLookup.inferenceFields().isEmpty() == false) {
+            excludes.add(InferenceMetadataFieldsMapper.NAME);
+        }
+        if (excludes.isEmpty() && mappingLookup.syntheticVectorFields().isEmpty()) {
             return originalSource;
+        }
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        XContentBuilder builder = new XContentBuilder(contentType.xContent(), streamOutput);
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withFiltering(Set.of(), excludes, true),
+                originalSource,
+                contentType
+            )
+        ) {
+            if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
+                return originalSource;
+            }
+            // Removes synthetic vector fields from the source while preserving empty parent objects,
+            // ensuring that the fields can later be rehydrated in their original locations.
+            removeSyntheticVectorFields(builder.generator(), parser, "", mappingLookup.syntheticVectorFields());
+            return BytesReference.bytes(builder);
         }
     }
 
@@ -551,5 +575,43 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static boolean onOrAfterDeprecateModeVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
             || version.between(IndexVersions.V8_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
+    private static void removeSyntheticVectorFields(
+        XContentGenerator destination,
+        XContentParser parser,
+        String fullPath,
+        Set<String> patchFullPaths
+    ) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.FIELD_NAME) {
+            String fieldName = parser.currentName();
+            token = parser.nextToken();
+            fullPath = fullPath + (fullPath.isEmpty() ? "" : ".") + fieldName;
+            if (patchFullPaths.contains(fullPath)) {
+                parser.skipChildren();
+                return;
+            }
+            destination.writeFieldName(fieldName);
+        }
+
+        switch (token) {
+            case START_ARRAY -> {
+                destination.writeStartArray();
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    removeSyntheticVectorFields(destination, parser, fullPath, patchFullPaths);
+                }
+                destination.writeEndArray();
+            }
+            case START_OBJECT -> {
+                destination.writeStartObject();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    removeSyntheticVectorFields(destination, parser, fullPath, patchFullPaths);
+                }
+                destination.writeEndObject();
+            }
+            default -> // others are simple:
+                destination.copyCurrentEvent(parser);
+        }
     }
 }

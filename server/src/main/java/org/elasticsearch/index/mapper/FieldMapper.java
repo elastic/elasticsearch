@@ -454,6 +454,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns a {@link SourceLoader.SyntheticVectorsLoader} instance responsible for loading
+     * synthetic vector values from the index.
+     *
+     * @return a {@link SourceLoader.SyntheticVectorsLoader} used to extract synthetic vectors,
+     *         or {@code null} if no loader is provided or applicable in this context
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        return null;
+    }
+
+    /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.
      * <br>

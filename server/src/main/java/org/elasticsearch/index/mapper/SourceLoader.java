@@ -10,12 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -111,7 +114,7 @@ public interface SourceLoader {
     }
 
     /**
-     * Reconstructs {@code _source} from doc values anf stored fields.
+     * Reconstructs {@code _source} from doc values and stored fields.
      */
     class Synthetic implements SourceLoader {
         private final SourceFilter filter;
@@ -401,6 +404,144 @@ public interface SourceLoader {
         public void reset() {
             // Not applicable to loaders using only doc values
             // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
+    }
+
+    class SyntheticVectors implements SourceLoader {
+        final SourceLoader sourceLoader;
+        final SyntheticVectorsLoader patchLoader;
+
+        SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this.patchLoader = patchLoader;
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return false;
+        }
+
+        @Override
+        public Set<String> requiredStoredFields() {
+            return sourceLoader.requiredStoredFields();
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            var sourceLeaf = sourceLoader.leaf(reader, docIdsInLeaf);
+            var patchLeaf = patchLoader.leaf(reader.getContext());
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    Source source = sourceLeaf.source(storedFields, docId);
+                    if (patchLeaf == null) {
+                        return source;
+                    }
+                    List<SyntheticVectorPatch> patches = new ArrayList<>();
+                    patchLeaf.load(docId, patches);
+                    if (patches.size() == 0) {
+                        return source;
+                    }
+                    return applySyntheticVectors(source, patches);
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                    throw new IllegalStateException("This operation is not allowed in the current context");
+                }
+            };
+        }
+    }
+
+    /**
+     * Applies a list of {@link SyntheticVectorPatch} instances to the given {@link Source}.
+     *
+     * @param originalSource the original source object
+     * @param patches        the list of patches to apply
+     * @return a new {@link Source} with the patches applied
+     */
+    static Source applySyntheticVectors(Source originalSource, List<SyntheticVectorPatch> patches) {
+        Map<String, Object> newMap = originalSource.source();
+        applyPatches("", newMap, patches);
+        return Source.fromMap(newMap, originalSource.sourceContentType());
+    }
+
+    /**
+     * Recursively applies synthetic vector patches to a nested map.
+     *
+     * @param rootPath the current root path for nested structures
+     * @param map      the map to apply patches to
+     * @param patches  the list of patches to apply
+     */
+    private static void applyPatches(String rootPath, Map<String, Object> map, List<SyntheticVectorPatch> patches) {
+        for (SyntheticVectorPatch patch : patches) {
+            if (patch instanceof LeafSyntheticVectorPath leaf) {
+                String key = extractRelativePath(rootPath, leaf.fullPath());
+                map.put(key, leaf.value().isFloat() ? leaf.value().floatVector() : leaf.value().byteVector());
+            } else if (patch instanceof NestedSyntheticVectorPath nested) {
+                String nestedPath = extractRelativePath(rootPath, nested.fullPath());
+                List<Map<?, ?>> nestedMaps = XContentMapValues.extractNestedSources(nestedPath, map);
+                for (SyntheticVectorPatch childPatch : nested.children()) {
+                    if (childPatch instanceof NestedOffsetSyntheticVectorPath offsetPatch) {
+                        Map<String, Object> nestedMap = XContentMapValues.nodeMapValue(nestedMaps.get(offsetPatch.offset()), nestedPath);
+                        applyPatches(nested.fullPath(), nestedMap, offsetPatch.children());
+                    } else {
+                        throw new IllegalStateException(
+                            "Unexpected child patch type of " + patch.getClass().getSimpleName() + " in nested structure."
+                        );
+                    }
+                }
+            } else {
+                throw new IllegalStateException("Unknown patch type: " + patch.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private static String extractRelativePath(String rootPath, String fullPath) {
+        return rootPath.isEmpty() ? fullPath : fullPath.substring(rootPath.length() + 1);
+    }
+
+    /**
+     * Represents a patch to be applied to a source structure.
+     */
+    sealed interface SyntheticVectorPatch permits NestedSyntheticVectorPath, NestedOffsetSyntheticVectorPath, LeafSyntheticVectorPath {}
+
+    /**
+     * A patch representing a nested path with further child patches.
+     *
+     * @param fullPath the full dot-separated path
+     * @param children the list of child patches
+     */
+    record NestedSyntheticVectorPath(String fullPath, List<SyntheticVectorPatch> children) implements SyntheticVectorPatch {}
+
+    /**
+     * A patch representing an indexed child within a nested structure.
+     *
+     * @param offset   the index of the nested element
+     * @param children the list of child patches to apply at this offset
+     */
+    record NestedOffsetSyntheticVectorPath(int offset, List<SyntheticVectorPatch> children) implements SyntheticVectorPatch {}
+
+    /**
+     * A patch representing a leaf field with a value to be applied.
+     *
+     * @param fullPath the fully-qualified field name
+     * @param value     the value to assign
+     */
+    record LeafSyntheticVectorPath(String fullPath, VectorData value) implements SyntheticVectorPatch {}
+
+    interface SyntheticVectorsLoader {
+        /**
+         * Returns a leaf loader if the provided context contains patches for the specified field;
+         * returns null otherwise.
+         */
+        SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException;
+
+        interface Leaf {
+            /**
+             * Loads all patches for this field associated with the provided document into the specified {@code acc} list.
+             */
+            void load(int doc, List<SyntheticVectorPatch> acc) throws IOException;
         }
     }
 }

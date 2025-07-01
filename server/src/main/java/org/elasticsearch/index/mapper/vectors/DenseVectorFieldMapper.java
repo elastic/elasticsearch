@@ -30,6 +30,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -80,6 +82,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -1403,6 +1406,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public final int hashCode() {
             return Objects.hash(type, doHashCode());
         }
+
+        /**
+         * Indicates whether the underlying vector search is performed using a flat (exhaustive) approach.
+         * <p>
+         * When {@code true}, it means the search does not use any approximate nearest neighbor (ANN)
+         * acceleration structures such as HNSW or IVF. Instead, it performs a brute-force comparison
+         * against all candidate vectors. This information can be used by higher-level components
+         * to decide whether additional acceleration or optimization is necessary.
+         *
+         * @return {@code true} if the vector search is flat (exhaustive), {@code false} if it uses ANN structures
+         */
+        abstract boolean isFlat();
     }
 
     abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
@@ -1776,6 +1791,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        boolean isFlat() {
+            return true;
+        }
+
+        @Override
         public boolean updatableTo(DenseVectorIndexOptions update) {
             return update.type.equals(this.type)
                 || update.type.equals(VectorIndexType.HNSW)
@@ -1822,6 +1842,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public int doHashCode() {
             return Objects.hash(type);
+        }
+
+        @Override
+        boolean isFlat() {
+            return true;
         }
     }
 
@@ -1871,6 +1896,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public int doHashCode() {
             return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector);
+        }
+
+        @Override
+        boolean isFlat() {
+            return false;
         }
 
         @Override
@@ -1945,6 +1975,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        boolean isFlat() {
+            return true;
+        }
+
+        @Override
         public String toString() {
             return "{type=" + type + ", confidence_interval=" + confidenceInterval + ", rescore_vector=" + rescoreVector + "}";
         }
@@ -2010,6 +2045,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public int doHashCode() {
             return Objects.hash(m, efConstruction, confidenceInterval, rescoreVector);
+        }
+
+        @Override
+        boolean isFlat() {
+            return false;
         }
 
         @Override
@@ -2102,6 +2142,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        boolean isFlat() {
+            return false;
+        }
+
+        @Override
         public String toString() {
             return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
         }
@@ -2137,6 +2182,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         int doHashCode() {
             return Objects.hash(m, efConstruction, rescoreVector);
+        }
+
+        @Override
+        boolean isFlat() {
+            return false;
         }
 
         @Override
@@ -2190,6 +2240,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         int doHashCode() {
             return CLASS_NAME_HASH;
+        }
+
+        @Override
+        boolean isFlat() {
+            return true;
         }
 
         @Override
@@ -2248,6 +2303,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         int doHashCode() {
             return Objects.hash(clusterSize, defaultNProbe, rescoreVector);
+        }
+
+        @Override
+        boolean isFlat() {
+            return false;
         }
 
         @Override
@@ -2503,11 +2563,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean hnswEarlyTermination
         ) {
             elementType.checkDimensions(dims, queryVector.length);
-            Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-            if (hnswEarlyTermination) {
-                knnQuery = maybeWrapPatience(knnQuery);
+            Query knnQuery;
+            if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnBitQuery(queryVector))
+                    : createExactKnnBitQuery(queryVector);
+                knnQuery = filter == null
+                    ? exactKnnQuery
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
+                        .add(filter, BooleanClause.Occur.FILTER)
+                        .build();
+            } else {
+                knnQuery = parentFilter != null
+                    ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+                if (hnswEarlyTermination) {
+                    knnQuery = maybeWrapPatience(knnQuery);
+                }
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2535,11 +2607,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
-                : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
-            if (hnswEarlyTermination) {
-                knnQuery = maybeWrapPatience(knnQuery);
+            Query knnQuery;
+            if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnByteQuery(queryVector))
+                    : createExactKnnByteQuery(queryVector);
+                knnQuery = filter == null
+                    ? exactKnnQuery
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
+                        .add(filter, BooleanClause.Occur.FILTER)
+                        .build();
+            } else {
+                knnQuery = parentFilter != null
+                    ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
+                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+                if (hnswEarlyTermination) {
+                    knnQuery = maybeWrapPatience(knnQuery);
+                }
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2611,7 +2695,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 numCands = Math.max(adjustedK, numCands);
             }
             Query knnQuery;
-            if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+            if (indexOptions != null && indexOptions.isFlat()) {
+                var exactKnnQuery = parentFilter != null
+                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnFloatQuery(queryVector))
+                    : createExactKnnFloatQuery(queryVector);
+                knnQuery = filter == null
+                    ? exactKnnQuery
+                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
+                        .add(filter, BooleanClause.Occur.FILTER)
+                        .build();
+            } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2640,11 +2733,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
             if (rescore) {
-                knnQuery = new RescoreKnnVectorQuery(
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
                     k,
+                    adjustedK,
                     knnQuery
                 );
             }
@@ -2670,7 +2764,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return elementType;
         }
 
-        public IndexOptions getIndexOptions() {
+        public DenseVectorIndexOptions getIndexOptions() {
             return indexOptions;
         }
 

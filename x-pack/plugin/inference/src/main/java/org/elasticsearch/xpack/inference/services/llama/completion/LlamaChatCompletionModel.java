@@ -20,8 +20,21 @@ import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisito
 
 import java.util.Map;
 
+/**
+ * Represents a Llama chat completion model for inference.
+ * This class extends the LlamaModel and provides specific configurations and settings for chat completion tasks.
+ */
 public class LlamaChatCompletionModel extends LlamaModel {
 
+    /**
+     * Constructor for creating a LlamaChatCompletionModel with specified parameters.
+     * @param inferenceEntityId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param service the name of the inference service
+     * @param serviceSettings the settings for the inference service, specific to chat completion
+     * @param secrets the secret settings for the model, such as API keys or tokens
+     * @param context the context for parsing configuration settings
+     */
     public LlamaChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -39,6 +52,14 @@ public class LlamaChatCompletionModel extends LlamaModel {
         );
     }
 
+    /**
+     * Constructor for creating a LlamaChatCompletionModel with specified parameters.
+     * @param inferenceEntityId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param service the name of the inference service
+     * @param serviceSettings the settings for the inference service, specific to chat completion
+     * @param secrets the secret settings for the model, such as API keys or tokens
+     */
     public LlamaChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -53,6 +74,14 @@ public class LlamaChatCompletionModel extends LlamaModel {
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
+    /**
+     * Factory method to create a LlamaChatCompletionModel with overridden model settings based on the request.
+     * If the request does not specify a model, the original model is returned.
+     *
+     * @param model the original LlamaChatCompletionModel
+     * @param request the UnifiedCompletionRequest containing potential overrides
+     * @return a new LlamaChatCompletionModel with overridden settings or the original model if no overrides are specified
+     */
     public static LlamaChatCompletionModel of(LlamaChatCompletionModel model, UnifiedCompletionRequest request) {
         if (request.model() == null) {
             // If no model id is specified in the request, return the original model
@@ -81,11 +110,22 @@ public class LlamaChatCompletionModel extends LlamaModel {
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }
 
+    /**
+     * Returns the service settings specific to Llama chat completion.
+     *
+     * @return the LlamaChatCompletionServiceSettings associated with this model
+     */
     @Override
     public LlamaChatCompletionServiceSettings getServiceSettings() {
         return (LlamaChatCompletionServiceSettings) super.getServiceSettings();
     }
 
+    /**
+     * Accepts a visitor that creates an executable action for this Llama chat completion model.
+     *
+     * @param creator the visitor that creates the executable action
+     * @return an ExecutableAction representing this model
+     */
     public ExecutableAction accept(LlamaActionVisitor creator) {
         return creator.create(this);
     }

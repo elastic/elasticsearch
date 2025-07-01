@@ -32,10 +32,14 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
+/**
+ * Creates actions for Llama inference requests, handling both embeddings and completions.
+ * This class implements the {@link LlamaActionVisitor} interface to provide specific action creation methods.
+ */
 public class LlamaActionCreator implements LlamaActionVisitor {
 
     private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE = "Failed to send Llama %s request from inference entity id [%s]";
-    public static final String COMPLETION_ERROR_PREFIX = "Llama completions";
+    private static final String COMPLETION_ERROR_PREFIX = "Llama completions";
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new LlamaEmbeddingsResponseHandler(
@@ -50,6 +54,12 @@ public class LlamaActionCreator implements LlamaActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
+    /**
+     * Constructs a new LlamaActionCreator with the specified sender and service components.
+     *
+     * @param sender the sender to use for executing actions
+     * @param serviceComponents the service components providing necessary services
+     */
     public LlamaActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
@@ -87,6 +97,13 @@ public class LlamaActionCreator implements LlamaActionVisitor {
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 
+    /**
+     * Builds an error message for failed requests.
+     *
+     * @param requestType the type of request that failed
+     * @param inferenceId the inference entity ID associated with the request
+     * @return a formatted error message
+     */
     public static String buildErrorMessage(TaskType requestType, String inferenceId) {
         return format(FAILED_TO_SEND_REQUEST_ERROR_MESSAGE, requestType.toString(), inferenceId);
     }

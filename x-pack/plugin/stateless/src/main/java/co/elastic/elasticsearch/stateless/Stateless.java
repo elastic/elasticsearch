@@ -1086,6 +1086,7 @@ public class Stateless extends Plugin
             IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW,
+            IngestMetricsService.MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,

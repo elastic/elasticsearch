@@ -21,15 +21,21 @@ import co.elastic.elasticsearch.serverless.autoscaling.ServerlessAutoscalingPlug
 import co.elastic.elasticsearch.serverless.autoscaling.action.GetIndexTierMetrics;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
+import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -42,6 +48,8 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
@@ -913,6 +921,109 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             assertThat(ingestLoadsAfter.toString(), ingestLoadsAfter.get(0).load(), greaterThan((double) executorThreads));
         });
         longAwait(barrier);
+    }
+
+    public void testIndexingMetricsAreInexactWithShardsInUndesiredLocations() {
+        final var masterName = startMasterOnlyNode(
+            Settings.builder()
+                // block scale-down on any unassigned shards
+                .put(IngestMetricsService.MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN.getKey(), 0.0)
+                // only move one shard at once, so the other shard remains in state STARTED and counts as undesired
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
+        );
+        // Reduce the time between publications, so we can expect at least one publication per second.
+        final var frequentPublicationSettings = Settings.builder()
+            .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        final var dataNode0 = startIndexNode(frequentPublicationSettings);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(2, 0).put(
+                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                dataNode0
+            ).build()
+        );
+        ensureGreen(indexName);
+        int bulkRequests = randomIntBetween(10, 20);
+        for (int i = 0; i < bulkRequests; i++) {
+            indexDocs(indexName, randomIntBetween(100, 1000));
+        }
+
+        final var ingestLoadReceivedLatch = new CountDownLatch(1);
+        final var masterTransportService = MockTransportService.getInstance(masterName);
+        masterTransportService.addRequestHandlingBehavior(
+            TransportPublishNodeIngestLoadMetric.NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                request instanceof PublishNodeIngestLoadRequest publishNodeIngestLoadRequest
+                    && publishNodeIngestLoadRequest.getIngestionLoad() > 0.0 ? new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            ingestLoadReceivedLatch.countDown();
+                            channel.sendResponse(response);
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            ingestLoadReceivedLatch.countDown();
+                            channel.sendResponse(exception);
+                        }
+
+                        @Override
+                        public TransportVersion getVersion() {
+                            return channel.getVersion();
+                        }
+                    } : channel,
+                task
+            )
+        );
+
+        safeAwait(ingestLoadReceivedLatch);
+        masterTransportService.clearAllRules();
+
+        var metrics = getNodesIngestLoad();
+        assertThat(metrics.toString(), metrics.size(), equalTo(1));
+        assertThat(metrics.toString(), metrics.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+        assertThat(metrics.toString(), metrics.get(0).load(), greaterThan(0.0));
+
+        final var dataNode0TransportService = MockTransportService.getInstance(dataNode0);
+        final var unblockStartRecoveriesListener = new SubscribableListener<>();
+        final var recoveriesStartedLatch = new CountDownLatch(1);
+        dataNode0TransportService.addRequestHandlingBehavior(
+            TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                recoveriesStartedLatch.countDown();
+                unblockStartRecoveriesListener.addListener(
+                    ActionTestUtils.assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
+                );
+            }
+        );
+
+        final var dataNode1 = startIndexNode(frequentPublicationSettings);
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNode1),
+            indexName
+        );
+        safeAwait(recoveriesStartedLatch);
+
+        try {
+            var metricsWithUndesiredShards = getNodesIngestLoad();
+            assertThat(metricsWithUndesiredShards.toString(), metricsWithUndesiredShards.size(), greaterThanOrEqualTo(1));
+            for (final var nodeIngestLoadSnapshot : metricsWithUndesiredShards) {
+                assertThat(metricsWithUndesiredShards.toString(), nodeIngestLoadSnapshot.metricQuality(), not(MetricQuality.EXACT));
+            }
+        } finally {
+            unblockStartRecoveriesListener.onResponse(null);
+        }
     }
 
     public static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {

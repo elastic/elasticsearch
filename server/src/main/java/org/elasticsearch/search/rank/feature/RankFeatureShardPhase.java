@@ -55,9 +55,7 @@ public final class RankFeatureShardPhase {
         if (rankFeaturePhaseRankShardContext != null) {
             String field = rankFeaturePhaseRankShardContext.getField();
             assert field != null : "field must not be null";
-            searchContext.fetchFieldsContext(
-                new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
-            );
+            searchContext.fetchFieldsContext(new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(field, null))));
             RerankSnippetInput snippets = request.snippets();
             if (snippets != null) {
                 try {

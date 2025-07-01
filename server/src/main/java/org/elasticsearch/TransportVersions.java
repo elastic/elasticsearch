@@ -306,7 +306,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = def(9_102_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = def(9_103_0_00);
     public static final TransportVersion STREAMS_LOGS_SUPPORT = def(9_104_0_00);
-    public static final TransportVersion ESQL_KNN_K_PARAM_MANDATORY = def(9_105_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

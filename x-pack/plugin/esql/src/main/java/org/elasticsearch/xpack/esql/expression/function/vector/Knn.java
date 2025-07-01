@@ -35,13 +35,13 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersions.ESQL_KNN_K_PARAM_MANDATORY;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
@@ -64,7 +64,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
     private final Expression field;
-    private final Expression k;
+    // k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
+    private final transient Expression k;
     private final Expression options;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
@@ -79,9 +80,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         preview = true,
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
             + "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
-        examples = {
-            @Example(file = "knn-function", tag = "knn-function"),
-            @Example(file = "knn-function", tag = "knn-function-options"), },
+        examples = { @Example(file = "knn-function", tag = "knn-function") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
     public Knn(
@@ -141,10 +140,23 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
     }
 
     private Knn(Source source, Expression field, Expression query, Expression k, Expression options, QueryBuilder queryBuilder) {
-        super(source, query, options == null ? List.of(field, query, k) : List.of(field, query, k, options), queryBuilder);
+        super(source, query, expressionList(field, query, k, options), queryBuilder);
         this.field = field;
         this.k = k;
         this.options = options;
+    }
+
+    private static List<Expression> expressionList(Expression field, Expression query, Expression k, Expression options) {
+        List<Expression> result = new ArrayList<>();
+        result.add(field);
+        result.add(query);
+        if (k != null) {
+            result.add(k);
+        }
+        if (options != null) {
+            result.add(options);
+        }
+        return result;
     }
 
     public Expression field() {
@@ -275,11 +287,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        Expression k = null;
-        if (in.getTransportVersion().onOrAfter(ESQL_KNN_K_PARAM_MANDATORY)) {
-            k = in.readNamedWriteable(Expression.class);
-        }
-        return new Knn(source, field, query, k, null, queryBuilder);
+        return new Knn(source, field, query, null, null, queryBuilder);
     }
 
     @Override
@@ -288,9 +296,6 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
-        if (out.getTransportVersion().onOrAfter(ESQL_KNN_K_PARAM_MANDATORY)) {
-            out.writeNamedWriteable(k());
-        }
     }
 
     @Override
@@ -301,13 +306,12 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Knn knn = (Knn) o;
         return Objects.equals(field(), knn.field())
             && Objects.equals(query(), knn.query())
-            && Objects.equals(k(), knn.k())
             && Objects.equals(queryBuilder(), knn.queryBuilder());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), k(), queryBuilder());
+        return Objects.hash(field(), query(), queryBuilder());
     }
 
 }

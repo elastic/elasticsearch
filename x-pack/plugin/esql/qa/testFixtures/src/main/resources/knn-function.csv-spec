@@ -29,7 +29,7 @@ chartreuse | [127.0, 255.0, 0.0]
 // end::knn-function-result[]
 ;
 
-# https://github.com/elastic/elasticsearch/issues/129550
+# https://github.com/elastic/elasticsearch/issues/129550 - Add as an example to knn function documentation
 knnSearchWithSimilarityOption-Ignore
 required_capability: knn_function_v2
 

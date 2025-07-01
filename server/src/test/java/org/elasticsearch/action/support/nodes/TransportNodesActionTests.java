@@ -341,7 +341,7 @@ public class TransportNodesActionTests extends ESTestCase {
             ) {
                 boolean waited = false;
                 // Process node responses in a loop and ensure no ConcurrentModificationException will be thrown due to
-                // concurrent cancellation comes after the loops has started, see also #128852
+                // concurrent cancellation coming after the loop has started, see also #128852
                 for (var response : testNodeResponses) {
                     if (waited == false) {
                         waited = true;
@@ -364,8 +364,8 @@ public class TransportNodesActionTests extends ESTestCase {
             completeOneRequest(capturedRequest);
         }
 
-        // Wait for the overall response starts to processing the node responses in a loop and then cancel the task.
-        // It should not interfere with the node response processing.
+        // Wait for the overall response to start processing the node responses in a loop and then cancel the task.
+        // The cancellation should not interfere with the node response processing.
         safeAwait(barrier);
         TaskCancelHelper.cancel(cancellableTask, "simulated");
         safeGet(cancelledFuture);

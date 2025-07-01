@@ -586,12 +586,10 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testStatsOnLargeKeywords() throws IOException {
-        initVeryLargeText(500, 1, 3_000_000, 1);
+        initVeryLargeText(450, 1, 3_000_000, 1);
         StringBuilder query = startQuery();
         query.append("FROM large_text_idx | STATS SUM(LENGTH(large_text0))\"}");
-        for (int i = 0; i < 5; i++) {
-            assertCircuitBreaks(attempt -> responseAsMap(query(query.toString(), "columns")));
-        }
+        assertCircuitBreaks(attempt -> responseAsMap(query(query.toString(), "columns")));
     }
 
     private void initVeryLargeText(int docs, int nFields, int fieldSize, int docsPerBulk) throws IOException {

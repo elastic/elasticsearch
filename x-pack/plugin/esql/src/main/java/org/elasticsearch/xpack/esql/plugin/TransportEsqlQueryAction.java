@@ -86,6 +86,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private volatile boolean defaultAllowPartialResults;
+    private volatile boolean defaultESQLStringMatchOnIndex;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -181,6 +182,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+
+        defaultESQLStringMatchOnIndex = EsqlPlugin.ESQL_STRING_LIKE_ON_INDEX.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EsqlPlugin.ESQL_STRING_LIKE_ON_INDEX, v -> defaultESQLStringMatchOnIndex = v);
     }
 
     @Override
@@ -233,7 +238,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            request.allowPartialResults()
+            request.allowPartialResults(),
+            defaultESQLStringMatchOnIndex
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task

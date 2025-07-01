@@ -430,7 +430,8 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-            false
+            false,
+            true // stringLikeOnIndex, default to true for tests
         );
     }
 
@@ -864,7 +865,7 @@ public final class EsqlTestUtils {
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {
-        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp), false, TEST_CFG);
     }
 
     public static RLike rlike(Expression left, String exp) {

@@ -762,7 +762,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Literal patternLiteral = visitString(ctx.string());
         try {
             WildcardPattern pattern = new WildcardPattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small())));
-            WildcardLike result = new WildcardLike(source, left, pattern);
+            WildcardLike result = new WildcardLike(source, left, pattern, configuration);
             return ctx.NOT() == null ? result : new Not(source, result);
         } catch (InvalidArgumentException e) {
             throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
@@ -779,7 +779,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             .toList();
         // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
         Expression e = wildcardPatterns.size() == 1
-            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
+            ? new WildcardLike(source, left, wildcardPatterns.getFirst(), configuration)
             : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns), configuration);
         return ctx.NOT() == null ? e : new Not(source, e);
     }

@@ -1,0 +1,5 @@
+pr: 129650
+summary: Fix wildcard for `_index` field
+area: ES|QL
+type: bug
+issues: []

@@ -371,6 +371,64 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(clusterData, hasKey("took"));
     }
 
+    public void testLikeIndex() throws Exception {
+        {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
+        }
+        {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index NOT LIKE "*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            var values = List.of(List.of(localDocs.size(), localIndex));
+
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
+        }
+    }
+
+    public void testRLikeIndex() throws Exception {
+        {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index RLIKE ".*remote.*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
+        }
+        {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index NOT RLIKE ".*remote.*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            var values = List.of(List.of(localDocs.size(), localIndex));
+
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
+        }
+    }
+
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));

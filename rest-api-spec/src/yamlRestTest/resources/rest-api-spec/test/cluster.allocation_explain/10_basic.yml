@@ -85,12 +85,12 @@
 
   - do:
       cluster.allocation_explain:
-        body: { "index": "test", "shard": 2.1234567891234567, "primary": true }
+        body: { "index": "test", "shard": 1.1234567891234567, "primary": true }
 
   - match: { current_state: "started" }
   - is_true: current_node.id
   - match: { index: "test" }
-  - match: { shard: 2 }
+  - match: { shard: 1 }
   - match: { primary: true }
   - is_true: can_remain_on_current_node
   - is_true: can_rebalance_cluster

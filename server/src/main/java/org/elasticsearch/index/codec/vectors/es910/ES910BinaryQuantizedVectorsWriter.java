@@ -46,8 +46,6 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.Closeable;
@@ -737,13 +735,11 @@ public class ES910BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.slice = data;
             this.dimension = dimension;
             this.size = size;
-            // 4x the quantized binary dimensions
-            int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BQSpaceUtils.B_QUERY;
-            this.byteBuffer = ByteBuffer.allocate(binaryDimensions);
+            this.byteBuffer = ByteBuffer.allocate(dimension);
             this.binaryValue = byteBuffer.array();
             // + 1 for the quantized sum
             this.correctiveValues = new float[3];
-            this.byteSize = binaryDimensions + Float.BYTES * 3 + Short.BYTES;
+            this.byteSize = dimension + Float.BYTES * 3 + Short.BYTES;
         }
 
         public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int targetOrd) throws IOException {
@@ -762,10 +758,6 @@ public class ES910BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
                 correctiveValues[2],
                 quantizedComponentSum
             );
-        }
-
-        int quantizedDimension() {
-            return byteBuffer.array().length;
         }
 
         public int size() {

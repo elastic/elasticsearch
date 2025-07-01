@@ -29,7 +29,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
@@ -53,7 +52,6 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
     final OptimizedScalarQuantizer binaryQuantizer;
     final float[] centroid;
     final float centroidDp;
-    private final int discretizedDimensions;
 
     OffHeapBinarizedVectorValues(
         int dimension,
@@ -77,7 +75,6 @@ abstract class OffHeapBinarizedVectorValues extends BinarizedByteVectorValues {
         this.byteBuffer = ByteBuffer.allocate(dimension);
         this.binaryValue = byteBuffer.array();
         this.binaryQuantizer = quantizer;
-        this.discretizedDimensions = BQVectorUtils.discretize(dimension, 64);
     }
 
     @Override

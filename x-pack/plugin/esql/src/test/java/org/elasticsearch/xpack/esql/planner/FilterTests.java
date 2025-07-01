@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -342,7 +343,8 @@ public class FilterTests extends ESTestCase {
             """, LAST_NAME);
         var plan = plan(query, null);
 
-        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
+        PlanStreamWrapperQueryBuilder filterWrapper = (PlanStreamWrapperQueryBuilder) filterQueryForTransportNodes(null, plan);
+        SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterWrapper.next();
         assertEquals(LAST_NAME, filter.fieldName());
         ExpressionQueryBuilder innerFilter = (ExpressionQueryBuilder) filter.next();
         assertEquals(LAST_NAME, innerFilter.fieldName());
@@ -397,7 +399,8 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(TransportVersion minTransportVersion, PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
+        // NOCOMMIT check if null is ok
+        return PlannerUtils.detectFilter(null, minTransportVersion, plan, Set.of(EMP_NO, LAST_NAME)::contains);
     }
 
     @Override

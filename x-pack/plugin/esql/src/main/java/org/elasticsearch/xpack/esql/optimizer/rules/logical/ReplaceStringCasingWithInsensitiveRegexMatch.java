@@ -47,8 +47,7 @@ public class ReplaceStringCasingWithInsensitiveRegexMatch extends OptimizerRules
                 wildcardLike.source(),
                 unwrapCase(wildcardLike.field()),
                 wildcardLike.pattern(),
-                true,
-                wildcardLike.configuration
+                true
             );
             default -> regexMatch;
         };

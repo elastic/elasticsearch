@@ -35,7 +35,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         for (String s : asList("*", "**", "***")) {
             WildcardPattern pattern = new WildcardPattern(s);
             FieldAttribute fa = getFieldAttribute();
-            WildcardLike l = new WildcardLike(EMPTY, fa, pattern, null);
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
             Expression e = replaceRegexMatch(l);
             assertEquals(IsNotNull.class, e.getClass());
             IsNotNull inn = (IsNotNull) e;
@@ -57,7 +57,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         for (String s : asList("ab", "ab\\*", "ab\\?c")) {
             WildcardPattern pattern = new WildcardPattern(s);
             FieldAttribute fa = getFieldAttribute();
-            WildcardLike l = new WildcardLike(EMPTY, fa, pattern, null);
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
             Expression e = replaceRegexMatch(l);
             assertEquals(Equals.class, e.getClass());
             Equals eq = (Equals) e;

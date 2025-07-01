@@ -91,10 +91,10 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
         WildcardPattern wildcardPattern = new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString());
         return caseInsesitiveBool
-            ? new WildcardLike(source, expression, wildcardPattern, true, this.testCase.getConfiguration())
+            ? new WildcardLike(source, expression, wildcardPattern, true)
             : (randomBoolean()
-                ? new WildcardLike(source, expression, wildcardPattern, this.testCase.getConfiguration())
-                : new WildcardLike(source, expression, wildcardPattern, false, this.testCase.getConfiguration()));
+                ? new WildcardLike(source, expression, wildcardPattern)
+                : new WildcardLike(source, expression, wildcardPattern, false));
     }
 
     @AfterClass

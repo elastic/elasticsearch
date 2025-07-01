@@ -115,7 +115,7 @@ public class ConstantFoldingTests extends ESTestCase {
     }
 
     public void testConstantFoldingLikes() {
-        assertEquals(TRUE, constantFolding(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"), null)).canonical());
+        assertEquals(TRUE, constantFolding(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"))).canonical());
         assertEquals(TRUE, constantFolding(new RLike(EMPTY, of("test_emp"), new RLikePattern("test.emp"))).canonical());
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
@@ -34,7 +33,6 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         WildcardLike::new
     );
     public static final String NAME = "LIKE";
-    public final Configuration configuration;
 
     @FunctionInfo(returnType = "boolean", description = """
         Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
@@ -69,15 +67,13 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern,
-        @Param(name = "configuration", type = "configuration", description = "configuration") Configuration configuration
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern
     ) {
-        this(source, left, pattern, false, configuration);
+        this(source, left, pattern, false);
     }
 
-    public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive, Configuration configuration) {
+    public WildcardLike(Source source, Expression left, WildcardPattern pattern, boolean caseInsensitive) {
         super(source, left, pattern, caseInsensitive);
-        this.configuration = configuration;
     }
 
     private WildcardLike(StreamInput in) throws IOException {
@@ -85,8 +81,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             new WildcardPattern(in.readString()),
-            deserializeCaseInsensitivity(in),
-            Configuration.readConfigurationHelper(in)
+            deserializeCaseInsensitivity(in)
         );
     }
 
@@ -96,7 +91,6 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         out.writeNamedWriteable(field());
         out.writeString(pattern().pattern());
         serializeCaseInsensitivity(out);
-        Configuration.writeConfigurationHelper(out, configuration);
     }
 
     @Override
@@ -111,12 +105,12 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     @Override
     protected NodeInfo<WildcardLike> info() {
-        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive(), configuration);
+        return NodeInfo.create(this, WildcardLike::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
-        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive(), configuration);
+        return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
     }
 
     @Override
@@ -128,11 +122,14 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
-        return translateField(handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field));
+        return translateField(
+            handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
+            pushdownPredicates.configuration().stringLikeOnIndex()
+        );
     }
 
     // TODO: see whether escaping is needed
-    private Query translateField(String targetFieldName) {
+    private Query translateField(String targetFieldName, boolean forceStringMatch) {
         boolean forceStringMatch = configuration != null && configuration.stringLikeOnIndex();
         return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
     }

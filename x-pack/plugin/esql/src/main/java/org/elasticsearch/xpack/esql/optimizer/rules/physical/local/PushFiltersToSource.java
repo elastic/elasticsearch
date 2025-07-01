@@ -53,7 +53,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.configuration());
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
@@ -75,7 +75,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
     ) {
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats());
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.configuration());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();

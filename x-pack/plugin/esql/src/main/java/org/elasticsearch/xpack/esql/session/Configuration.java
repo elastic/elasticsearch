@@ -8,15 +8,11 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -227,6 +223,24 @@ public class Configuration implements Writeable {
         return tables;
     }
 
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults,
+            stringLikeOnIndex
+        );
+    }
+
     /**
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
@@ -330,37 +344,10 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * This method is not very efficient because it creates a new BlockStreamInput
-     * Please use the constructor that takes a BlockStreamInput instead if you already have a BlockStreamInput
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
      */
-    public static Configuration readFrom(StreamInput in) throws IOException {
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
-        BlockStreamInput blockStreamInput = new BlockStreamInput(in, blockFactory);
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
         return new Configuration(blockStreamInput);
     }
-
-    public static Configuration readConfigurationHelper(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            boolean hasConfiguration = in.readBoolean();
-            if (hasConfiguration) {
-                return Configuration.readFrom(in);
-            } else {
-                return null; // For backward compatibility, configuration is not serialized before this version
-            }
-        } else {
-            return null; // For backward compatibility, configuration is not serialized before this version
-        }
-    }
-
-    public static void writeConfigurationHelper(StreamOutput out, Configuration configuration) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE)) {
-            boolean hasConfiguration = configuration != null;
-            out.writeBoolean(hasConfiguration);
-            if (hasConfiguration) {
-                configuration.writeTo(out);
-            }
-        }
-        // else don't write configuration for backward compatibility
-    }
-
 }

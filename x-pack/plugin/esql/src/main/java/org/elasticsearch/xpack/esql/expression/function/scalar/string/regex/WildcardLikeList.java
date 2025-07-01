@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.esql.io.stream.ExpressionQuery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -41,8 +39,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         "WildcardLikeList",
         WildcardLikeList::new
     );
-    @Nullable
-    private final Configuration configuration;
 
     Supplier<Automaton> automatonSupplier = new Supplier<>() {
         Automaton cached;
@@ -74,21 +70,13 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     public WildcardLikeList(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns,
-        Configuration configuration
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPatternList patterns
     ) {
-        this(source, left, patterns, false, configuration);
+        this(source, left, patterns, false);
     }
 
-    public WildcardLikeList(
-        Source source,
-        Expression left,
-        WildcardPatternList patterns,
-        boolean caseInsensitive,
-        Configuration configuration
-    ) {
+    public WildcardLikeList(Source source, Expression left, WildcardPatternList patterns, boolean caseInsensitive) {
         super(source, left, patterns, caseInsensitive);
-        this.configuration = configuration;
     }
 
     public WildcardLikeList(StreamInput in) throws IOException {
@@ -96,8 +84,7 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             new WildcardPatternList(in),
-            deserializeCaseInsensitivity(in),
-            Configuration.readConfigurationHelper(in)
+            deserializeCaseInsensitivity(in)
         );
     }
 
@@ -107,7 +94,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         out.writeNamedWriteable(field());
         pattern().writeTo(out);
         serializeCaseInsensitivity(out);
-        Configuration.writeConfigurationHelper(out, configuration);
     }
 
     @Override
@@ -122,12 +108,12 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
 
     @Override
     protected NodeInfo<WildcardLikeList> info() {
-        return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive(), configuration);
+        return NodeInfo.create(this, WildcardLikeList::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
     protected WildcardLikeList replaceChild(Expression newLeft) {
-        return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive(), configuration);
+        return new WildcardLikeList(source(), newLeft, pattern(), caseInsensitive());
     }
 
     /**
@@ -182,6 +168,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      * Throws an {@link IllegalArgumentException} if the pattern list contains more than one pattern.
      */
     private Query translateField(String targetFieldName) {
-        return new ExpressionQuery(source(), targetFieldName, this, configuration);
+        return new ExpressionQuery(source(), targetFieldName, this);
     }
 }

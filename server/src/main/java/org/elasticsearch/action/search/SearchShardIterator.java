@@ -47,19 +47,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param shardId         shard id of the group
      * @param shards          shards to iterate
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
-     */
-    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, false);
-    }
-
-    /**
-     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
-     * for a given <code>shardId</code>.
-     *
-     * @param clusterAlias    the alias of the cluster where the shard is located
-     * @param shardId         shard id of the group
-     * @param shards          shards to iterate
-     * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      * @param skip            if true, then this group won't have matches (due to an index level block),
      *                        and it can be safely skipped from the search
      */

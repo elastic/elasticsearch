@@ -221,9 +221,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     @Override
-    public <T> void declareObjectArrayOrNull(BiConsumer<Value, List<T>> consumer,
-                                             ContextParser<Context, T> objectParser,
-                                             ParseField field) {
+    public <T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field
+    ) {
         declareField(
             consumer,
             (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),

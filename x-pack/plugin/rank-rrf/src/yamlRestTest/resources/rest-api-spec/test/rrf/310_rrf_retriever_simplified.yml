@@ -365,6 +365,18 @@ setup:
         index: test-index
         body:
           retriever:
+            rrf:
+              fields: [ ]
+              query: "foo"
+
+  - contains: { error.root_cause.0.reason: "[rrf] [fields] cannot be empty" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-index
+        body:
+          retriever:
             rrf: {}
 
   - contains: { error.root_cause.0.reason: "[rrf] must provide [retrievers] or [query]" }

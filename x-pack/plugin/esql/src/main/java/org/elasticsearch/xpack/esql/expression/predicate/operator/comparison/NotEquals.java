@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
-public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>,
-    TranslationAware.SingleValueTranslationAware {
+public class NotEquals extends EsqlBinaryComparison
+    implements
+        Negatable<EsqlBinaryComparison>,
+        TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NotEquals",

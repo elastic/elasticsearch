@@ -120,6 +120,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        if (p instanceof Explain == false && p.anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            throw new ParsingException(source(ctx), "EXPLAIN does not support downstream commands");
+        }
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
+            // TODO this one is never reached because the Parser fails to understand multiple round brackets
+            throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
+        }
         var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;
@@ -651,9 +658,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() < 2) {
-            throw new ParsingException(source(ctx), "Fork requires at least two branches");
+        if (subQueries.size() < Fork.MIN_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires at least " + Fork.MIN_BRANCHES + " branches");
         }
+        if (subQueries.size() > Fork.MAX_BRANCHES) {
+            throw new ParsingException(source(ctx), "Fork requires less than " + Fork.MAX_BRANCHES + " branches");
+        }
+
         return input -> {
             checkForRemoteClusters(input, source(ctx), "FORK");
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();

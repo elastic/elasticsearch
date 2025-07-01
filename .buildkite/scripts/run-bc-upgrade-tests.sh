@@ -24,7 +24,7 @@ select(.active_release == true) |
 (.build_candidates | to_entries | sort_by(.value.completed_at))) |
 last | .value.manifest_url")"
 
-if [[ -z "$MANIFEST_URL" ]]; then
+if [[ -z "$MANIFEST_URL" ]] || [[ "$MANIFEST_URL" == "null" ]]; then
    echo "No snapshots or build candidates for branch [$BUILDKITE_BRANCH]."
    echo "Skipping BC upgrade tests."
    exit 0
@@ -56,20 +56,17 @@ echo "Running BC upgrade tests on $BUILDKITE_BRANCH [$BC_VERSION] using BC (or s
 
 cat <<EOF | buildkite-agent pipeline upload
 steps:
-    - label: bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH
-      command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTest -Dtests.jvm.argline="-Des.serverless_transport=true"
-      timeout_in_minutes: 300
-      agents:
-        provider: gcp
-        image: family/elasticsearch-ubuntu-2004
-        machineType: n1-standard-32
-        buildDirectory: /dev/shm/bk
-        preemptible: true
-      retry:
-        automatic:
-          - exit_status: "-1"
-            limit: 3
-            signal_reason: none
-          - signal_reason: agent_stop
-            limit: 3
+  - group: "bc-upgrade $BC_BUILD_ID -> $BUILDKITE_BRANCH"
+    steps:
+      - label: "bc-upgrade-tests-part{{matrix.PART}}"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTestPart{{matrix.PART}}
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        matrix:
+          setup:
+            PART: ["1", "2", "3", "4", "5", "6"]
 EOF

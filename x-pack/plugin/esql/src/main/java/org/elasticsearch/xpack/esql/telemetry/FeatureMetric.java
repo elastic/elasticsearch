@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -53,6 +54,7 @@ public enum FeatureMetric {
     STATS(Aggregate.class::isInstance),
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
+    EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),

@@ -47,6 +47,10 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
     }
 
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);
@@ -237,20 +241,21 @@ public class ESVectorUtil {
     }
 
     /**
-     * calculates the spill-over score for a vector and a centroid, given its residual with
-     * its actually nearest centroid
+     * calculates the soar distance for a vector and a centroid
      * @param v1 the vector
      * @param centroid the centroid
      * @param originalResidual the residual with the actually nearest centroid
-     * @return the spill-over score (soar)
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
      */
-    public static float soarResidual(float[] v1, float[] centroid, float[] originalResidual) {
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
         if (v1.length != centroid.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
         }
         if (originalResidual.length != v1.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
         }
-        return IMPL.soarResidual(v1, centroid, originalResidual);
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
     }
 }

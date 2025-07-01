@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -101,6 +102,24 @@ public class IngestMetricsService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The maximum proportion of shards that may be in undesired locations before we consider the indexing load metrics to be inexact. If
+     * too many shards are in undesired locations then there may be indexing bottlenecks which reduce the apparent write load in the
+     * cluster, leading to spurious scale-down events. By reporting the write-load metrics as inexact when in this state we can avoid these
+     * scale-down events, giving the cluster the stability it needs to reach a more balanced state.
+     * <p>
+     * Defaults to {@code 1.0} meaning that the undesired shards proportion has no effect on metric quality. If set to {@code 0.0} then
+     * the ingest metrics will be reported as inexact if any shard is not in its desired location.
+     */
+    public static final Setting<Double> MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN = Setting.doubleSetting(
+        "serverless.autoscaling.ingest_metrics.max_undesired_shards_proportion_for_scale_down",
+        1.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME = "es.autoscaling.indexing.node_ingest_load.current";
 
     /**
@@ -136,20 +155,20 @@ public class IngestMetricsService implements ClusterStateListener {
     private volatile boolean initialized;
     private volatile double highIngestionLoadWeightDuringScaling;
     private volatile double lowIngestionLoadWeightDuringScaling;
+    private volatile double inexactMetricsUndesiredShardsProportion;
     /**
      * The period of time (defaults to 30s, configurable) to keep adjusting ingest load after all shutting down
      * indexing nodes have left the cluster.
      */
     private volatile long loadAdjustmentAfterScalingWindowInNanos;
     /**
-     * This is the base timestamp to compute the elapsed time since the last shutting down indexing node has left
-     * the cluster. It is updated in {@link #clusterChanged} when the indexing node is removed from the cluster,
-     * regardless whether it has left any unassigned shards. It is also updated in {@link #maybeAdjustIngestLoads}
-     * when adjustment is applied due to shutting down indexing nodes. Updates in these two places should give
-     * an accurate estimation on when we should or should not apply the after-scaling adjustment regardless the
-     * execution orders of {@link #clusterChanged} and {@link #getIndexTierMetrics}.
+     * This is the base timestamp to compute the elapsed time since the last shutting down indexing node has left the cluster. It is updated
+     * in {@link #clusterChanged} when the indexing node is removed from the cluster, regardless whether it has left any unassigned shards.
+     * It is also updated in {@link #maybeAdjustIngestLoadsAndQuality} when adjustment is applied due to shutting down indexing nodes.
+     * Updates in these two places should give an accurate estimation on when we should or should not apply the after-scaling adjustment
+     * regardless the execution orders of {@link #clusterChanged} and {@link #getIndexTierMetrics}.
      */
-    private AtomicLong loadAdjustmentAfterScalingBaseTimeInNanos = new AtomicLong(0L);
+    private final AtomicLong loadAdjustmentAfterScalingBaseTimeInNanos = new AtomicLong(0L);
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
     private final Map<String, NodeIngestLoad> nodesIngestLoad = ConcurrentCollections.newConcurrentMap();
@@ -178,6 +197,10 @@ public class IngestMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(
             LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW,
             value -> this.loadAdjustmentAfterScalingWindowInNanos = value.getNanos()
+        );
+        clusterSettings.initializeAndWatch(
+            MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN,
+            value -> this.inexactMetricsUndesiredShardsProportion = value
         );
 
         setupMetrics(meterRegistry);
@@ -288,12 +311,17 @@ public class IngestMetricsService implements ClusterStateListener {
         nodeIngestStats.setLatestReadingTo(newIngestLoad, metricSeqNo, quality);
     }
 
-    public IndexTierMetrics getIndexTierMetrics(ClusterState clusterState) {
-        var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
-        final List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>();
+    public IndexTierMetrics getIndexTierMetrics(
+        // (deliberate empty line for spotless)
+        ClusterState clusterState,
+        @Nullable // if not using desired-balance allocator
+        DesiredBalanceStats desiredBalanceStats
+    ) {
+        final var nodeLoadIterator = nodesIngestLoad.entrySet().iterator();
+        final List<NodeIngestLoadSnapshot> ingestLoads = new ArrayList<>(nodesIngestLoad.size());
         while (nodeLoadIterator.hasNext()) {
-            var nodeIngestStatsEntry = nodeLoadIterator.next();
-            var nodeIngestLoad = nodeIngestStatsEntry.getValue();
+            final var nodeIngestStatsEntry = nodeLoadIterator.next();
+            final var nodeIngestLoad = nodeIngestStatsEntry.getValue();
             if (shouldRemoveIngestLoadEntry(clusterState, nodeIngestStatsEntry.getKey(), nodeIngestLoad)) {
                 nodeLoadIterator.remove();
             } else {
@@ -307,7 +335,7 @@ public class IngestMetricsService implements ClusterStateListener {
                 ingestLoads.add(nodeIngestLoad.getIngestLoadSnapshot());
             }
         }
-        final var adjustedIngestLoads = maybeAdjustIngestLoads(clusterState, ingestLoads);
+        final var adjustedIngestLoads = maybeAdjustIngestLoadsAndQuality(clusterState, ingestLoads, desiredBalanceStats);
         lastNodeIngestLoadSnapshotsRef.set(
             new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
@@ -337,7 +365,61 @@ public class IngestMetricsService implements ClusterStateListener {
     }
 
     // Package-private for testing
-    List<NodeIngestLoadSnapshot> maybeAdjustIngestLoads(ClusterState clusterState, List<NodeIngestLoadSnapshot> ingestLoads) {
+    List<NodeIngestLoadSnapshot> maybeAdjustIngestLoadsAndQuality(
+        ClusterState clusterState,
+        List<NodeIngestLoadSnapshot> ingestLoads,
+        @Nullable // if not using desired-balance allocator
+        DesiredBalanceStats desiredBalanceStats
+    ) {
+
+        // The ingest loads reported by the nodes in the cluster are only really meaningful when the cluster is in a steady state. They may
+        // be mis-reported (typically under-reported) while the cluster is in flux--e.g. during a scaling event--and this can cause us to
+        // make poor decisions about future scaling events. We adjust the loads reported to the autoscaler to counteract these transient
+        // effects.
+
+        return maybeAdjustIngestLoadsForRelocationLoad(
+            clusterState,
+            maybeAdjustIngestLoadQualityIfRebalancing(ingestLoads, desiredBalanceStats)
+        );
+    }
+
+    private List<NodeIngestLoadSnapshot> maybeAdjustIngestLoadQualityIfRebalancing(
+        // (deliberate empty line for spotless)
+        List<NodeIngestLoadSnapshot> ingestLoads,
+        @Nullable // if not using desired-balance allocator
+        DesiredBalanceStats desiredBalanceStats
+    ) {
+        if (desiredBalanceStats == null) {
+            return ingestLoads;
+        }
+
+        // If the actual distribution of shards deviates too far from the desired one then we avoid making scale-down decisions by
+        // indicating that the ingest metrics are not EXACT. This mechanism allows the cluster the time it needs to stabilise after a
+        // reconfiguration (e.g. a scaling event) before making further scaling decisions. More concretely, if many shards are not in their
+        // desired locations then there may be some temporary indexing bottlenecks which reduce the apparent ingest load on the cluster,
+        // leading to an inappropriate scale-down if we were to consider the measured ingest load to be accurate.
+
+        if (desiredBalanceStats.undesiredAllocationsRatio() <= inexactMetricsUndesiredShardsProportion) {
+            return ingestLoads;
+        }
+
+        final var adjustedLoads = new ArrayList<NodeIngestLoadSnapshot>(ingestLoads.size());
+        for (final var ingestLoad : ingestLoads) {
+            if (ingestLoad.metricQuality() == MetricQuality.EXACT) {
+                adjustedLoads.add(
+                    new NodeIngestLoadSnapshot(ingestLoad.nodeId(), ingestLoad.nodeName(), ingestLoad.load(), MetricQuality.MINIMUM)
+                );
+            } else {
+                adjustedLoads.add(ingestLoad);
+            }
+        }
+        return adjustedLoads;
+    }
+
+    private List<NodeIngestLoadSnapshot> maybeAdjustIngestLoadsForRelocationLoad(
+        ClusterState clusterState,
+        List<NodeIngestLoadSnapshot> ingestLoads
+    ) {
         boolean adjustIngestionLoadWeight = highIngestionLoadWeightDuringScaling < 1.0 || lowIngestionLoadWeightDuringScaling < 1.0;
         if (adjustIngestionLoadWeight == false) {
             return ingestLoads;

@@ -113,7 +113,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
-        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState);
+        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState.metadata().getProject());
         if (numberOfCurrentRollupJobs == 0) {
             try {
                 boolean hasRollupIndices = hasRollupIndices(clusterState.getMetadata());

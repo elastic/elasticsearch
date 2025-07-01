@@ -1215,7 +1215,12 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * Enable yaml test for suggested cast properly
+         */
+        SUGGESTED_CAST_YAML_TEST;
 
         private final boolean enabled;
 

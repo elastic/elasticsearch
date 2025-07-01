@@ -913,8 +913,8 @@ suggested_type:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [recommended_cast]
-      reason: "uses recommended_cast"
+          capabilities: [suggested_cast_yaml_test]
+      reason: "was using incorrect capabilities name and being skipped before"
 
   - do:
       indices.create:
@@ -969,9 +969,7 @@ suggested_type:
   - match: { columns.0.original_types: ["aggregate_metric_double", "long"] }
   - match: { columns.0.suggested_cast: "aggregate_metric_double" }
   - match: { columns.1.name: "my_date" }
-  - match: { columns.1.type: "unsupported" }
-  - match: { columns.1.original_types: ["date_nanos", "datetime"] }
-  - match: { columns.1.suggested_cast: "date_nanos" }
+  - match: { columns.1.type: "date_nanos" }
   - match: { columns.2.name: "my_double" }
   - match: { columns.2.type: "double" }
   - is_false: columns.2.original_types

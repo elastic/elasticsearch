@@ -913,7 +913,7 @@ suggested_type:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [implicit_casting_date_and_date_nanos]
+          capabilities: [suggested_cast, implicit_casting_date_and_date_nanos]
       reason: "date and date_nanos should no longer produce suggested_cast column"
 
   - do:

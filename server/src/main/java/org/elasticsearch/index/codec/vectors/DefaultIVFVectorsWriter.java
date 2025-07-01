@@ -14,24 +14,23 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.discretize;
-import static org.apache.lucene.util.quantization.OptimizedScalarQuantizer.packAsBinary;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.IVF_VECTOR_COMPONENT;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
+import static org.elasticsearch.index.codec.vectors.BQVectorUtils.packAsBinary;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -39,6 +38,7 @@ import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.IVF_VECTOR_
  * fashion.
  */
 public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
+    private static final Logger logger = LogManager.getLogger(DefaultIVFVectorsWriter.class);
 
     private final int vectorPerCluster;
 
@@ -53,8 +53,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
-        InfoStream infoStream,
-        IntArrayList[] assignmentsByCluster
+        int[][] assignmentsByCluster
     ) throws IOException {
         // write the posting lists
         final long[] offsets = new long[centroidSupplier.size()];
@@ -66,72 +65,66 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             float[] centroid = centroidSupplier.centroid(c);
             binarizedByteVectorValues.centroid = centroid;
             // TODO: add back in sorting vectors by distance to centroid
-            IntArrayList cluster = assignmentsByCluster[c];
+            int[] cluster = assignmentsByCluster[c];
             // TODO align???
             offsets[c] = postingsOutput.getFilePointer();
-            int size = cluster.size();
+            int size = cluster.length;
             postingsOutput.writeVInt(size);
             postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster.get(j)), size, postingsOutput);
+            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
             writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
         }
 
-        if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-            printClusterQualityStatistics(assignmentsByCluster, infoStream);
+        if (logger.isDebugEnabled()) {
+            printClusterQualityStatistics(assignmentsByCluster);
         }
 
         return offsets;
     }
 
-    private static void printClusterQualityStatistics(IntArrayList[] clusters, InfoStream infoStream) {
+    private static void printClusterQualityStatistics(int[][] clusters) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
         float mean = 0;
         float m2 = 0;
         // iteratively compute the variance & mean
         int count = 0;
-        for (IntArrayList cluster : clusters) {
+        for (int[] cluster : clusters) {
             count += 1;
             if (cluster == null) {
                 continue;
             }
-            float delta = cluster.size() - mean;
+            float delta = cluster.length - mean;
             mean += delta / count;
-            m2 += delta * (cluster.size() - mean);
-            min = Math.min(min, cluster.size());
-            max = Math.max(max, cluster.size());
+            m2 += delta * (cluster.length - mean);
+            min = Math.min(min, cluster.length);
+            max = Math.max(max, cluster.length);
         }
         float variance = m2 / (clusters.length - 1);
-        infoStream.message(
-            IVF_VECTOR_COMPONENT,
-            "Centroid count: "
-                + clusters.length
-                + " min: "
-                + min
-                + " max: "
-                + max
-                + " mean: "
-                + mean
-                + " stdDev: "
-                + Math.sqrt(variance)
-                + " variance: "
-                + variance
+        logger.debug(
+            "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
+            clusters.length,
+            min,
+            max,
+            mean,
+            Math.sqrt(variance),
+            variance
         );
     }
 
-    private void writePostingList(IntArrayList cluster, IndexOutput postingsOutput, BinarizedFloatVectorValues binarizedByteVectorValues)
+    private void writePostingList(int[] cluster, IndexOutput postingsOutput, BinarizedFloatVectorValues binarizedByteVectorValues)
         throws IOException {
-        int limit = cluster.size() - ES91OSQVectorsScorer.BULK_SIZE + 1;
+        int limit = cluster.length - ES91OSQVectorsScorer.BULK_SIZE + 1;
         int cidx = 0;
         OptimizedScalarQuantizer.QuantizationResult[] corrections =
             new OptimizedScalarQuantizer.QuantizationResult[ES91OSQVectorsScorer.BULK_SIZE];
         // Write vectors in bulks of ES91OSQVectorsScorer.BULK_SIZE.
         for (; cidx < limit; cidx += ES91OSQVectorsScorer.BULK_SIZE) {
             for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                int ord = cluster.get(cidx + j);
+                int ord = cluster[cidx + j];
                 byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
                 // write vector
                 postingsOutput.writeBytes(binaryValue, 0, binaryValue.length);
@@ -154,8 +147,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
         // write tail
-        for (; cidx < cluster.size(); cidx++) {
-            int ord = cluster.get(cidx);
+        for (; cidx < cluster.length; cidx++) {
+            int ord = cluster[cidx];
             // write vector
             byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
             OptimizedScalarQuantizer.QuantizationResult correction = binarizedByteVectorValues.getCorrectiveTerms(ord);
@@ -208,17 +201,16 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         // TODO: take advantage of prior generated clusters from mergeState in the future
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, mergeState.infoStream, globalCentroid, false);
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, false);
     }
 
     CentroidAssignments calculateAndWriteCentroids(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
-        InfoStream infoStream,
         float[] globalCentroid
     ) throws IOException {
-        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, infoStream, globalCentroid, true);
+        return calculateAndWriteCentroids(fieldInfo, floatVectorValues, centroidOutput, globalCentroid, true);
     }
 
     /**
@@ -228,7 +220,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
      * @param fieldInfo merging field info
      * @param floatVectorValues the float vector values to merge
      * @param centroidOutput the centroid output
-     * @param infoStream the merge state
      * @param globalCentroid the global centroid, calculated by this method and used to quantize the centroids
      * @param cacheCentroids whether the centroids are kept or discarded once computed
      * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
@@ -238,7 +229,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
         IndexOutput centroidOutput,
-        InfoStream infoStream,
         float[] globalCentroid,
         boolean cacheCentroids
     ) throws IOException {
@@ -266,31 +256,36 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // write centroids
         writeCentroids(centroids, fieldInfo, globalCentroid, centroidOutput);
 
-        if (infoStream.isEnabled(IVF_VECTOR_COMPONENT)) {
-            infoStream.message(
-                IVF_VECTOR_COMPONENT,
-                "calculate centroids and assign vectors time ms: " + ((System.nanoTime() - nanoTime) / 1000000.0)
-            );
-            infoStream.message(IVF_VECTOR_COMPONENT, "final centroid count: " + centroids.length);
+        if (logger.isDebugEnabled()) {
+            logger.debug("calculate centroids and assign vectors time ms: {}", (System.nanoTime() - nanoTime) / 1000000.0);
+            logger.debug("final centroid count: {}", centroids.length);
         }
 
-        IntArrayList[] assignmentsByCluster = new IntArrayList[centroids.length];
+        int[] centroidVectorCount = new int[centroids.length];
+        for (int i = 0; i < assignments.length; i++) {
+            centroidVectorCount[assignments[i]]++;
+            // if soar assignments are present, count them as well
+            if (soarAssignments.length > i && soarAssignments[i] != -1) {
+                centroidVectorCount[soarAssignments[i]]++;
+            }
+        }
+
+        int[][] assignmentsByCluster = new int[centroids.length][];
         for (int c = 0; c < centroids.length; c++) {
-            IntArrayList cluster = new IntArrayList(vectorPerCluster);
-            for (int j = 0; j < assignments.length; j++) {
-                if (assignments[j] == c) {
-                    cluster.add(j);
+            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+        }
+        Arrays.fill(centroidVectorCount, 0);
+
+        for (int i = 0; i < assignments.length; i++) {
+            int c = assignments[i];
+            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
+            // if soar assignments are present, add them to the cluster as well
+            if (soarAssignments.length > i) {
+                int s = soarAssignments[i];
+                if (s != -1) {
+                    assignmentsByCluster[s][centroidVectorCount[s]++] = i;
                 }
             }
-
-            for (int j = 0; j < soarAssignments.length; j++) {
-                if (soarAssignments[j] == c) {
-                    cluster.add(j);
-                }
-            }
-
-            cluster.trimToSize();
-            assignmentsByCluster[c] = cluster;
         }
 
         if (cacheCentroids) {

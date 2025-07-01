@@ -102,7 +102,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             profile,
             tables,
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            true
         );
 
     }

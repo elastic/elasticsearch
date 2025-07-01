@@ -424,6 +424,38 @@ public class MultiClustersIT extends ESRestTestCase {
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
+    public void testLikeIndexLegacySettingNoHit() throws Exception {
+        try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
+            // test code with the setting changed
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect empty result, since the setting is false
+            var values = List.of();
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
+    public void testLikeIndexLegacySettingHit() throws Exception {
+        try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*:*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
     public void testNotLikeIndex() throws Exception {
         boolean includeCCSMetadata = includeCCSMetadata();
         Map<String, Object> result = run("""
@@ -535,5 +567,29 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean includeCCSMetadata() {
         return ccsMetadataAvailable() && randomBoolean();
+    }
+
+    public static class ClusterSettingToggle implements AutoCloseable {
+        private final RestClient client;
+        private final String settingKey;
+        private final Object originalValue;
+
+        public ClusterSettingToggle(RestClient client, String settingKey, Object newValue, Object restoreValue) throws IOException {
+            this.client = client;
+            this.settingKey = settingKey;
+            this.originalValue = restoreValue;
+            setValue(newValue);
+        }
+
+        private void setValue(Object value) throws IOException {
+            Request set = new Request("PUT", "/_cluster/settings");
+            set.setJsonEntity("{\"persistent\": {\"" + settingKey + "\": " + value + "}}");
+            ESRestTestCase.assertOK(client.performRequest(set));
+        }
+
+        @Override
+        public void close() throws IOException {
+            setValue(originalValue == null ? "null" : originalValue);
+        }
     }
 }

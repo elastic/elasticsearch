@@ -83,7 +83,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
         return buildWildcardLike(source, args);
     }
 
-    static Expression buildWildcardLike(Source source, List<Expression> args) {
+    Expression buildWildcardLike(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
@@ -91,10 +91,10 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
         WildcardPattern wildcardPattern = new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString());
         return caseInsesitiveBool
-            ? new WildcardLike(source, expression, wildcardPattern, true)
+            ? new WildcardLike(source, expression, wildcardPattern, true, this.testCase.getConfiguration())
             : (randomBoolean()
-                ? new WildcardLike(source, expression, wildcardPattern)
-                : new WildcardLike(source, expression, wildcardPattern, false));
+                ? new WildcardLike(source, expression, wildcardPattern, this.testCase.getConfiguration())
+                : new WildcardLike(source, expression, wildcardPattern, false, this.testCase.getConfiguration()));
     }
 
     @AfterClass

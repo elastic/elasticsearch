@@ -157,8 +157,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return FetchSourceContext.of(fetchSource == null || fetchSource, sourceIncludes, sourceExcludes);
+        Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", null);
+
+        if (excludeVectors != null || fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
+            return FetchSourceContext.of(fetchSource == null || fetchSource, excludeVectors, sourceIncludes, sourceExcludes);
         }
         return null;
     }

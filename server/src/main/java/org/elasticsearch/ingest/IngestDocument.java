@@ -90,7 +90,26 @@ public final class IngestDocument {
     private boolean terminate = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
-        this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
+        this(index, id, version, routing, versionType, new StructuredSource(source));
+    }
+
+    public IngestDocument(
+        String index,
+        String id,
+        long version,
+        String routing,
+        VersionType versionType,
+        StructuredSource structuredSource
+    ) {
+        this.ctxMap = new IngestCtxMap(
+            index,
+            id,
+            version,
+            routing,
+            versionType,
+            ZonedDateTime.now(ZoneOffset.UTC),
+            structuredSource.getMap()
+        );
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
         this.templateModel = initializeTemplateModel();

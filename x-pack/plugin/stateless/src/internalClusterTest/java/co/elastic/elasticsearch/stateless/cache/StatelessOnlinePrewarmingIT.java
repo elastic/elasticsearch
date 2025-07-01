@@ -133,18 +133,12 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
-        boolean atLeastOneRefresh = false;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
             indexDocs(indexName, 1000);
-            if (randomBoolean()) {
+            if (i % 2 == 0) {
                 // note that we open a reader on the search side when we refresh. opening a reader will read some
                 // segments and warm them up in the cache so we need to wait for the reads triggered by the refresh to complete before
                 // we can assert on the warmed bytes
-                refresh(indexName);
-                atLeastOneRefresh = true;
-            }
-            if (i == 9 && atLeastOneRefresh == false) {
-                // let's make sure we have at least one refresh
                 refresh(indexName);
             }
         }

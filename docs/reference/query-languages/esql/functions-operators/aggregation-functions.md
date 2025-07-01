@@ -15,9 +15,6 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::{include} ../_snippets/functions/layout/avg.md
 :::
 
-:::{include} ../_snippets/functions/layout/avg_over_time.md
-:::
-
 :::{include} ../_snippets/functions/layout/count.md
 :::
 
@@ -27,9 +24,6 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::{include} ../_snippets/functions/layout/max.md
 :::
 
-:::{include} ../_snippets/functions/layout/max_over_time.md
-:::
-
 :::{include} ../_snippets/functions/layout/median.md
 :::
 
@@ -37,9 +31,6 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::
 
 :::{include} ../_snippets/functions/layout/min.md
-:::
-
-:::{include} ../_snippets/functions/layout/min_over_time.md
 :::
 
 :::{include} ../_snippets/functions/layout/percentile.md
@@ -65,4 +56,3 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 
 :::{include} ../_snippets/functions/layout/weighted_avg.md
 :::
-

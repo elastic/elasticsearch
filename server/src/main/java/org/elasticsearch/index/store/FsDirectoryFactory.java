@@ -50,7 +50,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
     private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
-    private static final FeatureFlag TMP_FDT_NO_MMAP_FEATURE_FLAG = new FeatureFlag("tmp_fdt_no_mmap");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -255,8 +254,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * @return whether to avoid using delegate if the file is a tmp fdt file.
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
-            // NOTE, for now gated behind feature flag to observe impact of this change in benchmarks only:
-            return TMP_FDT_NO_MMAP_FEATURE_FLAG.isEnabled() && extension == LuceneFilesExtensions.TMP && name.contains("fdt");
+            return extension == LuceneFilesExtensions.TMP && name.contains("fdt");
         }
 
         MMapDirectory getDelegate() {

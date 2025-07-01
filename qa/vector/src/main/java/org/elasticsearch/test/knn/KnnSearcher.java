@@ -94,7 +94,7 @@ class KnnSearcher {
     private final float overSamplingFactor;
     private final int searchThreads;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs) {
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
         this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
         this.queryPath = cmdLineArgs.queryVectors();
@@ -109,7 +109,7 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.efSearch = cmdLineArgs.numCandidates();
-        this.nProbe = cmdLineArgs.nProbe();
+        this.nProbe = nProbe;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
     }
@@ -206,6 +206,7 @@ class KnnSearcher {
         }
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN(offsetByteSize);
+        finalResults.nProbe = indexType == KnnIndexTester.IndexType.IVF ? nProbe : 0;
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -309,7 +310,7 @@ class KnnSearcher {
         }
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
-            knnQuery = new RescoreKnnVectorQuery(VECTOR_FIELD, vector, similarityFunction, this.topK, knnQuery);
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, similarityFunction, this.topK, topK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);

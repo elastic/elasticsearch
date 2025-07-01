@@ -207,4 +207,5 @@ public abstract class DenseVectorQuery extends Query {
             return iterator.docID();
         }
     }
+
 }

@@ -924,6 +924,7 @@ public final class IndexSettings {
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
+    private volatile boolean earlyTermination;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1121,6 +1122,7 @@ public final class IndexSettings {
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
+        earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1235,6 +1237,7 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
+        scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1864,6 +1867,14 @@ public final class IndexSettings {
 
     private void setHnswFilterHeuristic(DenseVectorFieldMapper.FilterHeuristic heuristic) {
         this.hnswFilterHeuristic = heuristic;
+    }
+
+    public boolean getHnswEarlyTermination() {
+        return this.earlyTermination;
+    }
+
+    private void setHnswEarlyTermination(boolean earlyTermination) {
+        this.earlyTermination = earlyTermination;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

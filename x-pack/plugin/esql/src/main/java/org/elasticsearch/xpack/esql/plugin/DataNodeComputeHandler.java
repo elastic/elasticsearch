@@ -116,7 +116,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             esqlExecutor,
             parentTask,
             originalIndices,
-            PlannerUtils.canMatchFilter(dataNodePlan),
+            PlannerUtils.canMatchFilter(clusterService.state().getMinTransportVersion(), dataNodePlan),
             clusterAlias,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster,

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.AutomatonQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -344,10 +344,10 @@ public class FilterTests extends ESTestCase {
 
         SingleValueQuery.Builder filter = (SingleValueQuery.Builder) filterQueryForTransportNodes(null, plan);
         assertEquals(LAST_NAME, filter.fieldName());
-        AutomatonQueryBuilder innerFilter = (AutomatonQueryBuilder) filter.next();
+        ExpressionQueryBuilder innerFilter = (ExpressionQueryBuilder) filter.next();
         assertEquals(LAST_NAME, innerFilter.fieldName());
         assertEquals("""
-            LIKE("a+", "b+"), caseInsensitive=false""", innerFilter.description());
+            last_name LIKE ("a+", "b+")""", innerFilter.getExpression().toString());
     }
 
     /**

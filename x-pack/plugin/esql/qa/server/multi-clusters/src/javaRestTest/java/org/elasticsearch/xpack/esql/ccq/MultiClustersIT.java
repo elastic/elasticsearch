@@ -431,7 +431,6 @@ public class MultiClustersIT extends ESRestTestCase {
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
-    public void testLikeIndexLegacySettingNoHit() throws Exception {
         try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
             // test code with the setting changed
             boolean includeCCSMetadata = includeCCSMetadata();
@@ -448,7 +447,7 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
-    public void testLikeIndexLegacySettingHit() throws Exception {
+    public void testLikeIndexLegacySettingResults() throws Exception {
         try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
             boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("""
@@ -458,6 +457,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 | SORT _index ASC
                 """, includeCCSMetadata);
             var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect results, since the setting is false, but there is : in the LIKE query
             var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
             assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
         }

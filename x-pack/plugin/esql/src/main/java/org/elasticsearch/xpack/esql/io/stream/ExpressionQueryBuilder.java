@@ -69,6 +69,10 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
         this.expression = planStreamInput.readNamedWriteable(Expression.class);
     }
 
+    public Expression getExpression() {
+        return expression;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);

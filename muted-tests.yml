@@ -236,9 +236,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636
-- class: org.elasticsearch.index.shard.StoreRecoveryTests
-  method: testAddIndices
-  issue: https://github.com/elastic/elasticsearch/issues/124104
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats on newly created config}
   issue: https://github.com/elastic/elasticsearch/issues/121726
@@ -485,21 +482,9 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
   issue: https://github.com/elastic/elasticsearch/issues/129296
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexWithNoPermissions
-  issue: https://github.com/elastic/elasticsearch/issues/129471
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanManageIndexAndPolicyDifferentUsers
-  issue: https://github.com/elastic/elasticsearch/issues/129479
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testCanViewExplainOnUnmanagedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/129480
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.xpack.security.PermissionsIT
-  method: testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/129481
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {knn-function.KnnSearchWithKOption SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/129512
@@ -549,8 +534,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunnerThrowing
   issue: https://github.com/elastic/elasticsearch/issues/130145
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/issues/130162
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/130205
@@ -575,6 +558,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/10_basic/Dense vector stats}
   issue: https://github.com/elastic/elasticsearch/issues/130307
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=nodes.stats/11_indices_metrics/Lucene segment level fields stats}
+  issue: https://github.com/elastic/elasticsearch/issues/130360
 
 # Examples:
 #

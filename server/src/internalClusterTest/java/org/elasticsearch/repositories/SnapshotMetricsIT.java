@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.hamcrest.Matcher;
@@ -37,7 +36,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
     }
 
-    public void testUpdateRepository() throws Exception {
+    public void testSnapshotAPMMetrics() throws Exception {
         final String repositoryName = randomIdentifier();
 
         createRepository(repositoryName, "mock");
@@ -50,8 +49,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         indexRandom(true, indexName, randomIntBetween(100, 300));
 
         // Block the snapshot to test "snapshot shards in progress"
-        MockRepository repository = asInstanceOf(MockRepository.class, getRepositoryOnMaster(repositoryName));
-        repository.blockOnDataFiles();
+        blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
         final long beforeCreateSnapshotNanos = System.nanoTime();
         try {
@@ -64,7 +62,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             collectMetrics();
             assertShardsInProgressMetricIs(hasItem(greaterThan(0L)));
         } finally {
-            repository.unblock();
+            unblockAllDataNodes(repositoryName);
         }
 
         // wait for snapshot to finish to test the other metrics

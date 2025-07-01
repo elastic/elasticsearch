@@ -26,7 +26,6 @@ import java.util.stream.IntStream;
  */
 public class DenseEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
 
-
     private final FloatBlock.Builder outputBlockBuilder;
     private final Page inputPage;
     private final int dimensions;
@@ -95,13 +94,13 @@ public class DenseEmbeddingOperatorOutputBuilder implements InferenceOperator.Ou
 
         public float[] next() {
             EmbeddingResults.Embedding<?> embedding = embeddingsIterator.next();
-            float[] values = switch(embedding) {
+            float[] values = switch (embedding) {
                 case TextEmbeddingFloatResults.Embedding textEmbeddingFloat -> textEmbeddingFloat.values();
                 case TextEmbeddingByteResults.Embedding textEmbeddingBytes -> toFloatArray(textEmbeddingBytes.values());
                 default -> throw new IllegalStateException("Unsupported embedding type [" + embedding.getClass() + "]");
             };
 
-            assert values.length == dimensions : "Unexpected vector size: " + values.length ;
+            assert values.length == dimensions : "Unexpected vector size: " + values.length;
 
             return values;
         }
@@ -112,9 +111,11 @@ public class DenseEmbeddingOperatorOutputBuilder implements InferenceOperator.Ou
             return floatValues;
         }
 
-
         public static EmbeddingValueReader of(InferenceAction.Response inferenceResponse, int dimensions) {
-            TextEmbeddingResults<?> inferenceResults = InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, TextEmbeddingResults.class);
+            TextEmbeddingResults<?> inferenceResults = InferenceOperator.OutputBuilder.inferenceResults(
+                inferenceResponse,
+                TextEmbeddingResults.class
+            );
             return new EmbeddingValueReader(inferenceResults.embeddings().iterator(), dimensions);
         }
     }

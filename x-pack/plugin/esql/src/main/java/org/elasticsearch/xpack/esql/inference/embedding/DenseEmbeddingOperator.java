@@ -77,9 +77,9 @@ public class DenseEmbeddingOperator extends InferenceOperator {
      * Returns the request iterator responsible for batching and converting input rows into inference requests.
      */
     @Override
-    protected DenseEmbeddingRequestIterator requests(Page inputPage) {
+    protected DenseEmbeddingOperatorRequestIterator requests(Page inputPage) {
         int inputBlockChannel = inputPage.getBlockCount() - 1;
-        return new DenseEmbeddingRequestIterator(inputPage.getBlock(inputBlockChannel), inferenceId(), batchSize);
+        return new DenseEmbeddingOperatorRequestIterator(inputPage.getBlock(inputBlockChannel), inferenceId(), batchSize);
     }
 
     /**
@@ -98,8 +98,12 @@ public class DenseEmbeddingOperator extends InferenceOperator {
     /**
      * Factory for creating {@link DenseEmbeddingOperator} instances
      */
-    public record Factory(InferenceRunner inferenceRunner, int dimensions, String inferenceId,
-                          ExpressionEvaluator.Factory inputEvaluatorFactory) implements OperatorFactory {
+    public record Factory(
+        InferenceRunner inferenceRunner,
+        int dimensions,
+        String inferenceId,
+        ExpressionEvaluator.Factory inputEvaluatorFactory
+    ) implements OperatorFactory {
 
         @Override
         public String describe() {

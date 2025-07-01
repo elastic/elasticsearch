@@ -24,13 +24,13 @@ import java.util.NoSuchElementException;
  * <p>This iterator reads from a {@link BytesRefBlock} containing text to be embedded. It slices the input into batches
  * of configurable size and converts each batch into an {@link InferenceAction.Request} with the task type {@link TaskType#TEXT_EMBEDDING}.
  */
-public class DenseEmbeddingRequestIterator implements BulkInferenceRequestIterator {
+public class DenseEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterator {
     private final BytesRefBlock inputBlock;
     private final String inferenceId;
     private final int batchSize;
     private int remainingPositions;
 
-    public DenseEmbeddingRequestIterator(BytesRefBlock inputBlock, String inferenceId, int batchSize) {
+    public DenseEmbeddingOperatorRequestIterator(BytesRefBlock inputBlock, String inferenceId, int batchSize) {
         this.inputBlock = inputBlock;
         this.inferenceId = inferenceId;
         this.batchSize = batchSize;

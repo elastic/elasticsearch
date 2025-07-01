@@ -93,7 +93,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                         if (randomInt() % 100 == 0) {
                             builder.appendNull();
                         } else {
-                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(randomInt(10))));
                         }
 
                     }

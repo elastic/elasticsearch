@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -523,7 +524,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // Fields use synthetic sources, which can't be serialized. So we replace with the originals instead.
         var dummyChildren = newExpression.children()
             .stream()
-            .<Expression>map(c -> new Literal(Source.EMPTY, "anything that won't match any test case", c.dataType()))
+            .<Expression>map(c -> new Literal(Source.EMPTY, BytesRefs.toBytesRef("anything that won't match any test case"), c.dataType()))
             .toList();
         // We first replace them with other unrelated expressions to force a replace, as some replaceChildren() will check for equality
         return newExpression.replaceChildrenSameSize(dummyChildren).replaceChildrenSameSize(expression.children());
@@ -958,9 +959,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                 continue;
             }
-            signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
+            List<DataType> types = tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList();
+            signatures.putIfAbsent(signatureTypes(testClass, types), tc.expectedType());
         }
         return signatures;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<DataType> signatureTypes(Class<?> testClass, List<DataType> types) {
+        try {
+            Method method = testClass.getMethod("signatureTypes", List.class);
+            return (List<DataType>) method.invoke(null, types);
+        } catch (NoSuchMethodException ingored) {
+            return types;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     @AfterClass

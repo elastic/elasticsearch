@@ -34,8 +34,7 @@ import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class LlamaActionCreator implements LlamaActionVisitor {
 
-    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE =
-        "Failed to send Llama %s request from inference entity id [%s]";
+    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE = "Failed to send Llama %s request from inference entity id [%s]";
     public static final String COMPLETION_ERROR_PREFIX = "Llama completions";
     private static final String USER_ROLE = "user";
 

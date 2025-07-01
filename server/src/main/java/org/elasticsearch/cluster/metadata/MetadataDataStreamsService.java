@@ -431,9 +431,9 @@ public class MetadataDataStreamsService {
         Settings mergedDataStreamSettings = mergedSettingsBuilder.build();
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, metadata);
-        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, metadata.componentTemplates());
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
-        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, mergedTemplate.template().mappings(), indicesService);
+        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, null, indicesService);
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }

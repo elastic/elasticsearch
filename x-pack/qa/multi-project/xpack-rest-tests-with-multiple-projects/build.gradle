@@ -30,14 +30,9 @@ tasks.named("yamlRestTest").configure {
     '^analytics/histogram/*',
     '^analytics/moving_percentiles/*',
     '^analytics/top_metrics/*',
-    '^analytics/usage/*',
     '^data_streams/10_data_stream_resolvability/*',
     '^deprecation/10_basic/*',
-    '^dlm/10_usage/*',
-    '^esql/60_usage/*',
-    '^health/10_usage/*',
-    '^ilm/80_health/*',
-    '^logsdb/10_usage/*',
+    '^health/10_usage/*', // The usage API is project-aware, this test just fails on the project-awareness of the SLM health indicator
     '^migration/10_get_feature_upgrade_status/*',
     '^migration/20_post_feature_upgrade/*',
     '^ml/3rd_party_deployment/*',
@@ -110,16 +105,11 @@ tasks.named("yamlRestTest").configure {
     '^rollup/rollup_search/*',
     '^rollup/start_job/*',
     '^rollup/stop_job/*',
-    '^searchable_snapshots/10_usage/*',
+    '^searchable_snapshots/10_usage/*', // The usage API is project-aware, so this test can be unmuted once snapshot repositories are project-aware
     '^searchable_snapshots/20_synthetic_source/*',
-    '^security/authz/14_cat_indices/*',
-    '^security/authz/14_cat_indices/Test explicit request while multiple opened/*',
-    '^security/authz/60_resolve_index/*',
     '^security/settings/10_update_security_settings/*',
     '^snapshot/10_basic/*',
     '^snapshot/20_operator_privileges_disabled/*',
-    '^spatial/50_feature_usage/*',
-    '^spatial/100_geo_grid_ingest/*',
     '^transform/preview_transforms/*',
     '^transform/transforms_cat_apis/*',
     '^transform/transforms_crud/*',
@@ -135,7 +125,6 @@ tasks.named("yamlRestTest").configure {
     '^transform/transforms_unattended/*',
     '^transform/transforms_update/*',
     '^transform/transforms_upgrade/*',
-    '^voting_only_node/10_basic/*'
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

@@ -1,0 +1,5 @@
+pr: 130382
+summary: Remove vectors from `_source` transparently
+area: "Mapping, Vector Search"
+type: enhancement
+issues: []

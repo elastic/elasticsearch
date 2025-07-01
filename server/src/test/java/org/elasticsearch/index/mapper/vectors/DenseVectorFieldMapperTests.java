@@ -2439,7 +2439,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2457,7 +2458,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2475,7 +2477,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2493,7 +2496,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2511,7 +2515,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -2526,7 +2531,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2544,7 +2550,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2579,7 +2586,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -2594,7 +2602,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(
@@ -2612,7 +2621,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 null,
                 null,
                 null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values())
+                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+                randomBoolean()
             )
         );
         assertThat(

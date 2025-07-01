@@ -25,7 +25,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_POOL_UTILIZATION_EWMA_ALPHA_FOR_TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -51,7 +52,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -89,6 +90,51 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
+    public void testQueueLatencyEWMACalculation() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final var threadPoolName = randomIdentifier();
+        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            settableQueuingWrapper(TimeUnit.NANOSECONDS.toNanos(1000000)),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context,
+            new TaskTrackingConfig(
+                randomBoolean(),
+                true,
+                false,
+                DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
+                0.6, // DEFAULT_QUEUE_LATENCY_EWMA_ALPHA is the default, but no need to break the test if it changes.
+                DEFAULT_POOL_UTILIZATION_EWMA_ALPHA_FOR_TEST
+            )
+        );
+        executor.setupMetrics(meterRegistry, threadPoolName);
+        executor.prestartAllCoreThreads();
+        logger.info("--> executor: {}", executor);
+
+        assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.0);
+        // Using the settableQueuingWrapper each task will report being queued for 1ms
+        executeTask(executor, 1);
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.6); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.84); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.936); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.9744); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.98976); });
+        assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -103,7 +149,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -135,7 +181,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -170,7 +216,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(true, DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
 
@@ -231,6 +277,10 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
+    private void assertDoublesEqual(double expected, double actual) {
+        assertEquals(expected, actual, 0.00001);
+    }
+
     private long getPercentile(List<Measurement> measurements, String percentile) {
         return measurements.stream().filter(m -> m.attributes().get("percentile").equals(percentile)).findFirst().orElseThrow().getLong();
     }
@@ -240,7 +290,15 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * where {@link TimedRunnable#getTotalExecutionNanos()} always returns {@code timeTakenNanos}.
      */
     private Function<Runnable, WrappedRunnable> settableWrapper(long timeTakenNanos) {
-        return (runnable) -> new SettableTimedRunnable(timeTakenNanos, false);
+        return (runnable) -> new SettableTimedRunnable(0, timeTakenNanos, false);
+    }
+
+    /**
+     * The returned function outputs a WrappedRunnabled that simulates the case
+     * where {@link TimedRunnable#getQueueTimeNanos()} always returns {@code queueTimeTakenNanos}.
+     */
+    private Function<Runnable, WrappedRunnable> settableQueuingWrapper(long queueTimeTakenNanos) {
+        return (runnable) -> new SettableTimedRunnable(queueTimeTakenNanos, 0, false);
     }
 
     /**
@@ -249,7 +307,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * the job failed or was rejected before it finished.
      */
     private Function<Runnable, WrappedRunnable> exceptionalWrapper() {
-        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(-1), true);
+        return (runnable) -> new SettableTimedRunnable(0, TimeUnit.NANOSECONDS.toNanos(-1), true);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -261,23 +319,30 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public class SettableTimedRunnable extends TimedRunnable {
-        private final long timeTaken;
+        private final long queuedTimeTakenNanos;
+        private final long executionTimeTakenNanos;
         private final boolean testFailedOrRejected;
 
-        public SettableTimedRunnable(long timeTaken, boolean failedOrRejected) {
+        public SettableTimedRunnable(long queuedTimeTakenNanos, long executionTimeTakenNanos, boolean failedOrRejected) {
             super(() -> {});
-            this.timeTaken = timeTaken;
+            this.queuedTimeTakenNanos = queuedTimeTakenNanos;
+            this.executionTimeTakenNanos = executionTimeTakenNanos;
             this.testFailedOrRejected = failedOrRejected;
         }
 
         @Override
         public long getTotalExecutionNanos() {
-            return timeTaken;
+            return executionTimeTakenNanos;
         }
 
         @Override
         public boolean getFailedOrRejected() {
             return testFailedOrRejected;
+        }
+
+        @Override
+        long getQueueTimeNanos() {
+            return queuedTimeTakenNanos;
         }
     }
 }

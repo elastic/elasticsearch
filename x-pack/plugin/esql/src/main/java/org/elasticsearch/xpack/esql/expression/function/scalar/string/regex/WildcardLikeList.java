@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
@@ -39,6 +41,30 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         "WildcardLikeList",
         WildcardLikeList::new
     );
+
+    Supplier<Automaton> automatonSupplier = new Supplier<>() {
+        Automaton cached;
+
+        @Override
+        public Automaton get() {
+            if (cached == null) {
+                cached = pattern().createAutomaton(caseInsensitive());
+            }
+            return cached;
+        }
+    };
+
+    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
+        CharacterRunAutomaton cached;
+
+        @Override
+        public CharacterRunAutomaton get() {
+            if (cached == null) {
+                cached = new CharacterRunAutomaton(automatonSupplier.get());
+            }
+            return cached;
+        }
+    };
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -112,9 +138,6 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        if (pushdownPredicates.configuration().stringLikeOnIndex() == false) {
-            throw new IllegalArgumentException("LIKE with LIST cannot be used with string_like_on_index enabled. Use LIKE instead.");
-        }
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);
@@ -131,8 +154,13 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        Automaton automaton = pattern().createAutomaton(caseInsensitive());
-        return fieldType.automatonQuery(automaton, constantScoreRewrite, context, getLuceneQueryDescription());
+        return fieldType.automatonQuery(
+            automatonSupplier,
+            characterRunAutomatonSupplier,
+            constantScoreRewrite,
+            context,
+            getLuceneQueryDescription()
+        );
     }
 
     private String getLuceneQueryDescription() {

@@ -132,7 +132,7 @@ public class BlobCacheMetrics {
         CachePopulationSource cachePopulationSource
     ) {
         LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(blobName);
-        String blobFileExtension = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        String blobFileExtension = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : blobName;
         Map<String, Object> metricAttributes = Map.of(
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name(),

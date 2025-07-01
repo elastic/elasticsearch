@@ -248,15 +248,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.hackImmutableCollections", "true");
             }
 
-            FileCollection entitlementBridgeJar = entitlementBridgeJar(project);
-            if (entitlementBridgeJar != null) {
-                test.getInputs().files(entitlementBridgeJar);
+            FileCollection entitlementBridge = entitlementBridge(project);
+            if (entitlementBridge != null) {
+                test.getInputs().files(entitlementBridge);
             }
 
             test.getJvmArgumentProviders().add(() -> {
                 String javaBasePatch = Stream.concat(
                     singleFilePath(patchedImmutableCollections).map(str -> str + "/java.base"),
-                    singleFilePath(entitlementBridgeJar)
+                    singleFilePath(entitlementBridge)
                 ).collect(joining(File.pathSeparator));
 
                 return javaBasePatch.isEmpty()
@@ -283,8 +283,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         return patchedFileCollection;
     }
 
-    private static FileCollection entitlementBridgeJar(Project project) {
-        return project.getConfigurations().findByName("entitlementBridgeJar");
+    private static FileCollection entitlementBridge(Project project) {
+        return project.getConfigurations().findByName("entitlementBridge");
     }
 
     /**

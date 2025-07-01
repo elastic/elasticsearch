@@ -221,9 +221,9 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
             LifecycleExecutionState exState = indexMetadata.getLifecycleExecutionState();
             if (ErrorStep.NAME.equals(exState.step()) && this.failure != null) {
-                lifecycleRunner.registerFailedOperation(indexMetadata, failure);
+                lifecycleRunner.registerFailedOperation(projectId, indexMetadata, failure);
             } else {
-                lifecycleRunner.registerSuccessfulOperation(indexMetadata);
+                lifecycleRunner.registerSuccessfulOperation(projectId, indexMetadata);
             }
 
             if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {

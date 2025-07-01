@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +76,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportService transportService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ProjectResolver projectResolver
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -87,7 +89,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             bigArrays,
             blockFactory,
             true,
-            TransportRequest::readFrom
+            TransportRequest::readFrom,
+            projectResolver
         );
     }
 

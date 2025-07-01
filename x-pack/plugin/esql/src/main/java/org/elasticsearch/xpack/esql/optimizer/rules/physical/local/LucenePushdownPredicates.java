@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -31,6 +34,24 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  * </ol>
  */
 public interface LucenePushdownPredicates {
+    /**
+     * If we're extracting a query for {@code can_match} then this is the
+     * minimum transport version in the cluster. Otherwise, this is {@code null}.
+     * <p>
+     *     If this is not null {@link Expression}s should not claim to be
+     *     serializable unless their {@link QueryBuilder}
+     *     {@link QueryBuilder#supportsVersion supports} the version.
+     * </p>
+     * <p>
+     *     This is done on the coordinating node <strong>and</strong>. And for
+     *     cross cluster search this is done on the coordinating node on the
+     *     remote cluster. So! We actually <strong>have</strong> the minimum
+     *     cluster transport version.
+     * </p>
+     */
+    @Nullable
+    TransportVersion minTransportVersion();
+
     /**
      * For TEXT fields, we need to check if the field has a subfield of type KEYWORD that can be used instead.
      */
@@ -111,34 +132,46 @@ public interface LucenePushdownPredicates {
      * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
      */
-    LucenePushdownPredicates DEFAULT = new LucenePushdownPredicates() {
-        @Override
-        public boolean hasExactSubfield(FieldAttribute attr) {
-            return false;
-        }
+    LucenePushdownPredicates DEFAULT = forCanMatch(null);
 
-        @Override
-        public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-            // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
+    /**
+     * A {@link LucenePushdownPredicates} for use with the {@code can_match} phase.
+     */
+    static LucenePushdownPredicates forCanMatch(TransportVersion minTransportVersion) {
+        return new LucenePushdownPredicates() {
+            @Override
+            public TransportVersion minTransportVersion() {
+                return minTransportVersion;
+            }
 
-        @Override
-        public boolean isIndexed(FieldAttribute attr) {
-            // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
+            @Override
+            public boolean hasExactSubfield(FieldAttribute attr) {
+                return false;
+            }
 
-        @Override
-        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
-            return false;
-        }
+            @Override
+            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
+                // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
 
-        @Override
-        public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
-            return false;
-        }
-    };
+            @Override
+            public boolean isIndexed(FieldAttribute attr) {
+                // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return false;
+            }
+
+            @Override
+            public boolean matchQueryYieldsCandidateMatchesForEquality(FieldAttribute attr) {
+                return false;
+            }
+        };
+    }
 
     /**
      * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
@@ -148,6 +181,11 @@ public interface LucenePushdownPredicates {
         // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
         // C.f. https://github.com/elastic/elasticsearch/issues/128905
         return new LucenePushdownPredicates() {
+            @Override
+            public TransportVersion minTransportVersion() {
+                return null;
+            }
+
             @Override
             public boolean hasExactSubfield(FieldAttribute attr) {
                 return stats.hasExactSubfield(new FieldAttribute.FieldName(attr.name()));

@@ -477,7 +477,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     fetchSourceContext.includes(),
                     lateExcludes.toArray(String[]::new)
                 );
-            return Tuple.tuple(newFetchSourceContext, excludes.isEmpty() ? null : sourceFilter);
+            return Tuple.tuple(newFetchSourceContext, sourceFilter);
         }
         return Tuple.tuple(fetchSourceContext, sourceFilter);
     }

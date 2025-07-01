@@ -150,6 +150,73 @@ setup:
   - length:      { hits.hits.3._source.nested.0.vector: 3 }
   - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
 
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+            includes: nested.vector
+          sort: ["name"]
+
+  - match:           { hits.hits.0._id: "1"}
+  - length:          { hits.hits.0._source: 0}
+
+  - match:           { hits.hits.1._id: "2"}
+  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.1._source.nested: 3 }
+  - exists:            hits.hits.1._source.nested.0.vector
+  - not_exists:        hits.hits.1._source.nested.0.paragraph_id
+  - exists:            hits.hits.1._source.nested.1.vector
+  - not_exists:        hits.hits.1._source.nested.1.paragraph_id
+  - exists:            hits.hits.1._source.nested.2.vector
+  - not_exists:        hits.hits.1._source.nested.2.paragraph_id
+
+  - match:           { hits.hits.2._id: "3" }
+  - length:          { hits.hits.2._source: 0}
+
+  - match:           { hits.hits.3._id: "4" }
+  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.3._source.nested: 2 }
+  - exists:            hits.hits.3._source.nested.0.vector
+  - length:          { hits.hits.3._source.nested.0.vector: 3 }
+  - not_exists:        hits.hits.3._source.nested.0.paragraph_id
+  - exists:            hits.hits.3._source.nested.1.vector
+  - length:          { hits.hits.3._source.nested.1.vector: 3 }
+  - not_exists:        hits.hits.3._source.nested.1.paragraph_id
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+          sort: ["name"]
+          fields: ["vector"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+  - match:      { hits.hits.0.fields.vector: [1.0, 2.0, 3.0]}
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - match:      { hits.hits.2.fields.vector: [10.0, 11.0, 12.0]}
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+
+
 ---
 "Bulk partial update with synthetic vectors":
   - do:
@@ -220,7 +287,7 @@ setup:
 "Partial update with synthetic vectors":
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
         Content-Type: application/json
       update:
         index: test
@@ -247,7 +314,7 @@ setup:
 
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
         Content-Type: application/json
       get:
         _source_exclude_vectors: false
@@ -263,7 +330,7 @@ setup:
 
   - do:
       headers:
-        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
         Content-Type: application/json
       search:
         index: test

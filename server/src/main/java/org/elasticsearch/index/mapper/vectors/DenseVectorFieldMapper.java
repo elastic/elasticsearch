@@ -101,6 +101,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -3151,32 +3152,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns a deep-copied vector for the current document, either as a float array
-         * (with optional cosine normalization) or a byte array.
+         * Returns a deep-copied vector for the current document, either as a list of floats
+         * (with optional cosine normalization) or a list of bytes.
          *
-         * @return the {@link VectorData} instance representing the current vector
-         * @throws IOException if vector data is not available or reading fails
+         * @throws IOException if reading fails
          */
-        public VectorData copyVector() throws IOException {
+        public Object copyVectorAsList() throws IOException {
             assert hasValue : "vector is null for ord=" + ord;
             if (floatValues != null) {
                 float[] raw = floatValues.vectorValue(ord);
-                float[] copy = new float[raw.length];
+                List<Float> copyList = new ArrayList<>(raw.length);
 
                 if (hasMagnitude) {
                     float mag = Float.intBitsToFloat((int) magnitudeReader.longValue());
                     for (int i = 0; i < raw.length; i++) {
-                        copy[i] = raw[i] * mag;
+                        copyList.add(raw[i] * mag);
                     }
                 } else {
-                    System.arraycopy(raw, 0, copy, 0, raw.length);
+                    for (int i = 0; i < raw.length; i++) {
+                        copyList.add(raw[i]);
+                    }
                 }
-                return VectorData.fromFloats(copy);
+                return copyList;
             } else if (byteValues != null) {
                 byte[] raw = byteValues.vectorValue(ord);
-                byte[] copy = new byte[raw.length];
-                System.arraycopy(raw, 0, copy, 0, raw.length);
-                return VectorData.fromBytes(copy);
+                List<Byte> copyList = new ArrayList<>(raw.length);
+                for (int i = 0; i < raw.length; i++) {
+                    copyList.add(raw[i]);
+                }
+                return copyList;
             }
 
             throw new IllegalStateException("No vector values available to copy.");
@@ -3259,7 +3263,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 dvLoader.advanceToDoc(doc);
                 if (syntheticFieldLoader.hasValue()) {
-                    acc.add(new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVector()));
+                    // add vectors as list since that's how they're parsed from xcontent.
+                    acc.add(
+                        new SourceLoader.LeafSyntheticVectorPath(syntheticFieldLoader.fieldName(), syntheticFieldLoader.copyVectorAsList())
+                    );
                 }
             };
         }

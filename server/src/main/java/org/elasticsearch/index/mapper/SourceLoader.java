@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -477,7 +476,7 @@ public interface SourceLoader {
         for (SyntheticVectorPatch patch : patches) {
             if (patch instanceof LeafSyntheticVectorPath leaf) {
                 String key = extractRelativePath(rootPath, leaf.fullPath());
-                map.put(key, leaf.value().isFloat() ? leaf.value().floatVector() : leaf.value().byteVector());
+                map.put(key, leaf.value());
             } else if (patch instanceof NestedSyntheticVectorPath nested) {
                 String nestedPath = extractRelativePath(rootPath, nested.fullPath());
                 List<Map<?, ?>> nestedMaps = XContentMapValues.extractNestedSources(nestedPath, map);
@@ -528,7 +527,7 @@ public interface SourceLoader {
      * @param fullPath the fully-qualified field name
      * @param value     the value to assign
      */
-    record LeafSyntheticVectorPath(String fullPath, VectorData value) implements SyntheticVectorPatch {}
+    record LeafSyntheticVectorPath(String fullPath, Object value) implements SyntheticVectorPatch {}
 
     interface SyntheticVectorsLoader {
         /**

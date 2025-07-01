@@ -122,7 +122,7 @@ public class ES910BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         // don't have the possibility of doing a PerFieldMapperCodec yet on KnnSearcher
         DEFAULT_QUERY_BITS = queryBits;
         DEFAULT_INDEX_BITS = indexBits;
-        this.scorer = new ES910BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer(), queryBits);
+        this.scorer = new ES910BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer(), indexBits, queryBits);
     }
 
     @Override

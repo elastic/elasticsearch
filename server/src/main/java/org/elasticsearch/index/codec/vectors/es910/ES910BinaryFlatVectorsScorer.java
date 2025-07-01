@@ -39,9 +39,11 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
     private final FlatVectorsScorer nonQuantizedDelegate;
     private final byte queryBits;
+    private final byte indexBits;
 
-    public ES910BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate, byte queryBits) {
+    public ES910BinaryFlatVectorsScorer(FlatVectorsScorer nonQuantizedDelegate, byte indexBits, byte queryBits) {
         this.nonQuantizedDelegate = nonQuantizedDelegate;
+        this.indexBits = indexBits;
         this.queryBits = queryBits;
     }
 
@@ -85,7 +87,8 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
                         queryCorrections,
                         binarizedVectors.vectorValue(i),
                         binarizedVectors.getCorrectiveTerms(i),
-                        getBitsScale()
+                        getIndexBitsScale(),
+                        getQueryBitsScale()
                     );
                 }
             };
@@ -93,7 +96,11 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 
-    private float getBitsScale() {
+    private float getIndexBitsScale() {
+        return 1f / ((1 << indexBits) - 1);
+    }
+
+    private float getQueryBitsScale() {
         return 1f / ((1 << queryBits) - 1);
     }
 
@@ -111,7 +118,7 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
         ES910BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
         BinarizedByteVectorValues targetVectors
     ) {
-        return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction, queryBits);
+        return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction, indexBits, queryBits);
     }
 
     @Override
@@ -124,28 +131,31 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
         private final ES910BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
         private final BinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
+        private final byte indexBits;
         private final byte queryBits;
 
         BinarizedRandomVectorScorerSupplier(
             ES910BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
             BinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction,
+            byte indexBits,
             byte queryBits
         ) {
             this.queryVectors = queryVectors;
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
+            this.indexBits = indexBits;
             this.queryBits = queryBits;
         }
 
         @Override
         public BinarizedRandomVectorScorer scorer() throws IOException {
-            return new BinarizedRandomVectorScorer(queryVectors.copy(), targetVectors.copy(), similarityFunction, queryBits);
+            return new BinarizedRandomVectorScorer(queryVectors.copy(), targetVectors.copy(), similarityFunction, indexBits, queryBits);
         }
 
         @Override
         public RandomVectorScorerSupplier copy() throws IOException {
-            return new BinarizedRandomVectorScorerSupplier(queryVectors, targetVectors, similarityFunction, queryBits);
+            return new BinarizedRandomVectorScorerSupplier(queryVectors, targetVectors, similarityFunction, indexBits, queryBits);
         }
     }
 
@@ -157,12 +167,14 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
         private final byte[] quantizedQuery;
         private OptimizedScalarQuantizer.QuantizationResult queryCorrections = null;
         private int currentOrdinal = -1;
-        private final float bitScale;
+        private final float queryBitsScale;
+        private final float indexBitsScale;
 
         BinarizedRandomVectorScorer(
             ES910BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
             BinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction,
+            byte indexBits,
             byte queryBits
         ) {
             super(targetVectors);
@@ -170,7 +182,8 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
             this.quantizedQuery = new byte[queryVectors.dimension()];
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
-            bitScale = 1.0F / (float) ((1 << queryBits) - 1);
+            this.indexBitsScale = 1.0F / (float) ((1 << indexBits) - 1);
+            this.queryBitsScale = 1.0F / (float) ((1 << queryBits) - 1);
         }
 
         @Override
@@ -186,7 +199,8 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 queryCorrections,
                 targetVectors.vectorValue(targetOrd),
                 targetVectors.getCorrectiveTerms(targetOrd),
-                bitScale
+                indexBitsScale,
+                queryBitsScale
             );
         }
 
@@ -209,15 +223,15 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
         OptimizedScalarQuantizer.QuantizationResult queryCorrections,
         byte[] d,
         OptimizedScalarQuantizer.QuantizationResult indexCorrections,
-        float bitsScale
+        float indexBitsScale,
+        float queryBitsScale
     ) {
         float qcDist = VectorUtil.dotProduct(q, d);
         float x1 = indexCorrections.quantizedComponentSum();
         float ax = indexCorrections.lowerInterval();
-        // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = indexCorrections.upperInterval() - ax;
+        float lx = (indexCorrections.upperInterval() - ax) * indexBitsScale;
         float ay = queryCorrections.lowerInterval();
-        float ly = (queryCorrections.upperInterval() - ay) * bitsScale;
+        float ly = (queryCorrections.upperInterval() - ay) * queryBitsScale;
         float y1 = queryCorrections.quantizedComponentSum();
         float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

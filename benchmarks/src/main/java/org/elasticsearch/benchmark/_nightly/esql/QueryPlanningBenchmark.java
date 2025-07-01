@@ -87,7 +87,8 @@ public class QueryPlanningBenchmark {
             false,
             Map.of(),
             System.nanoTime(),
-            false
+            false,
+            true
         );
 
         var fields = 10_000;

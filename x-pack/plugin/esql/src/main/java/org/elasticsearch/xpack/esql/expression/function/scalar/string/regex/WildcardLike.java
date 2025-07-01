@@ -126,12 +126,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     // TODO: see whether escaping is needed
     private Query translateField(String targetFieldName) {
-        return new WildcardQuery(
-            source(),
-            targetFieldName,
-            pattern().asLuceneWildcard(),
-            caseInsensitive(),
-            configuration.stringLikeOnIndex()
-        );
+        boolean forceStringMatch = configuration != null && configuration.stringLikeOnIndex();
+        return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
     }
 }

@@ -42,6 +42,9 @@ results, the output will contain one row for each matching combination.
 For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#usage-notes).
 ::::
 
+:::{include} ../types/lookup-join.md
+:::
+
 **Examples**
 
 **IP Threat correlation**: This query would allow you to see if any source
@@ -80,7 +83,4 @@ before the lookup when possible.
 :::
 
 :::{include} ../examples/lookup-join.csv-spec/filterOnRightSide.md
-:::
-
-:::{include} ../types/lookup-join.md
 :::

@@ -151,12 +151,9 @@ To use `LOOKUP JOIN`, the following requirements must be met:
     * `short` and `byte` are compatible with `integer` (all represented as `int`)
     * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
   * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
+  * `DATE` and `DATE_NANOS` can only be joined against the exact same type.
 
 To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
-* Both `KEYWORD` and `TEXT` are supported in the main index, but can only join against `KEYWORD` in the join index.
-* All numerical types are supported as join keys, using the same rules as applicable to the `==` operator when performing the join. FOr example, a `double` can be joined with an `integer`.
-* `DATE` and `DATE_NONES` can only be joined against the exact same type.
-* `IP` is supported, but `VERSION` is not.
 
 The list of unsupported fields includes all types not supported by {{esql}} as described in the [Unsupported Field Types documentation](/reference/query-languages/esql/limitations.md#_unsupported_types).
 as well as the following: `VERSION`, `UNSIGNED_LONG`, all spatial types like `GEO_POINT`, `GEO_SHAPE`, and all

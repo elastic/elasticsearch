@@ -2,76 +2,76 @@
 
 **Supported types**
 
-| main | join | result |
-| --- | --- | --- |
-| boolean | boolean | boolean |
-| byte | byte | byte |
-| byte | double | double |
-| byte | float | float |
-| byte | half_float | half_float |
-| byte | integer | integer |
-| byte | long | long |
-| byte | scaled_float | scaled_float |
-| byte | short | short |
-| date | date | date |
-| date_nanos | date_nanos | date_nanos |
-| double | byte | double |
-| double | double | double |
-| double | float | double |
-| double | half_float | double |
-| double | integer | double |
-| double | long | double |
-| double | scaled_float | scaled_float |
-| double | short | double |
-| float | byte | float |
-| float | double | double |
-| float | float | float |
-| float | half_float | half_float |
-| float | integer | float |
-| float | long | float |
-| float | scaled_float | scaled_float |
-| float | short | float |
-| half_float | byte | half_float |
-| half_float | double | double |
-| half_float | float | float |
-| half_float | half_float | half_float |
-| half_float | integer | half_float |
-| half_float | long | half_float |
-| half_float | scaled_float | scaled_float |
-| half_float | short | half_float |
-| integer | byte | integer |
-| integer | double | double |
-| integer | float | float |
-| integer | half_float | half_float |
-| integer | integer | integer |
-| integer | long | long |
-| integer | scaled_float | scaled_float |
-| integer | short | integer |
-| ip | ip | ip |
-| keyword | keyword | keyword |
-| long | byte | long |
-| long | double | double |
-| long | float | float |
-| long | half_float | half_float |
-| long | integer | long |
-| long | long | long |
-| long | scaled_float | scaled_float |
-| long | short | long |
-| scaled_float | byte | scaled_float |
-| scaled_float | double | double |
-| scaled_float | float | scaled_float |
-| scaled_float | half_float | scaled_float |
-| scaled_float | integer | scaled_float |
-| scaled_float | long | scaled_float |
-| scaled_float | scaled_float | scaled_float |
-| scaled_float | short | scaled_float |
-| short | byte | short |
-| short | double | double |
-| short | float | float |
-| short | half_float | half_float |
-| short | integer | integer |
-| short | long | long |
-| short | scaled_float | scaled_float |
-| short | short | short |
-| text | keyword | keyword |
+| main | join | 
+| --- | --- | 
+| boolean | boolean | 
+| byte | byte | 
+| byte | double | 
+| byte | float | 
+| byte | half_float | 
+| byte | integer | 
+| byte | long | 
+| byte | scaled_float | 
+| byte | short | 
+| date | date | 
+| date_nanos | date_nanos | 
+| double | byte | 
+| double | double | 
+| double | float | 
+| double | half_float | 
+| double | integer | 
+| double | long | 
+| double | scaled_float | 
+| double | short | 
+| float | byte | 
+| float | double | 
+| float | float | 
+| float | half_float | 
+| float | integer | 
+| float | long | 
+| float | scaled_float | 
+| float | short | 
+| half_float | byte | 
+| half_float | double | 
+| half_float | float | 
+| half_float | half_float | 
+| half_float | integer | 
+| half_float | long | 
+| half_float | scaled_float | 
+| half_float | short | 
+| integer | byte | 
+| integer | double | 
+| integer | float | 
+| integer | half_float | 
+| integer | integer | 
+| integer | long | 
+| integer | scaled_float | 
+| integer | short | 
+| ip | ip | 
+| keyword | keyword | 
+| long | byte | 
+| long | double | 
+| long | float | 
+| long | half_float | 
+| long | integer | 
+| long | long | 
+| long | scaled_float | 
+| long | short | 
+| scaled_float | byte | 
+| scaled_float | double | 
+| scaled_float | float | 
+| scaled_float | half_float | 
+| scaled_float | integer | 
+| scaled_float | long | 
+| scaled_float | scaled_float | 
+| scaled_float | short | 
+| short | byte | 
+| short | double | 
+| short | float | 
+| short | half_float | 
+| short | integer | 
+| short | long | 
+| short | scaled_float | 
+| short | short | 
+| text | keyword | 
 

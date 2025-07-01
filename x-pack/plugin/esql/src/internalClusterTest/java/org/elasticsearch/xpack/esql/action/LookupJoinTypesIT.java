@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -277,8 +276,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             }
             for (TestConfig config : configs.configs.values()) {
                 if (config instanceof TestConfigPasses) {
-                    DataType commonType = EsqlDataTypeConverter.commonType(config.mainType(), config.lookupType());
-                    signatures.put(List.of(config.mainType(), config.lookupType()), commonType);
+                    signatures.put(List.of(config.mainType(), config.lookupType()), null);
                 }
             }
         }

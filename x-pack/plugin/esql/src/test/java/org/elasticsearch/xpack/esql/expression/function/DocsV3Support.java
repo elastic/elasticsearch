@@ -60,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -915,6 +916,7 @@ public abstract class DocsV3Support {
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        boolean showResultColumn = signatures.get().values().stream().anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
@@ -922,8 +924,10 @@ public abstract class DocsV3Support {
             header.append(arg).append(" | ");
             separator.append("---").append(" | ");
         }
-        header.append("result |");
-        separator.append("--- |");
+        if (showResultColumn) {
+            header.append("result |");
+            separator.append("--- |");
+        }
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
@@ -933,7 +937,7 @@ public abstract class DocsV3Support {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            table.add(getTypeRow(args, sig, argNames));
+            table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -952,7 +956,8 @@ public abstract class DocsV3Support {
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
         Map.Entry<List<DataType>, DataType> sig,
-        List<String> argNames
+        List<String> argNames,
+        boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
         for (int i = 0; i < sig.getKey().size(); i++) {
@@ -966,8 +971,10 @@ public abstract class DocsV3Support {
             b.append(" | ");
         }
         b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-        b.append(sig.getValue().esNameIfPossible());
-        b.append(" |");
+        if (showResultColumn) {
+            b.append(sig.getValue().esNameIfPossible());
+            b.append(" |");
+        }
         return b.toString();
     }
 

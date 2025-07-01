@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +56,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportService transportService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ProjectResolver projectResolver
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -67,7 +69,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             bigArrays,
             blockFactory,
             false,
-            TransportRequest::readFrom
+            TransportRequest::readFrom,
+            projectResolver
         );
     }
 

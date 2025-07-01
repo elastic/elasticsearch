@@ -64,7 +64,7 @@ class KnnIndexer {
     private final Path docsPath;
     private final Path indexPath;
     private final VectorEncoding vectorEncoding;
-    private final int dim;
+    private int dim;
     private final VectorSimilarityFunction similarityFunction;
     private final Codec codec;
     private final int numDocs;
@@ -106,10 +106,6 @@ class KnnIndexer {
 
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
-        FieldType fieldType = switch (vectorEncoding) {
-            case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
-            case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
-        };
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
             public boolean isEnabled(String component) {
@@ -117,7 +113,7 @@ class KnnIndexer {
             }
         });
         logger.debug(
-            "KnnIndexer: using codec=%s, vectorEncoding=%s, dim=%d, similarityFunction=%s",
+            "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}",
             codec.getName(),
             vectorEncoding,
             dim,
@@ -125,7 +121,7 @@ class KnnIndexer {
         );
 
         if (Files.exists(indexPath)) {
-            logger.debug("KnnIndexer: existing index at %s", indexPath);
+            logger.debug("KnnIndexer: existing index at {}", indexPath);
         } else {
             Files.createDirectories(indexPath);
         }
@@ -137,20 +133,39 @@ class KnnIndexer {
             FileChannel in = FileChannel.open(docsPath)
         ) {
             long docsPathSizeInBytes = in.size();
-            if (docsPathSizeInBytes % ((long) dim * vectorEncoding.byteSize) != 0) {
+            int offsetByteSize = 0;
+            if (dim == -1) {
+                offsetByteSize = 4;
+                ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+                int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
+                if (bytesRead < 4) {
+                    throw new IllegalArgumentException(
+                        "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
+                    );
+                }
+                dim = preamble.getInt(0);
+                if (dim <= 0) {
+                    throw new IllegalArgumentException("docsPath \"" + docsPath + "\" has invalid dimension: " + dim);
+                }
+            }
+            FieldType fieldType = switch (vectorEncoding) {
+                case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
+                case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
+            };
+            if (docsPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
                 throw new IllegalArgumentException(
                     "docsPath \"" + docsPath + "\" does not contain a whole number of vectors?  size=" + docsPathSizeInBytes
                 );
             }
             logger.info(
-                "docsPathSizeInBytes=%d, dim=%d, vectorEncoding=%s, byteSize=%d",
+                "docsPathSizeInBytes={}, dim={}, vectorEncoding={}, byteSize={}",
                 docsPathSizeInBytes,
                 dim,
                 vectorEncoding,
                 vectorEncoding.byteSize
             );
 
-            VectorReader inReader = VectorReader.create(in, dim, vectorEncoding);
+            VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
             try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
                 AtomicInteger numDocsIndexed = new AtomicInteger();
                 List<Future<?>> threads = new ArrayList<>();
@@ -170,7 +185,7 @@ class KnnIndexer {
         }
 
         long elapsed = System.nanoTime() - start;
-        logger.debug("Indexing took %d ms for %d docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
+        logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
     }
 
@@ -183,14 +198,14 @@ class KnnIndexer {
             }
         });
         iwc.setCodec(codec);
-        logger.debug("KnnIndexer: forceMerge in %s", indexPath);
+        logger.debug("KnnIndexer: forceMerge in {}", indexPath);
         long startNS = System.nanoTime();
         try (IndexWriter iw = new IndexWriter(FSDirectory.open(indexPath), iwc)) {
             iw.forceMerge(1);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
-        logger.info("forceMerge took %d ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
+        logger.info("forceMerge took {} ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
         results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
     }
 
@@ -271,21 +286,24 @@ class KnnIndexer {
 
     static class VectorReader {
         final float[] target;
+        final int offsetByteSize;
         final ByteBuffer bytes;
         final FileChannel input;
         long position;
 
-        static VectorReader create(FileChannel input, int dim, VectorEncoding vectorEncoding) throws IOException {
+        static VectorReader create(FileChannel input, int dim, VectorEncoding vectorEncoding, int offsetByteSize) throws IOException {
+            // check if dim is set as preamble in the file:
             int bufferSize = dim * vectorEncoding.byteSize;
-            if (input.size() % ((long) dim * vectorEncoding.byteSize) != 0) {
+            if (input.size() % ((long) dim * vectorEncoding.byteSize + offsetByteSize) != 0) {
                 throw new IllegalArgumentException(
                     "vectors file \"" + input + "\" does not contain a whole number of vectors?  size=" + input.size()
                 );
             }
-            return new VectorReader(input, dim, bufferSize);
+            return new VectorReader(input, dim, bufferSize, offsetByteSize);
         }
 
-        VectorReader(FileChannel input, int dim, int bufferSize) throws IOException {
+        VectorReader(FileChannel input, int dim, int bufferSize, int offsetByteSize) throws IOException {
+            this.offsetByteSize = offsetByteSize;
             this.bytes = ByteBuffer.wrap(new byte[bufferSize]).order(ByteOrder.LITTLE_ENDIAN);
             this.input = input;
             this.target = new float[dim];
@@ -293,18 +311,18 @@ class KnnIndexer {
         }
 
         void reset() throws IOException {
-            position = 0;
+            position = offsetByteSize;
             input.position(position);
         }
 
         private void readNext() throws IOException {
             int bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
             if (bytesRead < bytes.capacity()) {
-                position = 0;
+                position = offsetByteSize;
                 bytes.position(0);
                 // wrap around back to the start of the file if we hit the end:
                 logger.warn("VectorReader hit EOF when reading " + this.input + "; now wrapping around to start of file again");
-                this.input.position(position);
+                input.position(position);
                 bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
                 if (bytesRead < bytes.capacity()) {
                     throw new IllegalStateException(
@@ -312,7 +330,7 @@ class KnnIndexer {
                     );
                 }
             }
-            position += bytesRead;
+            position += bytesRead + offsetByteSize;
             bytes.position(0);
         }
 

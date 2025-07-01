@@ -851,6 +851,86 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"key1\":\"val1\",\"obj1\":{\"key2\":\"val2\",\"key3\":[\"val3\",\"val4\"]}}}"));
     }
 
+    public void testSyntheticSourceWithCommonLeafField() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("obj1").field("key", "foo").endObject();
+                b.startObject("obj2").field("key", "bar").endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"obj1":{"key":"foo"},"obj2":{"key":"bar"}}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatch() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1.key2", "foo");
+                b.startObject("key1");
+                {
+                    b.startObject("key2").field("key3", "bar").endObject();
+                    b.field("key4", "baz");
+                }
+                b.endObject();
+                b.field("key5", "qux");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":"foo","key2.key3":"bar","key4":"baz"},"key5":"qux"}}"""));
+    }
+
+    public void testSyntheticSourceWithScalarObjectMismatchArray() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.array("key1.key2", "qux", "foo");
+                b.startObject("key1");
+                {
+                    b.field("key2.key3", "baz");
+                    b.field("key2", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":{"key2":["bar","foo","qux"],"key2.key3":"baz"}}}"""));
+    }
+
+    public void testSyntheticSourceWithEmptyObject() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "foo");
+                b.startObject("key2").endObject();
+            }
+            b.endObject();
+        });
+        // Objects without any values are not included in the synthetic source
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"key1":"foo"}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

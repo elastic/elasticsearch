@@ -75,7 +75,8 @@ public class GoogleVertexAiService extends SenderService {
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.RERANK,
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        TaskType.COMPLETION
     );
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
@@ -87,13 +88,13 @@ public class GoogleVertexAiService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    private final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
         "Google VertexAI chat completion"
     );
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
     public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -358,7 +359,7 @@ public class GoogleVertexAiService extends SenderService {
                 context
             );
 
-            case CHAT_COMPLETION -> new GoogleVertexAiChatCompletionModel(
+            case CHAT_COMPLETION, COMPLETION -> new GoogleVertexAiChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -396,10 +397,11 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
-                        "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                            + "For more information, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
+                        .setDescription(
+                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
+                                + "For more information, refer to the {geminiVertexAIDocs}."
+                        )
                         .setLabel("GCP Region")
                         .setRequired(true)
                         .setSensitive(false)

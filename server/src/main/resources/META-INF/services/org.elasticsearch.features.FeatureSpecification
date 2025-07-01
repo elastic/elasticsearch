@@ -10,6 +10,7 @@
 org.elasticsearch.action.bulk.BulkFeatures
 org.elasticsearch.features.InfrastructureFeatures
 org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures
+org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures
 org.elasticsearch.index.IndexFeatures
 org.elasticsearch.index.mapper.MapperFeatures
 org.elasticsearch.search.SearchFeatures

@@ -2209,9 +2209,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(authenticateResponse);
         final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
 
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key", "managed_by", "elasticsearch"}.
+        // No encoded, api_key, or metadata.
         // If authentication type is other, authentication.api_key not present.
-        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
+        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")));
     }
 
     private static Map<String, Object> getRandomUpdateApiKeyRequestBody(

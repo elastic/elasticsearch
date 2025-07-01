@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,10 +123,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (pushdownPredicates.minTransportVersion() == null) {
+        if (supportsPushdown(pushdownPredicates.minTransportVersion())) {
             return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
         } else {
-            // The AutomatonQuery that we use right now isn't serializable.
+            // The ExpressionQuery we use isn't serializable to all nodes in the cluster.
             return Translatable.NO;
         }
     }
@@ -140,6 +141,10 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         LucenePushdownPredicates.checkIsPushableAttribute(field);
         String targetFieldName = handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field);
         return translateField(targetFieldName);
+    }
+
+    private boolean supportsPushdown(TransportVersion version) {
+        return version == null || version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE);
     }
 
     @Override

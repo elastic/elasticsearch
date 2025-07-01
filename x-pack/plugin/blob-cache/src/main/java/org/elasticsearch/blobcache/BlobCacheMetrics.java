@@ -144,6 +144,10 @@ public class BlobCacheMetrics {
         assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);
 
+        if (luceneFilesExtensions == null) {
+            logger.warn("Blob cache population for file [{}]. This may indicate a new file type that needs to be registered.", blobName);
+        }
+
         // This is almost certainly paranoid, but if we had a very fast/small copy with a very coarse nanosecond timer it might happen?
         if (copyTimeNanos > 0) {
             cachePopulationThroughput.record(toMebibytesPerSecond(bytesCopied, copyTimeNanos), metricAttributes);

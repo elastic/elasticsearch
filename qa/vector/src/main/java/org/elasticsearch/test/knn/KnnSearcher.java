@@ -33,6 +33,9 @@ import org.apache.lucene.queries.function.valuesource.ConstKnnFloatValueSource;
 import org.apache.lucene.queries.function.valuesource.FloatKnnVectorFieldSource;
 import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -114,7 +117,7 @@ class KnnSearcher {
         this.searchThreads = cmdLineArgs.searchThreads();
     }
 
-    void runSearch(KnnIndexTester.Results finalResults) throws IOException {
+    void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -153,10 +156,10 @@ class KnnSearcher {
                     for (int i = 0; i < numQueryVectors; i++) {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             targetReader.next(targetBytes);
-                            doVectorQuery(targetBytes, searcher);
+                            doVectorQuery(targetBytes, searcher, earlyTermination);
                         } else {
                             targetReader.next(target);
-                            doVectorQuery(target, searcher);
+                            doVectorQuery(target, searcher, earlyTermination);
                         }
                     }
                     targetReader.reset();
@@ -165,10 +168,10 @@ class KnnSearcher {
                     for (int i = 0; i < numQueryVectors; i++) {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             targetReader.next(targetBytes);
-                            results[i] = doVectorQuery(targetBytes, searcher);
+                            results[i] = doVectorQuery(targetBytes, searcher, earlyTermination);
                         } else {
                             targetReader.next(target);
-                            results[i] = doVectorQuery(target, searcher);
+                            results[i] = doVectorQuery(target, searcher, earlyTermination);
                         }
                     }
                     KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
@@ -264,7 +267,7 @@ class KnnSearcher {
         return true;
     }
 
-    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher) throws IOException {
+    TopDocs doVectorQuery(byte[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
         Query knnQuery;
         if (overSamplingFactor > 1f) {
             throw new IllegalArgumentException("oversampling factor > 1 is not supported for byte vectors");
@@ -280,6 +283,9 @@ class KnnSearcher {
                 null,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
+            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
+                knnQuery = PatienceKnnVectorQuery.fromByteQuery((KnnByteVectorQuery) knnQuery);
+            }
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
@@ -288,7 +294,7 @@ class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher) throws IOException {
+    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, boolean earlyTermination) throws IOException {
         Query knnQuery;
         int topK = this.topK;
         if (overSamplingFactor > 1f) {
@@ -307,16 +313,22 @@ class KnnSearcher {
                 null,
                 DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
             );
+            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
+                knnQuery = PatienceKnnVectorQuery.fromFloatQuery((KnnFloatVectorQuery) knnQuery);
+            }
         }
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
-            knnQuery = new RescoreKnnVectorQuery(VECTOR_FIELD, vector, similarityFunction, this.topK, knnQuery);
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, similarityFunction, this.topK, topK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
-        QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
-        queryProfilerProvider.profile(profiler);
-        return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.profile(profiler);
+            return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
+        } else {
+            return docs;
+        }
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {

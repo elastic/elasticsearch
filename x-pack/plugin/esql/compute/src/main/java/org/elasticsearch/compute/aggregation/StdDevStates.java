@@ -20,23 +20,45 @@ public final class StdDevStates {
 
     private StdDevStates() {}
 
-    enum Variation {
-        SAMPLE,
-        POPULATION,
-        SAMPLE_VARIANCE,
-        POPULATION_VARIANCE
+    public enum Variation {
+        SAMPLE(0),
+        POPULATION(1),
+        SAMPLE_VARIANCE(2),
+        POPULATION_VARIANCE(3);
+
+        private final int index;
+
+        Variation(int index) {
+            this.index = index;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        private static Variation getVariation(int index) {
+            return switch (index) {
+                case 0 -> SAMPLE;
+                case 1 -> POPULATION;
+                case 2 -> SAMPLE_VARIANCE;
+                case 3 -> POPULATION_VARIANCE;
+                default -> POPULATION;
+            };
+        }
     }
 
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
+        private final Variation variation;
 
-        SingleState() {
-            this(0, 0, 0);
+        SingleState(int variation) {
+            this(0, 0, 0, variation);
         }
 
-        SingleState(double mean, double m2, long count) {
+        SingleState(double mean, double m2, long count, int variation) {
             this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
+            this.variation = Variation.getVariation(variation);
         }
 
         public void add(long value) {
@@ -79,7 +101,7 @@ public final class StdDevStates {
             return welfordAlgorithm.count();
         }
 
-        public double evaluateFinal(Variation variation) {
+        public double evaluateFinal() {
             return switch (variation) {
                 case SAMPLE -> welfordAlgorithm.evaluateSample();
                 case POPULATION -> welfordAlgorithm.evaluatePopulation();
@@ -88,13 +110,13 @@ public final class StdDevStates {
             };
         }
 
-        public Block evaluateFinal(DriverContext driverContext, Variation variation) {
+        public Block evaluateFinal(DriverContext driverContext) {
             final long count = count();
             final double m2 = m2();
             if (count == 0 || Double.isFinite(m2) == false) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
-            return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(variation), 1);
+            return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(), 1);
         }
     }
 
@@ -102,10 +124,12 @@ public final class StdDevStates {
 
         private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
+        private final Variation variation;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, int variation) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
+            this.variation = Variation.getVariation(variation);
         }
 
         WelfordAlgorithm getOrNull(int position) {
@@ -190,7 +214,7 @@ public final class StdDevStates {
             }
         }
 
-        public Block evaluateFinal(IntVector selected, DriverContext driverContext, Variation variation) {
+        public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
             try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     final var groupId = selected.getInt(i);

@@ -9,40 +9,32 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.$Variation$DoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.$Variation$IntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.$Variation$LongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.compute.aggregation.StdDevStates;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class $Variation$ extends AggregateFunction implements ToAggregator {
-    $if(StdDev)$
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
-
-    $else$
+public class $Variation$ extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "$Variation$",
         $Variation$::new
     );
-    $endif$
 
     @FunctionInfo(
         returnType = "double",
@@ -106,17 +98,17 @@ public class $Variation$ extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
-        if (type == DataType.LONG) {
-            return new $Variation$LongAggregatorFunctionSupplier();
-        }
-        if (type == DataType.INTEGER) {
-            return new $Variation$IntAggregatorFunctionSupplier();
-        }
-        if (type == DataType.DOUBLE) {
-            return new $Variation$DoubleAggregatorFunctionSupplier();
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+    public Expression surrogate() {
+        $if(StdDevSample)$
+        return new StdDev(source(), field(), filter(), new Literal(source(), StdDevStates.Variation.$enum$.getIndex(), DataType.INTEGER));
+
+        $else$
+        return new StdDev(
+            source(),
+            field(),
+            filter(),
+            new Literal(source(), StdDevStates.Variation.$enum$.getIndex(), DataType.INTEGER)
+        );
+        $endif$
     }
 }

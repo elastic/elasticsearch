@@ -26,10 +26,10 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-public class $Variation$$Type$Aggregator {
+public class StdDev$Type$Aggregator {
 
-    public static StdDevStates.SingleState initSingle() {
-        return new StdDevStates.SingleState();
+    public static StdDevStates.SingleState initSingle(int variation) {
+        return new StdDevStates.SingleState(variation);
     }
 
     public static void combine(StdDevStates.SingleState state, $type$ value) {
@@ -41,11 +41,11 @@ public class $Variation$$Type$Aggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.SingleState state, DriverContext driverContext) {
-        return state.evaluateFinal(driverContext, StdDevStates.Variation.$EnumName$);
+        return state.evaluateFinal(driverContext);
     }
 
-    public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new StdDevStates.GroupingState(bigArrays);
+    public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays, int variation) {
+        return new StdDevStates.GroupingState(bigArrays, variation);
     }
 
     public static void combine(StdDevStates.GroupingState current, int groupId, $type$ value) {
@@ -61,6 +61,6 @@ public class $Variation$$Type$Aggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext, StdDevStates.Variation.$EnumName$);
+        return state.evaluateFinal(selected, driverContext);
     }
 }

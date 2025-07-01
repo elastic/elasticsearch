@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevPopulation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevSample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
@@ -319,7 +319,7 @@ public class EsqlFunctionRegistry {
                 def(Min.class, uni(Min::new), "min"),
                 def(Percentile.class, bi(Percentile::new), "percentile"),
                 def(Sample.class, bi(Sample::new), "sample"),
-                def(StdDev.class, uni(StdDev::new), "std_dev"),
+                def(StdDevPopulation.class, uni(StdDevPopulation::new), "std_dev_population", "std_dev"),
                 def(StdDevSample.class, uni(StdDevSample::new), "std_dev_sample"),
                 def(Sum.class, uni(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),

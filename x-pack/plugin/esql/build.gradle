@@ -475,22 +475,22 @@ tasks.named('stringTemplates').configure {
 
   File stdDev = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/aggregate/X-StdDev.java.st")
   template {
-    it.properties = ["Variation": "StdDev", "StdDev": "true", "lower_case": "population standard deviation", "CAPS": "STD_DEV"]
+    it.properties = ["Variation": "StdDevPopulation", "StdDev": "true", "lower_case": "population standard deviation", "CAPS": "STD_DEV", "enum": "POPULATION"]
     it.inputFile = stdDev
-    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/StdDev.java"
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/StdDevPopulation.java"
   }
   template {
-    it.properties = ["Variation": "StdDevSample", "StdDevSample": "true", "lower_case": "sample standard deviation", "CAPS": "STD_DEV_SAMPLE"]
+    it.properties = ["Variation": "StdDevSample", "StdDevSample": "true", "lower_case": "sample standard deviation", "CAPS": "STD_DEV_SAMPLE", "enum": "SAMPLE"]
     it.inputFile = stdDev
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/StdDevSample.java"
   }
   template {
-    it.properties = ["Variation": "VariancePopulation", "VariancePopulation": "true", "lower_case": "population variance", "CAPS": "VARIANCE_POPULATION"]
+    it.properties = ["Variation": "VariancePopulation", "VariancePopulation": "true", "lower_case": "population variance", "CAPS": "VARIANCE_POPULATION", "enum": "POPULATION_VARIANCE"]
     it.inputFile = stdDev
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/VariancePopulation.java"
   }
   template {
-    it.properties = ["Variation": "VarianceSample", "VarianceSample": "true", "lower_case": "sample variance", "CAPS": "VARIANCE_SAMPLE"]
+    it.properties = ["Variation": "VarianceSample", "VarianceSample": "true", "lower_case": "sample variance", "CAPS": "VARIANCE_SAMPLE", "enum": "SAMPLE_VARIANCE"]
     it.inputFile = stdDev
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/aggregate/VarianceSample.java"
   }

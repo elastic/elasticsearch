@@ -28,6 +28,7 @@ public class AggregateWritables {
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
+            StdDevPopulation.ENTRY,
             StdDevSample.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,

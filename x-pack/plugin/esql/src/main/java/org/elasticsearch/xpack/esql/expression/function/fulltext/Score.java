@@ -48,7 +48,7 @@ public class Score extends Function implements EvaluatorMapper {
     )
     public Score(
         Source source,
-        @Param(name = "query", type = { "keyword", "text" }, description = "full text function.") Expression scorableQuery
+        @Param(name = "query", type = { "boolean" }, description = "full text function.") Expression scorableQuery
     ) {
         this(source, List.of(scorableQuery));
     }

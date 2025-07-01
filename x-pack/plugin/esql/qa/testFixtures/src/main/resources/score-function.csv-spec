@@ -11,20 +11,19 @@ FROM books METADATA _score
 | WHERE match(title, "Return") AND match(author, "Tolkien")
 | EVAL first_score = score(match(title, "Return")) 
 // end::score-single[]
-| KEEP book_no, author, _score, first_score
+| KEEP book_no, title, _score, first_score
 | SORT book_no
 | LIMIT 5
 ;
 
 // tag::score-single-result[]
-book_no:keyword | author:text | _score:double | first _score:double 
+book_no:keyword | title:text | _score:double | first _score:double 
 2714            | Return of the King Being the Third Part of The Lord of the Rings | 0 | 0 
 7350            | Return of the Shadow  | 0 | 0
 // end::score-single-result[]
 ;
 
 scoreSingleNoMetadata
-required_capability: metadata_score
 required_capability: score_function
 
 FROM books
@@ -47,7 +46,7 @@ required_capability: metadata_score
 from books 
 FROM books METADATA _score
 | WHERE match(title, "Return") AND match(author, "Tolkien")
-| EVAL first_score =  score(match(title, CONCAT("Return ", " King")))  
+| EVAL first_score = score(match(title, CONCAT("Return ", " King")))  
 | keep book_no, title;
 ignoreOrder:true
 
@@ -80,7 +79,7 @@ matchWithConjunction
 required_capability: score_function
 required_capability: metadata_score
 
-from books 
+from books METADATA _score
 | eval s1 = score(match(title, "Rings") and ratings > 4.6)
 | keep book_no, title, s1;
 ignoreOrder:true
@@ -94,7 +93,7 @@ scoreWithDisjunction
 required_capability: metadata_score
 required_capability: score_function
 
-from books
+from books METADATA _score
 | eval s1 = score(match(author, "Vonnegut") or match(author, "Guinane"))
 | where match(author, "Vonnegut") 
 | keep book_no, author, s1;

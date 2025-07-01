@@ -326,6 +326,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
+    public static final TransportVersion NODE_WRITE_LOAD_IN_CLUSTER_INFO = def(9_113_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

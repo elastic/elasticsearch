@@ -620,6 +620,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );
 

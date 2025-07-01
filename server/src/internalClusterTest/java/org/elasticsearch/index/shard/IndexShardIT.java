@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.SetOnce;
@@ -22,6 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeWriteLoad;
+import org.elasticsearch.cluster.WriteLoadCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -29,6 +33,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -117,14 +122,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(IndexShardIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class, BogusWriteLoadCollectorPlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -291,6 +298,47 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Settings.builder()
                     .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
                     .build()
+            );
+        }
+    }
+
+    public void testNodeWriteLoadsArePresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, NodeWriteLoad> nodeWriteLoads = clusterInfoService.getClusterInfo().getNodeWriteLoads();
+        assertNotNull(nodeWriteLoads);
+        /** Not collecting stats yet because allocation write load stats collection is disabled by default.
+         *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
+        assertTrue(nodeWriteLoads.isEmpty());
+
+        // Enable collection for node write loads.
+        updateClusterSettings(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                )
+                .build()
+        );
+        try {
+            // Force a ClusterInfo refresh to run collection of the node write loads.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            nodeWriteLoads = clusterInfoService.getClusterInfo().getNodeWriteLoads();
+
+            /** Verify that each node has a write load reported. The test {@link BogusWriteLoadCollector} generates random load values */
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.nodes().size(), nodeWriteLoads.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(nodeWriteLoads.containsKey(node.getId()));
+                NodeWriteLoad nodeWriteLoad = nodeWriteLoads.get(node.getId());
+                assertThat(nodeWriteLoad.nodeId(), equalTo(node.getId()));
+                assertThat(nodeWriteLoad.totalWriteThreadPoolThreads(), greaterThanOrEqualTo(0));
+                assertThat(nodeWriteLoad.percentWriteThreadPoolUtilization(), greaterThanOrEqualTo(0));
+                assertThat(nodeWriteLoad.maxTaskTimeInWriteQueueMillis(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
             );
         }
     }
@@ -862,6 +910,57 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {
+
+        private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            clusterService.set(services.clusterService());
+            return List.of();
+        }
+
+        public ClusterService getClusterService() {
+            return clusterService.get();
+        }
+    }
+
+    /**
+     * A simple {@link WriteLoadCollector} implementation that creates and returns random {@link NodeWriteLoad} for each node in the
+     * cluster.
+     * <p>
+     * Note: there's an 'org.elasticsearch.cluster.WriteLoadCollector' file that declares this implementation so that the plugin system can
+     * pick it up and use it for the test set-up.
+     */
+    public static class BogusWriteLoadCollector implements WriteLoadCollector {
+
+        private final BogusWriteLoadCollectorPlugin plugin;
+
+        public BogusWriteLoadCollector(BogusWriteLoadCollectorPlugin plugin) {
+            this.plugin = plugin;
+        }
+
+        @Override
+        public void collectWriteLoads(ActionListener<Map<String, NodeWriteLoad>> listener) {
+            ActionListener.completeWith(
+                listener,
+                () -> plugin.getClusterService()
+                    .state()
+                    .nodes()
+                    .stream()
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            DiscoveryNode::getId,
+                            node -> new NodeWriteLoad(node.getId(), randomNonNegativeInt(), randomNonNegativeInt(), randomNonNegativeLong())
+                        )
+                    )
+            );
+        }
+    }
+
+    /**
+     * Make a plugin to gain access to the {@link ClusterService} instance.
+     */
+    public static class BogusWriteLoadCollectorPlugin extends Plugin implements ClusterPlugin {
 
         private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 

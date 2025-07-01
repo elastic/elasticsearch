@@ -42,7 +42,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomDataSetSizes(),
             randomRoutingToDataPath(),
             randomReservedSpace(),
-            randomNodeHeapUsage()
+            randomNodeHeapUsage(),
+            randomNodeWriteLoads()
         );
     }
 
@@ -60,6 +61,21 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeHeapUsage.put(key, estimatedHeapUsage);
         }
         return nodeHeapUsage;
+    }
+
+    private static Map<String, NodeWriteLoad> randomNodeWriteLoads() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, NodeWriteLoad> nodeWriteLoads = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeIdKey = randomAlphaOfLength(32);
+            final NodeWriteLoad nodeWriteLoad = new NodeWriteLoad(/* nodeId= */ nodeIdKey,
+                /* totalWriteThreadPoolThreads= */ randomIntBetween(1, 16),
+                /* percentWriteThreadPoolUtilization= */randomIntBetween(0, 100),
+                /* maxTaskTimeInWriteQueueMillis= */ randomLongBetween(0, 50000)
+            );
+            nodeWriteLoads.put(nodeIdKey, nodeWriteLoad);
+        }
+        return nodeWriteLoads;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

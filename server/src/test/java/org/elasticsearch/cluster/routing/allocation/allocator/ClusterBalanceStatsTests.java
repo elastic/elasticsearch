@@ -346,6 +346,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
     }

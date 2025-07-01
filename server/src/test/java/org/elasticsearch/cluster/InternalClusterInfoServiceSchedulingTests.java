@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
@@ -55,7 +56,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName())
-            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true);
+            .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            );
         if (randomBoolean()) {
             settingsBuilder.put(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), randomIntBetween(10000, 60000) + "ms");
         }
@@ -79,12 +84,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
+        final WriteLoadCollector mockWriteLoadCollector = spy(new StubWriteLoadCollector());
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
-            mockEstimatedHeapUsageCollector
+            mockEstimatedHeapUsageCollector,
+            mockWriteLoadCollector
         );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
@@ -122,12 +129,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             Mockito.clearInvocations(mockEstimatedHeapUsageCollector);
+            Mockito.clearInvocations(mockWriteLoadCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
+            verify(mockWriteLoadCollector).collectWriteLoads(any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -148,6 +157,16 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
+    }
+
+    /**
+     * Simple for test {@link WriteLoadCollector} implementation that returns an empty map of nodeId string to {@link NodeWriteLoad}.
+     */
+    private static class StubWriteLoadCollector implements WriteLoadCollector {
+        @Override
+        public void collectWriteLoads(ActionListener<Map<String, NodeWriteLoad>> listener) {
             listener.onResponse(Map.of());
         }
     }

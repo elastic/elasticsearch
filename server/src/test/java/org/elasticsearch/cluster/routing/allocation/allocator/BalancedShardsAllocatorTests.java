@@ -609,6 +609,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 Map.of(),
                 Map.of(),
                 Map.of(),
+                Map.of(),
                 Map.of()
             )
         );
@@ -705,7 +706,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static ClusterInfo createClusterInfo(Map<String, Long> indexSizes) {
-        return new ClusterInfo(Map.of(), Map.of(), indexSizes, Map.of(), Map.of(), Map.of(), Map.of());
+        return new ClusterInfo(Map.of(), Map.of(), indexSizes, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     private static IndexMetadata.Builder anIndex(String name) {

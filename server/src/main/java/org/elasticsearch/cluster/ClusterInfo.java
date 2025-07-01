@@ -58,9 +58,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    final Map<String, NodeWriteLoad> nodeWriteLoads;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -73,6 +74,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @param estimatedHeapUsages estimated heap usage broken down by node
+     * @param nodeWriteLoads estimated node-level write load broken down by node
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
@@ -82,7 +84,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace,
-        Map<String, EstimatedHeapUsage> estimatedHeapUsages
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages,
+        Map<String, NodeWriteLoad> nodeWriteLoads
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -91,6 +94,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
         this.estimatedHeapUsages = Map.copyOf(estimatedHeapUsages);
+        this.nodeWriteLoads = Map.copyOf(nodeWriteLoads);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -106,6 +110,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
         } else {
             this.estimatedHeapUsages = Map.of();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_WRITE_LOAD_IN_CLUSTER_INFO)) {
+            this.nodeWriteLoads = in.readImmutableMap(NodeWriteLoad::new);
+        } else {
+            this.nodeWriteLoads = Map.of();
         }
     }
 
@@ -123,6 +132,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.reservedSpace);
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_WRITE_LOAD_IN_CLUSTER_INFO)) {
+            out.writeMap(this.nodeWriteLoads, StreamOutput::writeWriteable);
         }
     }
 
@@ -204,8 +216,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
-            // NOTE: We don't serialize estimatedHeapUsages at this stage, to avoid
-            // committing to API payloads until the feature is settled
+            // NOTE: We don't serialize estimatedHeapUsages/nodeWriteLoads at this stage, to avoid
+            // committing to API payloads until the features are settled
         );
     }
 
@@ -218,6 +230,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      */
     public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
         return estimatedHeapUsages;
+    }
+
+    /**
+     * Returns a map containing the node-level write load estimate for each node by node ID.
+     */
+    public Map<String, NodeWriteLoad> getNodeWriteLoads() {
+        return nodeWriteLoads;
     }
 
     /**
@@ -311,12 +330,21 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             && shardSizes.equals(that.shardSizes)
             && shardDataSetSizes.equals(that.shardDataSetSizes)
             && dataPath.equals(that.dataPath)
-            && reservedSpace.equals(that.reservedSpace);
+            && reservedSpace.equals(that.reservedSpace)
+            && nodeWriteLoads.equals(that.nodeWriteLoads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, reservedSpace);
+        return Objects.hash(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeWriteLoads
+        );
     }
 
     @Override

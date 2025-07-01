@@ -38,7 +38,15 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  */
 public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
 
+    /**
+     * The default token size limit of the Elastic reranker.
+     */
     private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
+
+    /**
+     * A safe default token size limit for other reranker models.
+     * Reranker models with smaller token limits will be truncated.
+     */
     private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4096;
 
     protected final Client client;
@@ -67,7 +75,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     /**
      * @return The token size limit to apply to this rerank context.
      * This is not yet available so we are hardcoding it for now.
-     * See: https://github.com/elastic/ml-team/issues/1622
      */
     @Override
     public Integer tokenSizeLimit() {
@@ -222,8 +229,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             .limit(rankedDocs.size())
             .toArray();
 
-        for (int i = 0; i < rankedDocs.size(); i++) {
-            RankedDocsResults.RankedDoc rankedDoc = rankedDocs.get(i);
+        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
             int docId = rankedDocToFeatureDoc[rankedDoc.index()];
             float score = rankedDoc.relevanceScore();
             scores[docId] = hasScore[docId] == false ? score : Math.max(scores[docId], score);

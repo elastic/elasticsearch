@@ -55,12 +55,13 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                 DocumentField docField = hit.field(field);
                 if (docField != null && snippets == null) {
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
-                }
-                Map<String, HighlightField> highlightFields = hit.getHighlightFields();
-                if (highlightFields != null) {
-                    if (highlightFields.containsKey(field)) {
-                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
-                        rankFeatureDocs[i].featureData(snippets);
+                } else {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    if (highlightFields != null) {
+                        if (highlightFields.containsKey(field)) {
+                            List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                            rankFeatureDocs[i].featureData(snippets);
+                        }
                     }
                 }
             }

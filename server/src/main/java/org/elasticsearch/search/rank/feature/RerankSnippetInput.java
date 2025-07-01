@@ -17,13 +17,7 @@ import java.io.IOException;
 
 public record RerankSnippetInput(Integer numSnippets) implements Writeable {
 
-    private static final int DEFAULT_NUM_SNIPPETS = 1;
-
-    public RerankSnippetInput {
-        if (numSnippets == null) {
-            numSnippets = DEFAULT_NUM_SNIPPETS;
-        }
-    }
+    public static final int DEFAULT_NUM_SNIPPETS = 1;
 
     public RerankSnippetInput(StreamInput in) throws IOException {
         this(in.readOptionalVInt());

@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.elasticsearch.search.rank.feature.RerankSnippetInput.DEFAULT_NUM_SNIPPETS;
+
 /**
  * The {@code RankFeatureShardPhase} executes the rank feature phase on the shard, iff there is a {@code RankBuilder} that requires it.
  * This phase is responsible for reading field data for a set of docids. To do this, it reuses the {@code FetchPhase} to read the required
@@ -56,22 +58,23 @@ public final class RankFeatureShardPhase {
             searchContext.fetchFieldsContext(
                 new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(rankFeaturePhaseRankShardContext.getField(), null)))
             );
-            try {
-                RerankSnippetInput snippets = request.snippets();
-                if (snippets != null) {
-                    // For POC purposes we're just stripping pre/post tags and deferring if/how we'd want to handle them for this use case.
+            RerankSnippetInput snippets = request.snippets();
+            if (snippets != null) {
+                try {
+                    // Stripping pre/post tags as they're not useful for snippet creation
                     HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
-                    // Force sorting by score to ensure that the first snippet is always the highest score
+                    // Return highest scoring fragments
                     highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                    if (snippets.numSnippets() != null) {
-                        highlightBuilder.numOfFragments(snippets.numSnippets());
-                    }
+                    int numSnippets = snippets.numSnippets() != null ? snippets.numSnippets() : DEFAULT_NUM_SNIPPETS;
+                    highlightBuilder.numOfFragments(numSnippets);
+                    // Rely on the model to determine the fragment size
+                    // TODO highlighter should be able to set fragment size by token not length
                     highlightBuilder.fragmentSize(request.getTokenSizeLimit());
                     SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
                     searchContext.highlight(searchHighlightContext);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to generate snippet request", e);
                 }
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create highlight context", e);
             }
             searchContext.storedFieldsContext(StoredFieldsContext.fromList(Collections.singletonList(StoredFieldsContext._NONE_)));
             searchContext.addFetchResult();

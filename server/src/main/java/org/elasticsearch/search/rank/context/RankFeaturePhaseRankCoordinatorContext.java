@@ -56,12 +56,15 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         return failuresAllowed;
     }
 
+    /**
+     * If non-null, we will rerank based on the best-ranking snippet rather than the whole text.
+     */
     public RerankSnippetInput snippets() {
         return snippets;
     }
 
     /**
-     * @return If snippets are requested, this should be overridden with the token size limit of the associated model.
+     * If snippets are requested, this should be overridden with the token size limit of the associated model.
      */
     public Integer tokenSizeLimit() {
         return 0;

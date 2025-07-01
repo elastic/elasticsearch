@@ -27,11 +27,6 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
     }
 
     @Override
-    public Integer tokenSizeLimit() {
-        return 0;
-    }
-
-    @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
         // Generate random scores seeded by doc
         float[] scores = new float[featureDocs.length];

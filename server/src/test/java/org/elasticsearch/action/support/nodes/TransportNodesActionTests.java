@@ -340,7 +340,8 @@ public class TransportNodesActionTests extends ESTestCase {
                 ActionListener<TestNodesResponse> listener
             ) {
                 boolean waited = false;
-                // Process node responses in a loop and ensure no ConcurrentModificationException, see also #128852
+                // Process node responses in a loop and ensure no ConcurrentModificationException will be thrown due to
+                // concurrent cancellation comes after the loops has started, see also #128852
                 for (var response : testNodeResponses) {
                     if (waited == false) {
                         waited = true;
@@ -363,14 +364,13 @@ public class TransportNodesActionTests extends ESTestCase {
             completeOneRequest(capturedRequest);
         }
 
-        // Wait for the overall response starts to processing the node responses in a loop
+        // Wait for the overall response starts to processing the node responses in a loop and then cancel the task.
+        // It should not interfere with the node response processing.
         safeAwait(barrier);
-
-        // Cancel the task while the overall response is being processed
         TaskCancelHelper.cancel(cancellableTask, "simulated");
         safeGet(cancelledFuture);
 
-        // Let the process continue it should be successful since the cancellation came after processing started
+        // Let the process continue, and it should be successful
         safeAwait(barrier);
         assertResponseReleased(safeGet(future));
     }
@@ -399,7 +399,7 @@ public class TransportNodesActionTests extends ESTestCase {
         final var raceBarrier = new CyclicBarrier(3);
         final Thread completeThread = new Thread(() -> {
             safeAwait(raceBarrier);
-            completeOneRequest(capturedRequests[capturedRequests.length - 1]);
+            nodeResponses.add(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
         });
         final Thread cancelThread = new Thread(() -> {
             safeAwait(raceBarrier);
@@ -409,9 +409,9 @@ public class TransportNodesActionTests extends ESTestCase {
         cancelThread.start();
         safeAwait(raceBarrier);
 
+        // We expect either a successful response or a cancellation exception. All node responses should be released in both cases.
         try {
             final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
-            assertFalse(cancellableTask.isCancelled());
             assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
             assertResponseReleased(testNodesResponse);
         } catch (Exception e) {
@@ -419,7 +419,7 @@ public class TransportNodesActionTests extends ESTestCase {
             assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
             assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
             assertTrue(cancellableTask.isCancelled());
-            safeAwait(onCancelledLatch);
+            safeAwait(onCancelledLatch); // wait for the latch, the listener for releasing node responses is called before it
             assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
         }
 

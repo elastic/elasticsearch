@@ -119,20 +119,32 @@ This metadata accepts a lifecycle and an optional version.
 
 ### Functions and operators
 
-Use the `@FunctionAppliesTo` annotation to specify the lifecycle and version for functions and operators.
+Use the `@FunctionAppliesTo` annotation within the `@FunctionInfo` annotation on function and operator classes to specify the lifecycle and version for functions and operators.
 
 For example, to indicate that a function is in technical preview and applies to version 9.0.0, you would use:
 
 ```java
-preview = true,
-@FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0")
+@FunctionInfo(
+    returnType = "boolean",
+    appliesTo = {
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0")
+    },
+    ...
+)
 ```
 
 When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alongside the existing preview entry and remove the `preview = true` boolean:
 
 ```java
-@FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0")
-@FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+@FunctionInfo(
+    returnType = "boolean",
+    preview = false, //  the preview boolean can be removed (or flipped to false) when the function becomes GA
+    appliesTo = {
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+    },
+    ...
+)
 ```
 
 We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.

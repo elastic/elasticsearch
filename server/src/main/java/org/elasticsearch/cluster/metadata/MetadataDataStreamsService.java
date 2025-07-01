@@ -452,10 +452,9 @@ public class MetadataDataStreamsService {
         ProjectMetadata projectMetadata = clusterState.metadata().getProject(projectId);
         Map<String, DataStream> dataStreamMap = projectMetadata.dataStreams();
         DataStream dataStream = dataStreamMap.get(dataStreamName);
-        Settings existingSettings = dataStream.getSettings();
+        Settings existingDataStreamSettings = dataStream.getSettings();
 
-        Template.Builder templateBuilder = Template.builder();
-        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingSettings).put(settingsOverrides);
+        Settings.Builder mergedSettingsBuilder = Settings.builder().put(existingDataStreamSettings).put(settingsOverrides);
         /*
          * A null value for a setting override means that we remove it from the data stream, and let the value from the template (if any)
          * be used.
@@ -465,18 +464,14 @@ public class MetadataDataStreamsService {
                 mergedSettingsBuilder.remove(key);
             }
         });
-        Settings mergedSettings = mergedSettingsBuilder.build();
+        Settings mergedDataStreamSettings = mergedSettingsBuilder.build();
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
-        ComposableIndexTemplate mergedTemplate = template.mergeSettings(mergedSettings);
-        MetadataIndexTemplateService.validateTemplate(
-            mergedTemplate.template().settings(),
-            mergedTemplate.template().mappings(),
-            indicesService
-        );
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
+        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, mergedTemplate.template().mappings(), indicesService);
 
-        templateBuilder.settings(mergedSettingsBuilder);
-        return dataStream.copy().setSettings(mergedSettings).build();
+        return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }
 
     private static void addBackingIndex(

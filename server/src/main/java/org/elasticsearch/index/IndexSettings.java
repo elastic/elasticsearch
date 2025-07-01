@@ -847,6 +847,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final boolean SYNTHETIC_VECTORS = new FeatureFlag("mapping_synthetic_vectors").isEnabled();
+    public static final Setting<Boolean> INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING = Setting.boolSetting(
+        "index.mapping.synthetic_vectors",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -890,7 +898,7 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
-
+    private volatile boolean searchExcludeVectors;
     private volatile long retentionLeaseMillis;
 
     /**

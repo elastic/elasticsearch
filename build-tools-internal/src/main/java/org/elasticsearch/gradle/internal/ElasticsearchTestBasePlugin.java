@@ -267,7 +267,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
     }
 
     private Stream<String> singleFilePath(FileCollection collection) {
-        return Stream.ofNullable(collection).map(FileCollection::getSingleFile).map(File::toString);
+        return Stream.ofNullable(collection).filter(fc -> fc.isEmpty() == false).map(FileCollection::getSingleFile).map(File::toString);
     }
 
     private static FileCollection patchedImmutableCollections(Project project) {

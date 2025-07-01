@@ -2961,30 +2961,30 @@ max:integer | job_positions:keyword
 
 stdDeviation
 required_capability: std_dev
-// tag::StdDev[]
+// tag::StdDevPopulation[]
 FROM employees
 | STATS STD_DEV(height)
-// end::StdDev[]
+// end::StdDevPopulation[]
 ;
 
-// tag::StdDev-result[]
+// tag::StdDevPopulation-result[]
 STD_DEV(height):double
 0.20637044362020449
-// end::StdDev-result[]
+// end::StdDevPopulation-result[]
 ;
 
 stdDeviationNested
 required_capability: std_dev
-// tag::docsStatsStdDevNestedExpression[]
+// tag::docsStatsStdDevPopulationNestedExpression[]
 FROM employees
 | STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
-// end::docsStatsStdDevNestedExpression[]
+// end::docsStatsStdDevPopulationNestedExpression[]
 ;
 
-// tag::docsStatsStdDevNestedExpression-result[]
+// tag::docsStatsStdDevPopulationNestedExpression-result[]
 stddev_salary_change:double
 6.875829592924112
-// end::docsStatsStdDevNestedExpression-result[]
+// end::docsStatsStdDevPopulationNestedExpression-result[]
 ;
 
 

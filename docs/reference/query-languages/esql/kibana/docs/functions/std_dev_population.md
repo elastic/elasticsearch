@@ -4,5 +4,6 @@
 The population standard deviation of a numeric field.
 
 ```esql
-null
+FROM employees
+| STATS STD_DEV(height)
 ```

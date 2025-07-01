@@ -42,8 +42,8 @@
     }
   ],
   "examples" : [
-    null,
-    null
+    "FROM employees\n| STATS STD_DEV(height)",
+    "FROM employees\n| STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))"
   ],
   "preview" : false,
   "snapshot_only" : false

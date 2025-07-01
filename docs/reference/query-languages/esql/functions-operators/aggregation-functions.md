@@ -42,7 +42,7 @@ The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#es
 :::{include} ../_snippets/functions/layout/st_extent_agg.md
 :::
 
-:::{include} ../_snippets/functions/layout/std_dev.md
+:::{include} ../_snippets/functions/layout/std_dev_population.md
 :::
 
 :::{include} ../_snippets/functions/layout/sum.md

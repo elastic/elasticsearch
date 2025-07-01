@@ -42,7 +42,7 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
-        description = "TODO: description.", // TODO
+        description = "Internal function for calculating standard deviation/variance of fields",
         type = FunctionType.AGGREGATE
     )
     public StdDev(

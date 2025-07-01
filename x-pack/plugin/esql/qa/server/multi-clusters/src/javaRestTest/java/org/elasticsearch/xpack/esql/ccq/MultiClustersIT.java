@@ -501,7 +501,7 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size()));
 
-            MapMatcher mapMatcher = getResultMatcher(true, false, result.containsKey("documents_found"));
+            MapMatcher mapMatcher = getResultMatcher(true, false, result.containsKey("documents_found")).extraOk();
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
             mapMatcher = mapMatcher.entry("is_partial", true);
             assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));

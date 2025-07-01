@@ -32,6 +32,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
+/**
+ * Represents the settings for a Llama chat completion service.
+ * This class encapsulates the model ID, URI, and rate limit settings for the Llama chat completion service.
+ */
 public class LlamaChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "llama_completion_service_settings";
     // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
@@ -41,6 +45,14 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
     private final URI uri;
     private final RateLimitSettings rateLimitSettings;
 
+    /**
+     * Creates a new instance of LlamaChatCompletionServiceSettings from a map of settings.
+     *
+     * @param map the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @return a new instance of LlamaChatCompletionServiceSettings
+     * @throws ValidationException if required fields are missing or invalid
+     */
     public static LlamaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
@@ -61,18 +73,38 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
         return new LlamaChatCompletionServiceSettings(model, uri, rateLimitSettings);
     }
 
+    /**
+     * Constructs a new LlamaChatCompletionServiceSettings from a StreamInput.
+     *
+     * @param in the StreamInput to read from
+     * @throws IOException if an I/O error occurs during reading
+     */
     public LlamaChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.uri = createUri(in.readString());
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
+    /**
+     * Constructs a new LlamaChatCompletionServiceSettings with the specified model ID, URI, and rate limit settings.
+     *
+     * @param modelId the ID of the model
+     * @param uri the URI of the service
+     * @param rateLimitSettings the rate limit settings for the service
+     */
     public LlamaChatCompletionServiceSettings(String modelId, URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = modelId;
         this.uri = uri;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
+    /**
+     * Constructs a new LlamaChatCompletionServiceSettings with the specified model ID and URL.
+     * The rate limit settings will be set to the default value.
+     *
+     * @param modelId the ID of the model
+     * @param url the URL of the service
+     */
     public LlamaChatCompletionServiceSettings(String modelId, String url, @Nullable RateLimitSettings rateLimitSettings) {
         this(modelId, createUri(url), rateLimitSettings);
     }
@@ -92,10 +124,20 @@ public class LlamaChatCompletionServiceSettings extends FilteredXContentObject i
         return this.modelId;
     }
 
+    /**
+     * Returns the URI of the Llama chat completion service.
+     *
+     * @return the URI of the service
+     */
     public URI uri() {
         return this.uri;
     }
 
+    /**
+     * Returns the rate limit settings for the Llama chat completion service.
+     *
+     * @return the rate limit settings
+     */
     public RateLimitSettings rateLimitSettings() {
         return this.rateLimitSettings;
     }

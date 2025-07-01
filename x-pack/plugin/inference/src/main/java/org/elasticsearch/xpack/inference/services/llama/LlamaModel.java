@@ -21,15 +21,30 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Abstract class representing a Llama model for inference.
+ * This class extends RateLimitGroupingModel and provides common functionality for Llama models.
+ */
 public abstract class LlamaModel extends RateLimitGroupingModel {
     protected String modelId;
     protected URI uri;
     protected RateLimitSettings rateLimitSettings;
 
+    /**
+     * Constructor for creating a LlamaModel with specified configurations and secrets.
+     *
+     * @param configurations the model configurations
+     * @param secrets the secret settings for the model
+     */
     protected LlamaModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);
     }
 
+    /**
+     * Constructor for creating a LlamaModel with specified model, service settings, and secret settings.
+     * @param model the model configurations
+     * @param serviceSettings the settings for the inference service
+     */
     protected LlamaModel(RateLimitGroupingModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
@@ -61,6 +76,14 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
         }
     }
 
+    /**
+     * Retrieves the secret settings from the provided map of secrets.
+     * If the map is null or empty, it returns an instance of EmptySecretSettings.
+     * Caused by the fact that Llama model doesn't have out of the box security settings and can be used witout authentication.
+     *
+     * @param secrets the map containing secret settings
+     * @return an instance of SecretSettings
+     */
     protected static SecretSettings retrieveSecretSettings(Map<String, Object> secrets) {
         return (secrets != null && secrets.isEmpty()) ? EmptySecretSettings.INSTANCE : DefaultSecretSettings.fromMap(secrets);
     }

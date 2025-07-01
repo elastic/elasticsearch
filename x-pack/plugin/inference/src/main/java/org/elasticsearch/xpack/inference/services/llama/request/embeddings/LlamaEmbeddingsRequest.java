@@ -23,6 +23,11 @@ import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
+/**
+ * Llama Embeddings Request
+ * This class is responsible for creating a request to the Llama embeddings model.
+ * It constructs an HTTP POST request with the necessary headers and body content.
+ */
 public class LlamaEmbeddingsRequest implements Request {
     private final URI uri;
     private final LlamaEmbeddingsModel model;
@@ -30,6 +35,13 @@ public class LlamaEmbeddingsRequest implements Request {
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
 
+    /**
+     * Constructs a new LlamaEmbeddingsRequest with the specified truncator, input, and model.
+     *
+     * @param truncator the truncator to handle input truncation
+     * @param input the input to be truncated
+     * @param model the Llama embeddings model to be used for the request
+     */
     public LlamaEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, LlamaEmbeddingsModel model) {
         this.uri = model.uri();
         this.model = model;
@@ -38,6 +50,11 @@ public class LlamaEmbeddingsRequest implements Request {
         this.truncationResult = input;
     }
 
+    /**
+     * Returns the URI for this request.
+     *
+     * @return the URI of the Llama embeddings model
+     */
     @Override
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(this.uri);

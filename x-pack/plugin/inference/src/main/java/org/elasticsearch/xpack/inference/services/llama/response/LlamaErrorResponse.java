@@ -12,6 +12,35 @@ import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * LlamaErrorResponse is responsible for handling error responses from Llama inference services.
+ * It extends ErrorResponse to provide specific functionality for Llama errors.
+ * An example error response for Not Found error would look like:
+ * <pre><code>
+ *  {
+ *      "detail": "Not Found"
+ *  }
+ * </code></pre>
+ * An example error response for Bad Request error would look like:
+ * <pre><code>
+ *  {
+ *     "error": {
+ *         "detail": {
+ *             "errors": [
+ *                 {
+ *                     "loc": [
+ *                         "body",
+ *                         "model"
+ *                     ],
+ *                     "msg": "Field required",
+ *                     "type": "missing"
+ *                 }
+ *             ]
+ *         }
+ *     }
+ *  }
+ * </code></pre>
+ */
 public class LlamaErrorResponse extends ErrorResponse {
 
     public LlamaErrorResponse(String message) {

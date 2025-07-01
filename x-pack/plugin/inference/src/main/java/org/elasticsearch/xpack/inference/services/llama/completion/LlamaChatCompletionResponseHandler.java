@@ -109,6 +109,19 @@ public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatComplet
         }
     }
 
+    /**
+     * StreamingLlamaErrorResponseEntity allows creation of {@link ErrorResponse} from a JSON string.
+     * This entity is used to parse error responses from streaming Llama requests.
+     * For non-streaming requests {@link LlamaErrorResponse} should be used.
+     * Example error response for Bad Request error would look like:
+     * <pre><code>
+     *  {
+     *      "error": {
+     *          "message": "400: Invalid value: Model 'llama3.12:3b' not found"
+     *      }
+     *  }
+     * </code></pre>
+     */
     private static class StreamingLlamaErrorResponseEntity extends ErrorResponse {
         private static final ConstructingObjectParser<Optional<ErrorResponse>, Void> ERROR_PARSER = new ConstructingObjectParser<>(
             LLAMA_ERROR,
@@ -155,6 +168,11 @@ public class LlamaChatCompletionResponseHandler extends OpenAiUnifiedChatComplet
             return ErrorResponse.UNDEFINED_ERROR;
         }
 
+        /**
+         * Constructs a StreamingLlamaErrorResponseEntity with the specified error message.
+         *
+         * @param errorMessage the error message to include in the response entity
+         */
         StreamingLlamaErrorResponseEntity(String errorMessage) {
             super(errorMessage);
         }

@@ -17,11 +17,22 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import java.io.IOException;
 import java.util.Objects;
 
+
+/**
+ * LlamaChatCompletionRequestEntity is responsible for creating the request entity for Llama chat completion.
+ * It implements ToXContentObject to allow serialization to XContent format.
+ */
 public class LlamaChatCompletionRequestEntity implements ToXContentObject {
 
     private final LlamaChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
+    /**
+     * Constructs a LlamaChatCompletionRequestEntity with the specified unified chat input and model.
+     *
+     * @param unifiedChatInput the unified chat input containing messages and parameters for the completion request
+     * @param model the Llama chat completion model to be used for the request
+     */
     public LlamaChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, LlamaChatCompletionModel model) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
         this.model = Objects.requireNonNull(model);

@@ -68,9 +68,12 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
+/**
+ * LlamaService is an inference service for Llama models, supporting text embedding and chat completion tasks.
+ * It extends SenderService to handle HTTP requests and responses for Llama models.
+ */
 public class LlamaService extends SenderService {
     public static final String NAME = "llama";
-
     private static final String SERVICE_NAME = "Llama";
     /**
      * The optimal batch size depends on the hardware the model is deployed on.
@@ -84,6 +87,12 @@ public class LlamaService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
+    /**
+     * Constructor for creating a LlamaService with specified HTTP request sender factory and service components.
+     *
+     * @param factory the factory to create HTTP request senders
+     * @param serviceComponents the components required for the inference service
+     */
     public LlamaService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
@@ -112,6 +121,19 @@ public class LlamaService extends SenderService {
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
+    /**
+     * Creates a LlamaModel based on the provided parameters.
+     *
+     * @param inferenceId the unique identifier for the inference entity
+     * @param taskType the type of task this model is designed for
+     * @param serviceSettings the settings for the inference service
+     * @param taskSettings the settings specific to the task
+     * @param chunkingSettings the settings for chunking, if applicable
+     * @param secretSettings the secret settings for the model, such as API keys or tokens
+     * @param failureMessage the message to use in case of failure
+     * @param context the context for parsing configuration settings
+     * @return a new instance of LlamaModel based on the provided parameters
+     */
     protected LlamaModel createModel(
         String inferenceId,
         TaskType taskType,
@@ -352,14 +374,18 @@ public class LlamaService extends SenderService {
         return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
     }
 
+    /**
+     * Configuration class for the Llama inference service.
+     * It provides the settings and configurations required for the service.
+     */
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
         private Configuration() {}
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 

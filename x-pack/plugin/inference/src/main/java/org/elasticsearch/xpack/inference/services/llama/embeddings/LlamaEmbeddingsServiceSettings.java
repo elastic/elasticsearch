@@ -39,6 +39,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
+/**
+ * Settings for the Llama embeddings service.
+ * This class encapsulates the configuration settings required to use Llama for generating embeddings.
+ */
 public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "llama_embeddings_service_settings";
     // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
@@ -51,6 +55,14 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
+    /**
+     * Creates a new instance of LlamaEmbeddingsServiceSettings from a map of settings.
+     *
+     * @param map the map containing the settings
+     * @param context the context for parsing configuration settings
+     * @return a new instance of LlamaEmbeddingsServiceSettings
+     * @throws ValidationException if any required fields are missing or invalid
+     */
     public static LlamaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
@@ -73,6 +85,12 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         return new LlamaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
 
+    /**
+     * Constructs a new LlamaEmbeddingsServiceSettings from a StreamInput.
+     *
+     * @param in the StreamInput to read from
+     * @throws IOException if an I/O error occurs during reading
+     */
     public LlamaEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.uri = createUri(in.readString());
@@ -82,6 +100,16 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
+    /**
+     * Constructs a new LlamaEmbeddingsServiceSettings with the specified parameters.
+     *
+     * @param modelId the identifier for the model
+     * @param uri the URI of the Llama service
+     * @param dimensions the number of dimensions for the embeddings, can be null
+     * @param similarity the similarity measure to use, can be null
+     * @param maxInputTokens the maximum number of input tokens, can be null
+     * @param rateLimitSettings the rate limit settings for the service, can be null
+     */
     public LlamaEmbeddingsServiceSettings(
         String modelId,
         URI uri,
@@ -98,6 +126,16 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
+    /**
+     * Constructs a new LlamaEmbeddingsServiceSettings with the specified parameters.
+     *
+     * @param modelId the identifier for the model
+     * @param url the URL of the Llama service
+     * @param dimensions the number of dimensions for the embeddings, can be null
+     * @param similarity the similarity measure to use, can be null
+     * @param maxInputTokens the maximum number of input tokens, can be null
+     * @param rateLimitSettings the rate limit settings for the service, can be null
+     */
     public LlamaEmbeddingsServiceSettings(
         String modelId,
         String url,
@@ -143,10 +181,20 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
+    /**
+     * Returns the maximum number of input tokens allowed for this service.
+     *
+     * @return the maximum input tokens, or null if not specified
+     */
     public Integer maxInputTokens() {
         return this.maxInputTokens;
     }
 
+    /**
+     * Returns the rate limit settings for this service.
+     *
+     * @return the rate limit settings, never null
+     */
     public RateLimitSettings rateLimitSettings() {
         return this.rateLimitSettings;
     }

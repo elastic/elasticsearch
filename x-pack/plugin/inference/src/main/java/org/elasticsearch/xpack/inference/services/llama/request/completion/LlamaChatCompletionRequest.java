@@ -24,16 +24,32 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
+/**
+ * Llama Chat Completion Request
+ * This class is responsible for creating a request to the Llama chat completion model.
+ * It constructs an HTTP POST request with the necessary headers and body content.
+ */
 public class LlamaChatCompletionRequest implements Request {
 
     private final LlamaChatCompletionModel model;
     private final UnifiedChatInput chatInput;
 
+    /**
+     * Constructs a new LlamaChatCompletionRequest with the specified chat input and model.
+     *
+     * @param chatInput the chat input containing the messages and parameters for the completion request
+     * @param model the Llama chat completion model to be used for the request
+     */
     public LlamaChatCompletionRequest(UnifiedChatInput chatInput, LlamaChatCompletionModel model) {
         this.chatInput = Objects.requireNonNull(chatInput);
         this.model = Objects.requireNonNull(model);
     }
 
+    /**
+     * Returns the chat input for this request.
+     *
+     * @return the chat input containing the messages and parameters
+     */
     @Override
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(model.uri());

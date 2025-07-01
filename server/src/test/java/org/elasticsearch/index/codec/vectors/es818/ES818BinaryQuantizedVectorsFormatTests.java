@@ -23,6 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -35,6 +36,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -83,6 +85,7 @@ import java.util.OptionalLong;
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -309,6 +312,43 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         }
     }
 
+    public void testMergeInstance() throws IOException {
+        checkDirectIOSupported();
+        float[] vector = randomVector(10);
+        VectorSimilarityFunction similarityFunction = randomSimilarity();
+        KnnFloatVectorField knnField = new KnnFloatVectorField("field", vector, similarityFunction);
+        try (Directory dir = newFSDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setUseCompoundFile(false))) {
+                Document doc = new Document();
+                knnField.setVectorValue(randomVector(10));
+                doc.add(knnField);
+                w.addDocument(doc);
+                w.commit();
+
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    SegmentReader r = (SegmentReader) getOnlyLeafReader(reader);
+                    assertThat(unwrapRawVectorReader("field", r.getVectorReader()), instanceOf(DirectIOLucene99FlatVectorsReader.class));
+                    assertThat(
+                        unwrapRawVectorReader("field", r.getVectorReader().getMergeInstance()),
+                        instanceOf(Lucene99FlatVectorsReader.class)
+                    );
+                }
+            }
+        }
+    }
+
+    private static KnnVectorsReader unwrapRawVectorReader(String fieldName, KnnVectorsReader knnReader) {
+        if (knnReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
+            return unwrapRawVectorReader(fieldName, perField.getFieldReader(fieldName));
+        } else if (knnReader instanceof ES818BinaryQuantizedVectorsReader bbqReader) {
+            return unwrapRawVectorReader(fieldName, bbqReader.getRawVectorsReader());
+        } else if (knnReader instanceof MergeReaderWrapper mergeReaderWrapper) {
+            return unwrapRawVectorReader(fieldName, mergeReaderWrapper.getMainReader());
+        } else {
+            return knnReader;
+        }
+    }
+
     static Directory newMMapDirectory() throws IOException {
         Directory dir = new MMapDirectory(createTempDir("ES818BinaryQuantizedVectorsFormatTests"));
         if (random().nextBoolean()) {
@@ -333,6 +373,8 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     }
 
     static void checkDirectIOSupported() {
+        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
+
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");

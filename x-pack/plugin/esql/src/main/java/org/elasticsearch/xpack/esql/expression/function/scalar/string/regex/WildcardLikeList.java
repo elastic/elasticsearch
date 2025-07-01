@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
@@ -41,6 +43,30 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
     );
     @Nullable
     private final Configuration configuration;
+
+    Supplier<Automaton> automatonSupplier = new Supplier<>() {
+        Automaton cached;
+
+        @Override
+        public Automaton get() {
+            if (cached == null) {
+                cached = pattern().createAutomaton(caseInsensitive());
+            }
+            return cached;
+        }
+    };
+
+    Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier = new Supplier<>() {
+        CharacterRunAutomaton cached;
+
+        @Override
+        public CharacterRunAutomaton get() {
+            if (cached == null) {
+                cached = new CharacterRunAutomaton(automatonSupplier.get());
+            }
+            return cached;
+        }
+    };
 
     /**
      * The documentation for this function is in WildcardLike, and shown to the users `LIKE` in the docs.
@@ -139,8 +165,13 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
         RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
-        Automaton automaton = pattern().createAutomaton(caseInsensitive());
-        return fieldType.automatonQuery(automaton, constantScoreRewrite, context, getLuceneQueryDescription());
+        return fieldType.automatonQuery(
+            automatonSupplier,
+            characterRunAutomatonSupplier,
+            constantScoreRewrite,
+            context,
+            getLuceneQueryDescription()
+        );
     }
 
     private String getLuceneQueryDescription() {

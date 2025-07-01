@@ -20,9 +20,6 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 :::{include} ../_snippets/commands/layout/from.md
 :::
 
-:::{include} ../_snippets/commands/layout/ts.md
-:::
-
 :::{include} ../_snippets/commands/layout/row.md
 :::
 

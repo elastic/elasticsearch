@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -66,6 +68,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final NodeDeprecationChecker nodeDeprecationChecker;
     private final ClusterDeprecationChecker clusterDeprecationChecker;
     private final List<ResourceDeprecationChecker> resourceDeprecationCheckers;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeprecationInfoAction(
@@ -76,7 +79,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NodeClient client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             DeprecationInfoAction.NAME,
@@ -101,6 +105,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             new TemplateDeprecationChecker(),
             new IlmPolicyDeprecationChecker()
         );
+        this.projectResolver = projectResolver;
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
@@ -123,7 +128,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
         PrecomputedData precomputedData = new PrecomputedData();
-        try (var refs = new RefCountingListener(checkAndCreateResponse(state, request, precomputedData, listener))) {
+        final var project = projectResolver.getProjectMetadata(state);
+        try (var refs = new RefCountingListener(checkAndCreateResponse(project, request, precomputedData, listener))) {
             nodeDeprecationChecker.check(client, refs.acquire(precomputedData::setOnceNodeSettingsIssues));
             transformConfigs(refs.acquire(precomputedData::setOnceTransformConfigs));
             DeprecationChecker.Components components = new DeprecationChecker.Components(
@@ -142,7 +148,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * cluster. Because of that, it's important that it does not run in the transport thread that's why it's combined with
      * {@link #executeInGenericThreadpool(ActionListener)}.
      *
-     * @param state                       The cluster state
+     * @param project                     The project metadata
      * @param request                     The originating request containing the index expressions to evaluate
      * @param precomputedData             Data from remote requests necessary to construct the response
      * @param responseListener            The listener expecting the {@link DeprecationInfoAction.Response}
@@ -150,7 +156,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * is initialised.
      */
     public ActionListener<Void> checkAndCreateResponse(
-        ClusterState state,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         PrecomputedData precomputedData,
         ActionListener<DeprecationInfoAction.Response> responseListener
@@ -159,7 +165,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             ActionListener.running(
                 () -> responseListener.onResponse(
                     checkAndCreateResponse(
-                        state,
+                        project,
                         indexNameExpressionResolver,
                         request,
                         skipTheseDeprecations,
@@ -173,26 +179,26 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     }
 
     /**
-     * This is the function that does the bulk of the logic of combining the necessary dependencies together, including the cluster state,
+     * This is the function that does the bulk of the logic of combining the necessary dependencies together, including the cluster project,
      * the precalculated information in {@code context} with the remaining checkers such as the cluster setting checker and the resource
      * checkers.This function will run a significant part of the checks and build out the final list of issues that exist in the
      * cluster. It's important that it does not run in the transport thread that's why it's combined with
-     * {@link #checkAndCreateResponse(ClusterState, DeprecationInfoAction.Request, PrecomputedData, ActionListener)}. We keep this separated
-     * for testing purposes.
+     * {@link #checkAndCreateResponse(ProjectMetadata, DeprecationInfoAction.Request, PrecomputedData, ActionListener)}.
+     * We keep this separated for testing purposes.
      *
-     * @param state                       The cluster state
+     * @param project                       The cluster project
      * @param indexNameExpressionResolver Used to resolve indices into their concrete names
      * @param request                     The originating request containing the index expressions to evaluate
      * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
      *                                    indexes specified by indexNames
      * @param clusterDeprecationChecker   The checker that provides the cluster settings deprecations warnings
-     * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
+     * @param resourceDeprecationCheckers these are checkers that take as input the cluster project and return a map from resource type
      *                                    to issues grouped by the resource name.
      * @param precomputedData             data from remote requests necessary to construct the response
      * @return The list of deprecation issues found in the cluster
      */
     static DeprecationInfoAction.Response checkAndCreateResponse(
-        ClusterState state,
+        ProjectMetadata project,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DeprecationInfoAction.Request request,
         List<String> skipTheseDeprecatedSettings,
@@ -202,17 +208,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     ) {
         assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
         // Allow system index access here to prevent deprecation warnings when we call this API
-        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
-        List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(
-            stateWithSkippedSettingsRemoved,
-            precomputedData.transformConfigs()
-        );
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(project, request);
+        ProjectMetadata projectWithSkippedSettingsRemoved = removeSkippedSettings(project, concreteIndexNames, skipTheseDeprecatedSettings);
+        List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(precomputedData.transformConfigs());
 
         Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
         for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
             Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(
-                stateWithSkippedSettingsRemoved,
+                projectWithSkippedSettingsRemoved,
                 request,
                 precomputedData
             );
@@ -266,35 +269,32 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
 
     /**
      * Removes the skipped settings from the selected indices and the component and index templates.
-     * @param state The cluster state to modify
+     * @param project The project to modify
      * @param indexNames The names of the indexes whose settings need to be filtered
      * @param skipTheseDeprecatedSettings The settings that will be removed from cluster metadata and the index metadata of all the
      *                                    indexes specified by indexNames
-     * @return A modified cluster state with the given settings removed
+     * @return A modified project with the given settings removed
      */
-    private static ClusterState removeSkippedSettings(ClusterState state, String[] indexNames, List<String> skipTheseDeprecatedSettings) {
-        // Short-circuit, no need to reconstruct the cluster state if there are no settings to remove
+    private static ProjectMetadata removeSkippedSettings(
+        ProjectMetadata project,
+        String[] indexNames,
+        List<String> skipTheseDeprecatedSettings
+    ) {
+        // Short-circuit, no need to reconstruct the cluster project if there are no settings to remove
         if (skipTheseDeprecatedSettings == null || skipTheseDeprecatedSettings.isEmpty()) {
-            return state;
+            return project;
         }
-        ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-        metadataBuilder.transientSettings(
-            metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
-        );
-        metadataBuilder.persistentSettings(
-            metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
-        );
-        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().getProject().indices());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(project.indices());
         for (String indexName : indexNames) {
-            IndexMetadata indexMetadata = state.getMetadata().getProject().index(indexName);
+            IndexMetadata indexMetadata = project.index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
             Settings filteredSettings = indexMetadata.getSettings()
                 .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }
-        metadataBuilder.componentTemplates(state.metadata().getProject().componentTemplates().entrySet().stream().map(entry -> {
+        projectBuilder.componentTemplates(project.componentTemplates().entrySet().stream().map(entry -> {
             String templateName = entry.getKey();
             ComponentTemplate componentTemplate = entry.getValue();
             Template template = componentTemplate.template();
@@ -313,7 +313,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 )
             );
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-        metadataBuilder.indexTemplates(state.metadata().getProject().templatesV2().entrySet().stream().map(entry -> {
+        projectBuilder.indexTemplates(project.templatesV2().entrySet().stream().map(entry -> {
             String templateName = entry.getKey();
             ComposableIndexTemplate indexTemplate = entry.getValue();
             Template template = indexTemplate.template();
@@ -335,9 +335,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             );
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
 
-        metadataBuilder.indices(indicesBuilder);
-        clusterStateBuilder.metadata(metadataBuilder);
-        return clusterStateBuilder.build();
+        projectBuilder.indices(indicesBuilder);
+        return projectBuilder.build();
     }
 
     static void pluginSettingIssues(

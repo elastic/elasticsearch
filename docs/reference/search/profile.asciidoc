@@ -1268,6 +1268,7 @@ POST my-knn-index/_bulk?refresh=true
 { "index": { "_id": "3" } }
 { "my-vector": [15, 11, 23] }
 --------------------------------------------------
+// TEST[skip:response format changes in 130254]
 
 With an index setup, we can now profile a kNN search query.
 
@@ -1284,7 +1285,7 @@ POST my-knn-index/_search
   }
 }
 --------------------------------------------------
-// TEST[continued]
+// TEST[skip:response format changes in 130254]
 
 <1> The `profile` parameter is set to `true`.
 
@@ -1340,7 +1341,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
     }   ]
 }
 --------------------------------------------------
-// TEST[skip:response format changes in #130254]
+// TESTRESPONSE[skip:response format changes in 130254]
 
 In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,

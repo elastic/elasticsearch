@@ -69,7 +69,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.validTile(x, y, precision)) {
                 return GeoTileUtils.longEncodeTiles(precision, x, y);
             }
-            // TODO: Are we sure negative numbers are not valid
+            // GeoTileUtils uses the highest 6 bits to store the zoom level. However, MAX_ZOOM is 29, which takes 5 bits.
+            // This leaves the sign bit unused, so it can be used to indicate an invalid tile.
             return -1L;
         }
 
@@ -203,7 +204,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
             GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
-            return bounds.calculateGridId(GEO.wkbAsPoint(point));
+            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
+            return gridId < 0 ? null : gridId;
         }
     }
 

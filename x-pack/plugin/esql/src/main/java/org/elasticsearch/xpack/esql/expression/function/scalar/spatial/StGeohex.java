@@ -64,7 +64,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.validHex(geohex)) {
                 return geohex;
             }
-            // TODO: Are we sure negative numbers are not valid
+            // H3 explicitly requires the highest bit to be zero, freeing up all negative numbers as invalid ids. See H3.isValidHex()
             return -1L;
         }
 
@@ -212,7 +212,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
             GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
-            return bounds.calculateGridId(GEO.wkbAsPoint(point));
+            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
+            return gridId < 0 ? null : gridId;
         }
     }
 

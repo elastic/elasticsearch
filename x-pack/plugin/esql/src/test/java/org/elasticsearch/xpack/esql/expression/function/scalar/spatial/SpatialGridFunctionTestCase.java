@@ -102,21 +102,17 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                     BytesRef geometry = (BytesRef) geoTypedData.data();
                     int precision = between(1, 8);
                     TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
-                    Rectangle bounds = new Rectangle(-180, 180, 90, -90);
                     String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
                     if (literalPrecision) {
                         precisionData = precisionData.forceLiteral();
                         evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0]";
                     }
-                    TestCaseSupplier.TypedData boundsData;
-                    // Create a rectangle as bounds
-                    BytesRef boundsBytesRef = GEO.asWkb(bounds);
-                    boundsData = new TestCaseSupplier.TypedData(boundsBytesRef, GEO_SHAPE, "bounds").forceLiteral();
+                    var boundsData = randomBoundsData();
                     return new TestCaseSupplier.TestCase(
-                        List.of(geoTypedData, precisionData, boundsData),
+                        List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
                         LONG,
-                        equalTo(expectedValueWithBounds.apply(geometry, precision, SpatialGridFunction.asGeoBoundingBox(bounds)))
+                        equalTo(expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox()))
                     );
                 }));
             }
@@ -139,6 +135,25 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }
+    }
+
+    protected record TestBoundsData(GeoBoundingBox geoBoundingBox, TestCaseSupplier.TypedData typedData) {}
+
+    private static TestBoundsData randomBoundsData() {
+        // Create a rectangle with random center and random size, that does not exceed geographic bounds
+        double x = randomDoubleBetween(-180.1, 179.1, false);
+        double y = randomDoubleBetween(-90.1, 89.1, false);
+        double width = randomDoubleBetween(0.1, 180.0, true);
+        double height = randomDoubleBetween(0.1, 90.0, true);
+        double minX = Math.max(-180, x - width / 2);
+        double maxX = Math.min(180, x + width / 2);
+        double minY = Math.max(-90, y - height / 2);
+        double maxY = Math.min(90, y + height / 2);
+        Rectangle bounds = new Rectangle(minX, maxX, maxY, minY);
+        return new TestBoundsData(
+            SpatialGridFunction.asGeoBoundingBox(bounds),
+            new TestCaseSupplier.TypedData(GEO.asWkb(bounds), GEO_SHAPE, "bounds").forceLiteral()
+        );
     }
 
     protected Long process(int precision, BiFunction<BytesRef, Integer, Long> expectedValue) {

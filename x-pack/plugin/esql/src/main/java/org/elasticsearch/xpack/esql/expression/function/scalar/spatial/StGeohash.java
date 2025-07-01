@@ -66,7 +66,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.validHash(geohash)) {
                 return Geohash.longEncode(geohash);
             }
-            // TODO: Are negative values allowed in geohash long encoding?
+            // Geohash uses the lowest 4 bites for precision, and if all four are set, we get 15, which is invalid since the
+            // max precision allowed is 12. This allows us to return -1 to indicate invalid geohashes (since all bits are set to 1).
             return -1;
         }
 
@@ -209,7 +210,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
             GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
-            return bounds.calculateGridId(GEO.wkbAsPoint(point));
+            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
+            return gridId < 0 ? null : gridId;
         }
     }
 

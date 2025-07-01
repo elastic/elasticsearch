@@ -70,6 +70,12 @@ public abstract class Query {
      */
     protected abstract String innerToString();
 
+    /**
+     * Does the result of calling {@link #asBuilder()} need the plan
+     * to serialize itself?
+     */
+    public abstract boolean containsPlan();
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {

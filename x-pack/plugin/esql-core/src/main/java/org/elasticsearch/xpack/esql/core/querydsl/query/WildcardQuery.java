@@ -70,4 +70,9 @@ public class WildcardQuery extends Query {
     protected String innerToString() {
         return field + ":" + query;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

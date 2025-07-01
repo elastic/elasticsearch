@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -44,9 +43,8 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     );
     private final String fieldName;
     private final Expression expression;
-    private final Configuration config;
 
-    public ExpressionQueryBuilder(String fieldName, Expression expression, Configuration config) {
+    public ExpressionQueryBuilder(String fieldName, Expression expression) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -55,18 +53,16 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
         }
         this.fieldName = fieldName;
         this.expression = expression;
-        this.config = config;
     }
 
     /**
      * Read from a stream.
      */
-    public ExpressionQueryBuilder(StreamInput in) throws IOException {
+    private ExpressionQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
-        this.config = Configuration.readFrom(in);
-        PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
-        this.expression = planStreamInput.readNamedWriteable(Expression.class);
+        assert in instanceof PlanStreamInput;
+        this.expression = in.readNamedWriteable(Expression.class);
     }
 
     public Expression getExpression() {
@@ -76,12 +72,8 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.fieldName);
-        if (config == null) {
-            throw new UnsupportedEncodingException("Configuration cannot be null when writing ExpressionQueryBuilder");
-        }
-        config.writeTo(out);
-        PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
-        planStreamOutput.writeNamedWriteable(expression);
+        assert out instanceof PlanStreamOutput;
+        out.writeNamedWriteable(expression);
     }
 
     @Override
@@ -96,7 +88,7 @@ public class ExpressionQueryBuilder extends AbstractQueryBuilder<ExpressionQuery
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedEncodingException("AutomatonQueryBuilder does not support doXContent");
+        throw new UnsupportedEncodingException("ExpressionQueryBuilder does not support doXContent");
     }
 
     @Override

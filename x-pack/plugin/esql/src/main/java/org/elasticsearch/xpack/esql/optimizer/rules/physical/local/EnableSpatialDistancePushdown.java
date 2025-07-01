@@ -77,14 +77,14 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewrite(ctx.foldCtx(), filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
+            plan = rewrite(ctx.foldCtx(), filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats(), ctx.configuration()));
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
             plan = rewriteBySplittingFilter(
                 ctx.foldCtx(),
                 filterExec,
                 evalExec,
                 esQueryExec,
-                LucenePushdownPredicates.from(ctx.searchStats())
+                LucenePushdownPredicates.from(ctx.searchStats(), ctx.configuration())
             );
         }
 

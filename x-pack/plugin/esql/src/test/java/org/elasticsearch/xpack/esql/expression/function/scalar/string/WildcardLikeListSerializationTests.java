@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
@@ -24,7 +23,7 @@ public class WildcardLikeListSerializationTests extends AbstractExpressionSerial
     protected WildcardLikeList createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
-        return new WildcardLikeList(source, child, generateRandomPatternList(), EsqlTestUtils.TEST_CFG);
+        return new WildcardLikeList(source, child, generateRandomPatternList());
     }
 
     @Override
@@ -40,7 +39,7 @@ public class WildcardLikeListSerializationTests extends AbstractExpressionSerial
             pattern = randomValueOtherThan(pattern, () -> new WildcardPattern(randomAlphaOfLength(4)));
         }
         patterns.set(childToModify, pattern);
-        return new WildcardLikeList(source, child, new WildcardPatternList(patterns), EsqlTestUtils.TEST_CFG);
+        return new WildcardLikeList(source, child, new WildcardPatternList(patterns));
     }
 
     private WildcardPatternList generateRandomPatternList() {

@@ -125,6 +125,11 @@ public class SingleValueQuery extends Query {
         return Objects.hash(super.hashCode(), next, field, useSyntheticSourceDelegate);
     }
 
+    @Override
+    public boolean containsPlan() {
+        return next.containsPlan();
+    }
+
     public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;

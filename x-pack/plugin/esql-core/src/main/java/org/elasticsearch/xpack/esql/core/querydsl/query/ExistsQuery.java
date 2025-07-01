@@ -29,4 +29,9 @@ public class ExistsQuery extends Query {
     protected String innerToString() {
         return name;
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

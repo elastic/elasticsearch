@@ -10,7 +10,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
 
@@ -21,13 +20,11 @@ public class ExpressionQuery extends Query {
 
     private final String targetFieldName;
     private final Expression expression;
-    private final Configuration config;
 
-    public ExpressionQuery(Source source, String targetFieldName, Expression expression, Configuration config) {
+    public ExpressionQuery(Source source, String targetFieldName, Expression expression) {
         super(source);
         this.targetFieldName = targetFieldName;
         this.expression = expression;
-        this.config = config;
     }
 
     public String field() {
@@ -36,7 +33,7 @@ public class ExpressionQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        return new ExpressionQueryBuilder(targetFieldName, expression, config);
+        return new ExpressionQueryBuilder(targetFieldName, expression);
     }
 
     @Override
@@ -61,5 +58,10 @@ public class ExpressionQuery extends Query {
     @Override
     protected String innerToString() {
         return "ExpressionQuery{" + "field='" + targetFieldName + '\'' + '}';
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return true;
     }
 }

@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource;
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Answers.RETURNS_SMART_NULLS;
+import static org.mockito.Mockito.mock;
 
 public class RerouteProcessorFactoryTests extends ESTestCase {
 
@@ -74,6 +78,7 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     }
 
     private static RerouteProcessor create(Map<String, Object> config) throws Exception {
-        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config), null);
+        IngestService ingestService = mock(IngestService.class, RETURNS_SMART_NULLS);
+        return new RerouteProcessor.Factory(ingestService).create(null, null, null, new HashMap<>(config), ProjectId.DEFAULT);
     }
 }

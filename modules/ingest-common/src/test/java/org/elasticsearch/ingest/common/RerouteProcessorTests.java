@@ -9,6 +9,11 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -16,13 +21,32 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RerouteProcessorTests extends ESTestCase {
+
+    private final StreamsPermissionsUtils streamsPermissionsUtilsMock = mock(StreamsPermissionsUtils.class);
+    private final ClusterService clusterServiceMock = mock(ClusterService.class, RETURNS_DEEP_STUBS);
+
+    @Before
+    public void setUpStreamsPermissionsUtils() {
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).build())
+            .build();
+        when(clusterServiceMock.state()).thenReturn(clusterState);
+        doNothing().when(streamsPermissionsUtilsMock).throwIfRetrouteToSubstreamNotAllowed(any(), any(), anyString());
+    }
 
     public void testDefaults() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
@@ -291,12 +315,25 @@ public class RerouteProcessorTests extends ESTestCase {
             type.stream().map(RerouteProcessor.DataStreamValueSource::type).toList(),
             dataset.stream().map(RerouteProcessor.DataStreamValueSource::dataset).toList(),
             namespace.stream().map(RerouteProcessor.DataStreamValueSource::namespace).toList(),
-            null
+            null,
+            clusterServiceMock,
+            ProjectId.DEFAULT,
+            streamsPermissionsUtilsMock
         );
     }
 
     private RerouteProcessor createRerouteProcessor(String destination) {
-        return new RerouteProcessor(null, null, List.of(), List.of(), List.of(), destination);
+        return new RerouteProcessor(
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            destination,
+            clusterServiceMock,
+            ProjectId.DEFAULT,
+            streamsPermissionsUtilsMock
+        );
     }
 
     private void assertDataSetFields(IngestDocument ingestDocument, String type, String dataset, String namespace) {

@@ -109,6 +109,7 @@ book_no:keyword | author:text    | s1:double
 matchWithDisjunctionAndFiltersConjunction
 required_capability: match_function
 required_capability: full_text_functions_disjunctions
+required_capability: score_function
 
 from books
 | eval s1 = score((match(author, "Vonnegut") or match(author, "Guinane")) and year > 1997)

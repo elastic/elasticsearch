@@ -25,10 +25,10 @@ If you experience a force merge task queue backlog, you might need to increase t
 Note that `thread_pool.force_merge.size` is an advanced setting. Adjusting it can cause cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
 ::::
 
-Force merging will be performed by the node hosting the shard. The [node's role](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#set-node-roles) frequently matches the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) of the {{ilm-init}}'s phase of the index, you may choose to adjust this behavior. For example: 
+Force merging will be performed by the node hosting the shard. Usually, the [node's role](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#set-node-roles) matches the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) of the {{ilm-init}} phase that the index is in. One of the exceptions is when you have manually disabled [ILM Migrate](https://www.elastic.co/docs/reference/elasticsearch/index-lifecycle-actions/ilm-migrate) and have specified custom allocations using [ILM allocate](https://www.elastic.co/docs/reference/elasticsearch/index-lifecycle-actions/ilm-allocate). The other exception is searchable snapshots; force merges for [{{ilm-init}} Searchable Snapshots](./ilm-searchable-snapshot.md) using `force_merge_index` are performed in the phase that the index is in **prior** to the `searchable_snapshot` action. You may want to explicitly choose in which data tier the force merge should occur, for example:
 * A force merge in the `hot` phase will use hot nodes. Merges may be faster on this potentially higher performance hardware but may have the tradeoff of impacting ingestion. 
 * A force merge in the `warm` phase will use warm nodes. Merges may take longer to perform on potentially lower performance hardware but will avoid impacting ingestion in the `hot` tier.
-* A force merge in the `cold` or `frozen` phase [{{ilm-init}} Searchable Snapshots](./ilm-searchable-snapshot.md) using `force_merge_index` happens on the preceeding data tier.
+*  [{{ilm-init}} Searchable Snapshot](./ilm-searchable-snapshot.md) performance is dependant upon the shard having been force merged, so by default this ILM action will enable `force_merge_index`. This will trigger force merges in the preceding node data tier for `cold` and `frozen` phases.
 
 We recommend that merges be targetted against SSD and not HDD disks.
 :::::

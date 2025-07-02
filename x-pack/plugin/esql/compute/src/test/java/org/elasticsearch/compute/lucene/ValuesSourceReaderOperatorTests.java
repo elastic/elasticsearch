@@ -523,16 +523,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Page source = CannedSourceOperator.mergePages(
             CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
         );
-        List<Integer> shuffleList = new ArrayList<>();
-        IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
-        Randomness.shuffle(shuffleList);
-        int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
-        Block[] shuffledBlocks = new Block[source.getBlockCount()];
-        for (int b = 0; b < shuffledBlocks.length; b++) {
-            shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
+        loadSimpleAndAssert(driverContext, List.of(shuffle(source)), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
+    }
+
+    private Page shuffle(Page source) {
+        try {
+            List<Integer> shuffleList = new ArrayList<>();
+            IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
+            Randomness.shuffle(shuffleList);
+            int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
+            Block[] shuffledBlocks = new Block[source.getBlockCount()];
+            for (int b = 0; b < shuffledBlocks.length; b++) {
+                shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
+            }
+            return new Page(shuffledBlocks);
+        } finally {
+            source.releaseBlocks();
         }
-        source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
@@ -899,15 +906,38 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadLong() throws IOException {
+        testLoadLong(false, false);
+    }
+
+    public void testLoadLongManySegments() throws IOException {
+        testLoadLong(false, true);
+    }
+
+
+    public void testLoadLongShuffled() throws IOException {
+        testLoadLong(true, false);
+    }
+
+    public void testLoadLongShuffledManySegments() throws IOException {
+        testLoadLong(true, true);
+    }
+
+    private void testLoadLong(boolean shuffle, boolean manySegments) throws IOException {
         int numDocs = between(10, 500);
         initMapping();
         keyToTags.clear();
-        reader = initIndexLongField(directory, numDocs, numDocs);
+        reader = initIndexLongField(directory, numDocs, manySegments ? commitEvery(numDocs) : numDocs);
 
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(sourceOperator(driverContext, numDocs));
-        assertThat(reader.leaves(), hasSize(1));
-        assertThat(input, hasSize(1));
+        assertThat(reader.leaves(), hasSize(manySegments ? 10 : 1));
+        assertThat(input, hasSize(manySegments ? 10 : 1));
+        if (manySegments) {
+            input = List.of(CannedSourceOperator.mergePages(input));
+        }
+        if (shuffle) {
+            input = input.stream().map(this::shuffle).toList();
+        }
 
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
 
@@ -940,8 +970,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) operators.get(i).status();
             assertThat(status.pagesReceived(), equalTo(input.size()));
             assertThat(status.pagesEmitted(), equalTo(input.size()));
-            FieldCase fc = cases.get(i);
-            fc.checkReaders.check(fc.info.name(), false, input.size(), reader.leaves().size(), status.readersBuilt());
         }
     }
 

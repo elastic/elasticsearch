@@ -346,6 +346,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         LoadFromMany(DocVector docs) {
             super(docs);
+            System.err.println("ASDF many");
             forwards = docs.shardSegmentDocMapForwards();
             backwards = docs.shardSegmentDocMapBackwards();
             rowStride = new BlockLoader.RowStrideReader[fields.length];

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -68,5 +69,10 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+    }
+
+    @SuppressWarnings("unchecked")
+    public PlanType withModelConfigurations(ModelConfigurations modelConfig) {
+        return (PlanType) this;
     }
 }

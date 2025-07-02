@@ -26,11 +26,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +78,10 @@ public class InferenceRunnerTests extends ESTestCase {
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
             assertNotNull(inferenceResolution);
-            assertThat(inferenceResolution.resolvedInferences(), contains(new ResolvedInference("rerank-plan", TaskType.RERANK)));
+            assertThat(
+                inferenceResolution.resolvedInferences(),
+                contains(allOf(inferenceId(equalTo("rerank-plan")), taskType(equalTo(TaskType.RERANK))))
+            );
             assertThat(inferenceResolution.hasError(), equalTo(false));
         });
     }
@@ -100,8 +106,8 @@ public class InferenceRunnerTests extends ESTestCase {
             assertThat(
                 inferenceResolution.resolvedInferences(),
                 contains(
-                    new ResolvedInference("rerank-plan", TaskType.RERANK),
-                    new ResolvedInference("completion-plan", TaskType.COMPLETION)
+                    allOf(inferenceId(equalTo("rerank-plan")), taskType(equalTo(TaskType.RERANK))),
+                    allOf(inferenceId(equalTo("completion-plan")), taskType(equalTo(TaskType.COMPLETION)))
                 )
             );
             assertThat(inferenceResolution.hasError(), equalTo(false));
@@ -183,5 +189,23 @@ public class InferenceRunnerTests extends ESTestCase {
         InferencePlan<?> plan = mock(InferencePlan.class);
         when(plan.inferenceId()).thenReturn(Literal.keyword(Source.EMPTY, inferenceId));
         return plan;
+    }
+
+    private FeatureMatcher<ResolvedInference, String> inferenceId(Matcher<String> matcher) {
+        return new FeatureMatcher<>(matcher, "inference id", "inferenceId") {
+            @Override
+            protected String featureValueOf(ResolvedInference resolution) {
+                return resolution.inferenceId();
+            }
+        };
+    }
+
+    private FeatureMatcher<ResolvedInference, TaskType> taskType(Matcher<TaskType> matcher) {
+        return new FeatureMatcher<>(matcher, "task type", "taskType") {
+            @Override
+            protected TaskType featureValueOf(ResolvedInference resolution) {
+                return resolution.taskType();
+            }
+        };
     }
 }

@@ -10,13 +10,19 @@ package org.elasticsearch.xpack.esql.plan.logical.inference.embedding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -36,19 +42,33 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
     );
 
     private final Expression input;
+    private final Expression dimensions;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
 
     public DenseVectorEmbedding(Source source, LogicalPlan child, Expression inferenceId, Expression input, Attribute targetField) {
+        this(source, child, inferenceId, new UnresolvedDimensions(inferenceId), input, targetField);
+    }
+
+    DenseVectorEmbedding(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression dimensions,
+        Expression input,
+        Attribute targetField
+    ) {
         super(source, child, inferenceId);
         this.input = input;
         this.targetField = targetField;
+        this.dimensions = dimensions;
     }
 
     public DenseVectorEmbedding(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
@@ -60,6 +80,7 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(inferenceId());
+        out.writeNamedWriteable(dimensions);
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(targetField);
     }
@@ -75,6 +96,10 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
     @Override
     public TaskType taskType() {
         return TaskType.TEXT_EMBEDDING;
+    }
+
+    public Expression dimensions() {
+        return dimensions;
     }
 
     @Override
@@ -98,7 +123,7 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
     @Override
     public DenseVectorEmbedding withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new DenseVectorEmbedding(source(), child(), inferenceId(), input, this.renameTargetField(newNames.get(0)));
+        return new DenseVectorEmbedding(source(), child(), inferenceId(), dimensions, input, this.renameTargetField(newNames.get(0)));
     }
 
     private Attribute renameTargetField(String newName) {
@@ -111,22 +136,45 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && input.resolved() && targetField.resolved();
+        return super.expressionsResolved() && input.resolved() && targetField.resolved() && dimensions.resolved();
     }
 
     @Override
     public DenseVectorEmbedding withInferenceId(Expression newInferenceId) {
-        return new DenseVectorEmbedding(source(), child(), newInferenceId, input, targetField);
+        return new DenseVectorEmbedding(source(), child(), newInferenceId, dimensions, input, targetField);
+    }
+
+    public DenseVectorEmbedding withDimensions(Expression newDimensions) {
+        return new DenseVectorEmbedding(source(), child(), inferenceId(), newDimensions, input, targetField);
+    }
+
+    public DenseVectorEmbedding withTargetField(Attribute targetField) {
+        return new DenseVectorEmbedding(source(), child(), inferenceId(), dimensions, input, targetField);
+    }
+
+    @Override
+    public DenseVectorEmbedding withModelConfigurations(ModelConfigurations modelConfig) {
+        boolean hasChanged = false;
+        Expression newDimensions = dimensions;
+
+        if (dimensions.resolved() == false
+            && modelConfig.getServiceSettings() != null
+            && modelConfig.getServiceSettings().dimensions() > 0) {
+            hasChanged = true;
+            newDimensions = new Literal(Source.EMPTY, modelConfig.getServiceSettings().dimensions(), DataType.INTEGER);
+        }
+
+        return hasChanged ? withDimensions(newDimensions) : this;
     }
 
     @Override
     public DenseVectorEmbedding replaceChild(LogicalPlan newChild) {
-        return new DenseVectorEmbedding(source(), newChild, inferenceId(), input, targetField);
+        return new DenseVectorEmbedding(source(), newChild, inferenceId(), dimensions, input, targetField);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, DenseVectorEmbedding::new, child(), inferenceId(), input, targetField);
+        return NodeInfo.create(this, DenseVectorEmbedding::new, child(), inferenceId(), dimensions, input, targetField);
     }
 
     @Override
@@ -135,11 +183,28 @@ public class DenseVectorEmbedding extends InferencePlan<DenseVectorEmbedding> im
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         DenseVectorEmbedding that = (DenseVectorEmbedding) o;
-        return Objects.equals(input, that.input) && Objects.equals(targetField, that.targetField);
+        return Objects.equals(input, that.input)
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(targetField, that.targetField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, targetField);
+        return Objects.hash(super.hashCode(), input, targetField, dimensions);
+    }
+
+    private static class UnresolvedDimensions extends Literal implements Unresolvable {
+
+        private final String inferenceId;
+
+        private UnresolvedDimensions(Expression inferenceId) {
+            super(Source.EMPTY, null, DataType.NULL);
+            this.inferenceId = BytesRefs.toString(inferenceId.fold(FoldContext.small()));
+        }
+
+        @Override
+        public String unresolvedMessage() {
+            return "Dimensions cannot be resolved for inference endpoint[" + inferenceId + "]";
+        }
     }
 }

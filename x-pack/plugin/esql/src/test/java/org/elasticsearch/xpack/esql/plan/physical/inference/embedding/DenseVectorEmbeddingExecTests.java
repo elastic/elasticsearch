@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical.inference.embedding;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -22,23 +23,32 @@ public class DenseVectorEmbeddingExecTests extends AbstractPhysicalPlanSerializa
 
     @Override
     protected DenseVectorEmbeddingExec createTestInstance() {
-        return new DenseVectorEmbeddingExec(randomSource(), randomChild(0), randomInferenceId(), randomInput(), randomTargetField());
+        return new DenseVectorEmbeddingExec(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomDimensions(),
+            randomInput(),
+            randomTargetField()
+        );
     }
 
     @Override
     protected DenseVectorEmbeddingExec mutateInstance(DenseVectorEmbeddingExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         Expression inferenceId = instance.inferenceId();
+        Expression dimensions = instance.dimensions();
         Expression input = instance.input();
         Attribute targetField = instance.targetField();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
-            case 2 -> input = randomValueOtherThan(input, this::randomInput);
-            case 3 -> targetField = randomValueOtherThan(targetField, this::randomTargetField);
+            case 2 -> dimensions = randomValueOtherThan(input, this::randomAttribute);
+            case 3 -> input = randomValueOtherThan(input, this::randomInput);
+            case 4 -> targetField = randomValueOtherThan(targetField, this::randomTargetField);
         }
-        return new DenseVectorEmbeddingExec(instance.source(), child, inferenceId, input, targetField);
+        return new DenseVectorEmbeddingExec(instance.source(), child, inferenceId, dimensions, input, targetField);
     }
 
     private Literal randomInferenceId() {
@@ -55,5 +65,9 @@ public class DenseVectorEmbeddingExecTests extends AbstractPhysicalPlanSerializa
 
     private Attribute randomAttribute() {
         return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
+    }
+
+    private Expression randomDimensions() {
+        return new Literal(EMPTY, randomInt(), DataType.INTEGER);
     }
 }

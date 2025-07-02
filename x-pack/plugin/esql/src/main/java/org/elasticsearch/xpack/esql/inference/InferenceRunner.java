@@ -63,7 +63,7 @@ public class InferenceRunner {
                 GetInferenceModelAction.INSTANCE,
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                 ActionListener.wrap(r -> {
-                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
+                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst());
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countdownListener.onResponse(null);
                 }, e -> {

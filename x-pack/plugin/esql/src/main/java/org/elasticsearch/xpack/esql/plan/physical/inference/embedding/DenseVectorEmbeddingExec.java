@@ -35,12 +35,21 @@ public class DenseVectorEmbeddingExec extends InferenceExec {
     );
 
     private final Expression input;
+    private final Expression dimensions;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
 
-    public DenseVectorEmbeddingExec(Source source, PhysicalPlan child, Expression inferenceId, Expression input, Attribute targetField) {
+    public DenseVectorEmbeddingExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        Expression dimensions,
+        Expression input,
+        Attribute targetField
+    ) {
         super(source, child, inferenceId);
         this.input = input;
+        this.dimensions = dimensions;
         this.targetField = targetField;
     }
 
@@ -48,6 +57,7 @@ public class DenseVectorEmbeddingExec extends InferenceExec {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
@@ -70,18 +80,23 @@ public class DenseVectorEmbeddingExec extends InferenceExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeNamedWriteable(dimensions);
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(targetField);
     }
 
+    public Expression dimensions() {
+        return dimensions;
+    }
+
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, DenseVectorEmbeddingExec::new, child(), inferenceId(), input, targetField);
+        return NodeInfo.create(this, DenseVectorEmbeddingExec::new, child(), inferenceId(), input, dimensions, targetField);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new DenseVectorEmbeddingExec(source(), newChild, inferenceId(), input, targetField);
+        return new DenseVectorEmbeddingExec(source(), newChild, inferenceId(), input, dimensions, targetField);
     }
 
     @Override
@@ -103,11 +118,13 @@ public class DenseVectorEmbeddingExec extends InferenceExec {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         DenseVectorEmbeddingExec that = (DenseVectorEmbeddingExec) o;
-        return Objects.equals(input, that.input) && Objects.equals(targetField, that.targetField);
+        return Objects.equals(input, that.input)
+            && Objects.equals(dimensions, that.dimensions)
+            && Objects.equals(targetField, that.targetField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, targetField);
+        return Objects.hash(super.hashCode(), input, dimensions, targetField);
     }
 }

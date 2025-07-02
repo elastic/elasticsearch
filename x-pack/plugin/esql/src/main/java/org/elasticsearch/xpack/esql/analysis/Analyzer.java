@@ -408,7 +408,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
             if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
-                return plan;
+                return plan.withModelConfigurations(resolvedInference.modelConfigurations());
             } else if (resolvedInference != null) {
                 String error = "cannot use inference endpoint ["
                     + inferenceId
@@ -842,13 +842,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Create a new DenseVectorEmbedding with resolved expressions
             // Only create a new instance if something changed to avoid unnecessary object creation
             if (input != p.input() || targetField != p.embeddingField()) {
-                return new DenseVectorEmbedding(
-                    p.source(),
-                    p.child(),
-                    p.inferenceId(),
-                    input,
-                    targetField
-                );
+                return p.withTargetField(targetField);
             }
 
             return p;

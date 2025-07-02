@@ -1,0 +1,6 @@
+pr: 130026
+summary: Ensure date/date_nanos implicit casting rule behind snapshot
+area: ES|QL
+type: bug
+issues:
+ - 130003

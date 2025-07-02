@@ -350,8 +350,8 @@ tasks.register('buildAarch64Deb', Deb) {
   configure(commonDebConfig('aarch64'))
 }
 
-tasks.register('buildDeb', Deb) {
-  configure(commonDebConfig('x64'))
+tasks.register('buildAmd64Deb', Deb) {
+  configure(commonDebConfig('amd64'))
 }
 
 Closure commonRpmConfig(String architecture) {
@@ -383,8 +383,8 @@ tasks.register('buildAarch64Rpm', Rpm) {
   configure(commonRpmConfig('aarch64'))
 }
 
-tasks.register('buildRpm', Rpm) {
-  configure(commonRpmConfig('x64'))
+tasks.register('buildAmd64Rpm', Rpm) {
+  configure(commonRpmConfig('amd64'))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }

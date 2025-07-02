@@ -97,7 +97,7 @@ distribution_archives {
     }
   }
 
-  darwinTar {
+  darwinAmd64Tar {
     archiveClassifier = 'darwin-amd64'
     content {
       archiveFiles('tar', 'darwin', 'x64', false)
@@ -118,7 +118,7 @@ distribution_archives {
     }
   }
 
-  linuxTar {
+  linuxAmd64Tar {
     archiveClassifier = 'linux-amd64'
     content {
       archiveFiles('tar', 'linux', 'x64', false)

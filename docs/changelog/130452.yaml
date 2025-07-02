@@ -1,0 +1,5 @@
+pr: 130452
+summary: "Aggs: Add cancellation checks to `FilterByFilter` aggregator"
+area: Aggregations
+type: enhancement
+issues: []

@@ -27,7 +27,7 @@ public final class SearchFeatures implements FeatureSpecification {
     );
     public static final NodeFeature INT_SORT_FOR_INT_SHORT_BYTE_FIELDS = new NodeFeature("search.sort.int_sort_for_int_short_byte_fields");
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
-    private static final NodeFeature KNN_QUERY_BUGFIX_130254 = new NodeFeature("search.knn.query.bugfix.130254");
+    private static final NodeFeature KNN_QUERY_BUGFIX_130254 = new NodeFeature("search.knn.query.bugfix.130254", true);
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

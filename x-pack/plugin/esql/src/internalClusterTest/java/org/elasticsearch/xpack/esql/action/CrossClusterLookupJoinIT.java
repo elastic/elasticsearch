@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -31,7 +30,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
+// @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
 
     public void testLookupJoinAcrossClusters() throws IOException {
@@ -330,7 +329,9 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             var failure = remoteCluster.getFailures().get(0);
             assertThat(
                 failure.reason(),
-                containsString("invalid [cluster-a:values_lookup] resolution in lookup mode to an index in [standard] mode")
+                containsString(
+                    "Lookup Join requires a single lookup mode index; [values_lookup] resolves to [cluster-a:values_lookup] in [standard] mode"
+                )
             );
         }
 
@@ -342,7 +343,9 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
         assertThat(
             ex.getMessage(),
-            containsString("invalid [cluster-a:values_lookup] resolution in lookup mode to an index in [standard] mode")
+            containsString(
+                "Lookup Join requires a single lookup mode index; [values_lookup] resolves to [cluster-a:values_lookup] in [standard] mode"
+            )
         );
     }
 

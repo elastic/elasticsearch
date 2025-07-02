@@ -596,6 +596,23 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForKeyStoreOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForPemKeyOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForPemCertificateOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForTrustStoreOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+- class: org.elasticsearch.xpack.ssl.SSLErrorMessageFileTests
+  method: testMessageForCertificateAuthoritiesOutsideConfigDir
+  issue: https://github.com/elastic/elasticsearch/issues/127192
+
+
 
 # Examples:
 #

@@ -54,7 +54,7 @@ import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUE
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
  * and outputs them to a new column.
  */
-public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
+public class ValuesSourceReaderOperator implements Operator {
     /**
      * Minimum number of documents for which it is more efficient to use a
      * sequential stored field reader when reading stored fields.
@@ -118,8 +118,35 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     private long valuesLoaded;
 
-    int lastShard = -1;
-    int lastSegment = -1;
+    private Load load;
+
+    private boolean finished = false;
+
+    /**
+     * Number of milliseconds this operation has run.
+     */
+    private long processNanos;
+
+    /**
+     * Count of pages that have been received by this operator.
+     */
+    private int pagesReceived;
+    /**
+     * Count of pages that have been emitted by this operator.
+     */
+    private int pagesEmitted;
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
+
+    private int lastShard = -1;
+    private int lastSegment = -1;
 
     /**
      * Creates a new extractor
@@ -134,25 +161,67 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Page process(Page page) {
-        DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
+    public boolean needsInput() {
+        return load == null && finished == false;
+    }
 
+    @Override
+    public void addInput(Page page) {
+        assert load == null : "has pending input page";
+        if (page == null || page.getPositionCount() == 0) {
+            return;
+        }
+        DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
+        load = docVector.singleSegment() ? new LoadFromSingle(page, docVector) : new LoadFromMany(page, docVector);
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
+    }
+
+    @Override
+    public final void finish() {
+        finished = true;
+    }
+
+    @Override
+    public final boolean isFinished() {
+        return finished && load == null;
+    }
+
+    @Override
+    public final Page getOutput() {
+        long start = System.nanoTime();
+
+        Page p = load();
+        pagesEmitted++;
+        rowsEmitted += p.getPositionCount();
+        processNanos += System.nanoTime() - start;
+        load = null;
+        return p;
+    }
+
+    Page load() {
         Block[] target = new Block[fields.length];
         boolean success = false;
         try {
-            Load load = docVector.singleSegment() ? new LoadFromSingle(docVector) : new LoadFromMany(docVector);
             load.load(target);
             success = true;
             for (Block b : target) {
                 valuesLoaded += b.getTotalValueCount();
             }
-            return page.appendBlocks(target);
+            return load.page().appendBlocks(target);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(target);
             }
+        }
+    }
+
+    @Override
+    public void close() {
+        if (load != null) {
+            Releasables.closeExpectNoException(load);
         }
     }
 
@@ -196,19 +265,28 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return true;
     }
 
-    interface Load {
+    interface Load extends Releasable {
+        Page page();
+
         void load(Block[] target) throws IOException;
     }
 
     private class LoadFromSingle implements Load {
+        private final Page page;
+        private final DocVector docs;
         private final int shard;
         private final int segment;
-        private final DocVector docs;
 
-        private LoadFromSingle(DocVector docs) {
+        private LoadFromSingle(Page page, DocVector docs) {
+            this.page = page;
+            this.docs = docs;
             this.shard = docs.shards().getInt(0);
             this.segment = docs.segments().getInt(0);
-            this.docs = docs;
+        }
+
+        @Override
+        public Page page() {
+            return page;
         }
 
         @Override
@@ -315,9 +393,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 Releasables.close(rowStrideReaders);
             }
         }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(page::releaseBlocks);
+        }
     }
 
     private class LoadFromMany implements Load {
+        private final Page page;
         private final IntVector shards;
         private final IntVector segments;
         private final IntVector docs;
@@ -327,13 +411,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
-        LoadFromMany(DocVector docVector) {
+        LoadFromMany(Page page, DocVector docVector) {
+            this.page = page;
             shards = docVector.shards();
             segments = docVector.segments();
             docs = docVector.docs();
             forwards = docVector.shardSegmentDocMapForwards();
             backwards = docVector.shardSegmentDocMapBackwards();
             rowStride = new BlockLoader.RowStrideReader[fields.length];
+        }
+
+        @Override
+        public Page page() {
+            return page;
         }
 
         @Override
@@ -451,6 +541,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 trackStoredFields(storedFieldsSpec, false);
             }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(page::releaseBlocks);
         }
     }
 
@@ -576,8 +671,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     @Override
-    protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
-        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted, valuesLoaded);
+    public Status status() {
+        // NOCOMMIT switch status to emit pagesEmitted
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesReceived, rowsReceived, rowsEmitted, valuesLoaded);
     }
 
     /**

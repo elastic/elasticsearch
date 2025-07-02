@@ -47,14 +47,14 @@ public class StreamsPermissionsUtilsTests extends ESTestCase {
     public void testStreamTypeIsEnabledReturnsTrueWhenLogsEnabled() {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(true);
 
-        boolean result = utils.streamTypeIsEnabled(StreamTypes.LOGS, projectMetadataMock);
+        boolean result = utils.streamTypeIsEnabled(StreamType.LOGS, projectMetadataMock);
         assertTrue(result);
     }
 
     public void testStreamTypeIsEnabledReturnsFalseWhenLogsDisabled() {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(false);
 
-        boolean result = utils.streamTypeIsEnabled(StreamTypes.LOGS, projectMetadataMock);
+        boolean result = utils.streamTypeIsEnabled(StreamType.LOGS, projectMetadataMock);
         assertFalse(result);
     }
 
@@ -62,7 +62,7 @@ public class StreamsPermissionsUtilsTests extends ESTestCase {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(true);
 
         Set<String> indexHistory = new HashSet<>(); // empty, so reroute not allowed
-        String destination = StreamTypes.LOGS.getStreamName() + ".substream";
+        String destination = StreamType.LOGS.getStreamName() + ".substream";
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -77,7 +77,7 @@ public class StreamsPermissionsUtilsTests extends ESTestCase {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(false);
 
         Set<String> indexHistory = Collections.emptySet();
-        String destination = StreamTypes.LOGS.getStreamName() + ".substream";
+        String destination = StreamType.LOGS.getStreamName() + ".substream";
 
         // Should not throw since stream type is disabled
         utils.throwIfRetrouteToSubstreamNotAllowed(projectMetadataMock, indexHistory, destination);
@@ -87,7 +87,7 @@ public class StreamsPermissionsUtilsTests extends ESTestCase {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(true);
 
         Set<String> indexHistory = Collections.emptySet();
-        String destination = StreamTypes.LOGS.getStreamName(); // not a substream
+        String destination = StreamType.LOGS.getStreamName(); // not a substream
 
         // Should not throw since destination is not a substream
         utils.throwIfRetrouteToSubstreamNotAllowed(projectMetadataMock, indexHistory, destination);
@@ -97,8 +97,8 @@ public class StreamsPermissionsUtilsTests extends ESTestCase {
         when(streamsMetadataMock.isLogsEnabled()).thenReturn(true);
 
         Set<String> indexHistory = new HashSet<>();
-        indexHistory.add(StreamTypes.LOGS.getStreamName());
-        String destination = StreamTypes.LOGS.getStreamName() + ".substream";
+        indexHistory.add(StreamType.LOGS.getStreamName());
+        String destination = StreamType.LOGS.getStreamName() + ".substream";
 
         // Should not throw since indexHistory contains the stream name
         utils.throwIfRetrouteToSubstreamNotAllowed(projectMetadataMock, indexHistory, destination);

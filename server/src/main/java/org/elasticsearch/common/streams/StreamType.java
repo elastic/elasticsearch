@@ -9,13 +9,13 @@
 
 package org.elasticsearch.common.streams;
 
-public enum StreamTypes {
+public enum StreamType {
 
     LOGS("logs");
 
     private final String streamName;
 
-    StreamTypes(String streamName) {
+    StreamType(String streamName) {
         this.streamName = streamName;
     }
 

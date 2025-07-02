@@ -57,7 +57,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
     }
 
     /**
-     * Omits serializing {@link Limit#duplicated} because this is only required to avoid pushing duplicating a limit past
+     * Omits serializing {@link Limit#duplicated} because this is only required to avoid duplicating a limit past
      * {@link org.elasticsearch.xpack.esql.plan.logical.join.Join} or {@link MvExpand} in an infinite loop, see
      * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits}.
      */

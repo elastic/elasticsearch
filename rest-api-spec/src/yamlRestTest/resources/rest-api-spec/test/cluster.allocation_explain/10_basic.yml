@@ -5,28 +5,6 @@
       cluster.allocation_explain: {}
 
 ---
-"cluster shard allocation explanation test":
-  - do:
-      indices.create:
-        index: test
-
-  - match: { acknowledged: true }
-
-  - do:
-      cluster.allocation_explain:
-        body: { "index": "test", "shard": 0, "primary": true }
-
-  - match: { current_state: "started" }
-  - is_true: current_node.id
-  - match: { index: "test" }
-  - match: { shard: 0 }
-  - match: { primary: true }
-  - is_true: can_remain_on_current_node
-  - is_true: can_rebalance_cluster
-  - is_true: can_rebalance_to_other_node
-  - is_true: rebalance_explanation
-
----
 "cluster shard allocation explanation test with empty request":
   - do:
       indices.create:
@@ -46,6 +24,100 @@
   - is_true: cluster_info
   - is_true: can_allocate
 
+---
+# This test has a valid integer input, but it's above the shard limit, so the index cannot be located
+"cluster shard allocation explanation test with max integer shard value":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /shard_not_found_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 2147483647, "primary": true }
+
+---
+"cluster shard allocation explanation test with long shard value":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /x_content_parse_exception/
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 214748364777, "primary": true }
+
+---
+"cluster shard allocation explanation test with float shard value":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 1.0, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 1 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with double shard value":
+  - do:
+      indices.create:
+        index: test
+        body: { "settings": { "index.number_of_shards": 2, "index.number_of_replicas": 0 } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 1.1234567891234567, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 1 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
+
+---
+"cluster shard allocation explanation test with three valid body parameters":
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - is_true: can_remain_on_current_node
+  - is_true: can_rebalance_cluster
+  - is_true: can_rebalance_to_other_node
+  - is_true: rebalance_explanation
 
 ---
 "Cluster shard allocation explanation test with a closed index":

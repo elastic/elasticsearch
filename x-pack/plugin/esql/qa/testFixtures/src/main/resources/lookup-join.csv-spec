@@ -1841,6 +1841,21 @@ max:long
 8268153
 ;
 
+wildcardDropAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: drop_with_wildcard_after_lookup_join
+
+ROW somefield = 0, type = "Production"
+| KEEP somefield, type
+| LOOKUP JOIN message_types_lookup ON type
+| DROP *field
+;
+
+type:keyword | message:keyword
+Production   | Production environment
+;
+
+
 ###############################################
 # LOOKUP JOIN on mixed numerical fields
 ###############################################

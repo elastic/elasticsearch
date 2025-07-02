@@ -56,8 +56,11 @@ $$$search-throttled$$$`search_throttled`
 `flush`
 :   For [flush](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-flush) and [translog](/reference/elasticsearch/index-settings/translog.md) `fsync` operations. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
+`merge`
+:   For [merge](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).
+
 `force_merge`
-:   For [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.
+:   For waiting on blocking [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.
 
 `management`
 :   For cluster management. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `5`.

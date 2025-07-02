@@ -124,7 +124,11 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         }
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
-            new KnnVectorQueryBuilder(filteredKnnVectorQueryBuilder, SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()), queryVectorBuilder),
+            new KnnVectorQueryBuilder(
+                filteredKnnVectorQueryBuilder,
+                SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
+                queryVectorBuilder
+            ),
             ScoreMode.Max
         );
     }

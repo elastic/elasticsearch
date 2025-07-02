@@ -36,18 +36,17 @@ toc:
   - file: security-privileges.md
   - file: index-settings/index.md
     children:
-        - file: index-settings/data-tier-allocation.md
+        - file: index-settings/serverless.md
         - file: index-settings/index-modules.md
-        - file: index-settings/history-retention.md
-        - file: index-settings/index-block.md
-        - file: index-settings/recovery-prioritization.md
-        - file: index-settings/pressure.md
-        - file: index-settings/mapping-limit.md
-        - file: index-settings/merge.md
-        - file: index-settings/path.md
         - file: index-settings/shard-allocation.md
           children:
+            - file: index-settings/data-tier-allocation.md
+            - file: index-settings/recovery-prioritization.md
             - file: index-settings/total-shards-per-node.md
+        - file: index-settings/history-retention.md
+        - file: index-settings/index-block.md
+        - file: index-settings/mapping-limit.md
+        - file: index-settings/merge.md
         - file: index-settings/similarity.md
         - file: index-settings/slow-log.md
         - file: index-settings/sorting.md
@@ -58,6 +57,8 @@ toc:
             - file: index-settings/preloading-data-into-file-system-cache.md
         - file: index-settings/time-series.md
         - file: index-settings/translog.md
+        - file: index-settings/pressure.md
+        - file: index-settings/path.md
   - file: index-lifecycle-actions/index.md
     children:
         - file: index-lifecycle-actions/index.md
@@ -83,14 +84,18 @@ toc:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
             - file: rest-apis/filter-search-results.md
+            - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
+            - file: rest-apis/query-api-keys.md
             - file: rest-apis/reciprocal-rank-fusion.md
             - file: rest-apis/refresh-parameter.md
             - file: rest-apis/reindex-data-stream.md
+            - file: rest-apis/reindex-indices.md
             - file: rest-apis/retrieve-inner-hits.md
             - file: rest-apis/retrieve-selected-fields.md
+            - file: rest-apis/retrieve-stored-fields.md
             - file: rest-apis/retrievers.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
@@ -101,6 +106,9 @@ toc:
             - file: rest-apis/searching-with-query-rules.md
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/term-vectors-examples.md
+            - file: rest-apis/update-document.md
+            - file: rest-apis/update-cc-api-key-examples.md
+            - file: rest-apis/vector-tile-search.md
   - file: mapping-reference/index.md
     children:
       - file: mapping-reference/document-metadata-fields.md

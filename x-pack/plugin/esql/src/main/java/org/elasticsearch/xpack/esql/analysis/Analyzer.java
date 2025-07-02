@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -133,6 +134,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -174,7 +176,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
         ),
         new Batch<>(
             "Resolution",
@@ -318,7 +320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold(FoldContext.small() /* TODO remove me */);
+            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -401,7 +403,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
-            String inferenceId = plan.inferenceId().fold(FoldContext.small()).toString();
+            String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
             if (resolvedInference != null && resolvedInference.taskType() == plan.taskType()) {
@@ -431,7 +433,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // the parser passes the string wrapped in a literal
             Source source = lookup.source();
             Expression tableNameExpression = lookup.tableName();
-            String tableName = lookup.tableName().toString();
+            String tableName = BytesRefs.toString(tableNameExpression.fold(FoldContext.small() /* TODO remove me */));
             Map<String, Map<String, Column>> tables = context.configuration().tables();
             LocalRelation localRelation = null;
 
@@ -759,6 +761,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            Set<String> unsupportedAttributeNames = Fork.outputUnsupportedAttributeNames(fork.children());
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -772,7 +775,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream().map(attr -> new Alias(source, attr.name(), Literal.of(attr, null))).toList();
+                List<Alias> aliases = missing.stream().map(attr -> {
+                    // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
+                    // supported. This way we can add this missing column containing only null values to the fork branch output.
+                    var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
+                    return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
+                }).toList();
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -781,11 +789,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit Keep even if the outputs align
-                // This is because at the moment the sub plans are executed and optimized separately and the output might change
-                // during optimizations. Once we add streaming we might not need to add a Keep when the outputs already align.
-                // Note that until we add explicit support for KEEP in FORK branches, this condition will always be true.
-                if (logicalPlan instanceof Keep == false || subPlanColumns.equals(forkColumns) == false) {
+                // We need to add an explicit EsqlProject to align the outputs.
+                if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -795,7 +800,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = new Keep(logicalPlan.source(), logicalPlan, newOutput);
+                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), logicalPlan.output());
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -809,7 +814,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // We don't want to keep the same attributes that are outputted by the FORK branches.
             // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-            for (Attribute attr : newSubPlans.getFirst().output()) {
+            for (Attribute attr : outputUnion) {
                 newOutput.add(new ReferenceAttribute(attr.source(), attr.name(), attr.dataType()));
             }
 
@@ -835,7 +840,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = resolveAttribute(ua, childrenOutput);
                 if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
-                    resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                    if (ua.name().equals(MetadataAttribute.SCORE)) {
+                        resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
+                    } else {
+                        resolved = new ReferenceAttribute(resolved.source(), resolved.name(), DOUBLE);
+                    }
                 }
                 rerank = rerank.withScoreAttribute(resolved);
             }
@@ -1563,18 +1572,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
+            String name = BytesRefs.toString(value.fold(FoldContext.small()) /* TODO remove me */);
             String message = LoggerMessageFormat.format(
+                null,
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(FoldContext.small() /* TODO remove me */),
+                name,
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(value.source(), name, message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold(FoldContext.small() /* TODO remove me */).toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(
+                    BytesRefs.toString(from.fold(FoldContext.small() /* TODO remove me */)).strip()
+                );
                 if (result == null) {
                     return from;
                 }
@@ -1807,10 +1820,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
-            return typeSpecificConvert(convert, source, field);
-        }
-
-        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, EsField field) {
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -1890,23 +1899,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
     private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+
+        private final boolean isSnapshot;
+
+        DateMillisToNanosInEsRelation(boolean isSnapshot) {
+            this.isSnapshot = isSnapshot;
+        }
+
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(EsRelation.class, relation -> {
-                if (relation.indexMode() == IndexMode.LOOKUP) {
-                    return relation;
-                }
-                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
-                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        var convert = new ToDateNanos(f.source(), f);
-                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
-                        return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
+            if (isSnapshot) {
+                return plan.transformUp(EsRelation.class, relation -> {
+                    if (relation.indexMode() == IndexMode.LOOKUP) {
+                        return relation;
                     }
-                    return f;
+                    return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                        if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                            var convert = new ToDateNanos(f.source(), f);
+                            imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                            var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                            return new FieldAttribute(
+                                f.source(),
+                                f.parentName(),
+                                f.name(),
+                                resolvedField,
+                                f.nullable(),
+                                f.id(),
+                                f.synthetic()
+                            );
+                        }
+                        return f;
+                    });
                 });
-            });
+            } else {
+                return plan;
+            }
         }
     }
 

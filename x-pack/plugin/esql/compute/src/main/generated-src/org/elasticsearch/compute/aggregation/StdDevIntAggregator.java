@@ -28,8 +28,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 public class StdDevIntAggregator {
 
-    public static StdDevStates.SingleState initSingle() {
-        return new StdDevStates.SingleState();
+    public static StdDevStates.SingleState initSingle(int variation) {
+        return new StdDevStates.SingleState(variation);
     }
 
     public static void combine(StdDevStates.SingleState state, int value) {
@@ -44,8 +44,8 @@ public class StdDevIntAggregator {
         return state.evaluateFinal(driverContext);
     }
 
-    public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new StdDevStates.GroupingState(bigArrays);
+    public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays, int variation) {
+        return new StdDevStates.GroupingState(bigArrays, variation);
     }
 
     public static void combine(StdDevStates.GroupingState current, int groupId, int value) {

@@ -35,16 +35,19 @@ public final class StdDevDoubleAggregatorFunction implements AggregatorFunction 
 
   private final List<Integer> channels;
 
+  private final int variation;
+
   public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+      StdDevStates.SingleState state, int variation) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.variation = variation;
   }
 
   public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle());
+      List<Integer> channels, int variation) {
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle(variation), variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

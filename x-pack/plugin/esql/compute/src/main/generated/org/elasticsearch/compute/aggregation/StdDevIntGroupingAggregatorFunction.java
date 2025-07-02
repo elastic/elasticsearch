@@ -38,16 +38,19 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
+  private final int variation;
+
   public StdDevIntGroupingAggregatorFunction(List<Integer> channels,
-      StdDevStates.GroupingState state, DriverContext driverContext) {
+      StdDevStates.GroupingState state, DriverContext driverContext, int variation) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.variation = variation;
   }
 
   public static StdDevIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevIntGroupingAggregatorFunction(channels, StdDevIntAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, int variation) {
+    return new StdDevIntGroupingAggregatorFunction(channels, StdDevIntAggregator.initGrouping(driverContext.bigArrays(), variation), driverContext, variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

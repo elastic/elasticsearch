@@ -37,16 +37,19 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
 
   private final DriverContext driverContext;
 
+  private final int variation;
+
   public StdDevDoubleGroupingAggregatorFunction(List<Integer> channels,
-      StdDevStates.GroupingState state, DriverContext driverContext) {
+      StdDevStates.GroupingState state, DriverContext driverContext, int variation) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.variation = variation;
   }
 
   public static StdDevDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevDoubleGroupingAggregatorFunction(channels, StdDevDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, int variation) {
+    return new StdDevDoubleGroupingAggregatorFunction(channels, StdDevDoubleAggregator.initGrouping(driverContext.bigArrays(), variation), driverContext, variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

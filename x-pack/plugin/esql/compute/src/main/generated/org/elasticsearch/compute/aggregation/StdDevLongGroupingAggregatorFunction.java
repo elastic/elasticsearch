@@ -37,16 +37,19 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
+  private final int variation;
+
   public StdDevLongGroupingAggregatorFunction(List<Integer> channels,
-      StdDevStates.GroupingState state, DriverContext driverContext) {
+      StdDevStates.GroupingState state, DriverContext driverContext, int variation) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.variation = variation;
   }
 
   public static StdDevLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevLongGroupingAggregatorFunction(channels, StdDevLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, int variation) {
+    return new StdDevLongGroupingAggregatorFunction(channels, StdDevLongAggregator.initGrouping(driverContext.bigArrays(), variation), driverContext, variation);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

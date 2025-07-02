@@ -20,16 +20,45 @@ public final class StdDevStates {
 
     private StdDevStates() {}
 
+    public enum Variation {
+        SAMPLE(0),
+        POPULATION(1),
+        SAMPLE_VARIANCE(2),
+        POPULATION_VARIANCE(3);
+
+        private final int index;
+
+        Variation(int index) {
+            this.index = index;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        private static Variation getVariation(int index) {
+            return switch (index) {
+                case 0 -> SAMPLE;
+                case 1 -> POPULATION;
+                case 2 -> SAMPLE_VARIANCE;
+                case 3 -> POPULATION_VARIANCE;
+                default -> POPULATION;
+            };
+        }
+    }
+
     static final class SingleState implements AggregatorState {
 
         private final WelfordAlgorithm welfordAlgorithm;
+        private final Variation variation;
 
-        SingleState() {
-            this(0, 0, 0);
+        SingleState(int variation) {
+            this(0, 0, 0, variation);
         }
 
-        SingleState(double mean, double m2, long count) {
+        SingleState(double mean, double m2, long count, int variation) {
             this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
+            this.variation = Variation.getVariation(variation);
         }
 
         public void add(long value) {
@@ -73,7 +102,12 @@ public final class StdDevStates {
         }
 
         public double evaluateFinal() {
-            return welfordAlgorithm.evaluate();
+            return switch (variation) {
+                case SAMPLE -> welfordAlgorithm.evaluateSample();
+                case POPULATION -> welfordAlgorithm.evaluatePopulation();
+                case SAMPLE_VARIANCE -> welfordAlgorithm.evaluateSampleVariance();
+                case POPULATION_VARIANCE -> welfordAlgorithm.evaluatePopulationVariance();
+            };
         }
 
         public Block evaluateFinal(DriverContext driverContext) {
@@ -90,10 +124,12 @@ public final class StdDevStates {
 
         private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
+        private final Variation variation;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, int variation) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
+            this.variation = Variation.getVariation(variation);
         }
 
         WelfordAlgorithm getOrNull(int position) {
@@ -189,7 +225,13 @@ public final class StdDevStates {
                         if (count == 0 || Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
-                            builder.appendDouble(st.evaluate());
+                            double result = switch (variation) {
+                                case SAMPLE -> st.evaluateSample();
+                                case POPULATION -> st.evaluatePopulation();
+                                case SAMPLE_VARIANCE -> st.evaluateSampleVariance();
+                                case POPULATION_VARIANCE -> st.evaluatePopulationVariance();
+                            };
+                            builder.appendDouble(result);
                         }
                     } else {
                         builder.appendNull();

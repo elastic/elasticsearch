@@ -15,7 +15,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public StdDevLongAggregatorFunctionSupplier() {
+  private final int variation;
+
+  public StdDevLongAggregatorFunctionSupplier(int variation) {
+    this.variation = variation;
   }
 
   @Override
@@ -31,13 +34,13 @@ public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public StdDevLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevLongAggregatorFunction.create(driverContext, channels);
+    return StdDevLongAggregatorFunction.create(driverContext, channels, variation);
   }
 
   @Override
   public StdDevLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return StdDevLongGroupingAggregatorFunction.create(channels, driverContext);
+    return StdDevLongGroupingAggregatorFunction.create(channels, driverContext, variation);
   }
 
   @Override

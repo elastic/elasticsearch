@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.gradle.internal.release.GenerateReleaseNotesTask.getSortedBundlesWithUniqueChangelogs;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -100,7 +101,10 @@ public class ReleaseNotesGeneratorTest {
             writeResource(outputFile, actualOutput);
             assertFalse("UPDATE_EXPECTED_OUTPUT should be set back to false after updating output", UPDATE_EXPECTED_OUTPUT);
         } else {
-            assertThat(actualOutput, equalTo(expectedOutput));
+            String[] expectedLines = expectedOutput.replace("\r", "").split("\n");
+            String[] actualLines = actualOutput.split("\n");
+
+            assertThat(actualLines, arrayContaining(expectedLines));
         }
     }
 
@@ -184,7 +188,7 @@ public class ReleaseNotesGeneratorTest {
     }
 
     private String getResource(String name) throws Exception {
-        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8);
+        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8).replace("\r", "");
     }
 
     private void writeResource(String name, String contents) throws Exception {

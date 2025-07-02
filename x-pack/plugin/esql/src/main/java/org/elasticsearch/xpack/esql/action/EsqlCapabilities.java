@@ -1195,7 +1195,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot()),
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
@@ -1215,7 +1215,12 @@ public class EsqlCapabilities {
         /**
          * (Re)Added EXPLAIN command
          */
-        EXPLAIN(Build.current().isSnapshot());
+        EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

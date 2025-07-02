@@ -208,7 +208,8 @@ public class TransportVersions {
     public static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = def(8_841_0_58);
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED_8_19 = def(8_841_0_59);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
-    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_ADDED_8_19 = def(8_841_0_61);
+    public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
+    public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
 
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_1 = def(9_000_0_10);
@@ -324,7 +325,12 @@ public class TransportVersions {
     public static final TransportVersion CLUSTER_STATE_PROJECTS_SETTINGS = def(9_108_0_00);
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
-    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_ADDED = def(9_111_0_00);
+    public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
+    public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
+    public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
+    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_ADDED = def(9_116_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -391,7 +397,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_2;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INITIAL_ELASTICSEARCH_9_0_3;
 
     /**
      * Sorted list of all versions defined in this class

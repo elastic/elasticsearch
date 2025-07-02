@@ -168,7 +168,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private static boolean isSyntheticSourceStoredFieldInBinaryFormat(IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES)
             || indexCreatedVersion.between(
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
+                IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES_BACKPORT_8_X,
                 IndexVersions.UPGRADE_TO_LUCENE_10_0_0
             );
     }

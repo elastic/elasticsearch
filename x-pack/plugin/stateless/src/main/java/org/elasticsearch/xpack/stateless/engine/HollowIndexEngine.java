@@ -357,6 +357,11 @@ public class HollowIndexEngine extends Engine {
         }
     }
 
+    // package-protected for testing
+    void awaitClose() {
+        super.awaitPendingClose();
+    }
+
     @Override
     public void activateThrottling() {
         assert false : "hollow index engine does not ingest and thus should not be throttled";

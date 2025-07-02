@@ -3636,7 +3636,8 @@ public class InternalEngineTests extends EngineTestCase {
             true,
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            Function.identity()
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -7245,7 +7246,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
                 config.getEngineResetLock(),
-                config.getMergeMetrics()
+                config.getMergeMetrics(),
+                config.getIndexDeletionPolicyWrapper()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());

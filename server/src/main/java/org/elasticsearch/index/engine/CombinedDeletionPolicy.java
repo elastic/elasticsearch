@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public class CombinedDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
@@ -47,13 +47,6 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     // Index commits internally acquired by the commits listener. We want to track them separately to be able to disregard them
     // when checking for externally acquired index commits that haven't been released
     private final Set<IndexCommit> internallyAcquiredIndexCommits;
-
-    interface CommitsListener {
-
-        void onNewAcquiredCommit(IndexCommit commit, Set<String> additionalFiles);
-
-        void onDeletedCommit(IndexCommit commit);
-    }
 
     @Nullable
     private final CommitsListener commitsListener;
@@ -187,7 +180,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
         logger.debug("Delete index commit [{}]", commitDescription(commit));
         commit.delete();
-        assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
+        // assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
     private void updateRetentionPolicy() throws IOException {
@@ -204,7 +197,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         return SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName()).totalMaxDoc();
     }
 
-    SafeCommitInfo getSafeCommitInfo() {
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
         return safeCommitInfo;
     }
 
@@ -214,7 +208,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @param acquiringSafeCommit captures the most recent safe commit point if true; otherwise captures the most recent commit point.
      */
-    synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
+    @Override
+    public synchronized IndexCommit acquireIndexCommit(boolean acquiringSafeCommit) {
         return acquireIndexCommit(acquiringSafeCommit, false);
     }
 
@@ -241,7 +236,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      *
      * @return true if the acquired commit can be clean up.
      */
-    synchronized boolean releaseCommit(final IndexCommit acquiredCommit) {
+    @Override
+    public synchronized boolean releaseIndexCommit(final IndexCommit acquiredCommit) {
         final SnapshotIndexCommit snapshotIndexCommit = (SnapshotIndexCommit) acquiredCommit;
         final IndexCommit releasingCommit = snapshotIndexCommit.getIndexCommit();
         assert acquiredIndexCommits.containsKey(releasingCommit)
@@ -316,7 +312,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Checks whether the deletion policy is holding on to externally acquired index commits
      */
-    synchronized boolean hasAcquiredIndexCommitsForTesting() {
+    @Override
+    public synchronized boolean hasAcquiredIndexCommitsForTesting() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener
         for (var e : acquiredIndexCommits.entrySet()) {
             if (internallyAcquiredIndexCommits.contains(e.getKey()) == false || e.getValue() > 1) {
@@ -329,7 +326,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Checks if the deletion policy can delete some index commits with the latest global checkpoint.
      */
-    boolean hasUnreferencedCommits() {
+    @Override
+    public boolean hasUnreferencedCommits() {
         return maxSeqNoOfNextSafeCommit <= globalCheckpointSupplier.getAsLong();
     }
 

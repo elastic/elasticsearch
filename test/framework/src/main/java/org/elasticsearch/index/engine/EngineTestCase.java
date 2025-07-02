@@ -316,7 +316,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -351,7 +352,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -386,7 +388,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -893,7 +896,8 @@ public abstract class EngineTestCase extends ESTestCase {
             true,
             mapperService,
             new EngineResetLock(),
-            mergeMetrics
+            mergeMetrics,
+            Function.identity()
         );
     }
 
@@ -936,7 +940,8 @@ public abstract class EngineTestCase extends ESTestCase {
             config.isPromotableToPrimary(),
             config.getMapperService(),
             config.getEngineResetLock(),
-            config.getMergeMetrics()
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 

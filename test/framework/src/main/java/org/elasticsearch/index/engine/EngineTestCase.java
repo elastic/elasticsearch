@@ -791,7 +791,8 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             new NoneCircuitBreakerService(),
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -817,7 +818,8 @@ public abstract class EngineTestCase extends ESTestCase {
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
             breakerService,
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -832,7 +834,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
         final CircuitBreakerService breakerService,
-        final @Nullable Engine.IndexCommitListener indexCommitListener
+        final @Nullable Engine.IndexCommitListener indexCommitListener,
+        final @Nullable Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -897,7 +900,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mapperService,
             new EngineResetLock(),
             mergeMetrics,
-            Function.identity()
+            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
         );
     }
 

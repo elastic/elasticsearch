@@ -7527,7 +7527,8 @@ public class InternalEngineTests extends EngineTestCase {
                     globalCheckpoint::get,
                     () -> RetentionLeases.EMPTY,
                     new NoneCircuitBreakerService(),
-                    indexCommitListener
+                    indexCommitListener,
+                    Function.identity()
                 )
             )
         ) {

@@ -1,0 +1,5 @@
+pr: 129725
+summary: Throw a 400 when sorting for all types of range fields
+area: Search
+type: bug
+issues: []

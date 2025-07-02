@@ -114,6 +114,7 @@ import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
+import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitSourceStateAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportUpdateSplitStateAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
@@ -321,6 +322,7 @@ public class Stateless extends Plugin
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
+    private final SetOnce<SplitSourceService> splitSourceService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
@@ -345,7 +347,7 @@ public class Stateless extends Plugin
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
-    private final SetOnce<ReshardIndexService> metadataReshardIndexService = new SetOnce<>();
+    private final SetOnce<ReshardIndexService> reshardIndexService = new SetOnce<>();
     private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
@@ -432,6 +434,7 @@ public class Stateless extends Plugin
             new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
             new ActionHandler(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
             new ActionHandler(TransportUpdateSplitStateAction.TYPE, TransportUpdateSplitStateAction.class),
+            new ActionHandler(TransportUpdateSplitSourceStateAction.TYPE, TransportUpdateSplitSourceStateAction.class),
             new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class)
@@ -511,7 +514,6 @@ public class Stateless extends Plugin
         Settings settings = environment.settings();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
-        splitTargetService.set(new SplitTargetService(settings, client, clusterService));
         final var blobCacheMetrics = setAndGet(
             this.blobCacheMetrics,
             new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
@@ -746,12 +748,16 @@ public class Stateless extends Plugin
         }
 
         // Resharding
-        var metadataReshardIndexService = setAndGet(
-            this.metadataReshardIndexService,
+        var reshardIndexService = setAndGet(
+            this.reshardIndexService,
             createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, threadPool)
         );
-        components.add(metadataReshardIndexService);
-        var splitSourceService = new SplitSourceService(clusterService, indicesService, objectStoreService);
+        components.add(reshardIndexService);
+        splitTargetService.set(new SplitTargetService(settings, client, clusterService, reshardIndexService));
+        var splitSourceService = setAndGet(
+            this.splitSourceService,
+            new SplitSourceService(client, clusterService, indicesService, objectStoreService, reshardIndexService)
+        );
         components.add(splitSourceService);
 
         return components;
@@ -1158,6 +1164,7 @@ public class Stateless extends Plugin
         var statelessCommitService = commitService.get();
         var localTranslogReplicator = translogReplicator.get();
         var localSplitTargetService = splitTargetService.get();
+        var localSplitSourceService = splitSourceService.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
@@ -1228,6 +1235,7 @@ public class Stateless extends Plugin
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
                         localSplitTargetService.cancelSplits(indexShard);
+                        localSplitSourceService.cancelSplits(indexShard);
                         hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
                     }
                 }
@@ -1291,7 +1299,8 @@ public class Stateless extends Plugin
                 recoveryCommitRegistrationHandler.get(),
                 sharedBlobCacheWarmingService.get(),
                 hollowShardsService.get(),
-                splitTargetService.get()
+                splitTargetService.get(),
+                splitSourceService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

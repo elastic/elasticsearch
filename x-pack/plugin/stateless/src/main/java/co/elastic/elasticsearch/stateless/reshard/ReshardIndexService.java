@@ -74,6 +74,7 @@ public class ReshardIndexService {
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
     private final MasterServiceTaskQueue<TransitionToHandoffStateTask> transitionToHandOffStateQueue;
     private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
+    private final MasterServiceTaskQueue<TransitionSourceStateTask> transitionSourceStateQueue;
     private final MasterServiceTaskQueue<FinishReshardTask> finishReshardQueue;
 
     public ReshardIndexService(
@@ -103,6 +104,11 @@ public class ReshardIndexService {
             "transition-reshard-target-state",
             Priority.NORMAL,
             new TransitionTargetStateExecutor()
+        );
+        this.transitionSourceStateQueue = clusterService.createTaskQueue(
+            "transition-reshard-source-state",
+            Priority.NORMAL,
+            new TransitionSourceStateExecutor()
         );
         this.finishReshardQueue = clusterService.createTaskQueue("finish-index-reshard", Priority.NORMAL, new FinishReshardExecutor());
     }
@@ -207,10 +213,9 @@ public class ReshardIndexService {
                 }, newState -> {
                     IndexReshardingMetadata reshardingMetadata = newState.metadata().indexMetadata(request.index()).getReshardingMetadata();
                     if (reshardingMetadata != null) {
-                        // TODO: Eventually make this wait for source + targets DONE or other condition that we decide on.
-                        return reshardingMetadata.getSplit()
-                            .targetStates()
-                            .allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE);
+                        var split = reshardingMetadata.getSplit();
+                        return split.targetStates().allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)
+                            && split.sourceStates().allMatch(source -> source == IndexReshardingState.Split.SourceShardState.DONE);
                     } else {
                         return false;
                     }
@@ -237,6 +242,14 @@ public class ReshardIndexService {
             "transition-reshard-index-target-state [" + splitStateRequest.getShardId().getIndex().getName() + "]",
             new TransitionTargetStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
             splitStateRequest.masterNodeTimeout()
+        );
+    }
+
+    public void transitionSourceState(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener) {
+        transitionSourceStateQueue.submitTask(
+            "transition-reshard-index-source-state [" + shardId.getIndex().getName() + "]",
+            new TransitionSourceStateTask(shardId, state, listener),
+            null
         );
     }
 
@@ -290,8 +303,8 @@ public class ReshardIndexService {
             "%s cannot transition target state [%s] because target primary term advanced [%s>%s]",
             shardId,
             splitStateRequest.getNewTargetShardState(),
-            currentTargetPrimaryTerm,
-            startingTargetPrimaryTerm
+            startingTargetPrimaryTerm,
+            currentTargetPrimaryTerm
         );
         logger.debug(message);
         assert currentTargetPrimaryTerm > startingTargetPrimaryTerm;
@@ -525,6 +538,48 @@ public class ReshardIndexService {
         }
     }
 
+    private record TransitionSourceStateTask(
+        ShardId shardId,
+        IndexReshardingState.Split.SourceShardState state,
+        ActionListener<Void> listener
+    ) implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static class TransitionSourceStateExecutor extends SimpleBatchedExecutor<TransitionSourceStateTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(TransitionSourceStateTask task, ClusterState clusterState) throws Exception {
+            final ShardId shardId = task.shardId();
+            final Index index = shardId.getIndex();
+
+            final ProjectMetadata project = clusterState.metadata().projectFor(index);
+            final ProjectState projectState = clusterState.projectState(project.id());
+            final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
+            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            // TODO handle more gracefully
+            if (reshardingMetadata == null) {
+                throw new IllegalStateException("no existing resharding operation on " + index + ".");
+            }
+
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+
+            ProjectMetadata.Builder projectMetadata = projectMetadataBuilder.put(
+                IndexMetadata.builder(indexMetadata)
+                    .reshardingMetadata(reshardingMetadata.transitionSplitSourceToNewState(shardId, task.state()))
+            );
+
+            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
+        }
+
+        @Override
+        public void taskSucceeded(TransitionSourceStateTask task, Void unused) {
+            task.listener.onResponse(null);
+        }
+    }
+
     private record TransitionToHandoffStateTask(SplitStateRequest splitStateRequest, ActionListener<Void> listener)
         implements
             ClusterStateTaskListener {
@@ -594,7 +649,6 @@ public class ReshardIndexService {
     }
 
     private static class FinishReshardExecutor extends SimpleBatchedExecutor<FinishReshardTask, Void> {
-
         @Override
         public Tuple<ClusterState, Void> executeTask(FinishReshardTask task, ClusterState clusterState) throws Exception {
             final var index = task.index;

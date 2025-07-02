@@ -35,6 +35,7 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 
 import org.apache.lucene.index.SegmentInfos;
@@ -83,6 +84,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SharedBlobCacheWarmingService warmingService;
     private final HollowShardsService hollowShardsService;
     private final SplitTargetService splitTargetService;
+    private final SplitSourceService splitSourceService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -92,7 +94,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
         HollowShardsService hollowShardsService,
-        SplitTargetService splitTargetService
+        SplitTargetService splitTargetService,
+        SplitSourceService splitSourceService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -102,6 +105,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.warmingService = warmingService;
         this.hollowShardsService = hollowShardsService;
         this.splitTargetService = splitTargetService;
+        this.splitSourceService = splitSourceService;
     }
 
     @Override
@@ -362,11 +366,19 @@ class StatelessIndexEventListener implements IndexEventListener {
 
                 IndexSettings indexSettings = indexShard.indexSettings();
                 IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+                // TODO with this implementation we will sometimes run below calls on stateless_upload_prewarm thread pool
+                // due to how statelessCommitService.addListenerForUploadedGeneration works.
                 if (IndexReshardingMetadata.isSplitTarget(indexShard.shardId(), reshardingMetadata)) {
                     // Should already have advanced past CLONE
                     assert reshardingMetadata.getSplit()
                         .targetStateAtLeast(indexShard.shardId().id(), IndexReshardingState.Split.TargetShardState.HANDOFF);
-                    l = l.delegateFailure((toWrap, unused) -> splitTargetService.afterIndexShardSplitRecovery(indexShard, toWrap));
+                    l = l.delegateFailure(
+                        (toWrap, unused) -> splitTargetService.afterSplitTargetIndexShardRecovery(indexShard, reshardingMetadata, toWrap)
+                    );
+                } else if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
+                    l = l.delegateFailure(
+                        (toWrap, unused) -> splitSourceService.afterSplitSourceIndexShardRecovery(indexShard, reshardingMetadata, toWrap)
+                    );
                 }
                 if (engineOrNull instanceof IndexEngine engine) {
                     long currentGeneration = engine.getCurrentGeneration();

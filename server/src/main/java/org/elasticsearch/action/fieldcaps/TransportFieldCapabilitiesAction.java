@@ -32,11 +32,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -148,7 +146,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
+        final Executor singleThreadedExecutor = ThrottledTaskRunner.buildSingleThreadedExecutor("field_caps", searchCoordinationExecutor);
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
@@ -313,29 +311,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
-    }
-
-    private Executor buildSingleThreadedExecutor() {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                } else {
-                    // should be impossible, we should always submit an AbstractRunnable
-                    logger.error("unexpected failure running " + r, e);
-                    assert false : new AssertionError("unexpected failure running " + r, e);
-                }
-            }
-        });
     }
 
     public interface RemoteRequestExecutor {

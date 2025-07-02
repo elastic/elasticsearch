@@ -37,8 +37,8 @@ import static org.elasticsearch.core.Strings.format;
 public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
-    static final String USER_ROLE = "user";
-    static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
+    public static final String USER_ROLE = "user";
+    public static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
         "mistral completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );

@@ -172,8 +172,17 @@ public class KnnIndexTester {
             }
         }
         FormattedResults formattedResults = new FormattedResults();
+
         for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            Results result = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
+            int[] nProbes = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
+                ? cmdLineArgs.nProbes()
+                : new int[] { 0 };
+            String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
+            Results indexResults = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
+            Results[] results = new Results[nProbes.length];
+            for (int i = 0; i < nProbes.length; i++) {
+                results[i] = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
+            }
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
@@ -192,39 +201,44 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
                 if (cmdLineArgs.reindex()) {
-                    knnIndexer.createIndex(result);
+                    knnIndexer.createIndex(indexResults);
                 }
                 if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(result);
+                    knnIndexer.forceMerge(indexResults);
                 } else {
-                    knnIndexer.numSegments(result);
+                    knnIndexer.numSegments(indexResults);
                 }
             }
-            if (cmdLineArgs.queryVectors() != null) {
-                KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
-                knnSearcher.runSearch(result);
+            if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
+                for (int i = 0; i < results.length; i++) {
+                    int nProbe = nProbes[i];
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, nProbe);
+                    knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
+                }
             }
-            formattedResults.results.add(result);
+            formattedResults.queryResults.addAll(List.of(results));
+            formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
     }
 
     static class FormattedResults {
-        List<Results> results = new ArrayList<>();
+        List<Results> indexResults = new ArrayList<>();
+        List<Results> queryResults = new ArrayList<>();
 
         @Override
         public String toString() {
-            if (results.isEmpty()) {
+            if (indexResults.isEmpty() && queryResults.isEmpty()) {
                 return "No results available.";
             }
 
+            String[] indexingHeaders = { "index_name", "index_type", "num_docs", "index_time(ms)", "force_merge_time(ms)", "num_segments" };
+
             // Define column headers
-            String[] headers = {
+            String[] searchHeaders = {
+                "index_name",
                 "index_type",
-                "num_docs",
-                "index_time(ms)",
-                "force_merge_time(ms)",
-                "num_segments",
+                "n_probe",
                 "latency(ms)",
                 "net_cpu_time(ms)",
                 "avg_cpu_count",
@@ -233,11 +247,44 @@ public class KnnIndexTester {
                 "visited" };
 
             // Calculate appropriate column widths based on headers and data
-            int[] widths = calculateColumnWidths(headers);
 
             StringBuilder sb = new StringBuilder();
 
-            // Format and append header
+            String[][] indexResultsArray = new String[indexResults.size()][];
+            for (int i = 0; i < indexResults.size(); i++) {
+                Results indexResult = indexResults.get(i);
+                indexResultsArray[i] = new String[] {
+                    indexResult.indexName,
+                    indexResult.indexType,
+                    Integer.toString(indexResult.numDocs),
+                    Long.toString(indexResult.indexTimeMS),
+                    Long.toString(indexResult.forceMergeTimeMS),
+                    Integer.toString(indexResult.numSegments) };
+            }
+            printBlock(sb, indexingHeaders, indexResultsArray);
+            String[][] queryResultsArray = new String[queryResults.size()][];
+            for (int i = 0; i < queryResults.size(); i++) {
+                Results queryResult = queryResults.get(i);
+                queryResultsArray[i] = new String[] {
+                    queryResult.indexName,
+                    queryResult.indexType,
+                    Integer.toString(queryResult.nProbe),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
+                    String.format(Locale.ROOT, "%.2f", queryResult.qps),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited) };
+            }
+
+            printBlock(sb, searchHeaders, queryResultsArray);
+
+            return sb.toString();
+        }
+
+        private void printBlock(StringBuilder sb, String[] headers, String[][] rows) {
+            int[] widths = calculateColumnWidths(headers, rows);
+            sb.append("\n");
             sb.append(formatRow(headers, widths));
             sb.append("\n");
 
@@ -247,25 +294,10 @@ public class KnnIndexTester {
             }
             sb.append("\n");
 
-            // Format and append each row of data
-            for (Results result : results) {
-                String[] rowData = {
-                    result.indexType,
-                    Integer.toString(result.numDocs),
-                    Long.toString(result.indexTimeMS),
-                    Long.toString(result.forceMergeTimeMS),
-                    Integer.toString(result.numSegments),
-                    String.format(Locale.ROOT, "%.2f", result.avgLatency),
-                    String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
-                    String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
-                    String.format(Locale.ROOT, "%.2f", result.qps),
-                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
-                sb.append(formatRow(rowData, widths));
+            for (String[] row : rows) {
+                sb.append(formatRow(row, widths));
                 sb.append("\n");
             }
-
-            return sb.toString();
         }
 
         // Helper method to format a single row with proper column widths
@@ -285,7 +317,7 @@ public class KnnIndexTester {
         }
 
         // Calculate appropriate column widths based on headers and data
-        private int[] calculateColumnWidths(String[] headers) {
+        private int[] calculateColumnWidths(String[] headers, String[]... data) {
             int[] widths = new int[headers.length];
 
             // Initialize widths with header lengths
@@ -294,20 +326,7 @@ public class KnnIndexTester {
             }
 
             // Update widths based on data
-            for (Results result : results) {
-                String[] values = {
-                    result.indexType,
-                    Integer.toString(result.numDocs),
-                    Long.toString(result.indexTimeMS),
-                    Long.toString(result.forceMergeTimeMS),
-                    Integer.toString(result.numSegments),
-                    String.format(Locale.ROOT, "%.2f", result.avgLatency),
-                    String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
-                    String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
-                    String.format(Locale.ROOT, "%.2f", result.qps),
-                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
-
+            for (String[] values : data) {
                 for (int i = 0; i < values.length; i++) {
                     widths[i] = Math.max(widths[i], values[i].length());
                 }
@@ -318,11 +337,12 @@ public class KnnIndexTester {
     }
 
     static class Results {
-        final String indexType;
+        final String indexType, indexName;
         final int numDocs;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
+        int nProbe;
         double avgLatency;
         double qps;
         double avgRecall;
@@ -330,7 +350,8 @@ public class KnnIndexTester {
         double netCpuTimeMS;
         double avgCpuCount;
 
-        Results(String indexType, int numDocs) {
+        Results(String indexName, String indexType, int numDocs) {
+            this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
         }

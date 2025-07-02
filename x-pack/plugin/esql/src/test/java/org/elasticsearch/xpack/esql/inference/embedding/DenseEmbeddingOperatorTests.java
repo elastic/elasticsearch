@@ -80,7 +80,7 @@ public class DenseEmbeddingOperatorTests extends InferenceOperatorTestCase<TextE
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new DenseEmbeddingOperator.Factory(mockedSimpleInferenceRunner(), dimensions, SIMPLE_INFERENCE_ID, evaluatorFactory(0));
+        return new DenseEmbeddingOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, dimensions, evaluatorFactory(0));
     }
 
     @Override

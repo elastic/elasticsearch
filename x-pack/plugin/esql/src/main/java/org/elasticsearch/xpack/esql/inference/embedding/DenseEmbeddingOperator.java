@@ -43,8 +43,8 @@ public class DenseEmbeddingOperator extends InferenceOperator {
         DriverContext driverContext,
         InferenceRunner inferenceRunner,
         ThreadPool threadPool,
-        int dimensions,
         String inferenceId,
+        int dimensions,
         ExpressionEvaluator inputEvaluator
     ) {
         super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
@@ -100,8 +100,8 @@ public class DenseEmbeddingOperator extends InferenceOperator {
      */
     public record Factory(
         InferenceRunner inferenceRunner,
-        int dimensions,
         String inferenceId,
+        int dimensions,
         ExpressionEvaluator.Factory inputEvaluatorFactory
     ) implements OperatorFactory {
 
@@ -116,8 +116,8 @@ public class DenseEmbeddingOperator extends InferenceOperator {
                 driverContext,
                 inferenceRunner,
                 inferenceRunner.threadPool(),
-                dimensions,
                 inferenceId,
+                dimensions,
                 inputEvaluatorFactory().get(driverContext)
             );
         }

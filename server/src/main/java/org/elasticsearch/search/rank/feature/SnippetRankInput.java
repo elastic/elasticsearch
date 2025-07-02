@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Defines a custom rank input to rerank results based on snippets rather than full field contents.
@@ -54,6 +55,21 @@ public class SnippetRankInput implements CustomRankInput {
         snippets.writeTo(out);
         out.writeString(inferenceText);
         out.writeVInt(tokenSizeLimit);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SnippetRankInput that = (SnippetRankInput) o;
+        return tokenSizeLimit == that.tokenSizeLimit
+            && Objects.equals(snippets, that.snippets)
+            && Objects.equals(inferenceText, that.inferenceText);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(snippets, inferenceText, tokenSizeLimit);
     }
 
     @Override

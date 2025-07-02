@@ -77,7 +77,7 @@ setup:
           retriever:
             rrf:
               retrievers:
-                -                                   
+                -                     
                   standard:
                     query:
                       match_none: {}

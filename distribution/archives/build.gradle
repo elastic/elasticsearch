@@ -91,14 +91,14 @@ distribution_archives {
   }
 
   windowsZip {
-    archiveClassifier = 'windows-x86_64'
+    archiveClassifier = 'windows-amd64'
     content {
       archiveFiles('zip', 'windows', 'x64', false)
     }
   }
 
   darwinTar {
-    archiveClassifier = 'darwin-x86_64'
+    archiveClassifier = 'darwin-amd64'
     content {
       archiveFiles('tar', 'darwin', 'x64', false)
     }
@@ -119,7 +119,7 @@ distribution_archives {
   }
 
   linuxTar {
-    archiveClassifier = 'linux-x86_64'
+    archiveClassifier = 'linux-amd64'
     content {
       archiveFiles('tar', 'linux', 'x64', false)
     }

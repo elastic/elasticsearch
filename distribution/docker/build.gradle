@@ -98,12 +98,12 @@ configurations {
   allPlugins
   filebeat_aarch64
   filebeat_fips_aarch64
-  filebeat_x86_64
-  filebeat_fips_x86_64
+  filebeat_amd64
+  filebeat_fips_amd64
   metricbeat_aarch64
   metricbeat_fips_aarch64
-  metricbeat_x86_64
-  metricbeat_fips_x86_64
+  metricbeat_amd64
+  metricbeat_fips_amd64
   fips
 }
 
@@ -119,15 +119,15 @@ dependencies {
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
   allPlugins project(path: ':x-pack:extras:plugins', configuration: 'allPlugins')
   filebeat_aarch64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  filebeat_amd64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
   filebeat_fips_aarch64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  filebeat_fips_x86_64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  filebeat_fips_amd64 "beats:filebeat-fips:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
 
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_amd64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
 
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
-  metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  metricbeat_fips_amd64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-amd64@tar.gz"
 
   fips "org.bouncycastle:bc-fips:1.0.2.5"
   fips "org.bouncycastle:bctls-fips:1.0.19"
@@ -607,7 +607,7 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
-    final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
+    final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.AMD64
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
       base = DockerBase.IRON_BANK

@@ -179,7 +179,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         Architecture architecture = distribution.getArchitecture();
         String projectName = "";
 
-        final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS || architecture == Architecture.X64
+        final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS || architecture == Architecture.AMD64
             ? ""
             : "-" + architecture.toString().toLowerCase();
 

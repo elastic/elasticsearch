@@ -121,13 +121,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
     protected final ParsingContext context;
-    private final Configuration configuration; // NOCOMMIT remove me?
-
     public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
 
-    ExpressionBuilder(ParsingContext context, Configuration configuration) {
+    ExpressionBuilder(ParsingContext context) {
         this.context = context;
-        this.configuration = configuration;
     }
 
     protected Expression expression(ParseTree ctx) {

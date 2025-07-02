@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -994,7 +996,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         @Override
         public void performAction(
             IndexMetadata indexMetadata,
-            ClusterState currentState,
+            ProjectState currentState,
             ClusterStateObserver observer,
             ActionListener<Void> listener
         ) {
@@ -1266,7 +1268,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private final List<ILMHistoryItem> items = new CopyOnWriteArrayList<>();
 
         NoOpHistoryStore(Client noopClient, ClusterService clusterService) {
-            super(noopClient, clusterService, clusterService.threadPool());
+            super(noopClient, clusterService, clusterService.threadPool(), TestProjectResolvers.alwaysThrow());
         }
 
         public List<ILMHistoryItem> getItems() {
@@ -1274,7 +1276,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public void putAsync(ILMHistoryItem item) {
+        public void putAsync(ProjectId projectId, ILMHistoryItem item) {
             logger.info("--> adding ILM history item: [{}]", item);
             items.add(item);
         }

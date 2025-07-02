@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
@@ -107,8 +108,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
-    private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
-    private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
+    private static final ExecutorService writeCoordinationExecutor = new NamedDirectExecutorService("write_coordination");
+    private static final ExecutorService systemWriteCoordinationExecutor = new NamedDirectExecutorService("system_write_coordination");
 
     private final ProjectId projectId = randomProjectIdOrDefault();
 
@@ -293,8 +294,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(eq(ThreadPool.Names.WRITE))).thenReturn(writeExecutor);
-        when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE))).thenReturn(systemWriteExecutor);
+        when(threadPool.executor(eq(ThreadPool.Names.WRITE_COORDINATION))).thenReturn(writeCoordinationExecutor);
+        when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))).thenReturn(systemWriteCoordinationExecutor);
         MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
@@ -350,6 +351,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
+        when(state.custom(eq(ProjectStateRegistry.TYPE), any())).thenReturn(
+            ProjectStateRegistry.builder().putProjectSettings(projectId, Settings.builder().build()).build()
+        );
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
@@ -422,7 +426,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             redirectHandler.capture(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -473,7 +477,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -522,7 +526,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(systemWriteExecutor)
+            same(systemWriteCoordinationExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -683,7 +687,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
@@ -734,7 +738,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
@@ -828,7 +832,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
     }
 
@@ -869,7 +873,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
     }
 
@@ -899,7 +903,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         indexRequest1.autoGenerateId();
         completionHandler.getValue().accept(Thread.currentThread(), null);
@@ -939,7 +943,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            same(writeExecutor)
+            same(writeCoordinationExecutor)
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);

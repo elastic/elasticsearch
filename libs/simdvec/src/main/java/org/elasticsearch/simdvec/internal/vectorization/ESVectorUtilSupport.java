@@ -37,6 +37,8 @@ public interface ESVectorUtilSupport {
 
     void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
 
-    float soarResidual(float[] v1, float[] centroid, float[] originalResidual);
+    float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
+
+    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
 }

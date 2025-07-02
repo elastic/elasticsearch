@@ -55,24 +55,22 @@ public class FakeRestRequest extends RestRequest {
 
         private final Method method;
         private final String uri;
-        private final HttpBody content;
         private final Map<String, List<String>> headers;
+        private HttpBody body;
         private final Exception inboundException;
 
-        public FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
-            this(method, uri, content == null ? HttpBody.empty() : HttpBody.fromBytesReference(content), headers, null);
+        public FakeHttpRequest(Method method, String uri, BytesReference body, Map<String, List<String>> headers) {
+            this(method, uri, body == null ? HttpBody.empty() : HttpBody.fromBytesReference(body), headers, null);
         }
 
-        private FakeHttpRequest(
-            Method method,
-            String uri,
-            HttpBody content,
-            Map<String, List<String>> headers,
-            Exception inboundException
-        ) {
+        public FakeHttpRequest(Method method, String uri, Map<String, List<String>> headers, HttpBody body) {
+            this(method, uri, body, headers, null);
+        }
+
+        private FakeHttpRequest(Method method, String uri, HttpBody body, Map<String, List<String>> headers, Exception inboundException) {
             this.method = method;
             this.uri = uri;
-            this.content = content;
+            this.body = body;
             this.headers = headers;
             this.inboundException = inboundException;
         }
@@ -89,7 +87,12 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public HttpBody body() {
-            return content;
+            return body;
+        }
+
+        @Override
+        public void setBody(HttpBody body) {
+            this.body = body;
         }
 
         @Override
@@ -111,7 +114,12 @@ public class FakeRestRequest extends RestRequest {
         public HttpRequest removeHeader(String header) {
             final var filteredHeaders = new HashMap<>(headers);
             filteredHeaders.remove(header);
-            return new FakeHttpRequest(method, uri, content, filteredHeaders, inboundException);
+            return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException);
+        }
+
+        @Override
+        public boolean hasContent() {
+            return body.isEmpty() == false;
         }
 
         @Override

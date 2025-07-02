@@ -82,7 +82,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
 
     @Before
     public void resetLicense() throws Exception {
-        setLicense("trial");
+        setLicense(License.LicenseType.TRIAL);
     }
 
     @After
@@ -117,7 +117,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
 
         // Downgrade the license and restart the cluster to force the model registry to rebuild
-        setLicense("basic");
+        setLicense(License.LicenseType.BASIC);
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
         ensureGreen(InferenceIndex.INDEX_NAME);
         assertLicense(License.LicenseType.BASIC);
@@ -145,7 +145,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
 
         // Downgrade the license and restart the cluster to force the model registry to rebuild
-        setLicense("basic");
+        setLicense(License.LicenseType.BASIC);
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
         ensureGreen(InferenceIndex.INDEX_NAME);
         assertLicense(License.LicenseType.BASIC);
@@ -269,9 +269,8 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         return filteredMap;
     }
 
-    // TODO: Pass LicenseType to this method
-    private static void setLicense(String type) throws Exception {
-        if (type.equals("basic")) {
+    private static void setLicense(License.LicenseType type) throws Exception {
+        if (type == License.LicenseType.BASIC) {
             assertAcked(
                 safeGet(
                     client().execute(
@@ -281,7 +280,12 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
                 )
             );
         } else {
-            License license = TestUtils.generateSignedLicense(type, License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+            License license = TestUtils.generateSignedLicense(
+                type.getTypeName(),
+                License.VERSION_CURRENT,
+                -1,
+                TimeValue.timeValueHours(24)
+            );
             assertAcked(
                 safeGet(
                     client().execute(

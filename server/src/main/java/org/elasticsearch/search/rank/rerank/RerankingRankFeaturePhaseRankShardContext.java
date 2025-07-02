@@ -12,6 +12,7 @@ package org.elasticsearch.search.rank.rerank;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
@@ -57,11 +58,18 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
                     rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
                 } else {
                     Map<String, HighlightField> highlightFields = hit.getHighlightFields();
-                    if (highlightFields != null) {
-                        if (highlightFields.containsKey(field)) {
-                            List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
-                            rankFeatureDocs[i].featureData(snippets);
-                        }
+                    if (highlightFields != null && highlightFields.containsKey(field)) {
+                        List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                        rankFeatureDocs[i].featureData(snippets);
+                    } else if (docField != null) {
+                        // If we did not get highlighting results, backfill with the doc field value
+                        // but pass in a warning because we are not reranking on snippets only
+                        rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+                        HeaderWarning.addWarning(
+                            "Reranking on snippets requested, but no snippets were found for field ["
+                                + field
+                                + "]. Using field value instead."
+                        );
                     }
                 }
             }

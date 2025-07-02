@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.search.rank.feature.SnippetRankInput;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -29,25 +31,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
  * the provided rank window.
  */
 public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFeaturePhaseRankCoordinatorContext {
-
-    /**
-     * The default token size limit of the Elastic reranker.
-     */
-    private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
-
-    /**
-     * A safe default token size limit for other reranker models.
-     * Reranker models with smaller token limits will be truncated.
-     */
-    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4096;
 
     protected final Client client;
     protected final String inferenceId;
@@ -63,26 +52,13 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceText,
         Float minScore,
         boolean failuresAllowed,
-        RerankSnippetInput snippets
+        @Nullable CustomRankInput customRankInput
     ) {
-        super(size, from, rankWindowSize, failuresAllowed, snippets);
+        super(size, from, rankWindowSize, failuresAllowed, customRankInput);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
-    }
-
-    /**
-     * @return The token size limit to apply to this rerank context.
-     * This is not yet available so we are hardcoding it for now.
-     */
-    @Override
-    public Integer tokenSizeLimit() {
-        if (inferenceId.equals(DEFAULT_RERANK_ID) || inferenceId.equals(RERANKER_ID)) {
-            return RERANK_TOKEN_SIZE_LIMIT;
-        }
-
-        return DEFAULT_TOKEN_SIZE_LIMIT;
     }
 
     @Override
@@ -94,27 +70,36 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             InferenceServiceResults results = r.getResults();
             assert results instanceof RankedDocsResults;
 
+            // If we have an empty list of ranked docs, simply return the original scores
             List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
-            final float[] scores;
-            if (this.snippets != null) {
-                scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
+            if (rankedDocs.isEmpty()) {
+                float[] originalScores = new float[featureDocs.length];
+                for (int i = 0; i < featureDocs.length; i++) {
+                    originalScores[i] = featureDocs[i].score;
+                }
+                l.onResponse(originalScores);
             } else {
-                scores = extractScoresFromRankedDocs(rankedDocs);
-            }
+                final float[] scores;
+                if (this.customRankInput() != null && this.customRankInput() instanceof SnippetRankInput) {
+                    scores = extractScoresFromRankedSnippets(rankedDocs, featureDocs);
+                } else {
+                    scores = extractScoresFromRankedDocs(rankedDocs);
+                }
 
-            // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
-            if (scores.length != featureDocs.length) {
-                l.onFailure(
-                    new IllegalStateException(
-                        "Reranker input document count and returned score count mismatch: ["
-                            + featureDocs.length
-                            + "] vs ["
-                            + scores.length
-                            + "]"
-                    )
-                );
-            } else {
-                l.onResponse(scores);
+                // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
+                if (scores.length != featureDocs.length) {
+                    l.onFailure(
+                        new IllegalStateException(
+                            "Reranker input document count and returned score count mismatch: ["
+                                + featureDocs.length
+                                + "] vs ["
+                                + scores.length
+                                + "]"
+                        )
+                    );
+                } else {
+                    l.onResponse(scores);
+                }
             }
         });
 

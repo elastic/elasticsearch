@@ -24,6 +24,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.search.rank.feature.SnippetRankInput;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,6 +38,8 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -44,6 +47,17 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 public class TextSimilarityRankBuilder extends RankBuilder {
 
     public static final String NAME = "text_similarity_reranker";
+
+    /**
+     * The default token size limit of the Elastic reranker.
+     */
+    private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
+
+    /**
+     * A safe default token size limit for other reranker models.
+     * Reranker models with smaller token limits will be truncated.
+     */
+    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4096;
 
     public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,
@@ -198,8 +212,20 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceText,
             minScore,
             failuresAllowed,
-            snippets
+            snippets != null ? new SnippetRankInput(snippets, inferenceText, tokenSizeLimit()) : null
         );
+    }
+
+    /**
+     * @return The token size limit to apply to this rerank context.
+     * This is not yet available so we are hardcoding it for now.
+     */
+    public Integer tokenSizeLimit() {
+        if (inferenceId.equals(DEFAULT_RERANK_ID) || inferenceId.equals(RERANKER_ID)) {
+            return RERANK_TOKEN_SIZE_LIMIT;
+        }
+
+        return DEFAULT_TOKEN_SIZE_LIMIT;
     }
 
     public String field() {

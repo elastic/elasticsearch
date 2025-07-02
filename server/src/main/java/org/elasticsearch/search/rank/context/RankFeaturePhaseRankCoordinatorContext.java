@@ -12,8 +12,8 @@ package org.elasticsearch.search.rank.context;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.rank.feature.CustomRankInput;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -32,7 +32,7 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int from;
     protected final int rankWindowSize;
     protected final boolean failuresAllowed;
-    protected final RerankSnippetInput snippets;
+    protected final CustomRankInput customRankInput;
 
     public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed) {
         this(size, from, rankWindowSize, failuresAllowed, null);
@@ -43,13 +43,13 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         int from,
         int rankWindowSize,
         boolean failuresAllowed,
-        @Nullable RerankSnippetInput snippets
+        @Nullable CustomRankInput customRankInput
     ) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
         this.failuresAllowed = failuresAllowed;
-        this.snippets = snippets;
+        this.customRankInput = customRankInput;
     }
 
     public boolean failuresAllowed() {
@@ -57,17 +57,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     }
 
     /**
-     * If non-null, we will rerank based on the best-ranking snippet rather than the whole text.
+     * If non-null, we will use this custom input when computing reranked results
      */
-    public RerankSnippetInput snippets() {
-        return snippets;
-    }
-
-    /**
-     * If snippets are requested, this should be overridden with the token size limit of the associated model.
-     */
-    public Integer tokenSizeLimit() {
-        return 0;
+    public CustomRankInput customRankInput() {
+        return customRankInput;
     }
 
     /**

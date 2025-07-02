@@ -173,8 +173,7 @@ public class RankFeaturePhase extends SearchPhase {
                     queryResult.getContextId(),
                     queryResult.getShardSearchRequest(),
                     entry,
-                    rankFeaturePhaseRankCoordinatorContext.snippets(),
-                    rankFeaturePhaseRankCoordinatorContext.tokenSizeLimit()
+                    rankFeaturePhaseRankCoordinatorContext.customRankInput()
                 ),
                 context.getTask(),
                 listener

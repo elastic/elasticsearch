@@ -518,3 +518,108 @@ setup:
           size: 10
 
   - match: { status: 400 }
+
+---
+"Reranking based on snippets":
+
+  - requires:
+      cluster_features: "text_similarity_reranker_snippets"
+      reason: snippets introduced in 9.2.0
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    match:
+                      topic:
+                        query: "science"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: text
+              snippets:
+                num_snippets: 2
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+
+---
+"Reranking based on snippets using defaults":
+
+  - requires:
+      cluster_features: "text_similarity_reranker_snippets"
+      reason: snippets introduced in 9.2.0
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: text
+              snippets: { }
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+
+---
+"Reranking based on snippets when highlighter doesn't return results":
+
+  - requires:
+      test_runner_features: allowed_warnings
+      cluster_features: "text_similarity_reranker_snippets"
+      reason: snippets introduced in 9.2.0
+
+  - do:
+      allowed_warnings:
+        - "Reranking on snippets requested, but no snippets were found for field [inference_text_field]. Using field value instead."
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+              snippets:
+                num_snippets: 2
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }

@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.feature;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -56,18 +57,22 @@ public final class RankFeatureShardPhase {
             String field = rankFeaturePhaseRankShardContext.getField();
             assert field != null : "field must not be null";
             searchContext.fetchFieldsContext(new FetchFieldsContext(Collections.singletonList(new FieldAndFormat(field, null))));
-            RerankSnippetInput snippets = request.snippets();
-            if (snippets != null) {
+            CustomRankInput customRankInput = request.customRankInput();
+            if (customRankInput instanceof SnippetRankInput snippetRankInput) {
                 try {
+                    HighlightBuilder highlightBuilder = new HighlightBuilder();
+                    highlightBuilder.highlightQuery(new MatchQueryBuilder(field, snippetRankInput.inferenceText()));
                     // Stripping pre/post tags as they're not useful for snippet creation
-                    HighlightBuilder highlightBuilder = new HighlightBuilder().field(field).preTags("").postTags("");
+                    highlightBuilder.field(field).preTags("").postTags("");
                     // Return highest scoring fragments
                     highlightBuilder.order(HighlightBuilder.Order.SCORE);
-                    int numSnippets = snippets.numSnippets() != null ? snippets.numSnippets() : DEFAULT_NUM_SNIPPETS;
+                    int numSnippets = snippetRankInput.snippets().numSnippets() != null
+                        ? snippetRankInput.snippets().numSnippets()
+                        : DEFAULT_NUM_SNIPPETS;
                     highlightBuilder.numOfFragments(numSnippets);
                     // Rely on the model to determine the fragment size
                     // TODO highlighter should be able to set fragment size by token not length
-                    highlightBuilder.fragmentSize(request.getTokenSizeLimit());
+                    highlightBuilder.fragmentSize(snippetRankInput.tokenSizeLimit());
                     SearchHighlightContext searchHighlightContext = highlightBuilder.build(searchContext.getSearchExecutionContext());
                     searchContext.highlight(searchHighlightContext);
                 } catch (IOException e) {

@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.search.rank.feature.SnippetRankInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -49,7 +50,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         "some query",
         0.0f,
         false,
-        new RerankSnippetInput(2)
+        new SnippetRankInput(new RerankSnippetInput(2), "some query", 10)
     );
 
     public void testComputeScores() {

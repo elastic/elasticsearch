@@ -220,10 +220,6 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return failuresAllowed;
     }
 
-    public RerankSnippetInput snippets() {
-        return snippets;
-    }
-
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());

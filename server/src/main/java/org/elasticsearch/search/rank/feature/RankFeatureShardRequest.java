@@ -40,8 +40,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     private final int[] docIds;
 
-    private final RerankSnippetInput snippets;
-    private final Integer tokenSizeLimit;
+    private final CustomRankInput customRankInput;
 
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
@@ -49,7 +48,7 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds
     ) {
-        this(originalIndices, contextId, shardSearchRequest, docIds, null, null);
+        this(originalIndices, contextId, shardSearchRequest, docIds, null);
     }
 
     public RankFeatureShardRequest(
@@ -57,15 +56,13 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         ShardSearchContextId contextId,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
-        @Nullable RerankSnippetInput snippets,
-        Integer tokenSizeLimit
+        @Nullable CustomRankInput customRankInput
     ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
         this.docIds = docIds.stream().flatMapToInt(IntStream::of).toArray();
         this.contextId = contextId;
-        this.snippets = snippets;
-        this.tokenSizeLimit = tokenSizeLimit;
+        this.customRankInput = customRankInput;
     }
 
     public RankFeatureShardRequest(StreamInput in) throws IOException {
@@ -75,11 +72,14 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         docIds = in.readIntArray();
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            snippets = in.readOptionalWriteable(RerankSnippetInput::new);
-            this.tokenSizeLimit = in.readOptionalInt();
+            String name = in.readOptionalString();
+            if (name != null && name.equals(SnippetRankInput.NAME)) {
+                customRankInput = new SnippetRankInput(in);
+            } else {
+                customRankInput = null;
+            }
         } else {
-            snippets = null;
-            this.tokenSizeLimit = null;
+            customRankInput = null;
         }
     }
 
@@ -91,8 +91,11 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         out.writeIntArray(docIds);
         out.writeOptionalWriteable(contextId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
-            out.writeOptionalWriteable(snippets);
-            out.writeOptionalInt(tokenSizeLimit);
+            String name = customRankInput != null ? customRankInput.name() : null;
+            out.writeOptionalString(name);
+            if (customRankInput != null) {
+                customRankInput.writeTo(out);
+            }
         }
     }
 
@@ -124,12 +127,8 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         return contextId;
     }
 
-    public RerankSnippetInput snippets() {
-        return snippets;
-    }
-
-    public Integer getTokenSizeLimit() {
-        return tokenSizeLimit;
+    public CustomRankInput customRankInput() {
+        return customRankInput;
     }
 
     @Override

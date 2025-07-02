@@ -28,10 +28,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.INDEX_BITS;
-import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
-import static org.elasticsearch.index.codec.vectors.BQVectorUtils.packAsBinary;
-
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
  * partition the vector space, and then stores the centroids and posting list in a sequential
@@ -58,12 +54,15 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final long[] offsets = new long[centroidSupplier.size()];
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        BinarizedFloatVectorValues binarizedByteVectorValues = new BinarizedFloatVectorValues(floatVectorValues, quantizer);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
-
+        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(
+            ES91OSQVectorsScorer.BULK_SIZE,
+            quantizer,
+            floatVectorValues,
+            postingsOutput
+        );
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
-            binarizedByteVectorValues.centroid = centroid;
             // TODO: add back in sorting vectors by distance to centroid
             int[] cluster = assignmentsByCluster[c];
             // TODO align???
@@ -75,7 +74,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
             docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-            writePostingList(cluster, postingsOutput, binarizedByteVectorValues);
+            bulkWriter.writeOrds(j -> cluster[j], cluster.length, centroid);
         }
 
         if (logger.isDebugEnabled()) {
@@ -113,54 +112,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             Math.sqrt(variance),
             variance
         );
-    }
-
-    private void writePostingList(int[] cluster, IndexOutput postingsOutput, BinarizedFloatVectorValues binarizedByteVectorValues)
-        throws IOException {
-        int limit = cluster.length - ES91OSQVectorsScorer.BULK_SIZE + 1;
-        int cidx = 0;
-        OptimizedScalarQuantizer.QuantizationResult[] corrections =
-            new OptimizedScalarQuantizer.QuantizationResult[ES91OSQVectorsScorer.BULK_SIZE];
-        // Write vectors in bulks of ES91OSQVectorsScorer.BULK_SIZE.
-        for (; cidx < limit; cidx += ES91OSQVectorsScorer.BULK_SIZE) {
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                int ord = cluster[cidx + j];
-                byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
-                // write vector
-                postingsOutput.writeBytes(binaryValue, 0, binaryValue.length);
-                corrections[j] = binarizedByteVectorValues.getCorrectiveTerms(ord);
-            }
-            // write corrections
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                postingsOutput.writeInt(Float.floatToIntBits(corrections[j].lowerInterval()));
-            }
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                postingsOutput.writeInt(Float.floatToIntBits(corrections[j].upperInterval()));
-            }
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                int targetComponentSum = corrections[j].quantizedComponentSum();
-                assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
-                postingsOutput.writeShort((short) targetComponentSum);
-            }
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                postingsOutput.writeInt(Float.floatToIntBits(corrections[j].additionalCorrection()));
-            }
-        }
-        // write tail
-        for (; cidx < cluster.length; cidx++) {
-            int ord = cluster[cidx];
-            // write vector
-            byte[] binaryValue = binarizedByteVectorValues.vectorValue(ord);
-            OptimizedScalarQuantizer.QuantizationResult correction = binarizedByteVectorValues.getCorrectiveTerms(ord);
-            writeQuantizedValue(postingsOutput, binaryValue, correction);
-            binarizedByteVectorValues.getCorrectiveTerms(ord);
-            postingsOutput.writeBytes(binaryValue, 0, binaryValue.length);
-            postingsOutput.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-            postingsOutput.writeInt(Float.floatToIntBits(correction.upperInterval()));
-            postingsOutput.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-            assert correction.quantizedComponentSum() >= 0 && correction.quantizedComponentSum() <= 0xffff;
-            postingsOutput.writeShort((short) correction.quantizedComponentSum());
-        }
     }
 
     @Override
@@ -292,47 +243,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             return new CentroidAssignments(centroids, assignmentsByCluster);
         } else {
             return new CentroidAssignments(centroids.length, assignmentsByCluster);
-        }
-    }
-
-    // TODO unify with OSQ format
-    static class BinarizedFloatVectorValues {
-        private OptimizedScalarQuantizer.QuantizationResult corrections;
-        private final byte[] binarized;
-        private final byte[] initQuantized;
-        private float[] centroid;
-        private final FloatVectorValues values;
-        private final OptimizedScalarQuantizer quantizer;
-
-        private int lastOrd = -1;
-
-        BinarizedFloatVectorValues(FloatVectorValues delegate, OptimizedScalarQuantizer quantizer) {
-            this.values = delegate;
-            this.quantizer = quantizer;
-            this.binarized = new byte[discretize(delegate.dimension(), 64) / 8];
-            this.initQuantized = new byte[delegate.dimension()];
-        }
-
-        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int ord) {
-            if (ord != lastOrd) {
-                throw new IllegalStateException(
-                    "attempt to retrieve corrective terms for different ord " + ord + " than the quantization was done for: " + lastOrd
-                );
-            }
-            return corrections;
-        }
-
-        public byte[] vectorValue(int ord) throws IOException {
-            if (ord != lastOrd) {
-                binarize(ord);
-                lastOrd = ord;
-            }
-            return binarized;
-        }
-
-        private void binarize(int ord) throws IOException {
-            corrections = quantizer.scalarQuantize(values.vectorValue(ord), initQuantized, INDEX_BITS, centroid);
-            packAsBinary(initQuantized, binarized);
         }
     }
 

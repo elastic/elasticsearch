@@ -558,6 +558,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=nodes.stats/11_indices_metrics/Lucene segment level fields stats}
   issue: https://github.com/elastic/elasticsearch/issues/130360
+- class: org.elasticsearch.ingest.PipelineFactoryTests
+  method: testCreateUnsupportedFieldAccessPattern
+  issue: https://github.com/elastic/elasticsearch/issues/130422
 
 # Examples:
 #

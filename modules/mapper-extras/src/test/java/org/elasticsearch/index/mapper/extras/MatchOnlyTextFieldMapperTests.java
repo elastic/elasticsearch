@@ -26,8 +26,10 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -356,10 +358,14 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testLoadSyntheticSourceFromStringOrBytesRef() throws IOException {
-        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+        var mappings = mapping(b -> {
             b.startObject("field1").field("type", "match_only_text").endObject();
             b.startObject("field2").field("type", "match_only_text").endObject();
-        })).documentMapper();
+        });
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_10_2_2, settings, () -> true, mappings)
+            .documentMapper();
+
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
 

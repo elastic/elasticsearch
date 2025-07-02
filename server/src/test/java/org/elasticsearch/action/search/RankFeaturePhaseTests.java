@@ -813,7 +813,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     SearchHit hit = hits.getHits()[i];
                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
                     rankFeatureDocs[i].score += 100f;
-                    rankFeatureDocs[i].featureData("ranked_" + hit.docId());
+                    rankFeatureDocs[i].featureData(List.of("ranked_" + hit.docId()));
                     rankFeatureDocs[i].rank = i + 1;
                 }
                 return new RankFeatureShardResult(rankFeatureDocs);

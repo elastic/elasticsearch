@@ -28,6 +28,7 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
@@ -176,9 +177,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             String inferenceText,
             Float minScore,
             boolean failuresAllowed,
-            String throwingType
+            String throwingType,
+            RerankSnippetInput snippets
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippets);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -218,7 +220,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     inferenceId,
                     inferenceText,
                     minScore,
-                    failuresAllowed()
+                    failuresAllowed(),
+                    null
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

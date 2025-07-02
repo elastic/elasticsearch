@@ -9,12 +9,14 @@
 
 package org.elasticsearch.search.rank.feature;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -38,16 +40,32 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     private final int[] docIds;
 
+    private final RerankSnippetInput snippets;
+    private final Integer tokenSizeLimit;
+
     public RankFeatureShardRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId contextId,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds
     ) {
+        this(originalIndices, contextId, shardSearchRequest, docIds, null, null);
+    }
+
+    public RankFeatureShardRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId contextId,
+        ShardSearchRequest shardSearchRequest,
+        List<Integer> docIds,
+        @Nullable RerankSnippetInput snippets,
+        Integer tokenSizeLimit
+    ) {
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
         this.docIds = docIds.stream().flatMapToInt(IntStream::of).toArray();
         this.contextId = contextId;
+        this.snippets = snippets;
+        this.tokenSizeLimit = tokenSizeLimit;
     }
 
     public RankFeatureShardRequest(StreamInput in) throws IOException {
@@ -56,6 +74,13 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         docIds = in.readIntArray();
         contextId = in.readOptionalWriteable(ShardSearchContextId::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            snippets = in.readOptionalWriteable(RerankSnippetInput::new);
+            this.tokenSizeLimit = in.readOptionalInt();
+        } else {
+            snippets = null;
+            this.tokenSizeLimit = null;
+        }
     }
 
     @Override
@@ -65,6 +90,10 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
         out.writeOptionalWriteable(shardSearchRequest);
         out.writeIntArray(docIds);
         out.writeOptionalWriteable(contextId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_SNIPPETS)) {
+            out.writeOptionalWriteable(snippets);
+            out.writeOptionalInt(tokenSizeLimit);
+        }
     }
 
     @Override
@@ -93,6 +122,14 @@ public class RankFeatureShardRequest extends AbstractTransportRequest implements
 
     public ShardSearchContextId contextId() {
         return contextId;
+    }
+
+    public RerankSnippetInput snippets() {
+        return snippets;
+    }
+
+    public Integer getTokenSizeLimit() {
+        return tokenSizeLimit;
     }
 
     @Override

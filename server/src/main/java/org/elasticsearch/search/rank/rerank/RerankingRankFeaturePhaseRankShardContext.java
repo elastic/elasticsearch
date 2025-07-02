@@ -14,12 +14,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -29,9 +34,15 @@ import java.util.Arrays;
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
+    private final RerankSnippetInput snippets;
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
+        this(field, null);
+    }
+
+    public RerankingRankFeaturePhaseRankShardContext(String field, RerankSnippetInput snippets) {
         super(field);
+        this.snippets = snippets;
     }
 
     @Override
@@ -40,9 +51,18 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
             for (int i = 0; i < hits.getHits().length; i++) {
                 rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
-                if (docField != null) {
-                    rankFeatureDocs[i].featureData(docField.getValue().toString());
+                SearchHit hit = hits.getHits()[i];
+                DocumentField docField = hit.field(field);
+                if (docField != null && snippets == null) {
+                    rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+                } else {
+                    Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+                    if (highlightFields != null) {
+                        if (highlightFields.containsKey(field)) {
+                            List<String> snippets = Arrays.stream(highlightFields.get(field).fragments()).map(Text::string).toList();
+                            rankFeatureDocs[i].featureData(snippets);
+                        }
+                    }
                 }
             }
             return new RankFeatureShardResult(rankFeatureDocs);

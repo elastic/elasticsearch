@@ -1320,7 +1320,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            new StructuredSource(request.sourceAsMap(XContentParserDecorator.NOOP))
+            new MapStructuredSource(request.sourceAsMap(XContentParserDecorator.NOOP))
         );
     }
 

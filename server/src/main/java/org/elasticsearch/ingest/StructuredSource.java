@@ -9,24 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.AbstractMap;
 import java.util.Map;
-import java.util.Set;
 
-public class StructuredSource extends AbstractMap<String, Object> {
-
-    private final Map<String, Object> map;
-
-    public StructuredSource(Map<String, Object> map) {
-        this.map = map;
-    }
-
-    public Map<String, Object> getMap() {
-        return map;
-    }
-
-    @Override
-    public Set<Entry<String, Object>> entrySet() {
-        return Set.of();
-    }
-}
+public interface StructuredSource extends Map<String, Object> {}

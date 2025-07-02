@@ -230,7 +230,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertEquals(container.listBlobs(randomPurpose()).size(), 2);
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator());
             assertTrue(container.listBlobs(randomPurpose()).isEmpty());
-            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator()); // does not raise when blobs don't exist
+            container.deleteBlobsIgnoringIfNotExists(
+                // does not raise when blobs don't exist, except for REPOSITORY_ANALYSIS which is strict
+                randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose),
+                blobNames.iterator()
+            );
         }
     }
 

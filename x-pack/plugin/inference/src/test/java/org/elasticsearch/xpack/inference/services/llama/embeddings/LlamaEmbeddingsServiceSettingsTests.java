@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,21 +42,13 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    ServiceFields.SIMILARITY,
-                    SIMILARITY_MEASURE.toString(),
-                    ServiceFields.DIMENSIONS,
-                    DIMENSIONS,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    MAX_INPUT_TOKENS,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
+            buildServiceSettingsMap(
+                MODEL_ID,
+                CORRECT_URL,
+                SIMILARITY_MEASURE.toString(),
+                DIMENSIONS,
+                MAX_INPUT_TOKENS,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -79,26 +72,299 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         var thrownException = expectThrows(
             ValidationException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        CORRECT_URL,
-                        ServiceFields.SIMILARITY,
-                        SIMILARITY_MEASURE.toString(),
-                        ServiceFields.DIMENSIONS,
-                        DIMENSIONS,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        MAX_INPUT_TOKENS,
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
+                buildServiceSettingsMap(
+                    null,
+                    CORRECT_URL,
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];", 2))
+            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
+        );
+    }
+
+    public void testFromMap_NoUrl_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    null,
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [url];")
+        );
+    }
+
+    public void testFromMap_EmptyUrl_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    "",
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value empty string. [url] must be a non-empty string;")
+        );
+    }
+
+    public void testFromMap_InvalidUrl_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    "^^^",
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                "Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. "
+                    + "Error: unable to parse url [^^^]. Reason: Illegal character in path;"
+            )
+        );
+    }
+
+    public void testFromMap_NoSimilarity_Success() {
+        var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                MODEL_ID,
+                CORRECT_URL,
+                null,
+                DIMENSIONS,
+                MAX_INPUT_TOKENS,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    DIMENSIONS,
+                    null,
+                    MAX_INPUT_TOKENS,
+                    new RateLimitSettings(RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_InvalidSimilarity_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    "by_size",
+                    DIMENSIONS,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. "
+                    + "[similarity] must be one of [cosine, dot_product, l2_norm];"
+            )
+        );
+    }
+
+    public void testFromMap_NoDimensions_Success() {
+        var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                MODEL_ID,
+                CORRECT_URL,
+                SIMILARITY_MEASURE.toString(),
+                null,
+                MAX_INPUT_TOKENS,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    null,
+                    SIMILARITY_MEASURE,
+                    MAX_INPUT_TOKENS,
+                    new RateLimitSettings(RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ZeroDimensions_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    SIMILARITY_MEASURE.toString(),
+                    0,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_NegativeDimensions_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    SIMILARITY_MEASURE.toString(),
+                    -10,
+                    MAX_INPUT_TOKENS,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [-10]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_NoInputTokens_Success() {
+        var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                MODEL_ID,
+                CORRECT_URL,
+                SIMILARITY_MEASURE.toString(),
+                DIMENSIONS,
+                null,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    DIMENSIONS,
+                    SIMILARITY_MEASURE,
+                    null,
+                    new RateLimitSettings(RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ZeroInputTokens_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    0,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_NegativeInputTokens_Failure() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> LlamaEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    SIMILARITY_MEASURE.toString(),
+                    DIMENSIONS,
+                    -10,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                ),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [-10]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_NoRateLimit_Success() {
+        var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(MODEL_ID, CORRECT_URL, SIMILARITY_MEASURE.toString(), DIMENSIONS, MAX_INPUT_TOKENS, null),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    MODEL_ID,
+                    CORRECT_URL,
+                    DIMENSIONS,
+                    SIMILARITY_MEASURE,
+                    MAX_INPUT_TOKENS,
+                    new RateLimitSettings(3000)
+                )
+            )
         );
     }
 
@@ -179,5 +445,35 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             maxInputTokens,
             RateLimitSettingsTests.createRandom()
         );
+    }
+
+    private static HashMap<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String url,
+        @Nullable String similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
+        @Nullable HashMap<String, Integer> rateLimitSettings
+    ) {
+        HashMap<String, Object> result = new HashMap<>();
+        if (modelId != null) {
+            result.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (url != null) {
+            result.put(ServiceFields.URL, url);
+        }
+        if (similarity != null) {
+            result.put(ServiceFields.SIMILARITY, similarity);
+        }
+        if (dimensions != null) {
+            result.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            result.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (rateLimitSettings != null) {
+            result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);
+        }
+        return result;
     }
 }

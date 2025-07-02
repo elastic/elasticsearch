@@ -596,6 +596,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testTopNPushedToLucene
   issue: https://github.com/elastic/elasticsearch/issues/130505
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
+  issue: https://github.com/elastic/elasticsearch/issues/130506
 
 # Examples:
 #

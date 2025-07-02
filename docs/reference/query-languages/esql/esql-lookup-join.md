@@ -159,7 +159,7 @@ The list of unsupported fields includes all types not supported by {{esql}} as d
 as well as the following: `VERSION`, `UNSIGNED_LONG`, all spatial types like `GEO_POINT`, `GEO_SHAPE`, and all
 temporal periods like `DURATION` and `PERIOD`.
 
-For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands#esql-lookup-join).
+For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join).
 
 ## Usage notes
 

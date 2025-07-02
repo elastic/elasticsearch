@@ -43,6 +43,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.streams.StreamType;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -59,6 +61,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -70,6 +74,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
@@ -104,6 +109,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    private final StreamsPermissionsUtils streamsPermissionsUtils;
 
     BulkOperation(
         Task task,
@@ -139,7 +145,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            clusterHasFailureStoreFeature
+            clusterHasFailureStoreFeature,
+            StreamsPermissionsUtils.getInstance()
         );
     }
 
@@ -160,7 +167,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        StreamsPermissionsUtils streamsPermissionsUtils
     ) {
         super(listener);
         this.task = task;
@@ -182,6 +190,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
+        this.streamsPermissionsUtils = streamsPermissionsUtils;
     }
 
     @Override
@@ -274,6 +283,30 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(ClusterState clusterState) {
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterState);
+
+        Set<StreamType> enabledStreamTypes = Arrays.stream(StreamType.values())
+            .filter(t -> streamsPermissionsUtils.streamTypeIsEnabled(t, projectMetadata))
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
+
+        for (StreamType streamType : enabledStreamTypes) {
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest<?> req = bulkRequest.requests.get(i);
+                String prefix = streamType.getStreamName() + ".";
+                if (req != null && req.index().startsWith(prefix)) {
+                    IllegalArgumentException exception = new IllegalArgumentException(
+                        "Bulk requests for streams with type ["
+                            + streamType.getStreamName()
+                            + "] are not supported, use the ["
+                            + streamType.getStreamName()
+                            + "] API instead."
+                    );
+                    IndexDocFailureStoreStatus failureStoreStatus = processFailure(new BulkItemRequest(i, req), projectMetadata, exception);
+                    addFailureAndDiscardRequest(req, i, req.index(), exception, failureStoreStatus);
+                }
+            }
+        }
+
         return groupRequestsByShards(
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),

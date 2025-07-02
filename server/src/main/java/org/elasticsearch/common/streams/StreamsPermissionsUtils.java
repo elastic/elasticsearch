@@ -34,7 +34,7 @@ public class StreamsPermissionsUtils {
 
     public void throwIfRetrouteToSubstreamNotAllowed(ProjectMetadata projectMetadata, Set<String> indexHistory, String destination)
         throws IllegalArgumentException {
-        for (StreamTypes streamType : StreamTypes.values()) {
+        for (StreamType streamType : StreamType.values()) {
             String streamName = streamType.getStreamName();
             if (streamTypeIsEnabled(streamType, projectMetadata)
                 && destination.startsWith(streamName + ".")
@@ -51,7 +51,7 @@ public class StreamsPermissionsUtils {
         }
     }
 
-    public boolean streamTypeIsEnabled(StreamTypes streamType, ProjectMetadata projectMetadata) {
+    public boolean streamTypeIsEnabled(StreamType streamType, ProjectMetadata projectMetadata) {
         StreamsMetadata metadata = projectMetadata.custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
         return switch (streamType) {
             case LOGS -> metadata.isLogsEnabled();

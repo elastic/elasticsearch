@@ -42,10 +42,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -215,10 +217,18 @@ public class BulkOperationTests extends ESTestCase {
 
     private TestThreadPool threadPool;
 
+    private StreamsPermissionsUtils streamsPermissionsUtilsMock;
+    private ProjectResolver projectResolverMock;
+    private IndexNameExpressionResolver indexNameExpressionResolverMock;
+
     @Before
-    public void setupThreadpool() {
+    public void setupTest() {
         threadPool = new TestThreadPool(getClass().getName());
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+        streamsPermissionsUtilsMock = mock(StreamsPermissionsUtils.class);
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(any(), any())).thenReturn(false);
+        projectResolverMock = mock(ProjectResolver.class);
+        indexNameExpressionResolverMock = mock(IndexNameExpressionResolver.class);
     }
 
     @After
@@ -688,8 +698,8 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
-     * A bulk operation to a data stream with a failure store enabled may still partially fail if the cluster is experiencing a
-     * non-retryable block when the redirected documents would be sent to the shard-level action.
+     * A bulk operation to a data stream with a failure store enabled may still partially fail if the redirected documents experience
+     * a shard-level failure while writing to the failure store indices.
      */
     public void testBlockedClusterRejectsFailureStoreDocument() throws Exception {
         // Requests that go to two separate shards
@@ -1239,7 +1249,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            failureStoreNodeFeatureEnabled
+            failureStoreNodeFeatureEnabled,
+            streamsPermissionsUtilsMock
         );
     }
 

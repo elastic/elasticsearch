@@ -3,10 +3,10 @@
 ### BYTE LENGTH
 Returns the byte length of a string.
 
+Note: All strings are in UTF-8, so a single character can use multiple bytes.
 ```esql
 FROM airports
 | WHERE country == "India"
 | KEEP city
 | EVAL fn_length = LENGTH(city), fn_byte_length = BYTE_LENGTH(city)
 ```
-Note: All strings are in UTF-8, so a single character can use multiple bytes.

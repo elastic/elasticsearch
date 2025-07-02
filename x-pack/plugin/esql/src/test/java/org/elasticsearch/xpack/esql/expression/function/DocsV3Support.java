@@ -1057,17 +1057,19 @@ public abstract class DocsV3Support {
         cleanedDesc = removeAppliesToBlocks(cleanedDesc);
         builder.append(cleanedDesc).append("\n\n");
 
+        if (Strings.isNullOrEmpty(info.note()) == false) {
+            String cleanedNote = replaceLinks(info.note());
+            cleanedNote = removeAppliesToBlocks(cleanedNote);
+            builder.append("Note: ").append(cleanedNote).append("\n");
+        }
+
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
             builder.append("```esql\n");
             builder.append(loadExample(example.file(), example.tag()));
             builder.append("\n```\n");
         }
-        if (Strings.isNullOrEmpty(info.note()) == false) {
-            String cleanedNote = replaceLinks(info.note());
-            cleanedNote = removeAppliesToBlocks(cleanedNote);
-            builder.append("Note: ").append(cleanedNote).append("\n");
-        }
+
         String rendered = builder.toString();
         logger.info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
         writeToTempKibanaDir("docs", "md", rendered);

@@ -4,3 +4,7 @@
 Returns `true` if the value is `NULL`, `false` otherwise.
 
 Note: If a field is only in some documents it will be `NULL` in the documents that did not contain it.
+```esql
+FROM employees
+| WHERE birth_date IS NULL
+```

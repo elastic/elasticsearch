@@ -4,3 +4,8 @@
 Returns `false` if the value is `NULL`, `true` otherwise.
 
 Note: If a field is only in some documents it will be `NULL` in the documents that did not contain it.
+```esql
+FROM employees
+| WHERE is_rehired IS NOT NULL
+| STATS COUNT(emp_no)
+```

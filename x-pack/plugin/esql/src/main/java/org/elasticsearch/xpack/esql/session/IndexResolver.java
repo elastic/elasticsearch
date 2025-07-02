@@ -58,7 +58,7 @@ public class IndexResolver {
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
+            IndicesOptions.WildcardOptions.builder() //
                 .matchOpen(true)
                 .matchClosed(false)
                 .includeHidden(false)
@@ -66,7 +66,10 @@ public class IndexResolver {
                 .resolveAliases(true)
         )
         .gatekeeperOptions(
-            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+            IndicesOptions.GatekeeperOptions.builder() //
+                .ignoreThrottled(true)
+                .allowClosedIndices(false)
+                .allowAliasToMultipleIndices(true)
         )
         .build();
 

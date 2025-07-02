@@ -21,23 +21,23 @@ public class SnippetRankInput implements CustomRankInput {
 
     static final String NAME = "snippets";
 
-    private final RerankSnippetInput snippets;
+    private final RerankSnippetConfig snippets;
     private final String inferenceText;
     private final int tokenSizeLimit;
 
-    public SnippetRankInput(RerankSnippetInput snippets, String inferenceText, int tokenSizeLimit) {
+    public SnippetRankInput(RerankSnippetConfig snippets, String inferenceText, int tokenSizeLimit) {
         this.snippets = snippets;
         this.inferenceText = inferenceText;
         this.tokenSizeLimit = tokenSizeLimit;
     }
 
     public SnippetRankInput(StreamInput in) throws IOException {
-        this.snippets = new RerankSnippetInput(in);
+        this.snippets = new RerankSnippetConfig(in);
         this.inferenceText = in.readString();
         this.tokenSizeLimit = in.readVInt();
     }
 
-    public RerankSnippetInput snippets() {
+    public RerankSnippetConfig snippets() {
         return snippets;
     }
 

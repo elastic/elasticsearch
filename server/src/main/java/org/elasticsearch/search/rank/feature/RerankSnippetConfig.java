@@ -15,11 +15,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record RerankSnippetInput(Integer numSnippets) implements Writeable {
+public record RerankSnippetConfig(Integer numSnippets) implements Writeable {
 
     public static final int DEFAULT_NUM_SNIPPETS = 1;
 
-    public RerankSnippetInput(StreamInput in) throws IOException {
+    public RerankSnippetConfig(StreamInput in) throws IOException {
         this(in.readOptionalVInt());
     }
 

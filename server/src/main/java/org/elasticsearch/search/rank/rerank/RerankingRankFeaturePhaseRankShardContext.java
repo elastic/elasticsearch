@@ -20,7 +20,7 @@ import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
 import org.elasticsearch.xcontent.Text;
 
 import java.util.Arrays;
@@ -35,13 +35,13 @@ import java.util.Map;
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);
-    private final RerankSnippetInput snippets;
+    private final RerankSnippetConfig snippets;
 
     public RerankingRankFeaturePhaseRankShardContext(String field) {
         this(field, null);
     }
 
-    public RerankingRankFeaturePhaseRankShardContext(String field, RerankSnippetInput snippets) {
+    public RerankingRankFeaturePhaseRankShardContext(String field, RerankSnippetConfig snippets) {
         super(field);
         this.snippets = snippets;
     }

@@ -14,7 +14,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.rank.feature.RerankSnippetInput;
+import org.elasticsearch.search.rank.feature.RerankSnippetConfig;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
@@ -60,7 +60,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
             boolean failuresAllowed = args[5] != null && (Boolean) args[5];
-            RerankSnippetInput snippets = (RerankSnippetInput) args[6];
+            RerankSnippetConfig snippets = (RerankSnippetConfig) args[6];
 
             return new TextSimilarityRankRetrieverBuilder(
                 retrieverBuilder,
@@ -73,10 +73,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             );
         });
 
-    private static final ConstructingObjectParser<RerankSnippetInput, RetrieverParserContext> SNIPPETS_PARSER =
+    private static final ConstructingObjectParser<RerankSnippetConfig, RetrieverParserContext> SNIPPETS_PARSER =
         new ConstructingObjectParser<>(SNIPPETS_FIELD.getPreferredName(), true, args -> {
             Integer numSnippets = (Integer) args[0];
-            return new RerankSnippetInput(numSnippets);
+            return new RerankSnippetConfig(numSnippets);
         });
 
     static {
@@ -111,7 +111,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     private final String inferenceText;
     private final String field;
     private final boolean failuresAllowed;
-    private final RerankSnippetInput snippets;
+    private final RerankSnippetConfig snippets;
 
     public TextSimilarityRankRetrieverBuilder(
         RetrieverBuilder retrieverBuilder,
@@ -120,7 +120,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         String field,
         int rankWindowSize,
         boolean failuresAllowed,
-        RerankSnippetInput snippets
+        RerankSnippetConfig snippets
     ) {
         super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
         this.inferenceId = inferenceId;
@@ -140,7 +140,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         boolean failuresAllowed,
         String retrieverName,
         List<QueryBuilder> preFilterQueryBuilders,
-        RerankSnippetInput snippets
+        RerankSnippetConfig snippets
     ) {
         super(retrieverSource, rankWindowSize);
         if (retrieverSource.size() != 1) {

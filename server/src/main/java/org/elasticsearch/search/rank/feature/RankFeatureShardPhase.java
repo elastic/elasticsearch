@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.search.rank.feature.RerankSnippetInput.DEFAULT_NUM_SNIPPETS;
+import static org.elasticsearch.search.rank.feature.RerankSnippetConfig.DEFAULT_NUM_SNIPPETS;
 
 /**
  * The {@code RankFeatureShardPhase} executes the rank feature phase on the shard, iff there is a {@code RankBuilder} that requires it.

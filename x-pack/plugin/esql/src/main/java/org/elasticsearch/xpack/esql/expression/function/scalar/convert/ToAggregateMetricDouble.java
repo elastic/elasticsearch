@@ -81,7 +81,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             type = { "double", "long", "unsigned_long", "integer", "aggregate_metric_double" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

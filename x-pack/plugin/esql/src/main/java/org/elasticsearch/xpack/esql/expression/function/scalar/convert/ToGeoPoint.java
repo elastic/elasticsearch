@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +57,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
             type = { "geo_point", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

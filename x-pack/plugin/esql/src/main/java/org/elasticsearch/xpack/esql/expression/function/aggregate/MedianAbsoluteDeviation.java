@@ -67,7 +67,11 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
                 tag = "docsStatsMADNestedExpression"
             ), }
     )
-    public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field, QueryPragmas pragmas) {
+    public MedianAbsoluteDeviation(
+        Source source,
+        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        QueryPragmas pragmas
+    ) {
         this(source, field, Literal.TRUE, pragmas);
     }
 

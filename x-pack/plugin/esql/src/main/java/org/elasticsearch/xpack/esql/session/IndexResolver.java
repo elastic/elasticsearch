@@ -249,7 +249,12 @@ public class IndexResolver {
         return new UnsupportedEsField(name, List.of(originalType));
     }
 
-    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse, QueryPragmas pragmas) {
+    private static EsField conflictingTypes(
+        String name,
+        String fullName,
+        FieldCapabilitiesResponse fieldCapsResponse,
+        QueryPragmas pragmas
+    ) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);

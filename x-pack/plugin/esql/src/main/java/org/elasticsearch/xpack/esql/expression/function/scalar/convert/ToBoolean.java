@@ -67,10 +67,11 @@ public class ToBoolean extends AbstractConvertFunction {
             type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }
+
     private ToBoolean(StreamInput in) throws IOException {
         super(in);
     }

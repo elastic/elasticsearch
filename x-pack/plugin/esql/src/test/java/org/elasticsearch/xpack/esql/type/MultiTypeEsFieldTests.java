@@ -108,8 +108,14 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {
         Map<String, Expression> indexToConvertExpressions = new HashMap<>();
         if (toString) {
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, dataType), QueryPragmas.EMPTY));
-            indexToConvertExpressions.put(randomAlphaOfLength(4), new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), QueryPragmas.EMPTY));
+            indexToConvertExpressions.put(
+                randomAlphaOfLength(4),
+                new ToString(Source.EMPTY, fieldAttribute(name, dataType), QueryPragmas.EMPTY)
+            );
+            indexToConvertExpressions.put(
+                randomAlphaOfLength(4),
+                new ToString(Source.EMPTY, fieldAttribute(name, DataType.KEYWORD), QueryPragmas.EMPTY)
+            );
         } else {
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, DataType.KEYWORD, dataType));
             indexToConvertExpressions.put(randomAlphaOfLength(4), testConvertExpression(name, dataType, dataType));

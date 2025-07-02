@@ -313,8 +313,8 @@ public class EsqlFunctionRegistry {
                 def(CountDistinct.class, biWithPragmas(CountDistinct::new), "count_distinct"),
                 def(Sum.class, uniWithPragmas(Sum::new), "sum"),
                 def(Median.class, uniWithPragmas(Median::new), "median"),
-            def(WeightedAvg.class, biWithPragmas(WeightedAvg::new), "weighted_avg"),
-            def(Percentile.class, biWithPragmas(Percentile::new), "percentile") },
+                def(WeightedAvg.class, biWithPragmas(WeightedAvg::new), "weighted_avg"),
+                def(Percentile.class, biWithPragmas(Percentile::new), "percentile") },
             new FunctionDefinition[] {
                 def(Max.class, uni(Max::new), "max"),
                 def(MedianAbsoluteDeviation.class, uniWithPragmas(MedianAbsoluteDeviation::new), "median_absolute_deviation"),

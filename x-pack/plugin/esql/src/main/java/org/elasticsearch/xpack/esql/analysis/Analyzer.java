@@ -1404,7 +1404,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry, QueryPragmas pragmas) {
+        private static Expression cast(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            EsqlFunctionRegistry registry,
+            QueryPragmas pragmas
+        ) {
             if (f instanceof In in) {
                 return processIn(in);
             }
@@ -1817,7 +1821,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes, QueryPragmas pragmas) {
+        private static boolean canConvertOriginalTypes(
+            MultiTypeEsField multiTypeEsField,
+            Set<DataType> supportedTypes,
+            QueryPragmas pragmas
+        ) {
             return multiTypeEsField.getIndexToConversionExpressions()
                 .values()
                 .stream()

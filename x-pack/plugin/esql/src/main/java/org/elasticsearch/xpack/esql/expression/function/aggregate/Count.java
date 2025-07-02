@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -91,7 +90,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "version" },
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field,
-          QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         this(source, field, Literal.TRUE, pragmas);
     }
@@ -153,7 +152,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT), pragmas);
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                pragmas
+            );
         }
 
         if (field.foldable()) {

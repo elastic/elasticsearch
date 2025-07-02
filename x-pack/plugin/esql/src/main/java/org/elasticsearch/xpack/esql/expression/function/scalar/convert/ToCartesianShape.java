@@ -59,7 +59,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
             type = { "cartesian_point", "cartesian_shape", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

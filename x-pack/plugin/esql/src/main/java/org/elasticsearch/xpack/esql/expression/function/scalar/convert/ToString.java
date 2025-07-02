@@ -101,7 +101,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "version" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, v, pragmas);
     }

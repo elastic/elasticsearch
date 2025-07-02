@@ -100,10 +100,11 @@ public class EsqlParser {
 
     // testing utility. Allow default values to either params or pragmas.
     // TODO: make it at least explicit in the name ("withDefaultPragmas", etc), or ideally make it
-    //  deprecated, and force the tests to inject pragmas explicitly.
+    // deprecated, and force the tests to inject pragmas explicitly.
     public LogicalPlan createStatement(String query) {
         return createStatement(query, new QueryParams(), QueryPragmas.EMPTY);
     }
+
     // testing utility
     public LogicalPlan createStatement(String query, QueryParams params) {
         return createStatement(query, params, QueryPragmas.EMPTY);

@@ -34,7 +34,7 @@ public class ToDatePeriod extends FoldablesConvertFunction {
             type = { "date_period", "keyword", "text" },
             description = "Input value. The input is a valid constant date period expression."
         ) Expression v,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, v, pragmas);
     }

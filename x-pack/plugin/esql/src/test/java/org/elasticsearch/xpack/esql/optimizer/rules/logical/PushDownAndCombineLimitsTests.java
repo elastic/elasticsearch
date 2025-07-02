@@ -67,7 +67,6 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         }
     }
 
-
     // TODO pragma threading
     private static final List<PushDownLimitTestCase<? extends UnaryPlan>> PUSHABLE_LIMIT_TEST_CASES = List.of(
         new PushDownLimitTestCase<>(

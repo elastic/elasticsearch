@@ -86,7 +86,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
             type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

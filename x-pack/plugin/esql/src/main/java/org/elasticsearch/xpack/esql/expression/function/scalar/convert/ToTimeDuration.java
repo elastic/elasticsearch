@@ -34,7 +34,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
             type = { "time_duration", "keyword", "text" },
             description = "Input value. The input is a valid constant time duration expression."
         ) Expression v,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, v, pragmas);
     }

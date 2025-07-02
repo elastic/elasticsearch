@@ -75,7 +75,7 @@ public class ToDateNanos extends AbstractConvertFunction {
             type = { "date", "date_nanos", "keyword", "text", "double", "long", "unsigned_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

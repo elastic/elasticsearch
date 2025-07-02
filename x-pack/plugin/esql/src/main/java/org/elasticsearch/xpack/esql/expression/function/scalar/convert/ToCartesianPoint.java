@@ -57,7 +57,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
             type = { "cartesian_point", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field,
-       QueryPragmas pragmas
+        QueryPragmas pragmas
     ) {
         super(source, field, pragmas);
     }

@@ -111,7 +111,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     }
 
     public void testBoostAndQueryNameOnSparseVectorQueryRewrite() throws IOException {
-        float BOOST = 2.0f;
+        float BOOST = 5.0f;
         String QUERY_NAME = "sparse_vector_query";
 
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
@@ -128,7 +128,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertEquals(BOOST, intercepted.boost(), 1.0f);
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
         assertEquals(QUERY_NAME, intercepted.queryName());
         assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
@@ -139,7 +139,8 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
         assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
         assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
-        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 1.0f);
+        assertEquals(BOOST, sparseVectorQueryBuilder.boost(), 5.0f);
+        assertNull(sparseVectorQueryBuilder.queryName());
     }
 
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {

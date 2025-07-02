@@ -37,7 +37,7 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
     private static final String FIELD_NAME = "fieldName";
     private static final String VALUE = "value";
     private static final String QUERY_NAME = "match_query";
-    private static final float BOOST = 2.0f;
+    private static final float BOOST = 5.0f;
 
     @Before
     public void setup() {

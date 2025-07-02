@@ -65,7 +65,7 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
     }
 
     public void testKnnQueryWithVectorBuilderIsInterceptedAndRewrittenWithBoostAndQueryName() throws IOException {
-        float BOOST = 2.0f;
+        float BOOST = 5.0f;
         String QUERY_NAME = "knn_query";
 
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
@@ -81,10 +81,12 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         testRewrittenInferenceQuery(context, original);
         QueryBuilder rewritten = original.rewrite(context);
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) nestedQueryBuilder.query();
-        assertEquals(BOOST, knnVectorQueryBuilder.boost(), 0.0f);
-        assertEquals(QUERY_NAME, knnVectorQueryBuilder.queryName());
+        assertEquals(BOOST, knnVectorQueryBuilder.boost(), 5.0f);
+        assertNull(knnVectorQueryBuilder.queryName());
     }
 
     public void testKnnWithQueryBuilderWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {

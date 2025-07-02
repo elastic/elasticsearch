@@ -88,7 +88,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
             @Override
             public Block[] next() {
-                return new Block[] {toAdd.next()};
+                return new Block[] { toAdd.next() };
             }
 
             @Override

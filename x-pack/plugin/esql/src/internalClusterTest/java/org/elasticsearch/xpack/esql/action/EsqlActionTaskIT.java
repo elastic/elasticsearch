@@ -134,7 +134,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                             oStatus.readersBuilt(),
                             matchesMap().entry("pause_me:column_at_a_time:ScriptLongs", greaterThanOrEqualTo(1))
                         );
-                        assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
+                        assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(1));
+                        assertThat(oStatus.pagesEmitted(), greaterThanOrEqualTo(1));
                         assertThat(oStatus.valuesLoaded(), greaterThanOrEqualTo(1L));
                         valuesSourceReaders++;
                         continue;

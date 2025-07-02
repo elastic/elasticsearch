@@ -3,8 +3,7 @@
   "type" : "operator",
   "operator" : "IS NULL",
   "name" : "is_null",
-  "description" : "Returns `true` if the value is `NULL`, `false` otherwise.",
-  "note" : "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
+  "description" : "Use `IS NULL` to filter data based on whether the field exists or not.",
   "signatures" : [
     {
       "params" : [
@@ -12,7 +11,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -24,7 +23,7 @@
           "name" : "field",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -36,43 +35,7 @@
           "name" : "field",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "counter_double",
-          "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "counter_integer",
-          "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
-          "type" : "counter_long",
-          "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -84,7 +47,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -96,7 +59,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -108,7 +71,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -120,7 +83,7 @@
           "name" : "field",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -132,7 +95,7 @@
           "name" : "field",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -144,7 +107,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -156,7 +119,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -168,7 +131,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -180,7 +143,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -192,7 +155,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -204,7 +167,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -216,12 +179,15 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
       "returnType" : "boolean"
     }
+  ],
+  "examples" : [
+    "FROM employees\n| WHERE birth_date IS NULL"
   ],
   "preview" : false,
   "snapshot_only" : false

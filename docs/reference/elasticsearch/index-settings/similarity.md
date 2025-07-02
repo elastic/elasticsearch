@@ -2,6 +2,9 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-similarity.html
 navigation_title: Similarity
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Similarity settings [index-modules-similarity]

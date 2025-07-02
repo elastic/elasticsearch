@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-index-sorting-conjunctions.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Use index sorting to speed up conjunctions [index-modules-index-sorting-conjunctions]

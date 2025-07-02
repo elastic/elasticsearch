@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.inference.embedding.DenseVectorEmbedding;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -138,6 +139,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -516,6 +518,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEval(p, childrenOutput);
             }
 
+            if (plan instanceof DenseVectorEmbedding dve) {
+                return resolveDenseVectorEmbedding(dve, childrenOutput);
+            }
+
             if (plan instanceof Enrich p) {
                 return resolveEnrich(p, childrenOutput);
             }
@@ -818,6 +824,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
+        }
+
+        private LogicalPlan resolveDenseVectorEmbedding(DenseVectorEmbedding p, List<Attribute> childrenOutput) {
+            // Resolve the input expression
+            Expression input = p.input();
+            if (input.resolved() == false) {
+                input = input.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            // Resolve the target field (similar to Completion)
+            Attribute targetField = p.embeddingField();
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), ua.name(), DENSE_VECTOR);
+            }
+
+            // Create a new DenseVectorEmbedding with resolved expressions
+            // Only create a new instance if something changed to avoid unnecessary object creation
+            if (input != p.input() || targetField != p.embeddingField()) {
+                return new DenseVectorEmbedding(
+                    p.source(),
+                    p.child(),
+                    p.inferenceId(),
+                    input,
+                    targetField
+                );
+            }
+
+            return p;
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {

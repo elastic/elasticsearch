@@ -42,6 +42,7 @@ record CmdLineArgs(
     int hnswM,
     int hnswEfConstruction,
     int searchThreads,
+    int numSearchers,
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
@@ -64,6 +65,7 @@ record CmdLineArgs(
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
+    static final ParseField NUM_SEARCHERS_FIELD = new ParseField("num_searchers");
     static final ParseField SEARCH_THREADS_FIELD = new ParseField("search_threads");
     static final ParseField INDEX_THREADS_FIELD = new ParseField("index_threads");
     static final ParseField REINDEX_FIELD = new ParseField("reindex");
@@ -95,6 +97,7 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
         PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
+        PARSER.declareInt(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
         PARSER.declareInt(Builder::setIndexThreads, INDEX_THREADS_FIELD);
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
@@ -125,6 +128,7 @@ record CmdLineArgs(
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
         builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
         builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+        builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
         builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
         builder.field(REINDEX_FIELD.getPreferredName(), reindex);
         builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
@@ -154,6 +158,7 @@ record CmdLineArgs(
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
         private int searchThreads = 1;
+        private int numSearchers = 1;
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
@@ -228,6 +233,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setNumSearchers(int numSearchers) {
+            this.numSearchers = numSearchers;
+            return this;
+        }
+
         public Builder setIndexThreads(int indexThreads) {
             this.indexThreads = indexThreads;
             return this;
@@ -291,6 +301,7 @@ record CmdLineArgs(
                 hnswM,
                 hnswEfConstruction,
                 searchThreads,
+                numSearchers,
                 indexThreads,
                 reindex,
                 forceMerge,

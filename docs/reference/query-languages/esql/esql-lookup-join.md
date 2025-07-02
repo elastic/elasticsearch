@@ -155,7 +155,7 @@ To use `LOOKUP JOIN`, the following requirements must be met:
 
 To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
 
-The list of unsupported fields includes all types not supported by {{esql}} as described in the [Unsupported Field Types documentation](/reference/query-languages/esql/limitations.md#_unsupported_types).
+The list of unsupported field types includes all types not supported by {{esql}} as described in the [Unsupported Field Types documentation](/reference/query-languages/esql/limitations.md#_unsupported_types).
 as well as the following: `VERSION`, `UNSIGNED_LONG`, all spatial types like `GEO_POINT`, `GEO_SHAPE`, and all
 temporal periods like `DURATION` and `PERIOD`.
 

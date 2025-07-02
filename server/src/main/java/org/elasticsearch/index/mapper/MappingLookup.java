@@ -386,7 +386,6 @@ public final class MappingLookup {
 
     public Set<String> syntheticVectorFields() {
         return syntheticVectorFields;
-
     }
 
     public NestedLookup nestedLookup() {

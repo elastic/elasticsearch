@@ -115,7 +115,7 @@ class NodeServiceProvider {
         ClusterSettings clusterSettings,
         TaskManager taskManager,
         Tracer tracer,
-        String initialNodeId
+        String nodeId
     ) {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
     }

@@ -101,7 +101,7 @@ public class TaskManager implements ClusterStateApplier {
         this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
     }
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, @Nullable String nodeId) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);

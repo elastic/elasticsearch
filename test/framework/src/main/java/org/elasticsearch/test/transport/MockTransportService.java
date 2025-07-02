@@ -188,13 +188,13 @@ public class MockTransportService extends TransportService {
         Set<String> taskHeaders,
         TransportInterceptor interceptor
     ) {
-        String initialNodeId = UUIDs.randomBase64UUID();
+        String nodeId = UUIDs.randomBase64UUID();
         return new MockTransportService(
             settings,
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            boundAddress -> DiscoveryNodeUtils.builder(initialNodeId)
+            boundAddress -> DiscoveryNodeUtils.builder(nodeId)
                 .name(Node.NODE_NAME_SETTING.get(settings))
                 .address(boundAddress.publishAddress())
                 .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
@@ -202,7 +202,7 @@ public class MockTransportService extends TransportService {
                 .version(version)
                 .build(),
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, initialNodeId)
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId)
         );
     }
 
@@ -231,18 +231,15 @@ public class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         @Nullable ClusterSettings clusterSettings
     ) {
-        String initialNodeId = settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID());
+        String nodeId = settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID());
         return new MockTransportService(
             settings,
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            (boundAddress) -> DiscoveryNodeUtils.builder(initialNodeId)
-                .applySettings(settings)
-                .address(boundAddress.publishAddress())
-                .build(),
+            (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).applySettings(settings).address(boundAddress.publishAddress()).build(),
             clusterSettings,
-            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, initialNodeId)
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, nodeId)
         );
     }
 
@@ -261,7 +258,7 @@ public class MockTransportService extends TransportService {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        @Nullable String initialNodeId
+        String nodeId
     ) {
         this(
             settings,
@@ -270,7 +267,7 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, initialNodeId)
+            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId)
         );
     }
 
@@ -281,7 +278,7 @@ public class MockTransportService extends TransportService {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        String initialNodeId
+        String nodeId
     ) {
         this(
             settings,
@@ -290,7 +287,7 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, initialNodeId)
+            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, nodeId)
         );
     }
 
@@ -340,9 +337,9 @@ public class MockTransportService extends TransportService {
         ThreadPool threadPool,
         Set<String> taskHeaders,
         Tracer tracer,
-        @Nullable String initialNodeId
+        String nodeId
     ) {
-        TaskManager mockTaskManager = createMockTaskManager(settings, threadPool, taskHeaders, tracer, initialNodeId);
+        TaskManager mockTaskManager = createMockTaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
         return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(mockTaskManager) : mockTaskManager;
     }
 
@@ -351,12 +348,12 @@ public class MockTransportService extends TransportService {
         ThreadPool threadPool,
         Set<String> taskHeaders,
         Tracer tracer,
-        @Nullable String initialNodeId
+        String nodeId
     ) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return new TaskManager(settings, threadPool, taskHeaders, tracer, initialNodeId);
+            return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
         }
     }
 

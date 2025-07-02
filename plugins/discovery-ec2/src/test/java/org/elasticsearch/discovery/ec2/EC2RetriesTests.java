@@ -47,7 +47,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(
+        return MockTransportService.createMockTransportService(
             Settings.EMPTY,
             new Netty4Transport(
                 Settings.EMPTY,
@@ -61,8 +61,6 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             ),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null,
-            null,
             null
         );
     }

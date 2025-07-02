@@ -19,6 +19,7 @@ import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -85,7 +86,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             null,
             null,
-            null
+            UUIDs.randomBase64UUID()
         );
     }
 

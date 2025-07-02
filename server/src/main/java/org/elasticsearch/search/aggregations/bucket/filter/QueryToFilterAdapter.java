@@ -218,7 +218,7 @@ public class QueryToFilterAdapter {
             return 0;
         }
         CancellableBulkScorer cancellableScorer = new CancellableBulkScorer(scorer, checkCancelled);
-        scorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
+        cancellableScorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
         return counter.readAndReset(ctx);
     }
 

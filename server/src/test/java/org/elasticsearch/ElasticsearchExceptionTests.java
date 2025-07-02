@@ -1630,15 +1630,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
 
-public void testHttpHeaders() throws IOException {
-    var e = new ElasticsearchException("some exception");
-    e.addHttpHeader("My-Header", "value");
-    assertThat(e.getHttpHeaderKeys(), hasItem("My-Header"));
-    assertThat(e.getHttpHeader("My-Header"), equalTo(List.of("value")));
-    assertThat(e.getHttpHeaders(), hasEntry("My-Header", List.of("value")));
+    public void testHttpHeaders() throws IOException {
+        var e = new ElasticsearchException("some exception");
+        e.addHttpHeader("My-Header", "value");
+        assertThat(e.getHttpHeaderKeys(), hasItem("My-Header"));
+        assertThat(e.getHttpHeader("My-Header"), equalTo(List.of("value")));
+        assertThat(e.getHttpHeaders(), hasEntry("My-Header", List.of("value")));
 
-    // ensure http headers are not written to response body
-}
+        // ensure http headers are not written to response body
+    }
 
     public void testNoExceptionTypeHeaderOn4xx() throws IOException {
         var e = new Exception4xx("some exception");
@@ -1649,13 +1649,13 @@ public void testHttpHeaders() throws IOException {
         e.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String expected = """
-            {
-              "type": "exception4xx",
-=======
-              "type": "exception",
->>>>>>> main
-              "reason": "some exception"
-            }""";
+                        {
+                          "type": "exception4xx",
+            =======
+                          "type": "exception",
+            >>>>>>> main
+                          "reason": "some exception"
+                        }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
 }

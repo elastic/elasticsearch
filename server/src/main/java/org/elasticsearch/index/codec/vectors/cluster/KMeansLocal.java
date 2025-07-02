@@ -82,7 +82,7 @@ class KMeansLocal {
         float[][] centroids,
         float[][] nextCentroids,
         int[] assignments,
-        List<int[]> neighborhoods
+        List<NeighborHood> neighborhoods
     ) throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
@@ -124,11 +124,20 @@ class KMeansLocal {
         return changed;
     }
 
-    private static int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, int[] centroidOffsets) {
+    private static int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, NeighborHood neighborhood) {
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
-        for (int offset : centroidOffsets) {
+        for (int i = 0; i < neighborhood.neighbors.length; i++) {
+            int offset = neighborhood.neighbors[i];
+            // float score = neighborhood.scores[i];
+            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
+            if (minDsq < neighborhood.maxIntraDistance) {
+                // if the distance found is smaller than the maximum intra-cluster distance
+                // we don't consider it for further re-assignment
+                return bestCentroidOffset;
+            }
+            // compute the distance to the centroid
             float dsq = VectorUtil.squareDistance(vector, centroids[offset]);
             if (dsq < minDsq) {
                 minDsq = dsq;
@@ -151,7 +160,7 @@ class KMeansLocal {
         return bestCentroidOffset;
     }
 
-    private void computeNeighborhoods(float[][] centers, List<int[]> neighborhoods, int clustersPerNeighborhood) {
+    private void computeNeighborhoods(float[][] centers, List<NeighborHood> neighborhoods, int clustersPerNeighborhood) {
         int k = neighborhoods.size();
 
         if (k == 0 || clustersPerNeighborhood <= 0) {
@@ -174,12 +183,14 @@ class KMeansLocal {
             NeighborQueue queue = neighborQueues.get(i);
             int neighborCount = queue.size();
             int[] neighbors = new int[neighborCount];
-            queue.consumeNodes(neighbors);
-            neighborhoods.set(i, neighbors);
+            float[] scores = new float[clustersPerNeighborhood];
+            float maxIntraDistance = queue.consumeNodesWithWorstScore(neighbors);
+            NeighborHood neighborHood = new NeighborHood(neighbors, maxIntraDistance);
+            neighborhoods.set(i, neighborHood);
         }
     }
 
-    private int[] assignSpilled(FloatVectorValues vectors, List<int[]> neighborhoods, float[][] centroids, int[] assignments)
+    private int[] assignSpilled(FloatVectorValues vectors, List<NeighborHood> neighborhoods, float[][] centroids, int[] assignments)
         throws IOException {
         // SOAR uses an adjusted distance for assigning spilled documents which is
         // given by:
@@ -213,7 +224,7 @@ class KMeansLocal {
             int bestAssignment = -1;
             float minSoar = Float.MAX_VALUE;
             assert neighborhoods.get(currAssignment) != null;
-            for (int neighbor : neighborhoods.get(currAssignment)) {
+            for (int neighbor : neighborhoods.get(currAssignment).neighbors()) {
                 if (neighbor == currAssignment) {
                     continue;
                 }
@@ -250,6 +261,8 @@ class KMeansLocal {
         cluster(vectors, kMeansIntermediate, false);
     }
 
+    record NeighborHood(int[] neighbors, float maxIntraDistance) {}
+
     /**
      * cluster using a lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
      * this also is used to generate the neighborhood aware additional (SOAR) assignments
@@ -266,7 +279,7 @@ class KMeansLocal {
     void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, boolean neighborAware) throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
 
-        List<int[]> neighborhoods = null;
+        List<NeighborHood> neighborhoods = null;
         if (neighborAware) {
             int k = centroids.length;
             neighborhoods = new ArrayList<>(k);
@@ -284,7 +297,8 @@ class KMeansLocal {
         }
     }
 
-    private void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, List<int[]> neighborhoods) throws IOException {
+    private void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, List<NeighborHood> neighborhoods)
+        throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();

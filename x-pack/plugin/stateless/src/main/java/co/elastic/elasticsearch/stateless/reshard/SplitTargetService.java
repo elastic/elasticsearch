@@ -23,10 +23,10 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,7 +46,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SplitTargetService {
-
     public static final Setting<TimeValue> RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT = Setting.positiveTimeSetting(
         "reshard.split.search_shards_online_timeout",
         TimeValue.timeValueSeconds(30),
@@ -57,13 +56,16 @@ public class SplitTargetService {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final ReshardIndexService reshardIndexService;
     private final TimeValue searchShardsOnlineTimeout;
+
     private final ConcurrentHashMap<IndexShard, Split> onGoingSplits = new ConcurrentHashMap<>();
 
-    public SplitTargetService(Settings settings, Client client, ClusterService clusterService) {
+    public SplitTargetService(Settings settings, Client client, ClusterService clusterService, ReshardIndexService reshardIndexService) {
         this.client = client;
         this.clusterService = clusterService;
         this.searchShardsOnlineTimeout = RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.get(settings);
+        this.reshardIndexService = reshardIndexService;
     }
 
     public void startSplitRecovery(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> listener) {
@@ -85,7 +87,11 @@ public class SplitTargetService {
         }
     }
 
-    public void afterIndexShardSplitRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+    public void afterSplitTargetIndexShardRecovery(
+        IndexShard indexShard,
+        IndexReshardingMetadata reshardingMetadata,
+        ActionListener<Void> listener
+    ) {
         ShardId shardId = indexShard.shardId();
         Split split = onGoingSplits.get(indexShard);
         if (split == null) {
@@ -93,18 +99,24 @@ public class SplitTargetService {
             return;
         }
 
-        ClusterState state = clusterService.state();
-        final ProjectState projectState = state.projectState(state.metadata().projectFor(shardId.getIndex()).id());
-        final IndexReshardingMetadata reshardingMetadata = projectState.metadata().getIndexSafe(shardId.getIndex()).getReshardingMetadata();
-
         switch (reshardingMetadata.getSplit().getTargetShardState(shardId.id())) {
             case CLONE -> throw new IllegalStateException("Cannot make it here is still CLONE");
-            case HANDOFF -> moveToSplitStep(indexShard, split);
-            case SPLIT -> moveToDoneStep(indexShard, split);
-            case DONE -> onGoingSplits.remove(indexShard);
+            case HANDOFF -> {
+                moveToSplitStep(indexShard, split);
+                listener.onResponse(null);
+            }
+            // TODO this is not really correct.
+            // This will block target shard recovery until we delete unowned documents and transition to DONE.
+            // It is not necessary and in SPLIT target shard is serving indexing traffic so this delay
+            // hurts.
+            // We should not block on this but also we need to make sure this eventually happens somehow.
+            // For simplicity it is done inline now.
+            case SPLIT -> moveToDoneStep(indexShard, split, listener);
+            case DONE -> {
+                onGoingSplits.remove(indexShard);
+                listener.onResponse(null);
+            }
         }
-
-        listener.onResponse(null);
     }
 
     private void moveToSplitStep(IndexShard indexShard, Split split) {
@@ -148,7 +160,7 @@ public class SplitTargetService {
                     new ActionListener<>() {
                         @Override
                         public void onResponse(ActionResponse actionResponse) {
-                            moveToDoneStep(indexShard, split);
+                            clusterService.threadPool().generic().submit(() -> moveToDoneStep(indexShard, split, ActionListener.noop()));
                         }
 
                         @Override
@@ -162,25 +174,24 @@ public class SplitTargetService {
         }, newState -> searchShardsOnlineOrNewPrimaryTerm(newState, shardId, split.targetPrimaryTerm()));
     }
 
-    private void moveToDoneStep(IndexShard indexShard, Split split) {
-        // TODO: RUN DELETE-BY-QUERY BEFORE CHANGING STATE
-        ChangeState changeState = new ChangeState(
-            indexShard,
-            split,
-            IndexReshardingState.Split.TargetShardState.DONE,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(ActionResponse actionResponse) {
-                    onGoingSplits.remove(indexShard);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.DONE, e);
-                }
-            }
-        );
-        changeState.run();
+    private void moveToDoneStep(IndexShard indexShard, Split split, ActionListener<Void> listener) {
+        SubscribableListener.<Void>newForked(
+            forkedListener -> ActionListener.run(
+                forkedListener,
+                runListener -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), runListener)
+            )
+        ).<Void>andThen(l -> {
+            var changeStateToDone = new ChangeState(
+                indexShard,
+                split,
+                IndexReshardingState.Split.TargetShardState.DONE,
+                l.map(ignored -> null)
+            );
+            changeStateToDone.run();
+        }).andThenAccept(ignored -> onGoingSplits.remove(indexShard)).addListener(listener.delegateResponse((l, e) -> {
+            stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.DONE, e);
+            l.onFailure(e);
+        }));
     }
 
     private void stateError(IndexShard shard, Split split, IndexReshardingState.Split.TargetShardState state, Exception e) {

@@ -158,6 +158,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         final int numDocs = randomIntBetween(10, 100);
         indexDocs(indexName, numDocs);
+        int totalNumberOfDocumentsInIndex = numDocs;
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) numDocs));
 
@@ -192,11 +193,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).actionGet(
             SAFE_AWAIT_TIMEOUT
         );
-
-        // Logic to copy existing data to new shard exists
-        // but the logic to delete data that does not belong to the shard does not.
-        // So at this point every shard contains a full copy of documents from initial shard.
-        int totalNumberOfDocumentsInIndex = multiple * numDocs;
 
         // index documents until all the new shards have received at least one document
         final int[] docsPerShard = new int[multiple];
@@ -836,19 +832,19 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             IndexReshardingState.Split.TargetShardState.SPLIT,
             IndexReshardingState.Split.TargetShardState.DONE
         );
-        CountDownLatch handoffAttemptedLatch = new CountDownLatch(switch (targetShardStateToDisrupt) {
+        CountDownLatch stateChangeAttemptedLatch = new CountDownLatch(switch (targetShardStateToDisrupt) {
             case HANDOFF -> 1;
             case SPLIT -> 2;
             case DONE -> 3;
             case CLONE -> throw new AssertionError();
         });
-        CountDownLatch handoffLatch = new CountDownLatch(1);
+        CountDownLatch proceedAfterShardFailure = new CountDownLatch(1);
         mockTransportService.addSendBehavior((connection, requestId, action, request1, options) -> {
-            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && handoffAttemptedLatch.getCount() != 0) {
+            if (TransportUpdateSplitStateAction.TYPE.name().equals(action) && stateChangeAttemptedLatch.getCount() != 0) {
                 try {
-                    handoffAttemptedLatch.countDown();
-                    if (handoffAttemptedLatch.getCount() == 0) {
-                        handoffLatch.await();
+                    stateChangeAttemptedLatch.countDown();
+                    if (stateChangeAttemptedLatch.getCount() == 0) {
+                        proceedAfterShardFailure.await();
                     }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
@@ -860,7 +856,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         ReshardIndexRequest request = new ReshardIndexRequest(indexName, 2);
         ActionFuture<ReshardIndexResponse> reshard = client(indexNode).execute(TransportReshardAction.TYPE, request);
 
-        handoffAttemptedLatch.await();
+        stateChangeAttemptedLatch.await();
 
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -881,10 +877,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 1), greaterThan(currentPrimaryTerm)));
 
         MockLog.assertThatLogger(() -> {
-            // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
+            // When we release the handoff block the recovery will progress. However, it will fail because the target shard primary term
             // has
             // advanced
-            handoffLatch.countDown();
+            proceedAfterShardFailure.countDown();
             reshard.actionGet();
         },
             ReshardIndexService.class,

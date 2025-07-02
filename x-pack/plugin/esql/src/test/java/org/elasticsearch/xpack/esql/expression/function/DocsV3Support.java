@@ -890,6 +890,7 @@ public abstract class DocsV3Support {
             this.command = command;
             this.args = args;
             this.licenseState = null;
+            this.observabilityTier = null;
         }
 
         @Override

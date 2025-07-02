@@ -201,7 +201,7 @@ fails when alias or pattern resolves to multiple:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "multiple resolutions for lookup index [test-lookup-alias-pattern-multiple]" }
+  - contains: { error.reason: "Lookup Join requires a single lookup mode index; [test-lookup-alias-pattern-multiple] resolves to multiple indices" }
 
 ---
 alias-pattern-single:

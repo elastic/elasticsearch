@@ -160,7 +160,7 @@ fails with non-lookup index:
       catch: "bad_request"
 
   - match: { error.type: "verification_exception" }
-  - contains: { error.reason: "invalid [test] resolution in lookup mode to an index in [standard] mode" }
+  - contains: { error.reason: "Lookup Join requires a single lookup mode index; [test] resolves to [test] in [standard] mode" }
 
 ---
 pattern-multiple:

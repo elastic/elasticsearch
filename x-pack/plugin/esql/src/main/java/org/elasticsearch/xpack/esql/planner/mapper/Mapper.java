@@ -137,7 +137,7 @@ public class Mapper {
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator
-            if (isPipelineBreaker(unary) == false) {
+            if (unary instanceof PipelineBreaker == false) {
                 return new FragmentExec(unary);
             }
         }
@@ -251,10 +251,6 @@ public class Mapper {
 
     private PhysicalPlan mapFork(Fork fork) {
         return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
-    }
-
-    public static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof PipelineBreaker;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

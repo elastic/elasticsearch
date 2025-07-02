@@ -481,12 +481,20 @@ public class EsqlSession {
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
             if (newIndexResolution.get().indexNameWithModes().size() > 1) {
-                throw new VerificationException("multiple resolutions for lookup index [" + index + "]");
-            }
-            var indexMode = newIndexResolution.get().indexNameWithModes().entrySet().iterator().next().getValue();
-            if (indexMode != IndexMode.LOOKUP) {
                 throw new VerificationException(
-                    "invalid [" + index + "] resolution in lookup mode to an index in [" + indexMode + "] mode"
+                    "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
+                );
+            }
+            var indexModeEntry = newIndexResolution.get().indexNameWithModes().entrySet().iterator().next();
+            if (indexModeEntry.getValue() != IndexMode.LOOKUP) {
+                throw new VerificationException(
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
+                        + indexModeEntry.getKey()
+                        + "] in ["
+                        + indexModeEntry.getValue()
+                        + "] mode"
                 );
             }
             return result.addLookupIndexResolution(index, newIndexResolution);
@@ -500,12 +508,13 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "invalid ["
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to ["
                         + indexName
-                        + "] resolution in lookup mode to an index in ["
+                        + "] in ["
                         + indexMode
-                        + "] mode "
-                        + EsqlCCSUtils.inClusterName(clusterAlias)
+                        + "] mode"
                 );
             }
             // Each cluster should have only one resolution for the lookup index
@@ -513,7 +522,10 @@ public class EsqlSession {
                 skipClusterOrError(
                     clusterAlias,
                     executionInfo,
-                    "multiple resolutions for lookup index [" + index + "] " + EsqlCCSUtils.inClusterName(clusterAlias)
+                    "Lookup Join requires a single lookup mode index; ["
+                        + index
+                        + "] resolves to multiple indices "
+                        + EsqlCCSUtils.inClusterName(clusterAlias)
                 );
             } else {
                 clustersWithResolvedIndices.put(clusterAlias, indexName);
@@ -572,7 +584,7 @@ public class EsqlSession {
             if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 // No need to check local, obviously
                 var connection = remoteClusterService.getConnection(clusterAlias);
-                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_MANY_INDICES)) {
+                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_CCS)) {
                     skipClusterOrError(
                         clusterAlias,
                         executionInfo,

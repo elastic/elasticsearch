@@ -15,11 +15,11 @@ To use the `forcemerge` action in the `hot` phase, the `rollover` action **must*
 :name: ilm-forcemerge-performance
 
 Force merge is a resource-intensive operation. If too many force merges are triggered at once, it can negatively impact your cluster. For example, this can happen when you 
-* modify an existing {{ilm-init}} policy's phase `min_age` such that indices trigger into force-merging phase faster.
+* modify an existing {{ilm-init}} policy's phase `min_age`, causing indices to trigger the force merge at a faster rate.
 * apply an {{ilm-init}} policy that includes a force merge action to existing indices. If the indices meet the `min_age` criteria, they can immediately proceed through multiple actions. You can prevent this by increasing the `min_age` or setting `index.lifecycle.origination_date` to change how the index age is calculated.
 * run the [{{ilm-init}} Move Step API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-move-to-step) against multiple indices.
 
-If you experience a force merge task queue backlog, you might need to increase the size of the force merge threadpool so indices can be force merged in parallel. To do this, configure the `thread_pool.force_merge.size` [cluster setting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-get-settings). 
+If you experience a force merge task queue backlog, you might need to increase the size of the force merge threadpool so indices can be force merged in parallel. To do this, configure the `thread_pool.force_merge.size` [cluster setting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-get-settings).
 
 ::::{important}
 Note that `thread_pool.force_merge.size` is an advanced setting. Adjusting it can cause cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.

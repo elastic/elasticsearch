@@ -629,7 +629,9 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
         }
         for (Operator op : operators) {
-            assertThat(((ValuesSourceReaderOperator) op).status().pagesProcessed(), equalTo(input.size()));
+            ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
         }
         assertDriverContext(driverContext);
     }
@@ -717,7 +719,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         drive(operators, input.iterator(), driverContext);
         for (int i = 0; i < cases.size(); i++) {
             ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) operators.get(i).status();
-            assertThat(status.pagesProcessed(), equalTo(input.size()));
+            assertThat(status.pagesReceived(), equalTo(input.size()));
+            assertThat(status.pagesEmitted(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
             fc.checkReaders.check(fc.info.name(), allInOnePage, input.size(), totalSize, status.readersBuilt());
         }

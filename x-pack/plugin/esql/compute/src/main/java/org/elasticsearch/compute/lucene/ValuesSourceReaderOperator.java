@@ -26,9 +26,11 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -49,12 +51,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
+import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
  * and outputs them to a new column.
  */
-public class ValuesSourceReaderOperator implements Operator {
+public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
     /**
      * Minimum number of documents for which it is more efficient to use a
      * sequential stored field reader when reading stored fields.
@@ -118,32 +121,6 @@ public class ValuesSourceReaderOperator implements Operator {
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     private long valuesLoaded;
 
-    private Load load;
-
-    private boolean finished = false;
-
-    /**
-     * Number of milliseconds this operation has run.
-     */
-    private long processNanos;
-
-    /**
-     * Count of pages that have been received by this operator.
-     */
-    private int pagesReceived;
-    /**
-     * Count of pages that have been emitted by this operator.
-     */
-    private int pagesEmitted;
-    /**
-     * Count of rows this operator has received.
-     */
-    private long rowsReceived;
-    /**
-     * Count of rows this operator has emitted.
-     */
-    private long rowsEmitted;
-
     private int lastShard = -1;
     private int lastSegment = -1;
 
@@ -160,71 +137,9 @@ public class ValuesSourceReaderOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return load == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        assert load == null : "has pending input page";
-        if (page == null || page.getPositionCount() == 0) {
-            return;
-        }
+    protected ReleasableIterator<Page> receive(Page page) {
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        load = docVector.singleSegment() ? new LoadFromSingle(page, docVector) : new LoadFromMany(page, docVector);
-        pagesReceived++;
-        rowsReceived += page.getPositionCount();
-    }
-
-    @Override
-    public final void finish() {
-        finished = true;
-    }
-
-    @Override
-    public final boolean isFinished() {
-        return finished && load == null;
-    }
-
-    @Override
-    public final Page getOutput() {
-        if (load == null) {
-            return null;
-        }
-        long start = System.nanoTime();
-
-        Page p = load();
-        pagesEmitted++;
-        rowsEmitted += p.getPositionCount();
-        processNanos += System.nanoTime() - start;
-        load = null;
-        return p;
-    }
-
-    Page load() {
-        Block[] target = new Block[fields.length];
-        boolean success = false;
-        try {
-            load.load(target);
-            success = true;
-            for (Block b : target) {
-                valuesLoaded += b.getTotalValueCount();
-            }
-            return load.page().appendBlocks(target);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(target);
-            }
-        }
-    }
-
-    @Override
-    public void close() {
-        if (load != null) {
-            Releasables.closeExpectNoException(load);
-        }
+        return appendBlockArrays(page, docVector.singleSegment() ? new LoadFromSingle(docVector) : new LoadFromMany(docVector));
     }
 
     private void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -267,32 +182,58 @@ public class ValuesSourceReaderOperator implements Operator {
         return true;
     }
 
-    interface Load extends Releasable {
-        Page page();
+    abstract class Load implements ReleasableIterator<Block[]> {
+        protected final DocVector docs;
+        private int offset;
 
-        void load(Block[] target) throws IOException;
+        Load(DocVector docs) {
+            this.docs = docs;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return offset < docs.getPositionCount();
+        }
+
+        @Override
+        public Block[] next() {
+            Block[] target = new Block[fields.length];
+            boolean success = false;
+            try {
+                load(target);
+                success = true;
+                for (Block b : target) {
+                    valuesLoaded += b.getTotalValueCount();
+                }
+                offset += target[0].getPositionCount();
+                return target;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(target);
+                }
+            }
+        }
+
+        protected abstract void load(Block[] target) throws IOException;
+
+        @Override
+        public void close() {}
     }
 
-    private class LoadFromSingle implements Load {
-        private final Page page;
-        private final DocVector docs;
+    private class LoadFromSingle extends Load {
         private final int shard;
         private final int segment;
 
-        private LoadFromSingle(Page page, DocVector docs) {
-            this.page = page;
-            this.docs = docs;
+        private LoadFromSingle(DocVector docs) {
+            super(docs);
             this.shard = docs.shards().getInt(0);
             this.segment = docs.segments().getInt(0);
         }
 
         @Override
-        public Page page() {
-            return page;
-        }
-
-        @Override
-        public void load(Block[] target) throws IOException {
+        protected void load(Block[] target) throws IOException {
             if (docs.singleSegmentNonDecreasing()) {
                 loadFromSingleLeaf(target, new BlockLoader.Docs() {
                     @Override
@@ -395,41 +336,24 @@ public class ValuesSourceReaderOperator implements Operator {
                 Releasables.close(rowStrideReaders);
             }
         }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(page::releaseBlocks);
-        }
     }
 
-    private class LoadFromMany implements Load {
-        private final Page page;
-        private final IntVector shards;
-        private final IntVector segments;
-        private final IntVector docs;
+    private class LoadFromMany extends Load {
         private final int[] forwards;
         private final int[] backwards;
         private final BlockLoader.RowStrideReader[] rowStride;
 
         private BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
-        LoadFromMany(Page page, DocVector docVector) {
-            this.page = page;
-            shards = docVector.shards();
-            segments = docVector.segments();
-            docs = docVector.docs();
-            forwards = docVector.shardSegmentDocMapForwards();
-            backwards = docVector.shardSegmentDocMapBackwards();
+        LoadFromMany(DocVector docs) {
+            super(docs);
+            forwards = docs.shardSegmentDocMapForwards();
+            backwards = docs.shardSegmentDocMapBackwards();
             rowStride = new BlockLoader.RowStrideReader[fields.length];
         }
 
         @Override
-        public Page page() {
-            return page;
-        }
-
-        @Override
-        public void load(Block[] target) throws IOException {
+        protected void load(Block[] target) throws IOException {
             try (Run run = new Run(target)) {
                 run.run();
             }
@@ -462,9 +386,9 @@ public class ValuesSourceReaderOperator implements Operator {
                 }
                 try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount())) {
                     int p = forwards[0];
-                    int shard = shards.getInt(p);
-                    int segment = segments.getInt(p);
-                    int firstDoc = docs.getInt(p);
+                    int shard = docs.shards().getInt(p);
+                    int segment = docs.segments().getInt(p);
+                    int firstDoc = docs.docs().getInt(p);
                     positionFieldWork(shard, segment, firstDoc);
                     LeafReaderContext ctx = ctx(shard, segment);
                     fieldsMoved(ctx, shard);
@@ -472,15 +396,15 @@ public class ValuesSourceReaderOperator implements Operator {
                     read(firstDoc, shard);
                     for (int i = 1; i < forwards.length; i++) {
                         p = forwards[i];
-                        shard = shards.getInt(p);
-                        segment = segments.getInt(p);
+                        shard = docs.shards().getInt(p);
+                        segment = docs.segments().getInt(p);
                         boolean changedSegment = positionFieldWorkDocGuaranteedAscending(shard, segment);
                         if (changedSegment) {
                             ctx = ctx(shard, segment);
                             fieldsMoved(ctx, shard);
                         }
                         verifyBuilders(loaderBlockFactory, shard);
-                        read(docs.getInt(p), shard);
+                        read(docs.docs().getInt(p), shard);
                     }
                 }
                 for (int f = 0; f < target.length; f++) {
@@ -543,11 +467,6 @@ public class ValuesSourceReaderOperator implements Operator {
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 trackStoredFields(storedFieldsSpec, false);
             }
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(page::releaseBlocks);
         }
     }
 
@@ -673,9 +592,8 @@ public class ValuesSourceReaderOperator implements Operator {
     }
 
     @Override
-    public Status status() {
-        // NOCOMMIT switch status to emit pagesEmitted
-        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesReceived, rowsReceived, rowsEmitted, valuesLoaded);
+    protected Status status(long processNanos, int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) {
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, valuesLoaded);
     }
 
     /**
@@ -712,11 +630,11 @@ public class ValuesSourceReaderOperator implements Operator {
         return fields[field].info.name + "[" + loader + "]: " + block;
     }
 
-    public static class Status extends AbstractPageMappingOperator.Status {
+    public static class Status extends AbstractPageMappingToIteratorOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "values_source_reader",
-            Status::new
+            Status::readFrom
         );
 
         private final Map<String, Integer> readersBuilt;
@@ -725,25 +643,55 @@ public class ValuesSourceReaderOperator implements Operator {
         Status(
             Map<String, Integer> readersBuilt,
             long processNanos,
-            int pagesProcessed,
+            int pagesReceived,
+            int pagesEmitted,
             long rowsReceived,
             long rowsEmitted,
             long valuesLoaded
         ) {
-            super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
+            super(processNanos, pagesEmitted, pagesReceived, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
             this.valuesLoaded = valuesLoaded;
         }
 
-        Status(StreamInput in) throws IOException {
-            super(in);
-            readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-            valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+        static Status readFrom(StreamInput in) throws IOException {
+            long processNanos;
+            int pagesReceived;
+            int pagesEmitted;
+            long rowsReceived;
+            long rowsEmitted;
+            if (in.getTransportVersion().onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)) {
+                AbstractPageMappingToIteratorOperator.Status status = new AbstractPageMappingToIteratorOperator.Status(in);
+                processNanos = status.processNanos();
+                pagesReceived = status.pagesReceived();
+                pagesEmitted = status.pagesEmitted();
+                rowsReceived = status.rowsReceived();
+                rowsEmitted = status.rowsEmitted();
+            } else {
+                AbstractPageMappingOperator.Status status = new AbstractPageMappingOperator.Status(in);
+                processNanos = status.processNanos();
+                pagesReceived = status.pagesProcessed();
+                pagesEmitted = status.pagesProcessed();
+                rowsReceived = status.rowsReceived();
+                rowsEmitted = status.rowsEmitted();
+            }
+            Map<String, Integer> readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+            long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+            return new Status(readersBuilt, processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, valuesLoaded);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(ESQL_SPLIT_ON_BIG_VALUES)) {
+                super.writeTo(out);
+            } else {
+                /*
+                 * Before we knew how to split pages when reading large values
+                 * our status just contained one int for pages - just like the
+                 * superclass serialization.
+                 */
+                new AbstractPageMappingOperator.Status(processNanos(), pagesEmitted(), rowsReceived(), rowsEmitted()).writeTo(out);
+            }
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
             if (supportsValuesLoaded(out.getTransportVersion())) {
                 out.writeVLong(valuesLoaded);

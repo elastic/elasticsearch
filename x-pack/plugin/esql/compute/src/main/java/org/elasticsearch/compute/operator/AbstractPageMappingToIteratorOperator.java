@@ -65,12 +65,37 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     protected abstract ReleasableIterator<Page> receive(Page page);
 
     /**
+     * Append an {@link Iterator} of arrays of {@link Block}s to a
+     * {@link Page}, one after the other. It's required that the
+     * iterator emit as many <strong>positions</strong> as there were
+     * in the page.
+     */
+    public static ReleasableIterator<Page> appendBlockArrays(Page page, ReleasableIterator<Block[]> toAdd) {
+        return new AppendBlocksIterator(page, toAdd);
+    }
+
+    /**
      * Append an {@link Iterator} of {@link Block}s to a {@link Page}, one
      * after the other. It's required that the iterator emit as many
      * <strong>positions</strong> as there were in the page.
      */
     public static ReleasableIterator<Page> appendBlocks(Page page, ReleasableIterator<? extends Block> toAdd) {
-        return new AppendBlocksIterator(page, toAdd);
+        return appendBlockArrays(page, new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return toAdd.hasNext();
+            }
+
+            @Override
+            public Block[] next() {
+                return new Block[] {toAdd.next()};
+            }
+
+            @Override
+            public void close() {
+                toAdd.close();
+            }
+        });
     }
 
     @Override
@@ -183,7 +208,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             this.rowsEmitted = rowsEmitted;
         }
 
-        protected Status(StreamInput in) throws IOException {
+        public Status(StreamInput in) throws IOException {
             processNanos = in.readVLong();
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -284,11 +309,11 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
     private static class AppendBlocksIterator implements ReleasableIterator<Page> {
         private final Page page;
-        private final ReleasableIterator<? extends Block> next;
+        private final ReleasableIterator<Block[]> next;
 
         private int positionOffset;
 
-        protected AppendBlocksIterator(Page page, ReleasableIterator<? extends Block> next) {
+        protected AppendBlocksIterator(Page page, ReleasableIterator<Block[]> next) {
             this.page = page;
             this.next = next;
         }
@@ -305,17 +330,17 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public final Page next() {
-            Block read = next.next();
+            Block[] read = next.next();
             int start = positionOffset;
-            positionOffset += read.getPositionCount();
-            if (start == 0 && read.getPositionCount() == page.getPositionCount()) {
+            positionOffset += read[0].getPositionCount();
+            if (start == 0 && read[0].getPositionCount() == page.getPositionCount()) {
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     page.getBlock(b).incRef();
                 }
-                return page.appendBlock(read);
+                return page.appendBlocks(read);
             }
-            Block[] newBlocks = new Block[page.getBlockCount() + 1];
-            newBlocks[page.getBlockCount()] = read;
+            Block[] newBlocks = new Block[page.getBlockCount() + read.length];
+            System.arraycopy(read, 0, newBlocks, page.getBlockCount(), read.length);
             try {
                 // TODO a way to filter with a range please.
                 int[] positions = IntStream.range(start, positionOffset).toArray();

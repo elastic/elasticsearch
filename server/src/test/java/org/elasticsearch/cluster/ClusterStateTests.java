@@ -810,13 +810,6 @@ public class ClusterStateTests extends ESTestCase {
                           "project.setting": "42",
                           "project.setting2": "43"
                         },
-                        "marked_for_deletion": false
-                      },
-                      {
-                        "id": "tb5W0bx765nDVIwqJPw92G",
-                        "settings": {
-                          "project.setting": "44"
-                        },
                         "marked_for_deletion": true
                       }
                     ],
@@ -936,8 +929,7 @@ public class ClusterStateTests extends ESTestCase {
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
                     )
-                    .putProjectSettings(projectId2, Settings.builder().put(PROJECT_SETTING.getKey(), 44).build())
-                    .markProjectForDeletion(projectId2)
+                    .markProjectForDeletion(projectId1)
                     .build()
             )
             .blocks(

@@ -105,6 +105,7 @@ toc:
             - file: rest-apis/searching-with-query-rules.md
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/term-vectors-examples.md
+            - file: rest-apis/update-document.md
             - file: rest-apis/update-cc-api-key-examples.md
             - file: rest-apis/vector-tile-search.md
   - file: mapping-reference/index.md

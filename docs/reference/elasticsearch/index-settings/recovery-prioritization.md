@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/recovery-prioritization.html
 navigation_title: Index recovery prioritization
+applies_to:
+  stack: all
 ---
 
 # Index recovery prioritization settings [recovery-prioritization]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 Unallocated shards are recovered in order of priority, whenever possible. Indices are sorted into priority order as follows:
 

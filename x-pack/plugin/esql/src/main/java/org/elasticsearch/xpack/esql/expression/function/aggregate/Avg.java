@@ -109,11 +109,11 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             return new MvAvg(s, field);
         }
         Expression sum = new Sum(s, field, filter()).surrogate() == null
-                         ? new Sum(s, field, filter())
-                         : new Sum(s, field, filter()).surrogate();
+            ? new Sum(s, field, filter())
+            : new Sum(s, field, filter()).surrogate();
         Expression count = new Count(s, field, filter()).surrogate() == null
-                           ? new Count(s, field, filter())
-                           : new Count(s, field, filter()).surrogate();
+            ? new Count(s, field, filter())
+            : new Count(s, field, filter()).surrogate();
         return new Div(s, sum, count, dataType());
     }
 }

@@ -338,7 +338,11 @@ public class DatafeedRunner {
                     }
                     holder.problemTracker.finishReport();
                     if (nextDelayInMsSinceEpoch >= 0) {
-                        doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
+                        // Prevent the propagation of the trace context here to not create everlasting APM transactions.
+                        // Such a trace context is created when executing any transport action.
+                        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                            doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
+                        }
                     }
                 }
             }, delay, threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME));

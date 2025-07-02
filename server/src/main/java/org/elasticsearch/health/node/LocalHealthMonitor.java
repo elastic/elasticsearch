@@ -262,7 +262,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
          * Schedule the first run of the monitor.
          */
         public void start() {
-            scheduledRun = threadPool.schedule(this, TimeValue.ZERO, executor);
+            scheduleNextRun(TimeValue.ZERO);
         }
 
         /**
@@ -383,8 +383,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (cancelled) {
                 return;
             }
-            try {
-                scheduledRun = threadPool.schedule(this, interval, executor);
+            scheduleNextRun(interval);
+        }
+
+        private void scheduleNextRun(TimeValue delay) {
+            // Prevent the propagation of the trace context here to not create everlasting APM transactions.
+            // Such a trace context is created when executing a transport action.
+            try (var ignored = threadPool.getThreadContext().newEmptySystemContext()) {
+                scheduledRun = threadPool.schedule(this, delay, executor);
             } catch (final EsRejectedExecutionException e) {
                 logger.debug(() -> format("Scheduled health monitoring was rejected on thread pool [%s]", executor), e);
             }

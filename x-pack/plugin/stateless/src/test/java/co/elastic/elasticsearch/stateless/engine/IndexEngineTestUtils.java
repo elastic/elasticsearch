@@ -39,4 +39,12 @@ public class IndexEngineTestUtils {
     public static void flushHollow(IndexEngine indexEngine, ActionListener<Engine.FlushResult> listener) {
         indexEngine.flushHollow(listener);
     }
+
+    public static void awaitClose(IndexEngine engine) {
+        engine.awaitClose();
+    }
+
+    public static void awaitClose(HollowIndexEngine engine) {
+        engine.awaitClose();
+    }
 }

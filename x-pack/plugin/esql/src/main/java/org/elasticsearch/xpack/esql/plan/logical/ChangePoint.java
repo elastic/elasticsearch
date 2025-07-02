@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
@@ -41,6 +43,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Furthermore, ChangePoint should be called with at most 1000 data points. That's
  * enforced by the Limit in the surrogate plan.
  */
+@SupportsObservabilityTier(tier = COMPLETE)
 public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, LicenseAware {
 
     private final Attribute value;

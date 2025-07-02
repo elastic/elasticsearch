@@ -140,7 +140,7 @@ public class DenseVectorEmbeddingFunction extends InferenceFunction {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         DenseVectorEmbeddingFunction that = (DenseVectorEmbeddingFunction) o;
         return Objects.equals(inputText, that.inputText) && Objects.equals(tmpAttribute, that.tmpAttribute);
     }

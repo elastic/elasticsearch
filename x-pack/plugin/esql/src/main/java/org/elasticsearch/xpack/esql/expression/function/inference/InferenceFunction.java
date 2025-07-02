@@ -102,7 +102,7 @@ public abstract class InferenceFunction extends Function implements OptionalArgu
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         InferenceFunction that = (InferenceFunction) o;
         return Objects.equals(options, that.options);
     }

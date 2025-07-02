@@ -363,7 +363,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b.startObject("field2").field("type", "match_only_text").endObject();
         });
         var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
-        DocumentMapper mapper = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_10_2_2, settings, () -> true, mappings)
+        DocumentMapper mapper = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_9_12_2, settings, () -> true, mappings)
             .documentMapper();
 
         try (Directory directory = newDirectory()) {

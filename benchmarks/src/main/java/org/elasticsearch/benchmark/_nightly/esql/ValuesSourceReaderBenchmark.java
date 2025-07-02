@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.compute.operator;
+package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -87,7 +87,6 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE

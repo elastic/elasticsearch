@@ -30,6 +30,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
 
+        private long dfsCount;
+        private long dfsTimeInMillis;
+        private long dfsCurrent;
+
         private long queryCount;
         private long queryTimeInMillis;
         private long queryCurrent;
@@ -46,6 +50,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long suggestTimeInMillis;
         private long suggestCurrent;
 
+        private long dfsFailure;
         private long queryFailure;
         private long fetchFailure;
 
@@ -58,6 +63,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public Stats(
+            long dfsCount,
+            long dfsTimeInMillis,
+            long dfsCurrent,
+            long dfsFailure,
             long queryCount,
             long queryTimeInMillis,
             long queryCurrent,
@@ -74,6 +83,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestCurrent,
             double recentSearchLoad
         ) {
+            this.dfsCount = dfsCount;
+            this.dfsTimeInMillis = dfsTimeInMillis;
+            this.dfsCurrent = dfsCurrent;
+            this.dfsFailure = dfsFailure;
+
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
             this.queryCurrent = queryCurrent;
@@ -97,6 +111,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         private Stats(StreamInput in) throws IOException {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                dfsCount = in.readVLong();
+                dfsTimeInMillis = in.readVLong();
+                dfsCurrent = in.readVLong();
+                dfsFailure = in.readVLong();
+            }
+
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
@@ -125,6 +146,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DFS_STATS)) {
+                out.writeVLong(dfsCount);
+                out.writeVLong(dfsTimeInMillis);
+                out.writeVLong(dfsCurrent);
+                out.writeVLong(dfsFailure);
+            }
+
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
             out.writeVLong(queryCurrent);
@@ -152,6 +180,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public void add(Stats stats) {
+            dfsCount += stats.dfsCount;
+            dfsTimeInMillis += stats.dfsTimeInMillis;
+            dfsCurrent += stats.dfsCurrent;
+            dfsFailure += stats.dfsFailure;
+
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
             queryCurrent += stats.queryCurrent;
@@ -174,6 +207,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public void addForClosingShard(Stats stats) {
+            dfsCount += stats.dfsCount;
+            dfsTimeInMillis += stats.dfsTimeInMillis;
+            dfsFailure += stats.dfsFailure;
+
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
             queryFailure += stats.queryFailure;
@@ -191,6 +228,26 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestTimeInMillis += stats.suggestTimeInMillis;
 
             recentSearchLoad += stats.recentSearchLoad;
+        }
+
+        public long getDfsCount() {
+            return dfsCount;
+        }
+
+        public TimeValue getDfsTime() {
+            return new TimeValue(dfsTimeInMillis);
+        }
+
+        public long getDfsTimeInMillis() {
+            return dfsTimeInMillis;
+        }
+
+        public long getDfsCurrent() {
+            return dfsCurrent;
+        }
+
+        public long getDfsFailure() {
+            return dfsFailure;
         }
 
         public long getQueryCount() {
@@ -275,6 +332,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Fields.DFS_TOTAL, dfsCount);
+            builder.humanReadableField(Fields.DFS_TIME_IN_MILLIS, Fields.DFS_TIME, getDfsTime());
+            builder.field(Fields.DFS_CURRENT, dfsCurrent);
+            builder.field(Fields.DFS_FAILURE, dfsFailure);
+
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
@@ -303,7 +365,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Stats that = (Stats) o;
-            return queryCount == that.queryCount
+            return dfsCount == that.dfsCount
+                && dfsTimeInMillis == that.dfsTimeInMillis
+                && dfsCurrent == that.dfsCurrent
+                && dfsFailure == that.dfsFailure
+                && queryCount == that.queryCount
                 && queryTimeInMillis == that.queryTimeInMillis
                 && queryCurrent == that.queryCurrent
                 && queryFailure == that.queryFailure
@@ -323,6 +389,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
         @Override
         public int hashCode() {
             return Objects.hash(
+                dfsCount,
+                dfsTimeInMillis,
+                dfsCurrent,
+                dfsFailure,
                 queryCount,
                 queryTimeInMillis,
                 queryCurrent,
@@ -437,6 +507,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SEARCH = "search";
         static final String OPEN_CONTEXTS = "open_contexts";
         static final String GROUPS = "groups";
+        static final String DFS_TOTAL = "dfs_total";
+        static final String DFS_TIME = "dfs_time";
+        static final String DFS_TIME_IN_MILLIS = "dfs_time_in_millis";
+        static final String DFS_CURRENT = "dfs_current";
+        static final String DFS_FAILURE = "dfs_failure";
         static final String QUERY_TOTAL = "query_total";
         static final String QUERY_TIME = "query_time";
         static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";

@@ -410,6 +410,10 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(
+            no,
+            no,
+            no,
+            no,
             ++iota,
             ++iota,
             no,

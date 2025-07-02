@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +48,7 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -617,16 +619,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         Status(StreamInput in) throws IOException {
             super(in);
             readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
-            valuesLoaded = in.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED) ? in.readVLong() : 0;
+            valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeMap(readersBuilt, StreamOutput::writeVInt);
-            if (out.getTransportVersion().onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)) {
+            if (supportsValuesLoaded(out.getTransportVersion())) {
                 out.writeVLong(valuesLoaded);
             }
+        }
+
+        private static boolean supportsValuesLoaded(TransportVersion version) {
+            return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
+                || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
         }
 
         @Override

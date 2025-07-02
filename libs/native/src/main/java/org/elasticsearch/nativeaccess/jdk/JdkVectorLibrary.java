@@ -20,6 +20,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
@@ -99,13 +100,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param length the vector dimensions
          */
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
-            assert length >= 0;
-            if (a.byteSize() != b.byteSize()) {
-                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
-            }
-            if (length > a.byteSize()) {
-                throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
-            }
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return dot7u(a, b, length);
         }
 
@@ -119,14 +115,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param length the vector dimensions
          */
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
-            assert length >= 0;
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return sqr7u(a, b, length);
+        }
+
+        static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
             }
-            if (length > a.byteSize()) {
-                throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
-            }
-            return sqr7u(a, b, length);
         }
 
         private static int dot7u(MemorySegment a, MemorySegment b, int length) {

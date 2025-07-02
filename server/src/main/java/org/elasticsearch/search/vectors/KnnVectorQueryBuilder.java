@@ -280,8 +280,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             queryBuilder.rescoreVectorBuilder(),
             queryBuilder.getVectorSimilarity()
         );
-        this.boost = queryBuilder.boost();
-        this.queryName = queryBuilder.queryName();
         this.filterQueries.addAll(queryBuilder.filterQueries());
     }
 

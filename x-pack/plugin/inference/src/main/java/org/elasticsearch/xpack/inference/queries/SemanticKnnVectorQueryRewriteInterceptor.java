@@ -52,16 +52,20 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
+        QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
             Map.Entry<String, List<String>> inferenceIdIndex = inferenceIdsIndices.entrySet().iterator().next();
             String searchInferenceId = inferenceIdIndex.getKey();
             List<String> indices = inferenceIdIndex.getValue();
-            return buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
+            finalQueryBuilder = buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
         } else {
             // Multiple inference IDs, construct a boolean query
-            return buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
+            finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
         }
+        finalQueryBuilder.boost(queryBuilder.boost());
+        finalQueryBuilder.queryName(queryBuilder.queryName());
+        return finalQueryBuilder;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
@@ -118,13 +122,8 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         }
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
-            buildNewKnnVectorQuery(
-                SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
-                filteredKnnVectorQueryBuilder,
-                queryVectorBuilder
-            ),
-            ScoreMode.Max,
-            filteredKnnVectorQueryBuilder.queryName()
+            new KnnVectorQueryBuilder(filteredKnnVectorQueryBuilder, SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()), queryVectorBuilder),
+            ScoreMode.Max
         );
     }
 

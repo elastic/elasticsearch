@@ -84,10 +84,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         this.innerHitBuilder = innerHitBuilder;
     }
 
-    public static NestedQueryBuilder from(String path, QueryBuilder query, ScoreMode scoreMode, String queryName) {
-        return new NestedQueryBuilder(path, query, scoreMode).queryName(queryName);
-    }
-
     /**
      * Read from a stream.
      */

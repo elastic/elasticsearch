@@ -484,10 +484,6 @@ public final class QueryBuilders {
         return new NestedQueryBuilder(path, query, scoreMode);
     }
 
-    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode, String queryName) {
-        return NestedQueryBuilder.from(path, query, scoreMode, queryName);
-    }
-
     /**
      * A filter for a field based on several terms matching on any of them.
      *

@@ -53,6 +53,16 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
         <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+
+        ```{applies_to}
+        stack: ga 9.1
+        serverless: ga
+        ```
+        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
+
+        <<load-esql-example, file=where-like tag=likeListDocExample>>
+
         """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,

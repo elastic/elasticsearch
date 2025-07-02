@@ -84,6 +84,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      *
      * @param vectorsScorer the scorer to use for scoring vectors
      */
+    @SuppressWarnings("this-escape")
     protected ES818BinaryQuantizedVectorsWriter(
         ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,

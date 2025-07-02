@@ -179,6 +179,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -400,16 +401,7 @@ public class EsqlFunctionRegistry {
                 def(StYMax.class, StYMax::new, "st_ymax"),
                 def(StYMin.class, StYMin::new, "st_ymin"),
                 def(StX.class, StX::new, "st_x"),
-                def(StY.class, StY::new, "st_y"),
-                def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
-                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
-                def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
-                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
-                def(StGeohex.class, StGeohex::new, "st_geohex"),
-                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
-                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") },
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -465,7 +457,8 @@ public class EsqlFunctionRegistry {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
-                def(QueryString.class, bi(QueryString::new), "qstr") } };
+                def(QueryString.class, bi(QueryString::new), "qstr"),
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
 
     }
 
@@ -475,17 +468,26 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
+                def(Rate.class, uni(Rate::new), "rate"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
                 def(CountOverTime.class, uni(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                def(LastOverTime.class, LastOverTime::withUnresolvedTimestamp, "last_over_time"),
-                def(FirstOverTime.class, FirstOverTime::withUnresolvedTimestamp, "first_over_time"),
+                def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
+                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time"),
                 def(Term.class, bi(Term::new), "term"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") } };
+                def(Knn.class, tri(Knn::new), "knn"),
+                def(StGeohash.class, StGeohash::new, "st_geohash"),
+                def(StGeohashToLong.class, StGeohashToLong::new, "st_geohash_to_long"),
+                def(StGeohashToString.class, StGeohashToString::new, "st_geohash_to_string"),
+                def(StGeotile.class, StGeotile::new, "st_geotile"),
+                def(StGeotileToLong.class, StGeotileToLong::new, "st_geotile_to_long"),
+                def(StGeotileToString.class, StGeotileToString::new, "st_geotile_to_string"),
+                def(StGeohex.class, StGeohex::new, "st_geohex"),
+                def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
+                def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

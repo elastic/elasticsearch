@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -82,7 +80,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
-    private ProjectResolver projectResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -93,6 +90,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.projectClient(any())).thenReturn(client);
         AdminClient adminClient = mock(AdminClient.class);
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
@@ -117,8 +115,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        projectResolver = TestProjectResolvers.mustExecuteFirst();
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
@@ -156,8 +153,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            projectResolver
+            xContentRegistry
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -209,8 +205,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            projectResolver
+            xContentRegistry
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);

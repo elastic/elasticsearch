@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.apache.lucene.index.FloatVectorValues;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
@@ -85,6 +86,8 @@ public class HierarchicalKMeans {
 
         // TODO: instead of creating a sub-cluster assignments reuse the parent array each time
         int[] assignments = new int[vectors.size()];
+        // ensure we don't over assign to cluster 0 without adjusting it
+        Arrays.fill(assignments, -1);
         KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);

@@ -39,6 +39,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -91,6 +92,7 @@ import org.elasticsearch.index.engine.Engine.GetResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -153,6 +155,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -269,6 +272,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
+    private final MergeMetrics mergeMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -343,7 +347,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.IndexCommitListener indexCommitListener,
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
-        final SearchStatsSettings searchStatsSettings
+        final SearchStatsSettings searchStatsSettings,
+        final MergeMetrics mergeMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -432,6 +437,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
+        this.mergeMetrics = mergeMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -3507,7 +3513,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
-            case EMPTY_STORE, EXISTING_STORE -> executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
+            case EMPTY_STORE, EXISTING_STORE, RESHARD_SPLIT -> executeRecovery(
+                "from store",
+                recoveryState,
+                recoveryListener,
+                this::recoverFromStore
+            );
             case PEER -> {
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
@@ -3518,12 +3529,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
             case SNAPSHOT -> {
-                final String repo = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot().getRepository();
+                final Snapshot snapshot = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot();
+                final ProjectId projectId = snapshot.getProjectId();
+                final String repo = snapshot.getRepository();
                 executeRecovery(
                     "from snapshot",
                     recoveryState,
                     recoveryListener,
-                    l -> restoreFromRepository(repositoriesService.repository(repo), l)
+                    l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
                 );
             }
             case LOCAL_SHARDS -> {
@@ -3750,7 +3763,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCommitListener,
             routingEntry().isPromotableToPrimary(),
             mapperService(),
-            engineResetLock
+            engineResetLock,
+            mergeMetrics
         );
     }
 
@@ -4303,9 +4317,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private FieldInfos loadFieldInfos() {
-        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
-        } catch (AlreadyClosedException ignore) {
+        try {
+            return getEngine().shardFieldInfos();
+        } catch (AlreadyClosedException ignored) {
             // engine is closed - no update to FieldInfos is fine
         }
         return FieldInfos.EMPTY;

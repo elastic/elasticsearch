@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.OS
 apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
 apply plugin: 'java-library'
 apply plugin: 'application'
+apply plugin: 'elasticsearch.mrjar'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
@@ -41,10 +42,12 @@ dependencies {
   }
   api(project(':libs:h3'))
   api(project(':modules:aggregations'))
+  implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))

@@ -10,9 +10,9 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
@@ -21,7 +21,7 @@ public class HierarchicalKMeans {
 
     static final int MAXK = 128;
     static final int MAX_ITERATIONS_DEFAULT = 6;
-    static final int SAMPLES_PER_CLUSTER_DEFAULT = 256;
+    static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
     final int dimension;
@@ -67,8 +67,7 @@ public class HierarchicalKMeans {
         // partition the space
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            float f = Math.min((float) samplesPerCluster / targetSize, 1.0f);
-            int localSampleSize = (int) (f * vectors.size());
+            int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster, vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
             kMeansLocal.cluster(vectors, kMeansIntermediate, true);
         }
@@ -86,52 +85,26 @@ public class HierarchicalKMeans {
 
         // TODO: instead of creating a sub-cluster assignments reuse the parent array each time
         int[] assignments = new int[vectors.size()];
-
+        // ensure we don't over assign to cluster 0 without adjusting it
+        Arrays.fill(assignments, -1);
         KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
         kmeans.cluster(vectors, kMeansIntermediate);
 
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
         int[] centroidVectorCount = new int[centroids.length];
-        float[][] nextCentroids = new float[centroids.length][dimension];
-        for (int i = 0; i < vectors.size(); i++) {
-            float smallest = Float.MAX_VALUE;
-            int centroidIdx = -1;
-            float[] vector = vectors.vectorValue(i);
-            for (int j = 0; j < centroids.length; j++) {
-                float[] centroid = centroids[j];
-                float d = VectorUtil.squareDistance(vector, centroid);
-                if (d < smallest) {
-                    smallest = d;
-                    centroidIdx = j;
-                }
-            }
-            centroidVectorCount[centroidIdx]++;
-            for (int j = 0; j < dimension; j++) {
-                nextCentroids[centroidIdx][j] += vector[j];
-            }
-            assignments[i] = centroidIdx;
-        }
-
-        // update centroids based on assignments of all vectors
-        for (int i = 0; i < centroids.length; i++) {
-            if (centroidVectorCount[i] > 0) {
-                for (int j = 0; j < dimension; j++) {
-                    centroids[i][j] = nextCentroids[i][j] / centroidVectorCount[i];
-                }
-            }
+        for (int assigment : assignments) {
+            centroidVectorCount[assigment]++;
         }
 
         int effectiveK = 0;
-        for (int i = 0; i < centroidVectorCount.length; i++) {
-            if (centroidVectorCount[i] > 0) {
+        for (int j : centroidVectorCount) {
+            if (j > 0) {
                 effectiveK++;
             }
         }
-
-        kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
 
         if (effectiveK == 1) {
             return kMeansIntermediate;

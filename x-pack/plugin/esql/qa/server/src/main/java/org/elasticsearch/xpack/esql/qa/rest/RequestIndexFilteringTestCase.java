@@ -225,7 +225,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 // currently we don't support remote clusters in LOOKUP JOIN
                 // this check happens before resolving actual indices and results in a different error message
                 RemoteClusterAware.isRemoteIndexName(pattern)
-                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported in LOOKUP JOIN"))
+                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported"))
                     : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))
             );
         }
@@ -247,6 +247,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+    }
+
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC, checkPartialResults);
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {

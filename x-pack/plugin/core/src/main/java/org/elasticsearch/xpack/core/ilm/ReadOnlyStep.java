@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 
@@ -37,11 +37,11 @@ public class ReadOnlyStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        getClient().admin()
+        getClient(currentState.projectId()).admin()
             .indices()
             .execute(
                 TransportAddIndexBlockAction.TYPE,

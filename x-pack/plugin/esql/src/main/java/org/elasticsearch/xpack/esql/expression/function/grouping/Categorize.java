@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -39,6 +41,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *     For the implementation, see {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}
  * </p>
  */
+@SupportsObservabilityTier(tier = COMPLETE)
 public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction implements LicenseAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -63,7 +66,6 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
             ) },
-        preview = true,
         type = FunctionType.GROUPING
     )
     public Categorize(

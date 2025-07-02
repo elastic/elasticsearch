@@ -120,6 +120,22 @@ language_code:integer | language_name:keyword
 4                     | German
 ;
 
+selfJoinWithOffset
+required_capability: join_lookup_v12
+
+FROM languages_lookup
+| EVAL language_code = language_code + 2
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+3                     |Spanish
+4                     |German
+5                     |null
+6                     |null
+;
+
 nonUniqueLeftKeyOnTheDataNode
 required_capability: join_lookup_v12
 
@@ -142,6 +158,66 @@ emp_no:integer | language_code:integer | language_name:keyword
 10021          |1                      | English
 10022          |2                      | French
 10030          |0                      | null
+;
+
+multipleLookupsAndProjects
+required_capability: join_lookup_v12
+
+FROM employees
+| KEEP languages, emp_no
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS foo
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP foo
+| SORT emp_no
+| LIMIT 5
+;
+
+languages:integer | emp_no:integer | language_code:integer | language_name:keyword
+2                 | 10001          | 2                     | French
+5                 | 10002          | 5                     | null
+4                 | 10003          | 4                     | German
+5                 | 10004          | 5                     | null
+1                 | 10005          | 1                     | English
+;
+
+multipleLookupsAndProjectsNonUnique
+required_capability: join_lookup_v12
+
+FROM employees
+| KEEP languages, emp_no
+| EVAL language_code = languages
+# this lookup contributes 0 fields in the end, but it contributes rows via multiple matches
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| RENAME language_name AS foo
+| LOOKUP JOIN languages_lookup ON language_code
+| DROP foo, country, country.keyword
+| SORT emp_no
+| LIMIT 5
+;
+
+languages:integer | emp_no:integer | language_code:integer | language_name:keyword
+2                 | 10001          | 2                     | French
+2                 | 10001          | 2                     | French
+2                 | 10001          | 2                     | French
+5                 | 10002          | 5                     | null
+4                 | 10003          | 4                     | German
+;
+
+projectsWithShadowingAfterPushdown
+required_capability: join_lookup_v12
+
+FROM languages_lookup
+| WHERE language_code == 4
+# not shadowed - unless the rename would happen after the lookup
+| RENAME language_name AS original_language_name
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| DROP country*
+;
+
+language_code:integer | original_language_name:keyword | language_name:keyword
+4                     | German                         | Quenya
 ;
 
 ###########################################################################
@@ -730,6 +806,28 @@ ROW language.name.keyword = ["English", "French"]
 language.id:integer | language.name:text | language.name.keyword:keyword | language.code:keyword
 1                   | English            | English                       | EN
 2                   | French             | French                        | FR
+;
+
+###############################################
+# union type behavior
+###############################################
+
+joinOnMultiTypedMatchFieldCastToInteger
+required_capability: join_lookup_v12
+
+FROM apps, apps_short METADATA _index
+| EVAL language_code = id::integer
+| KEEP _index, language_code
+| WHERE language_code < 3
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT _index ASC, language_code ASC
+;
+
+_index:keyword | language_code:integer | language_name:keyword
+apps           | 1                     | English
+apps           | 2                     | French
+apps_short     | 1                     | English
+apps_short     | 2                     | French
 ;
 
 ###############################################
@@ -4626,7 +4724,7 @@ required_capability: join_lookup_v12
 required_capability: date_nanos_lookup_join
 
 FROM sample_data_ts_nanos
-| LOOKUP JOIN lookup_sample_data_ts_nanos ON @timestamp
+| LOOKUP JOIN sample__data_ts_nanos_lookup ON @timestamp
 | KEEP @timestamp, client_ip, event_duration, message
 | SORT @timestamp DESC
 ;

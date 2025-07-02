@@ -12,7 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
@@ -38,7 +38,7 @@ public class ValuesLongGroupingAggregatorFunctionTests extends GroupingAggregato
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new TupleBlockSourceOperator(
+        return new TupleLongLongBlockSourceOperator(
             blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong()))
         );

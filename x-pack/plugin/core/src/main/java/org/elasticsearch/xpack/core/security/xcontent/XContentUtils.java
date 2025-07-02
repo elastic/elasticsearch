@@ -112,9 +112,7 @@ public class XContentUtils {
     private static void addSubjectInfo(XContentBuilder builder, Subject subject) throws IOException {
         switch (subject.getType()) {
             case USER -> builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
-            case API_KEY -> {
-                addApiKeyInfo(builder, subject);
-            }
+            case API_KEY -> addApiKeyInfo(builder, subject);
             case SERVICE_ACCOUNT -> builder.field("service_account", subject.getUser().principal());
             case CROSS_CLUSTER_ACCESS -> {
                 builder.startObject("cross_cluster_access");
@@ -126,6 +124,18 @@ public class XContentUtils {
                     addSubjectInfo(builder, innerAuthentication.getEffectiveSubject());
                     builder.endObject();
                 }
+                builder.endObject();
+            }
+            case CLOUD_API_KEY -> {
+                builder.startObject("cloud_api_key");
+                Map<String, Object> metadata = subject.getUser().metadata();
+                builder.field("id", subject.getUser().principal());
+                Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+                if (name instanceof String) {
+                    builder.field("name", name);
+                }
+                builder.field("internal", metadata.get(AuthenticationField.API_KEY_INTERNAL_KEY));
+                builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
                 builder.endObject();
             }
         }

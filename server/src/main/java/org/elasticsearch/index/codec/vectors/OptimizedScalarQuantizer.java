@@ -97,6 +97,7 @@ public class OptimizedScalarQuantizer {
         return results;
     }
 
+    // This method is only used for benchmarking purposes, it is not used in production
     public QuantizationResult legacyScalarQuantize(float[] vector, byte[] destination, byte bits, float[] centroid) {
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(vector);
         assert similarityFunction != COSINE || VectorUtil.isUnitVector(centroid);

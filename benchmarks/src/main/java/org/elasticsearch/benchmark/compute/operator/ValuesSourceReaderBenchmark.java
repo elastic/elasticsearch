@@ -411,7 +411,7 @@ public class ValuesSourceReaderBenchmark {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
         boolean foundStoredFieldLoader = false;
-        ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+        ValuesSourceReaderOperator.Status status = op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
             if (e.getKey().indexOf("stored_fields") >= 0) {
                 foundStoredFieldLoader = true;

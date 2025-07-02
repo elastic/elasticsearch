@@ -144,7 +144,6 @@ public class ValuesSourceReaderOperator implements Operator {
      */
     private long rowsEmitted;
 
-
     private int lastShard = -1;
     private int lastSegment = -1;
 
@@ -189,6 +188,9 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public final Page getOutput() {
+        if (load == null) {
+            return null;
+        }
         long start = System.nanoTime();
 
         Page p = load();

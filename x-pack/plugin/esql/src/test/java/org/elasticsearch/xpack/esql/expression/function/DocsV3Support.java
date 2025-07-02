@@ -18,6 +18,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -572,7 +574,7 @@ public abstract class DocsV3Support {
             boolean hasAppendix = renderAppendix(info.appendix());
             renderFullLayout(info, hasExamples, hasAppendix, hasFunctionOptions);
             renderKibanaInlineDocs(name, null, info);
-            renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic());
+            renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic(), getObservabilityTier());
         }
 
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
@@ -666,6 +668,11 @@ public abstract class DocsV3Support {
                 :::
                 """.replace("$NAME$", name).replace("$SECTION$", section);
         }
+
+        private ObservabilityTier getObservabilityTier() {
+            SupportsObservabilityTier supportsObservabilityTier = definition.clazz().getAnnotation(SupportsObservabilityTier.class);
+            return supportsObservabilityTier != null ? supportsObservabilityTier.tier() : null;
+        }
     }
 
     /** Operator specific docs generating, since it is currently quite different from the function docs generating */
@@ -712,7 +719,7 @@ public abstract class DocsV3Support {
             if (ctor != null) {
                 FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
                 assert functionInfo != null;
-                renderDocsForOperators(op.name(), op.titleName(), ctor, functionInfo, op.variadic());
+                renderDocsForOperators(op.name(), op.titleName(), ctor, functionInfo, op.variadic(), getObservabilityTier());
             } else {
                 logger.info("Skipping rendering docs for operator '" + op.name() + "' with no @FunctionInfo");
             }
@@ -787,11 +794,17 @@ public abstract class DocsV3Support {
                 }
             };
             String name = "not_" + baseName;
-            renderDocsForOperators(name, null, ctor, functionInfo, op.variadic());
+            renderDocsForOperators(name, null, ctor, functionInfo, op.variadic(), getObservabilityTier());
         }
 
-        void renderDocsForOperators(String name, String titleName, Constructor<?> ctor, FunctionInfo info, boolean variadic)
-            throws Exception {
+        void renderDocsForOperators(
+            String name,
+            String titleName,
+            Constructor<?> ctor,
+            FunctionInfo info,
+            boolean variadic,
+            ObservabilityTier observabilityTier
+        ) throws Exception {
             renderKibanaInlineDocs(name, titleName, info);
 
             var params = ctor.getParameters();
@@ -808,7 +821,7 @@ public abstract class DocsV3Support {
                     }
                 }
             }
-            renderKibanaFunctionDefinition(name, titleName, info, args, variadic);
+            renderKibanaFunctionDefinition(name, titleName, info, args, variadic, observabilityTier);
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -831,17 +844,35 @@ public abstract class DocsV3Support {
                 writeToTempSnippetsDir("detailedDescription", rendered.toString());
             }
         }
+
+        private ObservabilityTier getObservabilityTier() {
+            if (op != null) {
+                SupportsObservabilityTier supportsObservabilityTier = op.clazz().getAnnotation(SupportsObservabilityTier.class);
+                if (supportsObservabilityTier != null) {
+                    return supportsObservabilityTier.tier();
+                }
+            }
+            return null;
+        }
     }
 
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
         private final LogicalPlan command;
         private final XPackLicenseState licenseState;
+        private final ObservabilityTier observabilityTier;
 
-        public CommandsDocsSupport(String name, Class<?> testClass, LogicalPlan command, XPackLicenseState licenseState) {
+        public CommandsDocsSupport(
+            String name,
+            Class<?> testClass,
+            LogicalPlan command,
+            XPackLicenseState licenseState,
+            ObservabilityTier observabilityTier
+        ) {
             super("commands", name, testClass, Map::of);
             this.command = command;
             this.licenseState = licenseState;
+            this.observabilityTier = observabilityTier;
         }
 
         @Override
@@ -866,6 +897,9 @@ public abstract class DocsV3Support {
                 License.OperationMode license = licenseState.getOperationMode();
                 if (license != null && license != License.OperationMode.BASIC) {
                     builder.field("license", license.toString());
+                }
+                if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
+                    builder.field("observability_tier", observabilityTier.toString());
                 }
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana command definition for [{}]:\n{}", name, rendered);
@@ -1044,7 +1078,8 @@ public abstract class DocsV3Support {
         String titleName,
         FunctionInfo info,
         List<EsqlFunctionRegistry.ArgSignature> args,
-        boolean variadic
+        boolean variadic,
+        ObservabilityTier observabilityTier
     ) throws Exception {
 
         try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject()) {
@@ -1066,6 +1101,9 @@ public abstract class DocsV3Support {
             License.OperationMode license = licenseChecker.invoke(null);
             if (license != null && license != License.OperationMode.BASIC) {
                 builder.field("license", license.toString());
+            }
+            if (observabilityTier != null && observabilityTier != ObservabilityTier.LOGS_ESSENTIALS) {
+                builder.field("observability_tier", observabilityTier.toString());
             }
             if (titleName != null && titleName.equals(name) == false) {
                 builder.field("titleName", titleName);

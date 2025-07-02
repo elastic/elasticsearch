@@ -33,6 +33,9 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.KnnByteVectorQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -123,6 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
 
+    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
     public static final FeatureFlag IVF_FORMAT = new FeatureFlag("ivf_format");
 
     public static boolean isNotUnitVector(float magnitude) {
@@ -174,6 +178,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> HNSW_EARLY_TERMINATION = Setting.boolSetting(
+        "index.dense_vector.hnsw_enable_early_termination",
+        DEFAULT_HNSW_EARLY_TERMINATION,
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic,
+        Setting.Property.Dynamic
+    );
+
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
         return version.onOrAfter(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
             || version.between(IndexVersions.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
@@ -212,7 +224,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
     public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
-                                                                        // vector
+    // vector
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
@@ -1429,6 +1441,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -2487,7 +2500,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
-            DenseVectorFieldMapper.FilterHeuristic heuristic
+            FilterHeuristic heuristic,
+            boolean hnswEarlyTermination
         ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -2503,7 +2517,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     filter,
                     similarityThreshold,
                     parentFilter,
-                    knnSearchStrategy
+                    knnSearchStrategy,
+                    hnswEarlyTermination
                 );
                 case FLOAT -> createKnnFloatQuery(
                     queryVector.asFloatVector(),
@@ -2513,7 +2528,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     filter,
                     similarityThreshold,
                     parentFilter,
-                    knnSearchStrategy
+                    knnSearchStrategy,
+                    hnswEarlyTermination
                 );
                 case BIT -> createKnnBitQuery(
                     queryVector.asByteVector(),
@@ -2522,7 +2538,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     filter,
                     similarityThreshold,
                     parentFilter,
-                    knnSearchStrategy
+                    knnSearchStrategy,
+                    hnswEarlyTermination
                 );
             };
         }
@@ -2542,7 +2559,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
-            KnnSearchStrategy searchStrategy
+            KnnSearchStrategy searchStrategy,
+            boolean hnswEarlyTermination
         ) {
             elementType.checkDimensions(dims, queryVector.length);
             Query knnQuery;
@@ -2559,6 +2577,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+                if (hnswEarlyTermination) {
+                    knnQuery = maybeWrapPatience(knnQuery);
+                }
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2577,7 +2598,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
-            KnnSearchStrategy searchStrategy
+            KnnSearchStrategy searchStrategy,
+            boolean hnswEarlyTermination
         ) {
             elementType.checkDimensions(dims, queryVector.length);
 
@@ -2585,7 +2607,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
                 var exactKnnQuery = parentFilter != null
@@ -2600,6 +2621,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter, searchStrategy)
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, filter, searchStrategy);
+                if (hnswEarlyTermination) {
+                    knnQuery = maybeWrapPatience(knnQuery);
+                }
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2611,6 +2635,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        private Query maybeWrapPatience(Query knnQuery) {
+            Query finalQuery = knnQuery;
+            if (knnQuery instanceof KnnByteVectorQuery knnByteVectorQuery && canApplyPatienceQuery()) {
+                finalQuery = PatienceKnnVectorQuery.fromByteQuery(knnByteVectorQuery);
+            } else if (knnQuery instanceof KnnFloatVectorQuery knnFloatVectorQuery && canApplyPatienceQuery()) {
+                finalQuery = PatienceKnnVectorQuery.fromFloatQuery(knnFloatVectorQuery);
+            }
+            return finalQuery;
+        }
+
+        private boolean canApplyPatienceQuery() {
+            return indexOptions instanceof HnswIndexOptions
+                || indexOptions instanceof Int8HnswIndexOptions
+                || indexOptions instanceof Int4HnswIndexOptions
+                || indexOptions instanceof BBQHnswIndexOptions;
+        }
+
         private Query createKnnFloatQuery(
             float[] queryVector,
             int k,
@@ -2619,7 +2660,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter,
-            KnnSearchStrategy knnSearchStrategy
+            KnnSearchStrategy knnSearchStrategy,
+            boolean hnswEarlyTermination
         ) {
             elementType.checkDimensions(dims, queryVector.length);
             elementType.checkVectorBounds(queryVector);
@@ -2686,6 +2728,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         knnSearchStrategy
                     )
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy);
+                if (hnswEarlyTermination) {
+                    knnQuery = maybeWrapPatience(knnQuery);
+                }
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
@@ -2808,7 +2853,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().elementType.parseDimensionCount(context);
-            ;
             final boolean defaultInt8Hnsw = indexCreatedVersion.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQ8Hnsw = indexCreatedVersion.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             DenseVectorIndexOptions denseVectorIndexOptions = fieldType().indexOptions;

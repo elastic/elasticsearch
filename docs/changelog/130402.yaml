@@ -1,5 +1,0 @@
-pr: 130402
-summary: "Fixed RRF YAML REST Test: `rrf with pinned retriever as a sub-retriever`"
-area: Relevance
-type: bug
-issues: []

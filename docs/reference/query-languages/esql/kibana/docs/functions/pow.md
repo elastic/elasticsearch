@@ -4,6 +4,7 @@
 Returns the value of `base` raised to the power of `exponent`.
 
 Note: It is still possible to overflow a double result here; in that case, null will be returned.
+
 ```esql
 ROW base = 2.0, exponent = 2
 | EVAL result = POW(base, exponent)

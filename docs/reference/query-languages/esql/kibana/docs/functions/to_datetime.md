@@ -6,6 +6,7 @@ A string will only be successfully converted if it’s respecting the format `yy
 To convert dates in other formats, use [`DATE_PARSE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/date-time-functions#esql-date_parse).
 
 Note: Note that when converting from nanosecond resolution to millisecond resolution with this function, the nanosecond date is truncated, not rounded.
+
 ```esql
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
 | EVAL datetime = TO_DATETIME(string)

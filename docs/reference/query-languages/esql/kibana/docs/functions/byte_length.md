@@ -4,6 +4,7 @@
 Returns the byte length of a string.
 
 Note: All strings are in UTF-8, so a single character can use multiple bytes.
+
 ```esql
 FROM airports
 | WHERE country == "India"

@@ -130,6 +130,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -168,7 +169,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveInference(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled())
         ),
         new Batch<>(
             "Resolution",
@@ -1692,23 +1693,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
     private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+
+        private final boolean isSnapshot;
+
+        DateMillisToNanosInEsRelation(boolean isSnapshot) {
+            this.isSnapshot = isSnapshot;
+        }
+
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(EsRelation.class, relation -> {
-                if (relation.indexMode() == IndexMode.LOOKUP) {
-                    return relation;
-                }
-                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
-                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        var convert = new ToDateNanos(f.source(), f);
-                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
-                        return new FieldAttribute(f.source(), f.parentName(), f.name(), resolvedField, f.nullable(), f.id(), f.synthetic());
+            if (isSnapshot) {
+                return plan.transformUp(EsRelation.class, relation -> {
+                    if (relation.indexMode() == IndexMode.LOOKUP) {
+                        return relation;
                     }
-                    return f;
+                    return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                        if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                            HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                            var convert = new ToDateNanos(f.source(), f);
+                            imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                            var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                            return new FieldAttribute(
+                                f.source(),
+                                f.parentName(),
+                                f.name(),
+                                resolvedField,
+                                f.nullable(),
+                                f.id(),
+                                f.synthetic()
+                            );
+                        }
+                        return f;
+                    });
                 });
-            });
+            } else {
+                return plan;
+            }
         }
     }
 

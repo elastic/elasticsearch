@@ -750,16 +750,16 @@ public final class DocumentParser {
         XContentParser.Token previousToken = parser.currentToken();
         int elements = 0;
         int countArray = 0;
-        long nestedDocsLimit = context.indexSettings().getMappingNestedDocsLimit();
+        long arrayObjectsLimit = context.indexSettings().getMappingArrayObjectsLimit();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                if (countArray++ >= nestedDocsLimit) {
+                if (countArray++ >= arrayObjectsLimit) {
                     throw new IllegalStateException(
-                        "The number of nested documents has exceeded the allowed limit of ["
-                            + nestedDocsLimit
+                        "The number of array objects has exceeded the allowed limit of ["
+                            + arrayObjectsLimit
                             + "]. "
                             + "This limit can be set by changing the ["
-                            + MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey()
+                            + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
                             + "] index level setting."
                     );
                 }

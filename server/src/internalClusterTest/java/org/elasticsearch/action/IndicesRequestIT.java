@@ -68,6 +68,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -590,7 +591,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexName = "array-limit-test";
         int arrayLimit = 10;
 
-        assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put("index.mapping.nested_objects.limit", arrayLimit).build()));
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit).build()
+            )
+        );
 
         try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
             doc.startObject();
@@ -607,7 +612,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
             assertThat(
                 e.getMessage(),
-                containsString("The number of nested documents has exceeded " + "the allowed limit of [" + arrayLimit + "]")
+                containsString("The number of array objects has exceeded " + "the allowed limit of [" + arrayLimit + "]")
             );
         }
     }

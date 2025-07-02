@@ -551,6 +551,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testForPushDownEnrichRule
   issue: https://github.com/elastic/elasticsearch/issues/130426
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testTopN
+  issue: https://github.com/elastic/elasticsearch/issues/130122
 
 # Examples:
 #

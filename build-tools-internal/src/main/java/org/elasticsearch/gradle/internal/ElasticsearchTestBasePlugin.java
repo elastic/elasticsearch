@@ -34,9 +34,11 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -172,6 +174,16 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet mainSourceSet = sourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
+            if ("test".equals(test.getName()) && mainSourceSet != null && testSourceSet != null) {
+                FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
+                FileCollection testOnlyFiles = testRuntime.minus(mainRuntime);
+                test.doFirst(task -> test.environment("es.entitlement.testOnlyPath", testOnlyFiles.getAsPath()));
+            }
+
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("tests.").get());
             test.systemProperties(getProviderFactory().systemPropertiesPrefixedBy("es.").get());
 
@@ -204,46 +216,122 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             /*
-             *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
+             *  If this project builds a shadow JAR then any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
             project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
-                    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-                    FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
                     Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
-                    FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
+                    FileCollection mainRuntime = mainSourceSet.getRuntimeClasspath();
+                    FileCollection testRuntime = testSourceSet.getRuntimeClasspath();
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
             });
         });
-        configureImmutableCollectionsPatch(project);
+        configureJavaBaseModuleOptions(project);
+        configureEntitlements(project);
     }
 
-    private void configureImmutableCollectionsPatch(Project project) {
+    /**
+     * Computes and sets the {@code --patch-module=java.base} and {@code --add-opens=java.base} JVM command line options.
+     */
+    private void configureJavaBaseModuleOptions(Project project) {
+        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
+            FileCollection patchedImmutableCollections = patchedImmutableCollections(project);
+            if (patchedImmutableCollections != null) {
+                test.getInputs().files(patchedImmutableCollections);
+                test.systemProperty("tests.hackImmutableCollections", "true");
+            }
+
+            FileCollection entitlementBridge = entitlementBridge(project);
+            if (entitlementBridge != null) {
+                test.getInputs().files(entitlementBridge);
+            }
+
+            test.getJvmArgumentProviders().add(() -> {
+                String javaBasePatch = Stream.concat(
+                    singleFilePath(patchedImmutableCollections).map(str -> str + "/java.base"),
+                    singleFilePath(entitlementBridge)
+                ).collect(joining(File.pathSeparator));
+
+                return javaBasePatch.isEmpty()
+                    ? List.of()
+                    : List.of("--patch-module=java.base=" + javaBasePatch, "--add-opens=java.base/java.util=ALL-UNNAMED");
+            });
+        });
+    }
+
+    private Stream<String> singleFilePath(FileCollection collection) {
+        return Stream.ofNullable(collection).filter(fc -> fc.isEmpty() == false).map(FileCollection::getSingleFile).map(File::toString);
+    }
+
+    private static FileCollection patchedImmutableCollections(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
-            return; // build tests may not have this project, just skip
+            return null; // build tests may not have this project, just skip
         }
         String configurationName = "immutableCollectionsPatch";
         FileCollection patchedFileCollection = project.getConfigurations()
             .create(configurationName, config -> config.setCanBeConsumed(false));
         var deps = project.getDependencies();
         deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
-        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
-            test.getInputs().files(patchedFileCollection);
-            test.systemProperty("tests.hackImmutableCollections", "true");
-            test.getJvmArgumentProviders()
-                .add(
-                    () -> List.of(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
-                        "--add-opens=java.base/java.util=ALL-UNNAMED"
-                    )
+        return patchedFileCollection;
+    }
+
+    private static FileCollection entitlementBridge(Project project) {
+        return project.getConfigurations().findByName("entitlementBridge");
+    }
+
+    /**
+     * Sets the required JVM options and system properties to enable entitlement enforcement on tests.
+     * <p>
+     * One command line option is set in {@link #configureJavaBaseModuleOptions} out of necessity,
+     * since the command line can have only one {@code --patch-module} option for a given module.
+     */
+    private static void configureEntitlements(Project project) {
+        Configuration agentConfig = project.getConfigurations().create("entitlementAgent");
+        Project agent = project.findProject(":libs:entitlement:agent");
+        if (agent != null) {
+            agentConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:agent"))); }
+            );
+        }
+        FileCollection agentFiles = agentConfig;
+
+        Configuration bridgeConfig = project.getConfigurations().create("entitlementBridge");
+        Project bridge = project.findProject(":libs:entitlement:bridge");
+        if (bridge != null) {
+            bridgeConfig.defaultDependencies(
+                deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
+            );
+        }
+        FileCollection bridgeFiles = bridgeConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+
+            // Agent
+            if (agentFiles.isEmpty() == false) {
+                test.getInputs().files(agentFiles);
+                test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
+                test.systemProperty("jdk.attach.allowAttachSelf", true);
+            }
+
+            // Bridge
+            if (bridgeFiles.isEmpty() == false) {
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                test.getInputs().files(bridgeFiles);
+                // Tests may not be modular, but the JDK still is
+                test.jvmArgs(
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
                 );
+            }
         });
     }
+
 }

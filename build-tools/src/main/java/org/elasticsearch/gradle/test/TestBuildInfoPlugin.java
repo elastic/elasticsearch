@@ -18,7 +18,10 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.jvm.tasks.ProcessResources;
+
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -53,5 +56,11 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
         project.getTasks().withType(ProcessResources.class).named("processResources").configure(task -> {
             task.into("META-INF", copy -> copy.from(testBuildInfoTask));
         });
+
+        if (project.getRootProject().getName().equals("elasticsearch")) {
+            project.getTasks().withType(Test.class).matching(test -> List.of("test").contains(test.getName())).configureEach(test -> {
+                test.systemProperty("es.entitlement.enableForTests", "true");
+            });
+        }
     }
 }

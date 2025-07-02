@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -197,11 +198,10 @@ public final class AnalyzerTestUtils {
             .build();
     }
 
-    private static ResolvedInference mockedResolvedInference(String id, TaskType taskType) {
-        ResolvedInference resolvedInference = mock(ResolvedInference.class);
-        when(resolvedInference.inferenceId()).thenReturn(id);
-        when(resolvedInference.taskType()).thenReturn(taskType);
-        return resolvedInference;
+    private static ResolvedInference mockedResolvedInference(String inferenceId, TaskType taskType) {
+        ModelConfigurations modelConfigurations = mock(ModelConfigurations.class);
+        when(modelConfigurations.getTaskType()).thenReturn(taskType);
+        return new ResolvedInference(inferenceId, modelConfigurations);
     }
 
     public static void loadEnrichPolicyResolution(

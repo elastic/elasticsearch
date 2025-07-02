@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -39,12 +37,7 @@ public class InferenceRunner {
         return threadPool;
     }
 
-    public void resolveInferenceIds(List<InferencePlan<?>> plans, ActionListener<InferenceResolution> listener) {
-        resolveInferenceIds(plans.stream().map(InferenceRunner::planInferenceId).collect(Collectors.toSet()), listener);
-
-    }
-
-    private void resolveInferenceIds(Set<String> inferenceIds, ActionListener<InferenceResolution> listener) {
+    public void resolveInferenceIds(Set<String> inferenceIds, ActionListener<InferenceResolution> listener) {
 
         if (inferenceIds.isEmpty()) {
             listener.onResponse(InferenceResolution.EMPTY);

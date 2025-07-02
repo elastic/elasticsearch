@@ -328,6 +328,7 @@ public class TransportVersions {
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
     public static final TransportVersion LOOKUP_JOIN_MANY_INDICES = def(9_113_0_00);
 
+    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_113_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

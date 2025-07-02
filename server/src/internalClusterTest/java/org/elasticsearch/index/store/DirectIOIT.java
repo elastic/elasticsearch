@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -43,7 +44,9 @@ import static org.hamcrest.Matchers.is;
 public class DirectIOIT extends ESIntegTestCase {
 
     @BeforeClass
-    public static void checkSupported() throws IOException {
+    public static void checkSupported() {
+        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
+
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");

@@ -63,6 +63,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
   task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
   task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
+  task.skipTest("search.vectors/70_dense_vector_telemetry/Field mapping stats with field details", "default dense vector field mapping has changed")
   task.skipTest("range/20_synthetic_source/Double range", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("range/20_synthetic_source/Float range", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("range/20_synthetic_source/Integer range", "_source.mode mapping attribute is no-op since 9.0.0")

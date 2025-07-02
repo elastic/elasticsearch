@@ -382,7 +382,7 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID,
+        SPATIAL_GRID(Build.current().isSnapshot()),
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -1216,7 +1216,12 @@ public class EsqlCapabilities {
          * Support for the mv_expand target attribute should be retained in its original position.
          * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
          */
-        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER;
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
+         * (Re)Added EXPLAIN command
+         */
+        EXPLAIN(Build.current().isSnapshot());
 
         private final boolean enabled;
 

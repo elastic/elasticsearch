@@ -127,7 +127,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
-        this.fields = fields.stream().map(f -> new FieldWork(f)).toArray(FieldWork[]::new);
+        this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
         this.blockFactory = blockFactory;
@@ -140,11 +140,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         Block[] target = new Block[fields.length];
         boolean success = false;
         try {
-            if (docVector.singleSegment()) {
-                new LoadFromSingle(docVector).run(target);
-            } else {
-                new LoadFromMany(docVector).run(target);
-            }
+            Load load = docVector.singleSegment() ? new LoadFromSingle(docVector) : new LoadFromMany(docVector);
+            load.load(target);
             success = true;
             for (Block b : target) {
                 valuesLoaded += b.getTotalValueCount();
@@ -199,7 +196,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return true;
     }
 
-    private class LoadFromSingle {
+    interface Load {
+        void load(Block[] target) throws IOException;
+    }
+
+    private class LoadFromSingle implements Load {
         private final int shard;
         private final int segment;
         private final DocVector docs;
@@ -210,7 +211,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             this.docs = docs;
         }
 
-        private void run(Block[] target) throws IOException {
+        @Override
+        public void load(Block[] target) throws IOException {
             if (docs.singleSegmentNonDecreasing()) {
                 loadFromSingleLeaf(target, new BlockLoader.Docs() {
                     @Override
@@ -239,7 +241,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             });
             final int[] backwards = docs.shardSegmentDocMapBackwards();
             for (int i = 0; i < target.length; i++) {
-                try (Block in = target[i] ) {
+                try (Block in = target[i]) {
                     target[i] = in.filter(backwards);
                 }
             }
@@ -315,7 +317,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private class LoadFromMany  {
+    private class LoadFromMany implements Load {
         private final IntVector shards;
         private final IntVector segments;
         private final IntVector docs;
@@ -334,8 +336,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             rowStride = new BlockLoader.RowStrideReader[fields.length];
         }
 
-        void run(Block[] target) throws IOException {
-            try (Run run =new Run(target)) {
+        @Override
+        public void load(Block[] target) throws IOException {
+            try (Run run = new Run(target)) {
                 run.run();
             }
         }

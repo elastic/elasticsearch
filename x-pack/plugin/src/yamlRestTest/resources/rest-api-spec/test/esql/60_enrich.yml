@@ -191,3 +191,59 @@ teardown:
   - match: { values.1: [ "Bob", "New York", "nyc", "USA" ] }
   - match: { values.2: [ "Denise", "Tan Son Nhat", null, null ] }
   - match: { values.3: [ "Mario", "Rome", "rom", "Italy" ] }
+
+
+---
+"Enrich with brackets in policy name":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ no_brackets_in_unquoted_index_names ]
+      reason: "Change in the grammar"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | enrich "city_codes_policy)" on city_id | keep name, city, country | sort name'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/.*cannot.find.enrich.policy.*/" }
+
+
+---
+"Enrich in fork":
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ no_brackets_in_unquoted_index_names ]
+      reason: "Change in the grammar"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval city_code = city_id | FORK (enrich city_codes_policy) (where false) | keep name, city, country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }

@@ -86,6 +86,29 @@ explainQuery:
   - match: { values.2.0: "coordinator" }
   - match: { values.2.1: "optimizedPhysicalPlan" }
 
+---
+explainFrom:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'EXPLAIN (from test)'
+
+  - length: { columns: 3 }
+  - match: {columns.0.name: "role"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "type"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "plan"}
+  - match: {columns.2.type: "keyword"}
+  - length: { values: 3 }
+  - match: { values.0.0: "coordinator" }
+  - match: { values.0.1: "parsedPlan" }
+  - match: { values.1.0: "coordinator" }
+  - match: { values.1.1: "optimizedLogicalPlan" }
+  - match: { values.2.0: "coordinator" }
+  - match: { values.2.1: "optimizedPhysicalPlan" }
 
 ---
 explainDownstream:

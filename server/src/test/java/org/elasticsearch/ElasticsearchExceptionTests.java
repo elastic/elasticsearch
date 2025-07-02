@@ -1642,20 +1642,17 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testNoExceptionTypeHeaderOn4xx() throws IOException {
         var e = new Exception4xx("some exception");
-        assertThat(e.getHeaderKeys(), not(hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER)));
+        assertThat(e.getHttpHeaderKeys(), not(hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER)));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         e.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String expected = """
-                        {
-                          "type": "exception4xx",
-            =======
-                          "type": "exception",
-            >>>>>>> main
-                          "reason": "some exception"
-                        }""";
+            {
+              "type": "exception4xx",
+              "reason": "some exception"
+            }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
 }

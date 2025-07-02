@@ -333,8 +333,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 NodeWriteLoad nodeWriteLoad = nodeWriteLoads.get(node.getId());
                 assertThat(nodeWriteLoad.nodeId(), equalTo(node.getId()));
                 assertThat(nodeWriteLoad.totalWriteThreadPoolThreads(), greaterThanOrEqualTo(0));
-                assertThat(nodeWriteLoad.percentWriteThreadPoolUtilization(), greaterThanOrEqualTo(0));
-                assertThat(nodeWriteLoad.maxTaskTimeInWriteQueueMillis(), greaterThanOrEqualTo(0L));
+                assertThat(nodeWriteLoad.averageWriteThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+                assertThat(nodeWriteLoad.averageWriteThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
         } finally {
             updateClusterSettings(

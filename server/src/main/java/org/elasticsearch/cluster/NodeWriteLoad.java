@@ -20,15 +20,15 @@ import java.io.IOException;
  *
  * @param nodeId Node ID.
  * @param totalWriteThreadPoolThreads Total number of threads in the write thread pool.
- * @param percentWriteThreadPoolUtilization Percent of write thread pool threads that are in use, averaged over some period of time.
- * @param maxTaskTimeInWriteQueueMillis How long the oldest task (next to be run) in the write thread pool queue has been queued. Zero if
- *                                      there is no write thread pool queue.
+ * @param averageWriteThreadPoolUtilization Percent of write thread pool threads that are in use, averaged over some period of time.
+ * @param averageWriteThreadPoolQueueLatencyMillis How much time tasks spend in the write thread pool queue. Zero if there is nothing being
+ *                                                 queued in the write thread pool.
  */
 public record NodeWriteLoad(
     String nodeId,
     int totalWriteThreadPoolThreads,
-    int percentWriteThreadPoolUtilization,
-    long maxTaskTimeInWriteQueueMillis
+    float averageWriteThreadPoolUtilization,
+    long averageWriteThreadPoolQueueLatencyMillis
 ) implements Writeable {
 
     public NodeWriteLoad(StreamInput in) throws IOException {
@@ -39,8 +39,8 @@ public record NodeWriteLoad(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.nodeId);
         out.writeVInt(this.totalWriteThreadPoolThreads);
-        out.writeVInt(this.percentWriteThreadPoolUtilization);
-        out.writeVLong(this.maxTaskTimeInWriteQueueMillis);
+        out.writeDouble(this.averageWriteThreadPoolUtilization);
+        out.writeVLong(this.averageWriteThreadPoolQueueLatencyMillis);
     }
 
     @Override
@@ -50,8 +50,8 @@ public record NodeWriteLoad(
         NodeWriteLoad other = (NodeWriteLoad) o;
         return nodeId.equals(other.nodeId)
             && totalWriteThreadPoolThreads == other.totalWriteThreadPoolThreads
-            && percentWriteThreadPoolUtilization == other.percentWriteThreadPoolUtilization
-            && maxTaskTimeInWriteQueueMillis == other.maxTaskTimeInWriteQueueMillis;
+            && averageWriteThreadPoolUtilization == other.averageWriteThreadPoolUtilization
+            && averageWriteThreadPoolQueueLatencyMillis == other.averageWriteThreadPoolQueueLatencyMillis;
     }
 
     @Override
@@ -61,10 +61,10 @@ public record NodeWriteLoad(
             + nodeId
             + "], totalWriteThreadPoolThreads=["
             + totalWriteThreadPoolThreads
-            + "], percentWriteThreadPoolUtilization=["
-            + percentWriteThreadPoolUtilization
-            + "], maxTaskTimeInWriteQueueMillis=["
-            + maxTaskTimeInWriteQueueMillis
+            + "], averageWriteThreadPoolUtilization=["
+            + averageWriteThreadPoolUtilization
+            + "], averageWriteThreadPoolQueueLatencyMillis=["
+            + averageWriteThreadPoolQueueLatencyMillis
             + "]}";
     }
 

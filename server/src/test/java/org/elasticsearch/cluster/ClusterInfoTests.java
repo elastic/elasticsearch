@@ -70,8 +70,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             String nodeIdKey = randomAlphaOfLength(32);
             final NodeWriteLoad nodeWriteLoad = new NodeWriteLoad(/* nodeId= */ nodeIdKey,
                 /* totalWriteThreadPoolThreads= */ randomIntBetween(1, 16),
-                /* percentWriteThreadPoolUtilization= */randomIntBetween(0, 100),
-                /* maxTaskTimeInWriteQueueMillis= */ randomLongBetween(0, 50000)
+                /* averageWriteThreadPoolUtilization= */randomIntBetween(0, 100),
+                /* averageWriteThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
             );
             nodeWriteLoads.put(nodeIdKey, nodeWriteLoad);
         }

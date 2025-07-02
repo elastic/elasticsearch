@@ -33,6 +33,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
+import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 
 /**
@@ -211,7 +212,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             quantizedQueryScratch = new byte[QUERY_BITS * discretizedDimensions / 8];
             quantizedByteLength = discretizedDimensions / 8 + (Float.BYTES * 3) + Short.BYTES;
             quantizedVectorByteSize = (discretizedDimensions / 8);
-            quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+            quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 2);
             osqVectorsScorer = ESVectorUtil.getES91OSQVectorsScorer(indexInput, fieldInfo.getVectorDimension());
         }
 

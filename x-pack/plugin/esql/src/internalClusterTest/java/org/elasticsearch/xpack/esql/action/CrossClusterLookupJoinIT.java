@@ -330,7 +330,8 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(
                 failure.reason(),
                 containsString(
-                    "Lookup Join requires a single lookup mode index; [values_lookup] resolves to [cluster-a:values_lookup] in [standard] mode"
+                    "Lookup Join requires a single lookup mode index; "
+                        + "[values_lookup] resolves to [cluster-a:values_lookup] in [standard] mode"
                 )
             );
         }

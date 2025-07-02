@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -302,7 +302,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        new ClusterStateRequest(waitForMetadataTimeOut).clear()
+                        new RemoteClusterStateRequest(waitForMetadataTimeOut).clear()
                             .metadata(true)
                             .routingTable(true)
                             .waitForMetadataVersion(metadataVersion)

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -251,7 +250,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 try {
                     remoteClient(params).execute(
                         ClusterStateAction.REMOTE_TYPE,
-                        new RemoteClusterStateRequest(CcrRequests.metadataRequest(leaderIndex.getName())),
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
                         ActionListener.wrap(onResponse, errorHandler)
                     );
                 } catch (NoSuchRemoteClusterException e) {
@@ -380,7 +379,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 try {
                     remoteClient(params).execute(
                         ClusterStateAction.REMOTE_TYPE,
-                        new RemoteClusterStateRequest(CcrRequests.metadataRequest(leaderIndex.getName())),
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
                         ActionListener.wrap(onResponse, errorHandler)
                     );
                 } catch (final NoSuchRemoteClusterException e) {

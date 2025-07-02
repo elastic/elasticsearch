@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -109,7 +108,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
                         ),
                         clusterStateResponseListener -> {
-                            final var request = new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT));
+                            final var request = new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT);
                             if (randomBoolean()) {
                                 client.execute(ClusterStateAction.REMOTE_TYPE, request, clusterStateResponseListener);
                             } else {
@@ -198,7 +197,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         final ClusterStateResponse clusterStateResponse = safeAwait(
                             listener -> client.execute(
                                 ClusterStateAction.REMOTE_TYPE,
-                                new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)),
+                                new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT),
                                 listener
                             )
                         );
@@ -296,7 +295,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                                 ClusterStateResponse.class,
                                 listener -> client.execute(
                                     ClusterStateAction.REMOTE_TYPE,
-                                    new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)),
+                                    new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT),
                                     listener
                                 )
                             ),
@@ -319,7 +318,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                         () -> safeAwait(
                             listener -> client.execute(
                                 ClusterStateAction.REMOTE_TYPE,
-                                new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)),
+                                new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT),
                                 listener.map(v -> v)
                             )
                         ),

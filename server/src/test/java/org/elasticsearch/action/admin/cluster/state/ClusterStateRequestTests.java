@@ -30,7 +30,9 @@ public class ClusterStateRequestTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(randomBoolean())
+            RemoteClusterStateRequest clusterStateRequest = new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(
+                randomBoolean()
+            )
                 .metadata(randomBoolean())
                 .nodes(randomBoolean())
                 .blocks(randomBoolean())
@@ -51,11 +53,11 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(testVersion);
-            new RemoteClusterStateRequest(clusterStateRequest).writeTo(output);
+            clusterStateRequest.writeTo(output);
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setTransportVersion(testVersion);
-            ClusterStateRequest deserializedCSRequest = new RemoteClusterStateRequest(streamInput).clusterStateRequest();
+            RemoteClusterStateRequest deserializedCSRequest = new RemoteClusterStateRequest(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
             assertThat(deserializedCSRequest.metadata(), equalTo(clusterStateRequest.metadata()));
@@ -85,10 +87,13 @@ public class ClusterStateRequestTests extends ESTestCase {
     }
 
     public void testDescription() {
-        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
+        assertThat(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(),
+            equalTo("cluster state [local, master timeout [30s]]")
+        );
         assertThat(
             new ClusterStateRequest(TimeValue.timeValueMinutes(5)).getDescription(),
-            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]")
+            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, local, master timeout [5m]]")
         );
         assertThat(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().routingTable(true).getDescription(),

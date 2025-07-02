@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -120,7 +119,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                     ClusterStateResponse.class,
                     listener -> remoteClusterClient.execute(
                         ClusterStateAction.REMOTE_TYPE,
-                        new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)),
+                        new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT),
                         listener
                     )
                 ).getMessage()
@@ -134,7 +133,7 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                     listener -> remoteClusterClient.execute(
                         null,
                         ClusterStateAction.REMOTE_TYPE,
-                        new RemoteClusterStateRequest(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)),
+                        new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT),
                         listener
                     )
                 ).getMessage()

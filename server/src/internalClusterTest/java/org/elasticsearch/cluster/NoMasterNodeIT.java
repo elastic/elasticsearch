@@ -82,10 +82,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final String masterLessNode = internalCluster().getRandomNodeName();
-        final Client clientToMasterlessNode = client(masterLessNode);
+        final String masterlessNode = internalCluster().getRandomNodeName();
+        final Client clientToMasterlessNode = client(masterlessNode);
 
-        awaitClusterState(masterLessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        awaitClusterState(masterlessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         assertRequestBuilderThrows(
             clientToMasterlessNode.prepareGet("test", "1"),
@@ -239,10 +239,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
-        final String masterLessNode = internalCluster().getRandomNodeName();
-        final Client clientToMasterlessNode = client(masterLessNode);
+        final String masterlessNode = internalCluster().getRandomNodeName();
+        final Client clientToMasterlessNode = client(masterlessNode);
 
-        awaitClusterState(masterLessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        awaitClusterState(masterlessNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);

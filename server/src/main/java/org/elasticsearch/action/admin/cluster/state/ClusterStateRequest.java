@@ -14,16 +14,18 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * A local-only request for obtaining (parts of) the cluster state. {@link RemoteClusterStateRequest} can be used for obtaining cluster
+ * states from remote clusters.
+ */
 public class ClusterStateRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
@@ -40,22 +42,6 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
 
     public ClusterStateRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
-    }
-
-    /**
-     * Even though this request is only executed on the local node, we still need to be able to serialize it for cross-cluster requests.
-     */
-    ClusterStateRequest(StreamInput in) throws IOException {
-        super(in);
-        routingTable = in.readBoolean();
-        nodes = in.readBoolean();
-        metadata = in.readBoolean();
-        blocks = in.readBoolean();
-        customs = in.readBoolean();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        waitForTimeout = in.readTimeValue();
-        waitForMetadataVersion = in.readOptionalLong();
     }
 
     @Override
@@ -200,6 +186,7 @@ public class ClusterStateRequest extends LocalClusterStateRequest implements Ind
         if (customs) {
             stringBuilder.append("customs, ");
         }
+        stringBuilder.append("local, ");
         if (waitForMetadataVersion != null) {
             stringBuilder.append("wait for metadata version [")
                 .append(waitForMetadataVersion)

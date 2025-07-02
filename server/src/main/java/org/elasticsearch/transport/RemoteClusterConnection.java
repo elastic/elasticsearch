@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -149,7 +148,7 @@ public final class RemoteClusterConnection implements Closeable {
                         }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } else {
-                    final ClusterStateRequest request = new ClusterStateRequest(
+                    final RemoteClusterStateRequest request = new RemoteClusterStateRequest(
                         /* Timeout doesn't really matter with .local(true) */
                         TimeValue.THIRTY_SECONDS
                     );
@@ -159,7 +158,7 @@ public final class RemoteClusterConnection implements Closeable {
                     transportService.sendRequest(
                         connection,
                         ClusterStateAction.NAME,
-                        new RemoteClusterStateRequest(request),
+                        request,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
                             contextPreservingActionListener.map(response -> response.getState().nodes()::get),

@@ -9,56 +9,187 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
  * A remote-only version of {@link ClusterStateRequest} that should be used for cross-cluster requests.
  * It simply exists to handle incoming remote requests and forward them to the local transport action.
  */
-public class RemoteClusterStateRequest extends ActionRequest {
+public class RemoteClusterStateRequest extends MasterNodeReadRequest<RemoteClusterStateRequest> implements IndicesRequest.Replaceable {
 
-    private final ClusterStateRequest clusterStateRequest;
+    private boolean routingTable = true;
+    private boolean nodes = true;
+    private boolean metadata = true;
+    private boolean blocks = true;
+    private boolean customs = true;
+    private Long waitForMetadataVersion;
+    private TimeValue waitForTimeout = ClusterStateRequest.DEFAULT_WAIT_FOR_NODE_TIMEOUT;
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public RemoteClusterStateRequest(ClusterStateRequest clusterStateRequest) {
-        this.clusterStateRequest = clusterStateRequest;
+    public RemoteClusterStateRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public RemoteClusterStateRequest(StreamInput in) throws IOException {
-        this.clusterStateRequest = new ClusterStateRequest(in);
+        super(in);
+        routingTable = in.readBoolean();
+        nodes = in.readBoolean();
+        metadata = in.readBoolean();
+        blocks = in.readBoolean();
+        customs = in.readBoolean();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        waitForTimeout = in.readTimeValue();
+        waitForMetadataVersion = in.readOptionalLong();
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return clusterStateRequest.validate();
+        // We defer validation to `ClusterStateRequest`, which will run on the local node.
+        return null;
+    }
+
+    public RemoteClusterStateRequest all() {
+        routingTable = true;
+        nodes = true;
+        metadata = true;
+        blocks = true;
+        customs = true;
+        indices = Strings.EMPTY_ARRAY;
+        return this;
+    }
+
+    public RemoteClusterStateRequest clear() {
+        routingTable = false;
+        nodes = false;
+        metadata = false;
+        blocks = false;
+        customs = false;
+        indices = Strings.EMPTY_ARRAY;
+        return this;
+    }
+
+    public boolean routingTable() {
+        return routingTable;
+    }
+
+    public RemoteClusterStateRequest routingTable(boolean routingTable) {
+        this.routingTable = routingTable;
+        return this;
+    }
+
+    public boolean nodes() {
+        return nodes;
+    }
+
+    public RemoteClusterStateRequest nodes(boolean nodes) {
+        this.nodes = nodes;
+        return this;
+    }
+
+    public boolean metadata() {
+        return metadata;
+    }
+
+    public RemoteClusterStateRequest metadata(boolean metadata) {
+        this.metadata = metadata;
+        return this;
+    }
+
+    public boolean blocks() {
+        return blocks;
+    }
+
+    public RemoteClusterStateRequest blocks(boolean blocks) {
+        this.blocks = blocks;
+        return this;
+    }
+
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public RemoteClusterStateRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return this.indicesOptions;
+    }
+
+    public final RemoteClusterStateRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    public RemoteClusterStateRequest customs(boolean customs) {
+        this.customs = customs;
+        return this;
+    }
+
+    public boolean customs() {
+        return customs;
+    }
+
+    public TimeValue waitForTimeout() {
+        return waitForTimeout;
+    }
+
+    public RemoteClusterStateRequest waitForTimeout(TimeValue waitForTimeout) {
+        this.waitForTimeout = waitForTimeout;
+        return this;
+    }
+
+    public Long waitForMetadataVersion() {
+        return waitForMetadataVersion;
+    }
+
+    public RemoteClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
+        if (waitForMetadataVersion < 1) {
+            throw new IllegalArgumentException(
+                "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
+            );
+        }
+        this.waitForMetadataVersion = waitForMetadataVersion;
+        return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        clusterStateRequest.getParentTask().writeTo(out);
-        out.writeTimeValue(clusterStateRequest.masterTimeout());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(0L); // Master term
-        } // else no protection against routing loops in older versions
-        out.writeBoolean(true); // Local
-        out.writeBoolean(clusterStateRequest.routingTable());
-        out.writeBoolean(clusterStateRequest.nodes());
-        out.writeBoolean(clusterStateRequest.metadata());
-        out.writeBoolean(clusterStateRequest.blocks());
-        out.writeBoolean(clusterStateRequest.customs());
-        out.writeStringArray(clusterStateRequest.indices());
-        clusterStateRequest.indicesOptions().writeIndicesOptions(out);
-        out.writeTimeValue(clusterStateRequest.waitForTimeout());
-        out.writeOptionalLong(clusterStateRequest.waitForMetadataVersion());
+        super.writeTo(out);
+        out.writeBoolean(routingTable);
+        out.writeBoolean(nodes);
+        out.writeBoolean(metadata);
+        out.writeBoolean(blocks);
+        out.writeBoolean(customs);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeTimeValue(waitForTimeout);
+        out.writeOptionalLong(waitForMetadataVersion);
     }
 
     @Override
@@ -68,10 +199,34 @@ public class RemoteClusterStateRequest extends ActionRequest {
 
     @Override
     public String getDescription() {
-        return clusterStateRequest.getDescription();
-    }
+        final StringBuilder stringBuilder = new StringBuilder("remote cluster state [");
+        if (routingTable) {
+            stringBuilder.append("routing table, ");
+        }
+        if (nodes) {
+            stringBuilder.append("nodes, ");
+        }
+        if (metadata) {
+            stringBuilder.append("metadata, ");
+        }
+        if (blocks) {
+            stringBuilder.append("blocks, ");
+        }
+        if (customs) {
+            stringBuilder.append("customs, ");
+        }
+        if (waitForMetadataVersion != null) {
+            stringBuilder.append("wait for metadata version [")
+                .append(waitForMetadataVersion)
+                .append("] with timeout [")
+                .append(waitForTimeout)
+                .append("], ");
+        }
+        if (indices.length > 0) {
+            stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
+        }
+        stringBuilder.append("master timeout [").append(masterNodeTimeout()).append("]]");
+        return stringBuilder.toString();
 
-    public ClusterStateRequest clusterStateRequest() {
-        return clusterStateRequest;
     }
 }

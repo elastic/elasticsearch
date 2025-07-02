@@ -45,6 +45,18 @@ public class TransportRemoteClusterStateAction extends HandledTransportAction<Re
 
     @Override
     protected void doExecute(Task task, RemoteClusterStateRequest request, ActionListener<ClusterStateResponse> listener) {
-        client.execute(ClusterStateAction.INSTANCE, request.clusterStateRequest(), listener);
+        final ClusterStateRequest localRequest = new ClusterStateRequest(request.masterNodeTimeout());
+        localRequest.routingTable(request.routingTable());
+        localRequest.nodes(request.nodes());
+        localRequest.metadata(request.metadata());
+        localRequest.blocks(request.blocks());
+        localRequest.customs(request.customs());
+        if (request.waitForMetadataVersion() != null) {
+            localRequest.waitForMetadataVersion(request.waitForMetadataVersion());
+        }
+        localRequest.waitForTimeout(request.waitForTimeout());
+        localRequest.indices(request.indices());
+        localRequest.indicesOptions(request.indicesOptions());
+        client.execute(ClusterStateAction.INSTANCE, localRequest, listener);
     }
 }

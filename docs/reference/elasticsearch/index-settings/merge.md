@@ -36,5 +36,11 @@ The merge scheduler supports the following *dynamic* settings:
 :   The time interval for checking the available disk space. Defaults to `5s`.
 `indices.merge.disk.watermark.high`
 :   Controls the disk usage watermark, which defaults to `95%`, beyond which no merge tasks can start execution.
-Any merge tasks scheduled *before* the limit is reached continue executing, even though the limit is exceeded in the meantime.
+The disk usage tally includes the estimated temporary disk space still required by all the currently executing merge tasks.
+Any merge task scheduled *before* the limit is reached continues execution, even if the limit is exceeded while executing
+(merge tasks are not aborted).
+`indices.merge.disk.watermark.high.max_headroom`
+:   Controls the max headroom for the merge disk usage watermark, in case it is specified as percentage or ratio values.
+Defaults to `100GB` when `indices.merge.disk.watermark.high` is not explicitly set.
+This caps the amount of free disk space before merge scheduling is blocked.
 

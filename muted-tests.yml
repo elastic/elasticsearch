@@ -593,6 +593,9 @@ tests:
 - class: org.elasticsearch.ingest.PipelineFactoryTests
   method: testCreateUnsupportedFieldAccessPattern
   issue: https://github.com/elastic/elasticsearch/issues/130422
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
+  issue: https://github.com/elastic/elasticsearch/issues/130472
 
 # Examples:
 #

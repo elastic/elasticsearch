@@ -109,8 +109,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(sparseVectorQueryBuilder.getFieldName()),
-            SparseVectorQueryBuilder.from(
-                queryBuilder,
+            new SparseVectorQueryBuilder(
                 SemanticTextField.getEmbeddingsFieldName(sparseVectorQueryBuilder.getFieldName()),
                 sparseVectorQueryBuilder.getQueryVectors(),
                 (sparseVectorQueryBuilder.getInferenceId() == null && sparseVectorQueryBuilder.getQuery() != null)

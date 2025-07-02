@@ -226,6 +226,8 @@ tasks.named("test").configure {
   }
 }
 
+// This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
+// and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
 tasks.named("internalClusterTest").configure {
   if (buildParams.ci == false) {
     systemProperty 'generateDocs', true

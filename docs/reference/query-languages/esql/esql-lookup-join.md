@@ -142,24 +142,38 @@ Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/
 
 ## Prerequisites [esql-lookup-join-prereqs]
 
-To use `LOOKUP JOIN`, the following requirements must be met:
+### Index configuration
 
-* Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
-* **Compatible data types**: The join key and join field in the lookup index must have compatible data types. This means:
-  * The data types must either be identical or be internally represented as the same type in {{esql}}
-  * Numeric types follow these compatibility rules:
-    * `short` and `byte` are compatible with `integer` (all represented as `int`)
-    * `float`, `half_float`, and `scaled_float` are compatible with `double` (all represented as `double`)
-  * For text fields: You can only use text fields as the join key on the left-hand side of the join and only if they have a `.keyword` subfield
-  * `DATE` and `DATE_NANOS` can only be joined against the exact same type.
+Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
+### Data type compatibility
+
+Join keys must have compatible data types between the source and lookup indices. Types within the same compatibility group can be joined together:
+
+| Compatibility group    | Types                                                                               | Notes                                                                            |
+|------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| **Numeric family**     | `byte`, `short`, `integer`, `long`, `half_float`, `float`, `scaled_float`, `double` | All compatible                    |
+| **Keyword family**     | `keyword`, `text.keyword`                                                           | Text fields only as join key on left-hand side and must have `.keyword` subfield |
+| **Date (Exact)**       | `date`                                                                              | Must match exactly                                                               |
+| **Date Nanos (Exact)** | `date_nanos`                                                                        | Must match exactly                                                               |
+| **Boolean**            | `boolean`                                                                           | Must match exactly                                                               |
+
+```{tip}
 To obtain a join key with a compatible type, use a [conversion function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md) if needed.
+```
 
-The list of unsupported fields includes all types not supported by {{esql}} as described in the [Unsupported Field Types documentation](/reference/query-languages/esql/limitations.md#_unsupported_types).
-as well as the following: `VERSION`, `UNSIGNED_LONG`, all spatial types like `GEO_POINT`, `GEO_SHAPE`, and all
-temporal periods like `DURATION` and `PERIOD`.
+### Unsupported Types
 
+In addition to the [{{esql}} unsupported field types](/reference/query-languages/esql/limitations.md#_unsupported_types), `LOOKUP JOIN` does not support:
+
+* `VERSION`
+* `UNSIGNED_LONG`
+* Spatial types like `GEO_POINT`, `GEO_SHAPE`
+* Temporal intervals like `DURATION`, `PERIOD`
+
+```{note}
 For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOKUP JOIN` supported types table](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join).
+```
 
 ## Usage notes
 

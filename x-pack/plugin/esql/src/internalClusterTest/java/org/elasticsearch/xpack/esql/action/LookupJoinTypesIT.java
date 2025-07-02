@@ -268,6 +268,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         return existing.stream().anyMatch(c -> c.exists(indexName));
     }
 
+    /** This test generates documentation for the supported output types of the lookup join. */
     public void testOutputSupportedTypes() throws Exception {
         Map<List<DataType>, DataType> signatures = new LinkedHashMap<>();
         for (TestConfigs configs : testConfigurations.values()) {

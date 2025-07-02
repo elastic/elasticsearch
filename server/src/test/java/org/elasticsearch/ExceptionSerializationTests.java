@@ -217,7 +217,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         };
 
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final Path testStartPath = PathUtils.get(
+            ElasticsearchExceptionTests.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).resolve("org").resolve("elasticsearch");
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
@@ -578,13 +580,13 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testWithRestHeadersException() throws IOException {
         {
             ElasticsearchException ex = new ElasticsearchException("msg");
-            ex.addHeader("foo", "foo", "bar");
+            ex.addBodyHeader("foo", "foo", "bar");
             ex.addMetadata("es.foo_metadata", "value1", "value2");
             ex = serialize(ex);
             assertEquals("msg", ex.getMessage());
-            assertEquals(2, ex.getHeader("foo").size());
-            assertEquals("foo", ex.getHeader("foo").get(0));
-            assertEquals("bar", ex.getHeader("foo").get(1));
+            assertEquals(2, ex.getBodyHeader("foo").size());
+            assertEquals("foo", ex.getBodyHeader("foo").get(0));
+            assertEquals("bar", ex.getBodyHeader("foo").get(1));
             assertEquals(2, ex.getMetadata("es.foo_metadata").size());
             assertEquals("value1", ex.getMetadata("es.foo_metadata").get(0));
             assertEquals("value2", ex.getMetadata("es.foo_metadata").get(1));
@@ -593,16 +595,16 @@ public class ExceptionSerializationTests extends ESTestCase {
             RestStatus status = randomFrom(RestStatus.values());
             // ensure we are carrying over the headers and metadata even if not serialized
             UnknownHeaderException uhe = new UnknownHeaderException("msg", status);
-            uhe.addHeader("foo", "foo", "bar");
+            uhe.addBodyHeader("foo", "foo", "bar");
             uhe.addMetadata("es.foo_metadata", "value1", "value2");
 
             ElasticsearchException serialize = serialize((ElasticsearchException) uhe);
             assertTrue(serialize instanceof NotSerializableExceptionWrapper);
             NotSerializableExceptionWrapper e = (NotSerializableExceptionWrapper) serialize;
             assertEquals("unknown_header_exception: msg", e.getMessage());
-            assertEquals(2, e.getHeader("foo").size());
-            assertEquals("foo", e.getHeader("foo").get(0));
-            assertEquals("bar", e.getHeader("foo").get(1));
+            assertEquals(2, e.getBodyHeader("foo").size());
+            assertEquals("foo", e.getBodyHeader("foo").get(0));
+            assertEquals("bar", e.getBodyHeader("foo").get(1));
             assertEquals(2, e.getMetadata("es.foo_metadata").size());
             assertEquals("value1", e.getMetadata("es.foo_metadata").get(0));
             assertEquals("value2", e.getMetadata("es.foo_metadata").get(1));

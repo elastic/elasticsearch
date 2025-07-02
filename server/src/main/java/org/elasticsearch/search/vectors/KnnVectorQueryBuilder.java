@@ -571,6 +571,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
         }
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
+        boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,
@@ -579,7 +580,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQuery,
             vectorSimilarity,
             parentBitSet,
-            heuristic
+            heuristic,
+            hnswEarlyTermination
         );
     }
 

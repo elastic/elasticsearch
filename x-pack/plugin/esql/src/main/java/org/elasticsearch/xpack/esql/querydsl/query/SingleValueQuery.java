@@ -225,6 +225,10 @@ public class SingleValueQuery extends Query {
             builder.add(rewrite, BooleanClause.Occur.FILTER);
             return builder.build();
         }
+
+        public String fieldName() {
+            return field;
+        }
     }
 
     /**

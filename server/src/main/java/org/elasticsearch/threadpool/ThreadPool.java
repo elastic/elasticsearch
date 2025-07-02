@@ -227,32 +227,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     public static final double DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA = 0.1;
 
-    /**
-     * The utilization percentage is tracked as a value between 0 and 1. A utilization sample is collected every 60 seconds, and represents
-     * the average thread pool utilization over that time. The EWMA will not be updated frequently, therefore a new sample will be made to
-     * have a larger effect.
-     *
-     * Suppose a new utilization sample is 90%, and the EWMA is 50%. The new sample will have the following effect with different alphas:
-     * .2 x .100 + .8 x .50 = .2 + .40 = .60
-     * .2 x .100 + .8 x .60 = .2 + .48 = .68
-     * .2 x .100 + .8 x .68 = .2 + .544 = .744
-     * .2 x .100 + .8 x .744 = .2 + .595 = .795
-     * .2 x .100 + .8 x .795 = .2 + .636 = .836
-     *
-     * .3 x .100 + .7 x .50 = .3 + .35 = .65
-     * .3 x .100 + .7 x .65 = .3 + .455 = .755
-     * .3 x .100 + .7 x .755 = .3 + .5285 = .8285
-     * .3 x .100 + .7 x .8285 = .3 + .5799 = .8799
-     * .3 x .100 + .7 x .8799 = .3 + .616 = .916
-     * It would take 5 minutes at 100% utilization to push the EWMA from 50% to >90% (currently a write load threshold for allocation).
-     */
-    // NOMERGE: this has a dependency on the APM polling interval. Need to figure that out, and make assurances.
-    public static final double DEFAULT_WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA = 0.3;
-
-    /**
-     *
-     */
-
     private final Map<String, ExecutorHolder> executors;
 
     private final ThreadPoolInfo threadPoolInfo;
@@ -315,19 +289,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         DEFAULT_WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA,
         0,
         1,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * The {@link org.elasticsearch.common.ExponentiallyWeightedMovingAverage} alpha for tracking thread pool thread utilization percentage.
-     */
-    public static final Setting<Double> WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA = Setting.doubleSetting(
-        "thread_pool.threads.percent_utilization.ewma_alpha",
-        DEFAULT_WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA,
-        0,
-        1,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 

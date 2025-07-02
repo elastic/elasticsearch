@@ -548,7 +548,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING,
         ThreadPool.WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA,
-        ThreadPool.WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,

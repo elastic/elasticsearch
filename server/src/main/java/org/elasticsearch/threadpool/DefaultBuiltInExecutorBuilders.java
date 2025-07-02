@@ -22,7 +22,6 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA;
-import static org.elasticsearch.threadpool.ThreadPool.WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA;
 import static org.elasticsearch.threadpool.ThreadPool.searchAutoscalingEWMA;
 
 public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
@@ -35,7 +34,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final int genericThreadPoolMax = ThreadPool.boundedBy(4 * allocatedProcessors, 128, 512);
         final double indexAutoscalingEWMA = WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.get(settings);
         final double queueLatencyEWMAAlpha = WRITE_THREAD_POOL_QUEUE_LATENCY_EWMA_ALPHA.get(settings);
-        final double threadUtilizationEWMAAlpha = WRITE_THREAD_POOL_THREAD_UTILIZATION_EWMA_ALPHA.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
         result.put(
@@ -59,14 +57,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.WRITE,
                 allocatedProcessors,
                 10000,
-                new EsExecutors.TaskTrackingConfig(
-                    true,
-                    true,
-                    true,
-                    indexAutoscalingEWMA,
-                    queueLatencyEWMAAlpha,
-                    threadUtilizationEWMAAlpha
-                )
+                new EsExecutors.TaskTrackingConfig(true, true, indexAutoscalingEWMA, queueLatencyEWMAAlpha)
             )
         );
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);

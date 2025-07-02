@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
-import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_POOL_UTILIZATION_EWMA_ALPHA_FOR_TEST;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -108,10 +108,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             new TaskTrackingConfig(
                 randomBoolean(),
                 true,
-                false,
                 DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-                0.6, // DEFAULT_QUEUE_LATENCY_EWMA_ALPHA is the default, but no need to break the test if it changes.
-                DEFAULT_POOL_UTILIZATION_EWMA_ALPHA_FOR_TEST
+                DEFAULT_QUEUE_LATENCY_EWMA_ALPHA_FOR_TEST
             )
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
@@ -202,7 +200,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
-    public void testQueueLatencyMetrics() {
+    public void testQueueLatencyHistogramMetrics() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(

@@ -27,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
@@ -48,14 +47,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private volatile long lastPollTime = System.nanoTime();
-    private volatile long lastTotalExecutionTime = 0;
+    private volatile long lastPollTimeAPM = System.nanoTime();
+    private volatile long lastTotalExecutionTimeAPM = 0;
+    private volatile long lastPollTimeNanosAllocation = System.nanoTime();
+    private volatile long lastTotalExecutionTimeAllocation = 0;
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
     private final boolean trackQueueLatencyEWMA;
-    private final boolean trackUtilizationEWMA;
     private final ExponentiallyWeightedMovingAverage queueLatencyMillisEWMA;
-    private final ExponentiallyWeightedMovingAverage percentPoolUtilizationEWMA;
-    private final AtomicReference<Double> lastUtilizationValue = new AtomicReference<>(0.0);
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -77,8 +75,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackQueueLatencyEWMA = trackingConfig.trackQueueLatencyEWMA();
         this.queueLatencyMillisEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getQueueLatencyEwmaAlpha(), 0);
-        this.trackUtilizationEWMA = trackingConfig.trackPoolUtilizationEWMA();
-        this.percentPoolUtilizationEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getPoolUtilizationEwmaAlpha(), 0);
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -106,7 +102,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(), Map.of())
+                () -> new DoubleWithAttributes(pollUtilization(true, false), Map.of())
             )
         );
     }
@@ -147,13 +143,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         return getQueue().size();
     }
 
-    public double getPercentPoolUtilizationEWMA() {
-        if (trackUtilizationEWMA == false) {
-            return 0;
-        }
-        return this.percentPoolUtilizationEWMA.getAverage();
-    }
-
     public double getQueuedTaskLatencyMillisEWMA() {
         if (trackQueueLatencyEWMA == false) {
             return 0;
@@ -162,36 +151,36 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     /**
-     * Returns the fraction of the maximum possible thread time that was actually used since the last time
-     * this method was called.
+     * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
+     * One of the two boolean parameters must be true, while the other false. There are two periodic pulling mechanisms that access
+     * utilization reporting.
      *
-     * @return the utilization as a fraction, in the range [0, 1]
+     * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
+     * earlier, contributing a larger execution time.
      */
-    public double pollUtilization() {
+    public double pollUtilization(boolean forAPM, boolean forAllocation) {
+        assert forAPM ^ forAllocation : "Can only collect one or the other, APM: " + forAPM + ", Allocation: " + forAllocation;
+
         final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
         final long currentPollTimeNanos = System.nanoTime();
 
-        final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-        final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
+        final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - (forAPM
+            ? lastTotalExecutionTimeAPM
+            : lastTotalExecutionTimeAllocation);
+        final long timeSinceLastPoll = currentPollTimeNanos - (forAPM ? lastPollTimeAPM : lastPollTimeNanosAllocation);
         final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
         final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
 
-        lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-        lastPollTime = currentPollTimeNanos;
-
-        if (trackUtilizationEWMA) {
-            percentPoolUtilizationEWMA.addValue(utilizationSinceLastPoll);
-            // Test only tracking.
-            assert setUtilizationSinceLastPoll(utilizationSinceLastPoll);
+        if (forAPM) {
+            lastTotalExecutionTimeAPM = currentTotalExecutionTimeNanos;
+            lastPollTimeAPM = currentPollTimeNanos;
+        } else {
+            assert forAllocation;
+            lastTotalExecutionTimeAllocation = currentTotalExecutionTimeNanos;
+            lastPollTimeNanosAllocation = currentPollTimeNanos;
         }
 
         return utilizationSinceLastPoll;
-    }
-
-    // Test only
-    private boolean setUtilizationSinceLastPoll(double utilizationSinceLastPoll) {
-        lastUtilizationValue.set(utilizationSinceLastPoll);
-        return true;
     }
 
     @Override
@@ -209,9 +198,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
         if (trackQueueLatencyEWMA) {
-            if (queueLatencyMillis > 0) {
-                queueLatencyMillisEWMA.addValue(queueLatencyMillis);
-            }
+            queueLatencyMillisEWMA.addValue(queueLatencyMillis);
         }
     }
 
@@ -257,9 +244,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackQueueLatencyEWMA) {
             sb.append("task queue EWMA = ").append(TimeValue.timeValueMillis((long) getQueuedTaskLatencyMillisEWMA())).append(", ");
         }
-        if (trackUtilizationEWMA) {
-            sb.append("thread pool utilization percentage EWMA = ").append(getPercentPoolUtilizationEWMA()).append(", ");
-        }
     }
 
     /**
@@ -284,17 +268,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     // Used for testing
-    public double getPoolUtilizationEwmaAlpha() {
-        return percentPoolUtilizationEWMA.getAlpha();
-    }
-
-    // Used for testing
     public boolean trackingQueueLatencyEwma() {
         return trackQueueLatencyEWMA;
-    }
-
-    // Used for testing
-    public boolean trackUtilizationEwma() {
-        return trackUtilizationEWMA;
     }
 }

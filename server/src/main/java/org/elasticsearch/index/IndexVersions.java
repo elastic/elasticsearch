@@ -145,6 +145,7 @@ public class IndexVersions {
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, Version.LUCENE_9_12_2);
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X = def(8_535_0_00, Version.LUCENE_9_12_2);
+    public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES_BACKPORT_8_X = def(8_536_0_00, Version.LUCENE_9_12_2);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);
@@ -177,6 +178,8 @@ public class IndexVersions {
     public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED = def(9_029_0_00, Version.LUCENE_10_2_1);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_2_2 = def(9_030_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT = def(9_031_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW = def(9_032_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES = def(9_033_0_00, Version.LUCENE_10_2_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

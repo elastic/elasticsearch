@@ -163,7 +163,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
 
-        this.fields = fields == null ? List.of() : List.copyOf(fields);
+        this.fields = fields == null ? null : List.copyOf(fields);
         this.query = query;
         this.normalizer = normalizer;
         this.weights = weights;
@@ -400,7 +400,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
 
-        if (fields.isEmpty() == false) {
+        if (fields != null) {
             builder.startArray(FIELDS_FIELD.getPreferredName());
             for (String field : fields) {
                 builder.value(field);

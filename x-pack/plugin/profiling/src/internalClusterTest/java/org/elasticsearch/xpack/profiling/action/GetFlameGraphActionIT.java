@@ -28,9 +28,9 @@ public class GetFlameGraphActionIT extends ProfilingTestCase {
         // only spot-check top level properties - detailed tests are done in unit tests
         assertEquals(1008, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(46, response.getSelfCPU());
-        assertEquals(1995, response.getTotalCPU());
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getSelfCPU());
+        assertEquals(1974, response.getTotalCPU());
+        assertEquals(45, response.getTotalSamples());
 
         // The root node's values are the same as the top-level values.
         assertEquals("", response.getFileIds().get(0));

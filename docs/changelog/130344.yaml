@@ -1,0 +1,5 @@
+pr: 130344
+summary: "Fix queries with missing index, `skip_unavailable` and filters"
+area: ES|QL
+type: bug
+issues: []

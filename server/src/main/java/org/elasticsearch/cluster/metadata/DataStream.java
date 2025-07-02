@@ -46,8 +46,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -73,7 +77,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
+import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.convertMappingMapToXContent;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.collectV2Mappings;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -408,8 +414,50 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return templateSettings.merge(settings);
     }
 
-    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata) throws IOException {
-        return getMatchingIndexTemplate(projectMetadata).mergeMappings(mappings).template().mappings();
+    public CompressedXContent getEffectiveMappings(
+        ProjectMetadata projectMetadata,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService
+    ) throws Exception {
+        ComposableIndexTemplate templateWithMergedMappings = getEffectiveIndexTemplate(projectMetadata);
+        return getEffectiveMappings(projectMetadata, templateWithMergedMappings, getWriteIndex(), xContentRegistry, indicesService);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static CompressedXContent getEffectiveMappings(
+        ProjectMetadata projectMetadata,
+        ComposableIndexTemplate templateWithMergedMappings,
+        Index writeIndex,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService
+    ) throws Exception {
+        final List<CompressedXContent> mappings = collectV2Mappings(
+            "{}",
+            projectMetadata,
+            templateWithMergedMappings,
+            xContentRegistry,
+            writeIndex.getName()
+        );
+        return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
+            MapperService mapperService = indexService.mapperService();
+            DocumentMapper documentMapper = mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                mappings,
+                MapperService.MergeReason.INDEX_TEMPLATE
+            );
+            Map<String, ?> resultMapping;
+            Map<String, Object> originalMappingMap = XContentHelper.convertToMap(
+                documentMapper.mappingSource().uncompressed(),
+                true,
+                XContentType.JSON
+            ).v2();
+            if (originalMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                resultMapping = (Map<String, ?>) originalMappingMap.get(MapperService.SINGLE_MAPPING_NAME);
+            } else {
+                resultMapping = originalMappingMap;
+            }
+            return convertMappingMapToXContent(resultMapping);
+        });
     }
 
     private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {

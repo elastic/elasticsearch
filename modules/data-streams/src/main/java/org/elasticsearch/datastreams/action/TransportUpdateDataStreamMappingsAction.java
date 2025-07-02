@@ -29,13 +29,14 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +48,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ProjectResolver projectResolver;
+    private final NamedXContentRegistry xContentRegistry;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportUpdateDataStreamMappingsAction(
@@ -57,7 +60,9 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ProjectResolver projectResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService
     ) {
         super(
             UpdateDataStreamMappingsAction.NAME,
@@ -73,6 +78,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
+        this.xContentRegistry = xContentRegistry;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -163,10 +170,14 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 true,
                                 null,
                                 mappingsOverrides,
-                                dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId))
+                                dataStream.getEffectiveMappings(
+                                    clusterService.state().metadata().getProject(projectId),
+                                    xContentRegistry,
+                                    indicesService
+                                )
                             )
                         );
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         dataStreamMappingsResponseActionListener.onResponse(
                             new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
                                 dataStreamName,

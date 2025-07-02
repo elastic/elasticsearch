@@ -22,10 +22,12 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +37,8 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
     GetDataStreamMappingsAction.Request,
     GetDataStreamMappingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NamedXContentRegistry xContentRegistry;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportGetDataStreamMappingsAction(
@@ -43,7 +47,9 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedXContentRegistry xContentRegistry,
+        IndicesService indicesService
     ) {
         super(
             GetSettingsAction.NAME,
@@ -54,6 +60,8 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
             projectResolver
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.xContentRegistry = xContentRegistry;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -81,7 +89,7 @@ public class TransportGetDataStreamMappingsAction extends TransportLocalProjectM
                 new GetDataStreamMappingsAction.DataStreamMappingsResponse(
                     dataStreamName,
                     dataStream.getMappings(),
-                    dataStream.getEffectiveMappings(project.metadata())
+                    dataStream.getEffectiveMappings(project.metadata(), xContentRegistry, indicesService)
                 )
             );
         }

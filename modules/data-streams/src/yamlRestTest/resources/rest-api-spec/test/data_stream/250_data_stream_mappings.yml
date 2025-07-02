@@ -37,7 +37,7 @@ setup:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
-  - length: { data_streams.0.effective_mappings.properties: 1 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
 
   - do:
       indices.get_data_stream:
@@ -74,7 +74,7 @@ setup:
       indices.get_data_stream_mappings:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
-  - length: { data_streams.0.effective_mappings.properties: 2 }
+  - length: { data_streams.0.effective_mappings.properties: 3 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
   - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
 
@@ -92,3 +92,113 @@ setup:
         index: my-data-stream-1
   - match: { .$oldIndexName.mappings.properties.name: null }
   - match: { .$newIndexName.mappings.properties.name.type: "keyword" }
+
+---
+"Test mappings component templates only":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+
+  - do:
+      cluster.put_component_template:
+        name: mappings-template
+        body:
+          template:
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+                field2:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [my-component-only-template] has index patterns [my-component-only-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-component-only-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-component-only-template
+        body:
+          index_patterns: [ my-component-only-data-stream-* ]
+          data_stream: { }
+          composed_of:
+            - mappings-template
+
+  - do:
+      indices.create_data_stream:
+        name: my-component-only-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-component-only-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: my-component-only-data-stream-1
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: my-component-only-data-stream-1
+        body:
+          properties:
+            field1:
+              type: text
+            field3:
+              type: text
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.mappings.properties.field1.type: "text" }
+  - match: { data_streams.0.mappings.properties.field2: null }
+  - match: { data_streams.0.mappings.properties.field3.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field2.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field3.type: "text" }
+
+  - do:
+      indices.rollover:
+        alias: "my-component-only-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-component-only-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-component-only-data-stream-1
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - length: { data_streams.0.effective_mappings.properties: 4 }
+  - match: { data_streams.0.mappings.properties.field1.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field3.type: "text" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-component-only-data-stream-1
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.mappings.properties.field1.type: "text" }
+  - match: { data_streams.0.effective_mappings: null }
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
+
+  - do:
+      indices.get_mapping:
+        index: my-component-only-data-stream-1
+  - match: { .$oldIndexName.mappings.properties.field1.type: "keyword" }
+  - match: { .$oldIndexName.mappings.properties.field2.type: "keyword" }
+  - match: { .$oldIndexName.mappings.properties.field3: null }
+  - match: { .$newIndexName.mappings.properties.field1.type: "text" }
+  - match: { .$newIndexName.mappings.properties.field2.type: "keyword" }
+  - match: { .$newIndexName.mappings.properties.field3.type: "text" }
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: my-component-only-data-stream-1
+        body: {}
+  - match: { data_streams.0.name: my-component-only-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.mappings null }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field2.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field3: null }

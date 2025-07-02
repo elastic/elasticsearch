@@ -646,7 +646,7 @@ class NodeConstruction {
         );
         modules.bindToInstance(
             MetadataDataStreamsService.class,
-            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionSettings)
+            new MetadataDataStreamsService(clusterService, indicesService, xContentRegistry, dataStreamGlobalRetentionSettings)
         );
         return dataStreamGlobalRetentionSettings;
     }

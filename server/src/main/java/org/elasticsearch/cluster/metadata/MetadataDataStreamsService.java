@@ -38,6 +38,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -56,6 +57,7 @@ public class MetadataDataStreamsService {
     private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final NamedXContentRegistry xContentRegistry;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
@@ -66,10 +68,12 @@ public class MetadataDataStreamsService {
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
+        NamedXContentRegistry xContentRegistry,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.xContentRegistry = xContentRegistry;
         this.globalRetentionSettings = globalRetentionSettings;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -497,11 +501,7 @@ public class MetadataDataStreamsService {
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
         Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
         Settings mergedEffectiveSettings = templateSettings.merge(mergedDataStreamSettings);
-        MetadataIndexTemplateService.validateTemplate(
-            mergedEffectiveSettings,
-            dataStream.getEffectiveMappings(projectMetadata),
-            indicesService
-        );
+        MetadataIndexTemplateService.validateTemplate(mergedEffectiveSettings, null, indicesService);
 
         return dataStream.copy().setSettings(mergedDataStreamSettings).build();
     }
@@ -518,11 +518,14 @@ public class MetadataDataStreamsService {
 
         final ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, projectMetadata);
         ComposableIndexTemplate mergedTemplate = template.mergeMappings(mappingsOverrides);
-        MetadataIndexTemplateService.validateTemplate(
-            dataStream.getEffectiveSettings(projectMetadata),
-            mergedTemplate.template().mappings(),
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            mergedTemplate,
+            dataStream.getWriteIndex(),
+            xContentRegistry,
             indicesService
         );
+        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
         return dataStream.copy().setMappings(mappingsOverrides).build();
     }
 

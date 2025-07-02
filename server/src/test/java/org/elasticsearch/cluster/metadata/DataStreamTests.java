@@ -2684,13 +2684,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
-    public void testGetEffectiveMappingsNoMatchingTemplate() {
-        // No matching template, so we expect an IllegalArgumentException
-        DataStream dataStream = createTestInstance();
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-        assertThrows(IllegalArgumentException.class, () -> dataStream.getEffectiveMappings(projectMetadataBuilder.build()));
-    }
-
     public void testGetEffectiveIndexTemplateDataStreamMappingsOnly() throws IOException {
         // We only have mappings from the data stream, so we expect to get only those back in the effective template
         CompressedXContent dataStreamMappings = randomMappings();

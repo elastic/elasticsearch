@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -484,6 +485,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
+            mock(NamedXContentRegistry.class),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
         {
@@ -520,6 +522,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         MetadataDataStreamsService service = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
+            mock(NamedXContentRegistry.class),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
 

@@ -19,7 +19,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -79,14 +78,11 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                 return new TransportAddress[] { poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress()) };
             }
         };
-        return new MockTransportService(
+        return MockTransportService.createMockTransportService(
             Settings.EMPTY,
             transport,
             threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null,
-            null,
-            UUIDs.randomBase64UUID()
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
     }
 

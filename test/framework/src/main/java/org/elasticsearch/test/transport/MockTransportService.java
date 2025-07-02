@@ -217,28 +217,16 @@ public class MockTransportService extends TransportService {
     private final Transport original;
     private final EsThreadPoolExecutor testExecutor;
 
-    /**
-     * Build the service.
-     *
-     * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
-     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
-     */
-    public static MockTransportService createMockTransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor interceptor,
-        @Nullable ClusterSettings clusterSettings
-    ) {
+    /** Build the service. */
+    public static MockTransportService createMockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         String nodeId = settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID());
         return new MockTransportService(
             settings,
             new StubbableTransport(transport),
             threadPool,
-            interceptor,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).applySettings(settings).address(boundAddress.publishAddress()).build(),
-            clusterSettings,
+            null, // clusterSettings
             createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, nodeId)
         );
     }

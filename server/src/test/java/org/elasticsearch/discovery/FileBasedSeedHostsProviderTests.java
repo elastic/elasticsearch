@@ -87,13 +87,7 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
                 );
             }
         };
-        transportService = MockTransportService.createMockTransportService(
-            Settings.EMPTY,
-            transport,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
-        );
+        transportService = MockTransportService.createMockTransportService(Settings.EMPTY, transport, threadPool);
     }
 
     public void testBuildDynamicNodes() throws Exception {

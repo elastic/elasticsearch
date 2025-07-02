@@ -59,9 +59,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                 new NoneCircuitBreakerService(),
                 new SharedGroupFactory(Settings.EMPTY)
             ),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            threadPool
         );
     }
 

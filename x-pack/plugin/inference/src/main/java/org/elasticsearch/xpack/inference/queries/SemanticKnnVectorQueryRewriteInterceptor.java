@@ -148,14 +148,6 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         return (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
     }
 
-    private KnnVectorQueryBuilder buildNewKnnVectorQuery(
-        String fieldName,
-        KnnVectorQueryBuilder original,
-        QueryVectorBuilder queryVectorBuilder
-    ) {
-        return new KnnVectorQueryBuilder(original, fieldName, queryVectorBuilder);
-    }
-
     @Override
     public String getQueryName() {
         return KnnVectorQueryBuilder.NAME;

@@ -14,8 +14,8 @@ import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
 import java.util.Collections;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -259,7 +259,6 @@ public class TransportVersionTests extends ESTestCase {
             fail(msg.toString());
         }
     }
-
 
     public void testDuplicateConstants() {
         List<TransportVersion> tvs = TransportVersions.getAllVersions().stream().sorted().toList();

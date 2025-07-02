@@ -202,7 +202,6 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<ClusterState.Cus
         public ProjectStateRegistry build() {
             final var unknownButUnderDeletion = Sets.difference(projectsMarkedForDeletion, projectsSettings.keys());
             if (unknownButUnderDeletion.isEmpty() == false) {
-                assert unknownButUnderDeletion.stream().noneMatch(projectsSettings::containsKey);
                 throw new IllegalArgumentException(
                     "Cannot mark projects for deletion that are not in the registry: " + unknownButUnderDeletion
                 );

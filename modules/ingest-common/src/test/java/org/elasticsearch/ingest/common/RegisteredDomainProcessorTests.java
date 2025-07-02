@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.common.RegisteredDomainProcessor.DomainInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.util.Collections;
 import java.util.Map;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Effective TLDs (eTLDs) are not the same as DNS TLDs. Uses for eTLDs are listed here:
  *   https://publicsuffix.org/learn/
  */
+@WithoutEntitlements // ES-12084
 public class RegisteredDomainProcessorTests extends ESTestCase {
 
     public void testGetRegisteredDomain() {

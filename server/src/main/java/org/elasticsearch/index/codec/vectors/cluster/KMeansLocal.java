@@ -179,12 +179,26 @@ class KMeansLocal {
             }
         }
 
+        float[] scores = new float[clustersPerNeighborhood];
         for (int i = 0; i < k; i++) {
             NeighborQueue queue = neighborQueues.get(i);
             int neighborCount = queue.size();
             int[] neighbors = new int[neighborCount];
-            float[] scores = new float[clustersPerNeighborhood];
-            float maxIntraDistance = queue.consumeNodesWithWorstScore(neighbors);
+            float maxIntraDistance = queue.consumeNodesWithWorstScore(neighbors, scores);
+            // Sort neighbors by their score
+            for (int j = 0; j < neighborCount; j++) {
+                for (int l = j + 1; l < neighborCount; l++) {
+                    if (scores[j] > scores[l]) {
+                        // swap
+                        int tmp = neighbors[j];
+                        neighbors[j] = neighbors[l];
+                        neighbors[l] = tmp;
+                        float tmpScore = scores[j];
+                        scores[j] = scores[l];
+                        scores[l] = tmpScore;
+                    }
+                }
+            }
             NeighborHood neighborHood = new NeighborHood(neighbors, maxIntraDistance);
             neighborhoods.set(i, neighborHood);
         }
@@ -211,7 +225,6 @@ class KMeansLocal {
             float[] currentCentroid = centroids[currAssignment];
 
             // TODO: cache these?
-            // float vectorCentroidDist = assignmentDistances[i];
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
 
             if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
@@ -223,24 +236,33 @@ class KMeansLocal {
 
             int bestAssignment = -1;
             float minSoar = Float.MAX_VALUE;
-            assert neighborhoods.get(currAssignment) != null;
-            for (int neighbor : neighborhoods.get(currAssignment).neighbors()) {
-                if (neighbor == currAssignment) {
-                    continue;
+            int centroidCount = centroids.length;
+            IntToIntFunction centroidOrds = c -> c;
+            if (neighborhoods != null) {
+                assert neighborhoods.get(currAssignment) != null;
+                NeighborHood neighborhood = neighborhoods.get(currAssignment);
+                centroidCount = neighborhood.neighbors.length;
+                centroidOrds = c -> neighborhood.neighbors[c];
+            }
+            for (int j = 0; j < centroidCount; j++) {
+                int centroidOrd = centroidOrds.apply(j);
+                if (centroidOrd == currAssignment) {
+                    continue; // skip the current assignment
                 }
-                float[] neighborCentroid = centroids[neighbor];
-                final float soar;
+                float[] centroid = centroids[centroidOrd];
+                float soar;
                 if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                    soar = ESVectorUtil.soarDistance(vector, neighborCentroid, diffs, soarLambda, vectorCentroidDist);
+                    soar = ESVectorUtil.soarDistance(vector, centroid, diffs, soarLambda, vectorCentroidDist);
                 } else {
                     // if the vector is very close to the centroid, we look for the second-nearest centroid
-                    soar = VectorUtil.squareDistance(vector, neighborCentroid);
+                    soar = VectorUtil.squareDistance(vector, centroid);
                 }
                 if (soar < minSoar) {
-                    bestAssignment = neighbor;
                     minSoar = soar;
+                    bestAssignment = centroidOrd;
                 }
             }
+
             assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
             spilledAssignments[i] = bestAssignment;
         }
@@ -280,7 +302,8 @@ class KMeansLocal {
         float[][] centroids = kMeansIntermediate.centroids();
 
         List<NeighborHood> neighborhoods = null;
-        if (neighborAware) {
+        // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
+        if (neighborAware && centroids.length > clustersPerNeighborhood) {
             int k = centroids.length;
             neighborhoods = new ArrayList<>(k);
             for (int i = 0; i < k; ++i) {

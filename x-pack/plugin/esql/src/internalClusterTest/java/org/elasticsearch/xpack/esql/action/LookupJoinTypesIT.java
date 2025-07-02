@@ -768,8 +768,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private static void saveJoinTypes(Supplier<Map<List<DataType>, DataType>> signatures) throws Exception {
         ArrayList<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>();
-        args.add(new EsqlFunctionRegistry.ArgSignature("main", null, "Field from the main index", false, false));
-        args.add(new EsqlFunctionRegistry.ArgSignature("join", null, "Field from the join index", false, false));
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the left index", null, null, false, false));
+        args.add(new EsqlFunctionRegistry.ArgSignature("field from the lookup index", null, null, false, false));
         DocsV3Support.CommandsDocsSupport docs = new DocsV3Support.CommandsDocsSupport(
             "lookup-join",
             LookupJoinTypesIT.class,

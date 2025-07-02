@@ -2,76 +2,20 @@
 
 **Supported types**
 
-| main | join | 
+| field from the left index | field from the lookup index | 
 | --- | --- | 
-| boolean | boolean | 
-| byte | byte | 
-| byte | double | 
-| byte | float | 
-| byte | half_float | 
-| byte | integer | 
-| byte | long | 
-| byte | scaled_float | 
-| byte | short | 
-| date | date | 
-| date_nanos | date_nanos | 
-| double | byte | 
-| double | double | 
-| double | float | 
-| double | half_float | 
-| double | integer | 
-| double | long | 
-| double | scaled_float | 
-| double | short | 
-| float | byte | 
-| float | double | 
-| float | float | 
-| float | half_float | 
-| float | integer | 
-| float | long | 
-| float | scaled_float | 
-| float | short | 
-| half_float | byte | 
-| half_float | double | 
-| half_float | float | 
-| half_float | half_float | 
-| half_float | integer | 
-| half_float | long | 
-| half_float | scaled_float | 
-| half_float | short | 
-| integer | byte | 
-| integer | double | 
-| integer | float | 
-| integer | half_float | 
-| integer | integer | 
-| integer | long | 
-| integer | scaled_float | 
-| integer | short | 
-| ip | ip | 
-| keyword | keyword | 
-| long | byte | 
-| long | double | 
-| long | float | 
-| long | half_float | 
-| long | integer | 
-| long | long | 
-| long | scaled_float | 
-| long | short | 
-| scaled_float | byte | 
-| scaled_float | double | 
-| scaled_float | float | 
-| scaled_float | half_float | 
-| scaled_float | integer | 
-| scaled_float | long | 
-| scaled_float | scaled_float | 
-| scaled_float | short | 
-| short | byte | 
-| short | double | 
-| short | float | 
-| short | half_float | 
-| short | integer | 
-| short | long | 
-| short | scaled_float | 
-| short | short | 
-| text | keyword | 
+| boolean | boolean |
+| byte | half_float, float, double, scaled_float, byte, short, integer, long |
+| date | date |
+| date_nanos | date_nanos |
+| double | half_float, float, double, scaled_float, byte, short, integer, long |
+| float | half_float, float, double, scaled_float, byte, short, integer, long |
+| half_float | half_float, float, double, scaled_float, byte, short, integer, long |
+| integer | half_float, float, double, scaled_float, byte, short, integer, long |
+| ip | ip |
+| keyword | keyword |
+| long | half_float, float, double, scaled_float, byte, short, integer, long |
+| scaled_float | half_float, float, double, scaled_float, byte, short, integer, long |
+| short | half_float, float, double, scaled_float, byte, short, integer, long |
+| text | keyword |
 

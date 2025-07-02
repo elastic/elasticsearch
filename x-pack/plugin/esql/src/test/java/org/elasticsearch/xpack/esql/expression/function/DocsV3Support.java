@@ -64,6 +64,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -311,7 +312,7 @@ public abstract class DocsV3Support {
     protected final String name;
     protected final FunctionDefinition definition;
     protected final Logger logger;
-    private final Supplier<Map<List<DataType>, DataType>> signatures;
+    protected final Supplier<Map<List<DataType>, DataType>> signatures;
     private TempFileWriter tempFileWriter;
     private final LicenseRequirementChecker licenseChecker;
 
@@ -929,6 +930,47 @@ public abstract class DocsV3Support {
                 logger.info("Writing kibana command definition for [{}]:\n{}", name, rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
             }
+        }
+
+        @Override
+        void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+            assert args.size() == 2;
+            StringBuilder header = new StringBuilder("| ");
+            StringBuilder separator = new StringBuilder("| ");
+            List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
+            for (String arg : argNames) {
+                header.append(arg).append(" | ");
+                separator.append("---").append(" | ");
+            }
+
+            Map<String, List<String>> compactedTable = new TreeMap<>();
+            for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) {
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
+                String mainType = sig.getKey().getFirst().esNameIfPossible();
+                String secondaryType = sig.getKey().get(1).esNameIfPossible();
+                List<String> secondaryTypes = compactedTable.computeIfAbsent(mainType, (k) -> new ArrayList<>());
+                secondaryTypes.add(secondaryType);
+            }
+
+            List<String> table = new ArrayList<>();
+            for (Map.Entry<String, List<String>> sig : compactedTable.entrySet()) {
+                String row = "| " + sig.getKey() + " | " + String.join(", ", sig.getValue()) + " |";
+                table.add(row);
+            }
+            Collections.sort(table);
+            if (table.isEmpty()) {
+                logger.info("Warning: No table of types generated for [{}]", name);
+                return;
+            }
+
+            String rendered = DOCS_WARNING + """
+                **Supported types**
+
+                """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
+            logger.info("Writing function types for [{}]:\n{}", name, rendered);
+            writeToTempSnippetsDir("types", rendered);
         }
     }
 

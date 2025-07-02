@@ -590,6 +590,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/130497
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectWhere
+  issue: https://github.com/elastic/elasticsearch/issues/130504
 
 # Examples:
 #

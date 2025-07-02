@@ -22,7 +22,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;

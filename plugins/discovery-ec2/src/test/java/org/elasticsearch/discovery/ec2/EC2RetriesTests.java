@@ -25,7 +25,6 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;

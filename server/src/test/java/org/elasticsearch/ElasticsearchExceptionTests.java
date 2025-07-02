@@ -622,8 +622,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
             ex.addMetadata("es.test1", "value1");
             ex.addMetadata("es.test2", "value2");
-            ex.addHeader("test", "some value");
-            ex.addHeader("test_multi", "some value", "another value");
+            ex.addBodyHeader("test", "some value");
+            ex.addBodyHeader("test_multi", "some value", "another value");
 
             String expected = """
                 {"error":{"type": "parsing_exception","reason": "foobar"}}""";
@@ -652,8 +652,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
             ex.addMetadata("es.test1", "value1");
             ex.addMetadata("es.test2", "value2");
-            ex.addHeader("test", "some value");
-            ex.addHeader("test_multi", "some value", "another value");
+            ex.addBodyHeader("test", "some value");
+            ex.addBodyHeader("test_multi", "some value", "another value");
 
             String expectedFragment = """
                 {
@@ -708,8 +708,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
             ex.addMetadata("es.test1", "value1");
             ex.addMetadata("es.test2", "value2");
-            ex.addHeader("test", "some value");
-            ex.addHeader("test_multi", "some value", "another value");
+            ex.addBodyHeader("test", "some value");
+            ex.addBodyHeader("test_multi", "some value", "another value");
 
             String expected = """
                 {
@@ -739,8 +739,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 new ElasticsearchException("baz", new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))
             )
         );
-        e.addHeader("foo_0", "0");
-        e.addHeader("foo_1", "1");
+        e.addBodyHeader("foo_0", "0");
+        e.addBodyHeader("foo_1", "1");
         e.addMetadata("es.metadata_foo_0", "foo_0");
         e.addMetadata("es.metadata_foo_1", "foo_1");
 
@@ -780,9 +780,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         assertNotNull(parsed);
         assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
-        assertThat(parsed.getHeaderKeys(), hasSize(2));
-        assertEquals(parsed.getHeader("foo_0").get(0), "0");
-        assertEquals(parsed.getHeader("foo_1").get(0), "1");
+        assertThat(parsed.getBodyHeaderKeys(), hasSize(2));
+        assertEquals(parsed.getBodyHeader("foo_0").get(0), "0");
+        assertEquals(parsed.getBodyHeader("foo_1").get(0), "1");
         assertThat(parsed.getMetadataKeys(), hasSize(2));
         assertEquals(parsed.getMetadata("es.metadata_foo_0").get(0), "foo_0");
         assertEquals(parsed.getMetadata("es.metadata_foo_1").get(0), "foo_1");
@@ -896,7 +896,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             cause.getMessage(),
             "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]"
         );
-        assertThat(cause.getHeaderKeys(), hasSize(0));
+        assertThat(cause.getBodyHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
@@ -905,17 +905,17 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
         RoutingMissingException routing = new RoutingMissingException("_test", "_id");
         ElasticsearchException baz = new ElasticsearchException("baz", routing);
-        baz.addHeader("baz_0", "baz0");
+        baz.addBodyHeader("baz_0", "baz0");
         baz.addMetadata("es.baz_1", "baz1");
-        baz.addHeader("baz_2", "baz2");
+        baz.addBodyHeader("baz_2", "baz2");
         baz.addMetadata("es.baz_3", "baz3");
         ElasticsearchException bar = new ElasticsearchException("bar", baz);
         bar.addMetadata("es.bar_0", "bar0");
-        bar.addHeader("bar_1", "bar1");
+        bar.addBodyHeader("bar_1", "bar1");
         bar.addMetadata("es.bar_2", "bar2");
         ElasticsearchException foo = new ElasticsearchException("foo", bar);
         foo.addMetadata("es.foo_0", "foo0");
-        foo.addHeader("foo_1", "foo1");
+        foo.addBodyHeader("foo_1", "foo1");
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
@@ -931,24 +931,24 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         assertNotNull(parsed);
         assertEquals("Elasticsearch exception [type=exception, reason=foo]", parsed.getMessage());
-        assertThat(parsed.getHeaderKeys(), hasSize(1));
-        assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
+        assertThat(parsed.getBodyHeaderKeys(), hasSize(1));
+        assertThat(parsed.getBodyHeader("foo_1"), hasItem("foo1"));
         assertThat(parsed.getMetadataKeys(), hasSize(1));
         assertThat(parsed.getMetadata("es.foo_0"), hasItem("foo0"));
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
-        assertThat(cause.getHeaderKeys(), hasSize(1));
-        assertThat(cause.getHeader("bar_1"), hasItem("bar1"));
+        assertThat(cause.getBodyHeaderKeys(), hasSize(1));
+        assertThat(cause.getBodyHeader("bar_1"), hasItem("bar1"));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.bar_0"), hasItem("bar0"));
         assertThat(cause.getMetadata("es.bar_2"), hasItem("bar2"));
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
-        assertThat(cause.getHeaderKeys(), hasSize(2));
-        assertThat(cause.getHeader("baz_0"), hasItem("baz0"));
-        assertThat(cause.getHeader("baz_2"), hasItem("baz2"));
+        assertThat(cause.getBodyHeaderKeys(), hasSize(2));
+        assertThat(cause.getBodyHeader("baz_0"), hasItem("baz0"));
+        assertThat(cause.getBodyHeader("baz_2"), hasItem("baz2"));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.baz_1"), hasItem("baz1"));
         assertThat(cause.getMetadata("es.baz_3"), hasItem("baz3"));
@@ -958,7 +958,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             cause.getMessage(),
             "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]"
         );
-        assertThat(cause.getHeaderKeys(), hasSize(0));
+        assertThat(cause.getBodyHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
@@ -1016,9 +1016,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         assertNotNull(parsedException);
         assertEquals("Elasticsearch exception [type=custom_exception, reason=Custom reason]", parsedException.getMessage());
-        assertEquals(2, parsedException.getHeaderKeys().size());
-        assertThat(parsedException.getHeader("header_string"), hasItem("some header"));
-        assertThat(parsedException.getHeader("header_array_of_strings"), hasItems("foo", "bar", "baz"));
+        assertEquals(2, parsedException.getBodyHeaderKeys().size());
+        assertThat(parsedException.getBodyHeader("header_string"), hasItem("some header"));
+        assertThat(parsedException.getBodyHeader("header_array_of_strings"), hasItems("foo", "bar", "baz"));
         assertEquals(1, parsedException.getMetadataKeys().size());
         assertThat(parsedException.getMetadata("es.metadata_other"), hasItem("some metadata"));
     }
@@ -1086,7 +1086,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         // Failure was null, expecting a "unknown" reason
         assertEquals("Elasticsearch exception [type=unknown, reason=unknown]", parsedFailure.getMessage());
-        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getBodyHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
     }
 
@@ -1113,7 +1113,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         // Failure was null, expecting a "unknown" reason
         assertEquals("Elasticsearch exception [type=exception, reason=unknown]", parsedFailure.getMessage());
-        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getBodyHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
     }
 
@@ -1145,7 +1145,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         String type = ElasticsearchException.getExceptionName(failure);
         String reason = failure.getMessage();
         assertEquals(ElasticsearchException.buildMessage(type, reason, null), parsedFailure.getMessage());
-        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getBodyHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
         assertNull(parsedFailure.getCause());
     }
@@ -1183,7 +1183,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             reason = "No ElasticsearchException found";
         }
         assertEquals(ElasticsearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
-        assertEquals(0, parsedFailure.getHeaders().size());
+        assertEquals(0, parsedFailure.getBodyHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
         assertNull(parsedFailure.getCause());
     }
@@ -1205,25 +1205,25 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
             case 1 -> { // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
                 failure = new ParsingException(3, 2, "B", null);
-                ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
+                ((ElasticsearchException) failure).addBodyHeader("header_name", "0", "1");
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
-                expected.addHeader("header_name", "0", "1");
+                expected.addBodyHeader("header_name", "0", "1");
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
-                suppressed.addHeader("header_name", "0", "1");
+                suppressed.addBodyHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
             }
             case 2 -> { // Elasticsearch exception with a cause, headers and parsable metadata
                 failureCause = new NullPointerException("var is null");
                 failure = new ScriptException("C", failureCause, singletonList("stack"), "test", "painless");
-                ((ElasticsearchException) failure).addHeader("script_name", "my_script");
+                ((ElasticsearchException) failure).addBodyHeader("script_name", "my_script");
                 expectedCause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
                 expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
-                expected.addHeader("script_name", "my_script");
+                expected.addBodyHeader("script_name", "my_script");
                 expected.addMetadata("es.lang", "painless");
                 expected.addMetadata("es.script", "test");
                 expected.addMetadata("es.script_stack", "stack");
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]");
-                suppressed.addHeader("script_name", "my_script");
+                suppressed.addBodyHeader("script_name", "my_script");
                 suppressed.addMetadata("es.lang", "painless");
                 suppressed.addMetadata("es.script", "test");
                 suppressed.addMetadata("es.script_stack", "stack");
@@ -1358,7 +1358,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             }
 
             assertEquals(expected.getMessage(), actual.getMessage());
-            assertEquals(expected.getHeaders(), actual.getHeaders());
+            assertEquals(expected.getBodyHeaders(), actual.getBodyHeaders());
             assertEquals(expected.getMetadata(), actual.getMetadata());
             assertEquals(expected.getResourceType(), actual.getResourceType());
             assertEquals(expected.getResourceId(), actual.getResourceId());
@@ -1452,13 +1452,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 }
 
                 for (Map.Entry<String, List<String>> entry : randomHeaders.entrySet()) {
-                    actualException.addHeader(entry.getKey(), entry.getValue());
-                    expected.addHeader(entry.getKey(), entry.getValue());
+                    actualException.addBodyHeader(entry.getKey(), entry.getValue());
+                    expected.addBodyHeader(entry.getKey(), entry.getValue());
                 }
 
                 if (rarely()) {
                     // Empty or null headers are not printed out by the toXContent method
-                    actualException.addHeader("ignored", randomBoolean() ? emptyList() : null);
+                    actualException.addBodyHeader("ignored", randomBoolean() ? emptyList() : null);
                 }
             }
 
@@ -1571,7 +1571,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testTimeoutHeader() throws IOException {
         var e = new TimeoutSubclass("some timeout");
-        assertThat(e.getHeaderKeys(), hasItem(ElasticsearchException.TIMED_OUT_HEADER));
+        assertThat(e.getBodyHeaderKeys(), hasItem(ElasticsearchException.TIMED_OUT_HEADER));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -1613,7 +1613,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testExceptionTypeHeader() throws IOException {
         var e = new Exception5xx("some exception");
-        assertThat(e.getHeaderKeys(), hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER));
+        assertThat(e.getHttpHeaderKeys(), hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -1630,6 +1630,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
     }
 
+public void testHttpHeaders() throws IOException {
+    var e = new ElasticsearchException("some exception");
+    e.addHttpHeader("My-Header", "value");
+    assertThat(e.getHttpHeaderKeys(), hasItem("My-Header"));
+    assertThat(e.getHttpHeader("My-Header"), equalTo(List.of("value")));
+    assertThat(e.getHttpHeaders(), hasEntry("My-Header", List.of("value")));
+
+    // ensure http headers are not written to response body
+}
+
     public void testNoExceptionTypeHeaderOn4xx() throws IOException {
         var e = new Exception4xx("some exception");
         assertThat(e.getHeaderKeys(), not(hasItem(ElasticsearchException.EXCEPTION_TYPE_HEADER)));
@@ -1641,6 +1651,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         String expected = """
             {
               "type": "exception4xx",
+=======
+              "type": "exception",
+>>>>>>> main
               "reason": "some exception"
             }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));

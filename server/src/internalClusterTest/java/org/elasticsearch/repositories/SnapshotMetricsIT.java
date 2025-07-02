@@ -9,6 +9,10 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -37,16 +41,33 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAPMMetrics() throws Exception {
-        final String repositoryName = randomIdentifier();
-
-        createRepository(repositoryName, "mock");
-
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
 
         indexRandom(true, indexName, randomIntBetween(100, 300));
+
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(indexName).get();
+        IndexStats indexStats = indicesStats.getIndex(indexName);
+        long totalSizeInBytes = 0;
+        for (ShardStats shard : indexStats.getShards()) {
+            totalSizeInBytes += shard.getStats().getStore().sizeInBytes();
+        }
+        logger.info("--> total shards size: {} bytes", totalSizeInBytes);
+
+        final String repositoryName = randomIdentifier();
+
+        // we want to ensure some throttling, but not too much that it slows the test down. 5 seemed a reasonable multiple to ensure that.
+        int shardSizeMultipleToEnsureThrottling = 5;
+        createRepository(
+            repositoryName,
+            "mock",
+            randomRepositorySettings().put(
+                "max_snapshot_bytes_per_sec",
+                ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling)
+            ).put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(totalSizeInBytes * shardSizeMultipleToEnsureThrottling))
+        );
 
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
@@ -70,9 +91,11 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         final long snapshotElapsedTimeNanos = System.nanoTime() - beforeCreateSnapshotNanos;
         collectMetrics();
 
-        // sanity check blobs and bytes metrics
+        // sanity check blobs, bytes and throttling metrics
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BLOBS_UPLOADED), greaterThan(0L));
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED), greaterThan(0L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION), greaterThan(0L));
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), equalTo(0L));
 
         // sanity check duration values
         final long upperBoundTimeSpentOnSnapshotThingsNanos = internalCluster().numDataNodes() * snapshotElapsedTimeNanos;
@@ -89,6 +112,18 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED), equalTo((long) numShards));
 
         assertShardsInProgressMetricIs(everyItem(equalTo(0L)));
+
+        // Restore the snapshot
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("restored-$1")
+            .get();
+        collectMetrics();
+
+        // assert we throttled on restore
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOT_RESTORE_THROTTLE_DURATION), greaterThan(0L));
     }
 
     private static void assertShardsInProgressMetricIs(Matcher<? super List<Long>> matcher) {

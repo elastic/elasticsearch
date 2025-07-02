@@ -611,6 +611,11 @@ public class IndexEngine extends InternalEngine {
         close();
     }
 
+    // package-protected for testing
+    void awaitClose() {
+        super.awaitPendingClose();
+    }
+
     @Override
     public LiveVersionMapArchive createLiveVersionMapArchive() {
         return new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration);

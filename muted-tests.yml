@@ -273,18 +273,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/125680
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testAvailableDiskSpaceMonitorWhenFileSystemStatErrors
-  issue: https://github.com/elastic/elasticsearch/issues/129149
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/129148
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceTests
   method: testIORateIsAdjustedForAllRunningMergeTasks
   issue: https://github.com/elastic/elasticsearch/issues/129531
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test600Interrupt
   issue: https://github.com/elastic/elasticsearch/issues/128144
+- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
+  method: testChildrenTasksCancelledOnTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/123568
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testIndexCompatibilityChecks
+  issue: https://github.com/elastic/elasticsearch/issues/130276
 
 # Examples:
 #

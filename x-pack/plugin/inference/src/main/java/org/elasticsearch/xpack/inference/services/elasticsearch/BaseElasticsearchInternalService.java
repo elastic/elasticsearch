@@ -124,8 +124,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                         new ModelDeploymentTimeoutException(
                             format(
                                 "Timed out after [%s] waiting for trained model deployment for inference endpoint [%s] to start. "
-                                    + "Use the trained model stats API to track the state of the deployment "
-                                    + "and try again once it has started.",
+                                    + "The inference endpoint can not be used to perform inference until the deployment has started. "
+                                    + "Use the trained model stats API to track the state of the deployment.",
                                 timeout,
                                 model.getInferenceEntityId()
                             )

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.inference.embedding.DenseVectorEmbedding;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.embedding.DenseVectorEmbeddingExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +74,7 @@ public class PlanWritables {
         return List.of(
             Aggregate.ENTRY,
             Completion.ENTRY,
+            DenseVectorEmbedding.ENTRY,
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
@@ -99,6 +102,7 @@ public class PlanWritables {
         return List.of(
             AggregateExec.ENTRY,
             CompletionExec.ENTRY,
+            DenseVectorEmbeddingExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
             EsQueryExec.ENTRY,

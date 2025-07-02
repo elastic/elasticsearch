@@ -105,13 +105,13 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Prepare to process a single page of input.
+     * Prepare to process a single page of raw input.
      * <p>
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
      */
-    AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
+    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
 
     /**
      * Call this to signal to the aggregation that the {@code selected}

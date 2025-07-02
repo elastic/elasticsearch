@@ -199,7 +199,7 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(ctor());
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
-        builder.addMethod(prepareProcessPage());
+        builder.addMethod(prepareProcessRawInputPage());
         for (ClassName groupIdClass : GROUP_IDS_CLASSES) {
             builder.addMethod(addRawInputLoop(groupIdClass, blockType(aggParam.type())));
             builder.addMethod(addRawInputLoop(groupIdClass, vectorType(aggParam.type())));
@@ -314,10 +314,10 @@ public class GroupingAggregatorImplementer {
     }
 
     /**
-     * Prepare to process a single page of results.
+     * Prepare to process a single raw input page.
      */
-    private MethodSpec prepareProcessPage() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessPage");
+    private MethodSpec prepareProcessRawInputPage() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessRawInputPage");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 

@@ -1190,7 +1190,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE,
+        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
 
         /**
          * MATCH PHRASE function

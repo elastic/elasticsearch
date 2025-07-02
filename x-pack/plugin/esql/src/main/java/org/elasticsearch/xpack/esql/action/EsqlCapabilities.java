@@ -999,7 +999,12 @@ public class EsqlCapabilities {
          *
          * https://github.com/elastic/elasticsearch/issues/129322
          */
-        NO_PLAIN_STRINGS_IN_LITERALS;
+        NO_PLAIN_STRINGS_IN_LITERALS,
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

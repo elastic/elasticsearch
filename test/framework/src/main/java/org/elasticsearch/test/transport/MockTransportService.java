@@ -218,16 +218,16 @@ public class MockTransportService extends TransportService {
     private final EsThreadPoolExecutor testExecutor;
 
     /** Build the service. */
-    public static MockTransportService createMockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-        String nodeId = settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID());
+    public static MockTransportService createMockTransportService(Transport transport, ThreadPool threadPool) {
+        String nodeId = UUIDs.randomBase64UUID();
         return new MockTransportService(
-            settings,
+            Settings.EMPTY,
             new StubbableTransport(transport),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).applySettings(settings).address(boundAddress.publishAddress()).build(),
+            (boundAddress) -> DiscoveryNodeUtils.builder(nodeId).address(boundAddress.publishAddress()).build(),
             null, // clusterSettings
-            createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP, nodeId)
+            createTaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP, nodeId)
         );
     }
 

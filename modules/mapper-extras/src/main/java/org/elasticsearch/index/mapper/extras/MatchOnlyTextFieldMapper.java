@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -105,8 +106,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final TextParams.Analyzers analyzers;
         private final boolean withinMultiField;
+        private final boolean storedFieldInBinaryFormat;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean withinMultiField) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexAnalyzers indexAnalyzers,
+            boolean withinMultiField,
+            boolean storedFieldInBinaryFormat
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -116,6 +124,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexCreatedVersion
             );
             this.withinMultiField = withinMultiField;
+            this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
 
         @Override
@@ -135,7 +144,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 meta.getValue(),
                 withinMultiField,
-                multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField()
+                multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField(),
+                storedFieldInBinaryFormat
             );
             return ft;
         }
@@ -155,8 +165,22 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
     }
 
+    private static boolean isSyntheticSourceStoredFieldInBinaryFormat(IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES)
+            || indexCreatedVersion.between(
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BACKPORT_8_X,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
+    }
+
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.isWithinMultiField())
+        (n, c) -> new Builder(
+            n,
+            c.indexVersionCreated(),
+            c.getIndexAnalyzers(),
+            c.isWithinMultiField(),
+            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated())
+        )
     );
 
     public static class MatchOnlyTextFieldType extends StringFieldType {
@@ -167,6 +191,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final boolean withinMultiField;
         private final boolean hasCompatibleMultiFields;
+        private final boolean storedFieldInBinaryFormat;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -175,7 +200,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             Map<String, String> meta,
             boolean withinMultiField,
-            boolean hasCompatibleMultiFields
+            boolean hasCompatibleMultiFields,
+            boolean storedFieldInBinaryFormat
         ) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
@@ -183,6 +209,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.originalName = isSyntheticSource ? name + "._original" : null;
             this.withinMultiField = withinMultiField;
             this.hasCompatibleMultiFields = hasCompatibleMultiFields;
+            this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -192,6 +219,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 Lucene.STANDARD_ANALYZER,
                 false,
                 Collections.emptyMap(),
+                false,
                 false,
                 false
             );
@@ -451,7 +479,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
-                return new BytesFromMixedStringsBytesRefBlockLoader(storedFieldNameForSyntheticSource());
+                if (storedFieldInBinaryFormat) {
+                    return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedFieldNameForSyntheticSource());
+                } else {
+                    return new BytesFromMixedStringsBytesRefBlockLoader(storedFieldNameForSyntheticSource());
+                }
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -502,6 +534,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final boolean storeSource;
     private final FieldType fieldType;
     private final boolean withinMultiField;
+    private final boolean storedFieldInBinaryFormat;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -521,6 +554,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.storeSource = storeSource;
         this.withinMultiField = builder.withinMultiField;
+        this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
     }
 
     @Override
@@ -530,7 +564,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, withinMultiField).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, withinMultiField, storedFieldInBinaryFormat).init(this);
     }
 
     @Override
@@ -547,8 +581,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.addToFieldNames(fieldType().name());
 
         if (storeSource) {
-            final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), bytesRef));
+            if (storedFieldInBinaryFormat) {
+                final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), bytesRef));
+            } else {
+                context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value.string()));
+            }
         }
     }
 

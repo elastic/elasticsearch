@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -20,13 +21,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -227,7 +232,22 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE) {
+                @Override
+                public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    return new BinaryIndexFieldData(name(), CoreValuesSourceType.RANGE) {
+                        @Override
+                        public SortField sortField(
+                            @Nullable Object missingValue,
+                            MultiValueMode sortMode,
+                            XFieldComparatorSource.Nested nested,
+                            boolean reverse
+                        ) {
+                            throw new IllegalArgumentException("Sorting by range field [" + name() + "] is not supported");
+                        }
+                    };
+                }
+            };
         }
 
         @Override

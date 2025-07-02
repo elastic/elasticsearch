@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html
 navigation_title: Merge
+applies_to:
+  stack: all
 ---
 
 # Merge settings [index-modules-merge]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 A shard in Elasticsearch is a Lucene index, and a Lucene index is broken down into segments. Segments are internal storage elements in the index where the index data is stored, and are immutable. Smaller segments are periodically merged into larger segments to keep the index size at bay and to expunge deletes.
 

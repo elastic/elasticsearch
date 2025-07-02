@@ -123,7 +123,13 @@ public class ES910BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "ES910BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ", queryBits = " + queryBits + ")";
+        return "ES910BinaryFlatVectorsScorer(nonQuantizedDelegate="
+            + nonQuantizedDelegate
+            + ", indexBits="
+            + indexBits
+            + ", queryBits="
+            + queryBits
+            + ")";
     }
 
     /** Vector scorer supplier over binarized vector values */

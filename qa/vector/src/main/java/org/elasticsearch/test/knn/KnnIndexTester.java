@@ -177,9 +177,11 @@ public class KnnIndexTester {
             int[] nProbes = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
                 ? cmdLineArgs.nProbes()
                 : new int[] { 0 };
+            String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
+            Results indexResults = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
             Results[] results = new Results[nProbes.length];
             for (int i = 0; i < nProbes.length; i++) {
-                results[i] = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
+                results[i] = new Results(cmdLineArgs.docVectors().getFileName().toString(), indexType, cmdLineArgs.numDocs());
             }
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
@@ -199,12 +201,12 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
                 if (cmdLineArgs.reindex()) {
-                    knnIndexer.createIndex(results[0]);
+                    knnIndexer.createIndex(indexResults);
                 }
                 if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(results[0]);
+                    knnIndexer.forceMerge(indexResults);
                 } else {
-                    knnIndexer.numSegments(results[0]);
+                    knnIndexer.numSegments(indexResults);
                 }
             }
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
@@ -214,24 +216,27 @@ public class KnnIndexTester {
                     knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
                 }
             }
-            formattedResults.results.addAll(List.of(results));
+            formattedResults.queryResults.addAll(List.of(results));
+            formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
     }
 
     static class FormattedResults {
-        List<Results> results = new ArrayList<>();
+        List<Results> indexResults = new ArrayList<>();
+        List<Results> queryResults = new ArrayList<>();
 
         @Override
         public String toString() {
-            if (results.isEmpty()) {
+            if (indexResults.isEmpty() && queryResults.isEmpty()) {
                 return "No results available.";
             }
 
-            String[] indexingHeaders = { "index_type", "num_docs", "index_time(ms)", "force_merge_time(ms)", "num_segments" };
+            String[] indexingHeaders = { "index_name", "index_type", "num_docs", "index_time(ms)", "force_merge_time(ms)", "num_segments" };
 
             // Define column headers
             String[] searchHeaders = {
+                "index_name",
                 "index_type",
                 "n_probe",
                 "latency(ms)",
@@ -245,33 +250,34 @@ public class KnnIndexTester {
 
             StringBuilder sb = new StringBuilder();
 
-            Results indexResult = results.get(0); // Assuming all results have the same index type and numDocs
-            String[] indexData = {
-                indexResult.indexType,
-                Integer.toString(indexResult.numDocs),
-                Long.toString(indexResult.indexTimeMS),
-                Long.toString(indexResult.forceMergeTimeMS),
-                Integer.toString(indexResult.numSegments) };
-
-            printBlock(sb, indexingHeaders, new String[][] { indexData });
-
-            String[][] searchData = new String[results.size()][];
-            // Format and append each row of data
-            for (int i = 0; i < results.size(); i++) {
-                Results result = results.get(i);
-                searchData[i] = new String[] {
-                    result.indexType,
-                    Integer.toString(result.nProbe),
-                    String.format(Locale.ROOT, "%.2f", result.avgLatency),
-                    String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
-                    String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
-                    String.format(Locale.ROOT, "%.2f", result.qps),
-                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
-
+            String[][] indexResultsArray = new String[indexResults.size()][];
+            for (int i = 0; i < indexResults.size(); i++) {
+                Results indexResult = indexResults.get(i);
+                indexResultsArray[i] = new String[] {
+                    indexResult.indexName,
+                    indexResult.indexType,
+                    Integer.toString(indexResult.numDocs),
+                    Long.toString(indexResult.indexTimeMS),
+                    Long.toString(indexResult.forceMergeTimeMS),
+                    Integer.toString(indexResult.numSegments) };
+            }
+            printBlock(sb, indexingHeaders, indexResultsArray);
+            String[][] queryResultsArray = new String[queryResults.size()][];
+            for (int i = 0; i < queryResults.size(); i++) {
+                Results queryResult = queryResults.get(i);
+                queryResultsArray[i] = new String[] {
+                    queryResult.indexName,
+                    queryResult.indexType,
+                    Integer.toString(queryResult.nProbe),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
+                    String.format(Locale.ROOT, "%.2f", queryResult.qps),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited) };
             }
 
-            printBlock(sb, searchHeaders, searchData);
+            printBlock(sb, searchHeaders, queryResultsArray);
 
             return sb.toString();
         }
@@ -331,7 +337,7 @@ public class KnnIndexTester {
     }
 
     static class Results {
-        final String indexType;
+        final String indexType, indexName;
         final int numDocs;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -344,7 +350,8 @@ public class KnnIndexTester {
         double netCpuTimeMS;
         double avgCpuCount;
 
-        Results(String indexType, int numDocs) {
+        Results(String indexName, String indexType, int numDocs) {
+            this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
         }

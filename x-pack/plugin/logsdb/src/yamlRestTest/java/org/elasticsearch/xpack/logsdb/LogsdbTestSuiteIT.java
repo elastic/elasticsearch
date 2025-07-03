@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,6 +20,9 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -43,7 +47,19 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        // Filter out 52_esql_insist_operator_synthetic_source.yml suite is build is not snapshot:
+        // (esql doesn't use feature flags and all experimental features are just enabled if build is snapshot)
+
+        List<Object[]> filtered = new ArrayList<>();
+        for (Object[] params : ESClientYamlSuiteTestCase.createParameters()) {
+            ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) params[0];
+            if (candidate.getRestTestSuite().getName().equals("52_esql_insist_operator_synthetic_source")
+                && Build.current().isSnapshot() == false) {
+                continue;
+            }
+            filtered.add(new Object[] { candidate });
+        }
+        return filtered;
     }
 
     @Override

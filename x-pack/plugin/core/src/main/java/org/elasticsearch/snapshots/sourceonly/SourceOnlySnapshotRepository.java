@@ -100,6 +100,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         // required engine, that the index is read-only and the mapping to a default mapping
         super.finalizeSnapshot(
             new FinalizeSnapshotContext(
+                finalizeSnapshotContext.serializeProjectMetadata(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 metadataToSnapshot(

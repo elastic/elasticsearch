@@ -42,6 +42,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
@@ -190,7 +192,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                           "task_types": ["chat"]
                         },
                         {
-                          "model_name": "elser-v2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         }
                     ]
@@ -205,21 +207,17 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
                 assertThat(
                     service.defaultConfigIds(),
-                    is(
-                        List.of(
-                            new InferenceService.DefaultConfigId(
-                                ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(),
-                                service
-                            )
-                        )
+                    containsInAnyOrder(
+                        new InferenceService.DefaultConfigId(".elser-2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
                     )
                 );
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING)));
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -235,7 +233,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-v2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
                         }
                     ]
@@ -248,7 +246,16 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 ensureAuthorizationCallFinished(service);
 
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
-                assertTrue(service.defaultConfigIds().isEmpty());
+                assertThat(
+                    service.defaultConfigIds(),
+                    containsInAnyOrder(
+                        new InferenceService.DefaultConfigId(
+                            ".elser-2-elastic",
+                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                            service
+                        )
+                    )
+                );
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();

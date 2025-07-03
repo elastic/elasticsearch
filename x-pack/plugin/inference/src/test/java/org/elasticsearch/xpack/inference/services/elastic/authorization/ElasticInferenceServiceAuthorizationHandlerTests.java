@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.junit.Before;
@@ -165,6 +167,19 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE
                 ),
                 MinimalServiceSettings.chatCompletion()
+            ),
+            "elser-2",
+            new DefaultModelConfig(
+                new ElasticInferenceServiceSparseEmbeddingsModel(
+                    defaultEndpointId("elser-2"),
+                    TaskType.SPARSE_EMBEDDING,
+                    "test",
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-2", null, null),
+                    EmptyTaskSettings.INSTANCE,
+                    EmptySecretSettings.INSTANCE,
+                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                ),
+                MinimalServiceSettings.sparseEmbedding()
             )
         );
     }

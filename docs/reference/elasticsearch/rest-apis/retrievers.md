@@ -1068,9 +1068,10 @@ GET books/_search
     "linear": {
       "query": "elasticsearch",
       "fields": [
-        "title^2.5",      <1>
-        "description^2",  <2>
-        "content"         <3>
+        "title^3",                <1>
+        "description^2",          <2>
+        "title_semantic",         <3>
+        "description_semantic^2"
       ],
       "normalizer": "minmax"
     }
@@ -1078,12 +1079,13 @@ GET books/_search
 }
 ```
 
-1. 2.5x weight
+1. 3x weight
 2. 2x weight
 3. 1x weight (default)
 
-Due to how the [field group scores](#multi-field-field-grouping) are normalized, per-field boosts have no effect on the magnitude of the final score.
+Due to how the [field group scores](#multi-field-field-grouping) are normalized, per-field boosts have no effect on the range of the final score.
 Instead, they affect the importance of the field's score within its group.
+
 For example, if the schema looks like:
 
 ```console
@@ -1092,20 +1094,81 @@ PUT /books
   "mappings": {
     "properties": {
       "title": {
-        "type": "semantic_text"
+        "type": "text",
+        "copy_to": "title_semantic"
       },
       "description": {
-        "type": "text"
+        "type": "text",
+        "copy_to": "description_semantic"
       },
-      "content": {
-        "type": "text"
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
       }
     }
   }
 }
 ```
 
-Boosting `description` by 2 will cause 2/3 of the lexical fields group score to be derived from `description` field matches.
+And we run this query:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title",
+        "description",
+        "title_semantic",
+        "description_semantic"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+The score breakdown would be:
+
+* Lexical fields (50% of score):
+  * `title`: 50% of lexical fields group score, 25% of final score
+  * `description`: 50% of lexical fields group score, 25% of final score
+* Semantic fields (50% of score):
+  * `title_semantic`: 50% of semantic fields group score, 25% of final score
+  * `description_semantic`: 50% of semantic fields group score, 25% of final score
+
+If we apply per-field boosts like so:
+
+```console
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",
+        "description^2",
+        "title_semantic",
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+The score breakdown would change to:
+
+* Lexical fields (50% of score):
+    * `title`: 60% of lexical fields group score, 30% of final score
+    * `description`: 40% of lexical fields group score, 20% of final score
+* Semantic fields (50% of score):
+    * `title_semantic`: 33% of semantic fields group score, 16.5% of final score
+    * `description_semantic`: 66% of semantic fields group score, 33% of final score
 
 ### Wildcard field patterns
 

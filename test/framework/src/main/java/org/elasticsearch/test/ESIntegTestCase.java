@@ -285,6 +285,7 @@ import static org.hamcrest.Matchers.startsWith;
  * </ul>
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
+@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESIntegTestCase extends ESTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */

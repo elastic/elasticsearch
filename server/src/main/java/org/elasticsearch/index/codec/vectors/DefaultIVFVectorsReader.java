@@ -51,13 +51,17 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final byte[] quantized = new byte[targetQuery.length];
+        final int[] scratch = new int[targetQuery.length];
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
             ArrayUtil.copyArray(targetQuery),
-            quantized,
+            scratch,
             (byte) 4,
             fieldEntry.globalCentroid()
         );
+        final byte[] quantized = new byte[targetQuery.length];
+        for (int i = 0; i < quantized.length; i++) {
+            quantized[i] = (byte) scratch[i];
+        }
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
@@ -181,7 +185,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         DocIdsWriter docIdsWriter = new DocIdsWriter();
 
         final float[] scratch;
-        final byte[] quantizationScratch;
+        final int[] quantizationScratch;
         final byte[] quantizedQueryScratch;
         final OptimizedScalarQuantizer quantizer;
         final float[] correctiveValues = new float[3];
@@ -201,7 +205,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             this.needsScoring = needsScoring;
 
             scratch = new float[target.length];
-            quantizationScratch = new byte[target.length];
+            quantizationScratch = new int[target.length];
             final int discretizedDimensions = discretize(fieldInfo.getVectorDimension(), 64);
             quantizedQueryScratch = new byte[QUERY_BITS * discretizedDimensions / 8];
             quantizedByteLength = discretizedDimensions / 8 + (Float.BYTES * 3) + Short.BYTES;

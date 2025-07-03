@@ -359,7 +359,7 @@ public final class RestoreService implements ClusterStateApplier {
         Metadata globalMetadata = null;
         final Metadata.Builder metadataBuilder;
         if (request.includeGlobalState()) {
-            globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+            globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId, false);
             metadataBuilder = Metadata.builder(globalMetadata);
         } else {
             metadataBuilder = Metadata.builder();
@@ -652,7 +652,7 @@ public final class RestoreService implements ClusterStateApplier {
             dataStreamAliases = Map.of();
         } else {
             if (globalMetadata == null) {
-                globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId, false);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.getProject().dataStreams();
             allDataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());

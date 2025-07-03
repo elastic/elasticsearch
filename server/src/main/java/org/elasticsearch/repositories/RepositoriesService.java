@@ -755,8 +755,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             projectId,
                             repositoryMetadata,
                             typesRegistry,
-                            RepositoriesService::createUnknownTypeRepository,
-                            snapshotMetrics
+                            RepositoriesService::createUnknownTypeRepository
                         );
                     } catch (RepositoryException ex) {
                         // TODO: this catch is bogus, it means the old repo is already closed,
@@ -771,8 +770,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         projectId,
                         repositoryMetadata,
                         typesRegistry,
-                        RepositoriesService::createUnknownTypeRepository,
-                        snapshotMetrics
+                        RepositoriesService::createUnknownTypeRepository
                     );
                 } catch (RepositoryException ex) {
                     logger.warn(() -> "failed to create repository " + projectRepoString(projectId, repositoryMetadata.name()), ex);
@@ -948,8 +946,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 projectId,
                 metadata,
                 internalTypesRegistry,
-                RepositoriesService::throwRepositoryTypeDoesNotExists,
-                snapshotMetrics
+                RepositoriesService::throwRepositoryTypeDoesNotExists
             );
             final var newRepos = new HashMap<>(existingRepos);
             newRepos.put(name, repo);
@@ -1029,8 +1026,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         @Nullable ProjectId projectId,
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
-        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory,
-        SnapshotMetrics snapshotMetrics
+        BiFunction<ProjectId, RepositoryMetadata, Repository> defaultFactory
     ) {
         logger.debug("creating repository [{}][{}]", repositoryMetadata.type(), repositoryMetadata.name());
         Repository.Factory factory = factories.get(repositoryMetadata.type());
@@ -1039,7 +1035,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
         Repository repository = null;
         try {
-            repository = factory.create(projectId, repositoryMetadata, factories::get, snapshotMetrics);
+            repository = factory.create(projectId, repositoryMetadata, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {
@@ -1070,8 +1066,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             Objects.requireNonNull(projectId),
             repositoryMetadata,
             typesRegistry,
-            RepositoriesService::throwRepositoryTypeDoesNotExists,
-            snapshotMetrics
+            RepositoriesService::throwRepositoryTypeDoesNotExists
         );
     }
 
@@ -1082,13 +1077,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public Repository createNonProjectRepository(RepositoryMetadata repositoryMetadata) {
         assert DiscoveryNode.isStateless(clusterService.getSettings())
             : "outside stateless only project level repositories are allowed: " + repositoryMetadata;
-        return createRepository(
-            null,
-            repositoryMetadata,
-            typesRegistry,
-            RepositoriesService::throwRepositoryTypeDoesNotExists,
-            snapshotMetrics
-        );
+        return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
     private Collection<LongWithAttributes> getShardSnapshotsInProgress() {

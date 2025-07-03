@@ -9,8 +9,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -56,25 +54,23 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
-        return Collections.singletonMap(GoogleCloudStorageRepository.TYPE, new Repository.SnapshotMetricsFactory() {
-
-            @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
-                return new GoogleCloudStorageRepository(
-                    projectId,
-                    metadata,
-                    namedXContentRegistry,
-                    GoogleCloudStoragePlugin.this.storageService,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
-                    snapshotMetrics
-                );
-            }
-        });
+        return Collections.singletonMap(
+            GoogleCloudStorageRepository.TYPE,
+            (projectId, metadata) -> new GoogleCloudStorageRepository(
+                projectId,
+                metadata,
+                namedXContentRegistry,
+                this.storageService,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                snapshotMetrics
+            )
+        );
     }
 
     @Override

@@ -83,7 +83,8 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
                 ClusterService clusterService,
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings,
-                RepositoriesMetrics repositoriesMetrics
+                RepositoriesMetrics repositoriesMetrics,
+                SnapshotMetrics snapshotMetrics
             ) {
                 return Collections.singletonMap(
                     TYPE,

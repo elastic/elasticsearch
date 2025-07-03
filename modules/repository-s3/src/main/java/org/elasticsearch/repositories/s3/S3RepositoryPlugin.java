@@ -116,25 +116,23 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final RepositoriesMetrics repositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
-        return Collections.singletonMap(S3Repository.TYPE, new Repository.SnapshotMetricsFactory() {
-
-            @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
-                return createRepository(
-                    projectId,
-                    metadata,
-                    registry,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    s3RepositoriesMetrics,
-                    snapshotMetrics
-                );
-            }
-        });
+        return Collections.singletonMap(
+            S3Repository.TYPE,
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics,
+                snapshotMetrics
+            )
+        );
     }
 
     @Override

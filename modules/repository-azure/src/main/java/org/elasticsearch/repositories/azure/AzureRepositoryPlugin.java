@@ -10,8 +10,6 @@
 package org.elasticsearch.repositories.azure;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -63,26 +61,23 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
-        return Collections.singletonMap(AzureRepository.TYPE, new Repository.SnapshotMetricsFactory() {
-
-            @Override
-            public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
-                AzureStorageService storageService = azureStoreService.get();
-                assert storageService != null;
-                return new AzureRepository(
-                    projectId,
-                    metadata,
-                    namedXContentRegistry,
-                    storageService,
-                    clusterService,
-                    bigArrays,
-                    recoverySettings,
-                    repositoriesMetrics,
-                    snapshotMetrics
-                );
-            }
+        return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata) -> {
+            AzureStorageService storageService = azureStoreService.get();
+            assert storageService != null;
+            return new AzureRepository(
+                projectId,
+                metadata,
+                namedXContentRegistry,
+                storageService,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics,
+                snapshotMetrics
+            );
         });
     }
 

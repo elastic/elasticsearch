@@ -87,24 +87,22 @@ public class MockRepository extends FsRepository {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
-            return Collections.singletonMap("mock", new SnapshotMetricsFactory() {
-
-                @Override
-                public Repository create(ProjectId projectId, RepositoryMetadata metadata, SnapshotMetrics snapshotMetrics) {
-                    return new MockRepository(
-                        projectId,
-                        metadata,
-                        env,
-                        namedXContentRegistry,
-                        clusterService,
-                        bigArrays,
-                        recoverySettings,
-                        snapshotMetrics
-                    );
-                }
-            });
+            return Collections.singletonMap(
+                "mock",
+                (projectId, metadata) -> new MockRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    snapshotMetrics
+                )
+            );
         }
 
         @Override

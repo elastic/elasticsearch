@@ -614,6 +614,9 @@ tests:
 - class: org.elasticsearch.reindex.ReindexRestClientSslTests
   method: testClientSucceedsWithCertificateAuthorities
   issue: https://github.com/elastic/elasticsearch/issues/130586
+- class: org.elasticsearch.reindex.ReindexFromRemoteBuildRestClientTests
+  method: testHeaders
+  issue: https://github.com/elastic/elasticsearch/issues/130587
 
 # Examples:
 #

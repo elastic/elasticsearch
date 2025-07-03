@@ -890,7 +890,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
                     var modelsForDeploymentId = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    modelsForDeploymentId.forEach(model -> model.updateNumAllocations(deploymentStats.getNumberOfAllocations()));
+                    modelsForDeploymentId.forEach(model -> model.updateServiceSettings(deploymentStats));
                 }
                 var updatedModels = new ArrayList<Model>();
                 modelsByDeploymentIds.values().forEach(updatedModels::addAll);

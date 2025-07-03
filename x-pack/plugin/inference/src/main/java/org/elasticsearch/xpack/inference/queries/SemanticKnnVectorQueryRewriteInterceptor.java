@@ -52,20 +52,16 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
-        QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
             Map.Entry<String, List<String>> inferenceIdIndex = inferenceIdsIndices.entrySet().iterator().next();
             String searchInferenceId = inferenceIdIndex.getKey();
             List<String> indices = inferenceIdIndex.getValue();
-            finalQueryBuilder = buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
+            return buildNestedQueryFromKnnVectorQuery(knnVectorQueryBuilder, indices, searchInferenceId);
         } else {
             // Multiple inference IDs, construct a boolean query
-            finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
+            return buildInferenceQueryWithMultipleInferenceIds(knnVectorQueryBuilder, inferenceIdsIndices);
         }
-        finalQueryBuilder.boost(queryBuilder.boost());
-        finalQueryBuilder.queryName(queryBuilder.queryName());
-        return finalQueryBuilder;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
@@ -106,8 +102,6 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost());
-        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 
@@ -124,17 +118,37 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         }
         return QueryBuilders.nestedQuery(
             SemanticTextField.getChunksFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
-            new KnnVectorQueryBuilder(
-                filteredKnnVectorQueryBuilder,
+            buildNewKnnVectorQuery(
                 SemanticTextField.getEmbeddingsFieldName(filteredKnnVectorQueryBuilder.getFieldName()),
+                filteredKnnVectorQueryBuilder,
                 queryVectorBuilder
             ),
             ScoreMode.Max
-        );
+        ).queryName(knnVectorQueryBuilder.queryName()).boost(knnVectorQueryBuilder.boost());
     }
 
     private KnnVectorQueryBuilder addIndexFilterToKnnVectorQuery(Collection<String> indices, KnnVectorQueryBuilder original) {
-        KnnVectorQueryBuilder copy = new KnnVectorQueryBuilder(original);
+        KnnVectorQueryBuilder copy;
+        if (original.queryVectorBuilder() != null) {
+            copy = new KnnVectorQueryBuilder(
+                original.getFieldName(),
+                original.queryVectorBuilder(),
+                original.k(),
+                original.numCands(),
+                original.getVectorSimilarity()
+            );
+        } else {
+            copy = new KnnVectorQueryBuilder(
+                original.getFieldName(),
+                original.queryVector(),
+                original.k(),
+                original.numCands(),
+                original.rescoreVectorBuilder(),
+                original.getVectorSimilarity()
+            );
+        }
+
+        copy.addFilterQueries(original.filterQueries());
         copy.addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return copy;
     }
@@ -146,6 +160,35 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         }
         assert (queryVectorBuilder instanceof TextEmbeddingQueryVectorBuilder);
         return (TextEmbeddingQueryVectorBuilder) queryVectorBuilder;
+    }
+
+    private KnnVectorQueryBuilder buildNewKnnVectorQuery(
+        String fieldName,
+        KnnVectorQueryBuilder original,
+        QueryVectorBuilder queryVectorBuilder
+    ) {
+        KnnVectorQueryBuilder newQueryBuilder;
+        if (original.queryVectorBuilder() != null) {
+            newQueryBuilder = new KnnVectorQueryBuilder(
+                fieldName,
+                queryVectorBuilder,
+                original.k(),
+                original.numCands(),
+                original.getVectorSimilarity()
+            );
+        } else {
+            newQueryBuilder = new KnnVectorQueryBuilder(
+                fieldName,
+                original.queryVector(),
+                original.k(),
+                original.numCands(),
+                original.rescoreVectorBuilder(),
+                original.getVectorSimilarity()
+            );
+        }
+
+        newQueryBuilder.addFilterQueries(original.filterQueries());
+        return newQueryBuilder;
     }
 
     @Override

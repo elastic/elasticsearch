@@ -335,10 +335,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(
-            0,
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, indexNameExpressionResolver(), projectId).size()
-        );
+        assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, indexNameExpressionResolver()).size());
 
         metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable(projectId));
@@ -366,8 +363,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
             csBuilder.build(),
-            indexNameExpressionResolver(),
-            projectId
+            indexNameExpressionResolver()
         );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));

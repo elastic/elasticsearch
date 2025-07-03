@@ -60,18 +60,6 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
 
     /**
-     * Use {@link #getAssignment(PersistentTaskParams, Collection, ClusterState, ProjectId)}.
-     */
-    @Deprecated
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
-        Params params,
-        Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
-    ) {
-        return getAssignment(params, candidateNodes, clusterState, null);
-    }
-
-    /**
      * Returns the node id where the params has to be executed,
      * <p>
      * The default implementation returns the least loaded data node from amongst the collection of candidate nodes

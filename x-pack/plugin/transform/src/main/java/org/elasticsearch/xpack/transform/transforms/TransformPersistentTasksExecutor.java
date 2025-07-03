@@ -127,14 +127,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        var transformMetadata = TransformMetadata.transformMetadata(clusterState, projectId);
+        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
         if (transformMetadata.upgradeMode()) {
             return AWAITING_UPGRADE;
         }
         if (transformMetadata.resetMode()) {
             return RESET_IN_PROGRESS;
         }
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver, projectId);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
                 + params.getId()
@@ -180,17 +180,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(
-        ClusterState clusterState,
-        IndexNameExpressionResolver resolver,
-        @Nullable ProjectId projectId
-    ) {
-        // if the projectId doesn't exist, we will get an empty routing table which will have no indices
-        if (projectId == null) {
-            return List.of();
-        }
-
-        var projectRoutingTable = clusterState.routingTable(projectId);
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         String[] indices = resolver.concreteIndexNames(
             clusterState,
             IndicesOptions.lenientExpandOpen(),
@@ -199,7 +189,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
-            IndexRoutingTable routingTable = projectRoutingTable.index(index);
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 unavailableIndices.add(index);
             }

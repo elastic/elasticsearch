@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
@@ -2621,6 +2622,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    static final boolean optimizedScorer = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+
     public void testKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
@@ -2654,11 +2657,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
+        var expectedScorer = optimizedScorer
+            ? "ESFlatVectorsScorer(delegate=DefaultFlatVectorScorer(), factory=VectorScorerFactoryImpl)"
+            : "DefaultFlatVectorScorer()";
+        String expectedString = "ES819HnswVectorsFormat(name=ES819HnswVectorsFormat, maxConn="
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
+            + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=%scorer%)".replace("%scorer%", expectedScorer)
             + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }

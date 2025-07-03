@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -27,6 +28,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
@@ -49,19 +51,33 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
     }
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         suppliers.add(
-            TestCaseSupplier.testCaseSupplier(
-                new TestCaseSupplier.TypedDataSupplier("dense_vector field", KnnTests::randomDenseVector, DENSE_VECTOR),
-                new TestCaseSupplier.TypedDataSupplier("query", KnnTests::randomDenseVector, DENSE_VECTOR, true),
-                (d1, d2) -> equalTo("string"),
-                BOOLEAN,
-                (o1, o2) -> true
+            new TestCaseSupplier(
+                List.of(DENSE_VECTOR, DENSE_VECTOR, DataType.INTEGER),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            new FieldAttribute(
+                                Source.EMPTY,
+                                randomIdentifier(),
+                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false)
+                            ),
+                            DENSE_VECTOR,
+                            "dense_vector field"
+                        ),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query"),
+                        new TestCaseSupplier.TypedData(randomIntBetween(1, 1000), DataType.INTEGER, "k")
+                    ),
+                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
+                    BOOLEAN,
+                    equalTo(true)
+                )
             )
         );
 
@@ -104,7 +120,7 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Knn knn = new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        Knn knn = new Knn(source, args.get(0), args.get(1), args.get(2), args.size() > 3 ? args.get(3) : null);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {

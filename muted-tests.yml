@@ -605,6 +605,9 @@ tests:
 - class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
   method: testGetSystemTrustStoreWithNoSystemProperties
   issue: https://github.com/elastic/elasticsearch/issues/130517
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetNonPKCS11TrustStoreWithPasswordSet
+  issue: https://github.com/elastic/elasticsearch/issues/130519
 
 # Examples:
 #

@@ -356,4 +356,8 @@ public interface Repository extends LifecycleComponent {
     default LongWithAttributes getShardSnapshotsInProgress() {
         return null;
     }
+
+    default RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return new RepositoriesStats.SnapshotStats(getRestoreThrottleTimeInNanos(), getSnapshotThrottleTimeInNanos());
+    }
 }

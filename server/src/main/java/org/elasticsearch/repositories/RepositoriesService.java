@@ -905,13 +905,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     public RepositoriesStats getRepositoriesThrottlingStats() {
         return new RepositoriesStats(
-            getRepositories().stream()
-                .collect(
-                    Collectors.toMap(
-                        r -> r.getMetadata().name(),
-                        r -> new RepositoriesStats.ThrottlingStats(r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos())
-                    )
-                )
+            getRepositories().stream().collect(Collectors.toMap(r -> r.getMetadata().name(), Repository::getSnapshotStats))
         );
     }
 

@@ -24,9 +24,9 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
-public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
+public class RepositorySnapshotStatsIT extends AbstractSnapshotIntegTestCase {
 
-    public void testRepositoryThrottlingStats() throws Exception {
+    public void testRepositorySnapshotStats() throws Exception {
 
         logger.info("--> starting a node");
         internalCluster().startNode();

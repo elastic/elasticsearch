@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -89,5 +90,19 @@ public class BlobStoreSnapshotMetrics {
 
     public LongWithAttributes getShardSnapshotsInProgress() {
         return new LongWithAttributes(shardSnapshotsInProgress.count(), metricAttributes);
+    }
+
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return new RepositoriesStats.SnapshotStats(
+            numberOfShardSnapshotsStarted.count(),
+            numberOfShardSnapshotsCompleted.count(),
+            shardSnapshotsInProgress.count(),
+            restoreRateLimitingTimeInNanos.count(),
+            snapshotRateLimitingTimeInNanos.count(),
+            numberOfBlobsUploaded.count(),
+            numberOfBytesUploaded.count(),
+            uploadTimeInNanos.count(),
+            uploadReadTimeInNanos.count()
+        );
     }
 }

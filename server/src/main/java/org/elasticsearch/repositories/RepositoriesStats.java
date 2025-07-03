@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,17 +27,17 @@ import java.util.concurrent.TimeUnit;
 
 public class RepositoriesStats implements Writeable, ToXContentFragment {
 
-    private final Map<String, ThrottlingStats> repositoryThrottlingStats;
+    private final Map<String, SnapshotStats> repositoryThrottlingStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            repositoryThrottlingStats = in.readMap(ThrottlingStats::new);
+            repositoryThrottlingStats = in.readMap(SnapshotStats::readFrom);
         } else {
             repositoryThrottlingStats = new HashMap<>();
         }
     }
 
-    public RepositoriesStats(Map<String, ThrottlingStats> repositoryThrottlingStats) {
+    public RepositoriesStats(Map<String, SnapshotStats> repositoryThrottlingStats) {
         this.repositoryThrottlingStats = new HashMap<>(repositoryThrottlingStats);
     }
 
@@ -53,14 +54,44 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    public Map<String, ThrottlingStats> getRepositoryThrottlingStats() {
+    public Map<String, SnapshotStats> getRepositoryThrottlingStats() {
         return Collections.unmodifiableMap(repositoryThrottlingStats);
     }
 
-    public record ThrottlingStats(long totalReadThrottledNanos, long totalWriteThrottledNanos) implements ToXContentObject, Writeable {
+    public record SnapshotStats(
+        long shardSnapshotsStarted,
+        long shardSnapshotsCompleted,
+        long shardSnapshotsInProgress,
+        long totalReadThrottledNanos,
+        long totalWriteThrottledNanos,
+        long numberOfBlobsUploaded,
+        long numberOfBytesUploaded,
+        long totalUploadTimeInNanos,
+        long totalUploadReadTimeInNanos
+    ) implements ToXContentObject, Writeable {
 
-        ThrottlingStats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong());
+        public static SnapshotStats readFrom(StreamInput in) throws IOException {
+            final long totalReadThrottledNanos = in.readVLong();
+            final long totalWriteThrottledNanos = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
+                return new SnapshotStats(
+                    in.readLong(),
+                    in.readLong(),
+                    in.readLong(),
+                    totalReadThrottledNanos,
+                    totalWriteThrottledNanos,
+                    in.readLong(),
+                    in.readLong(),
+                    in.readLong(),
+                    in.readLong()
+                );
+            } else {
+                return new SnapshotStats(totalReadThrottledNanos, totalWriteThrottledNanos);
+            }
+        }
+
+        public SnapshotStats(long totalReadThrottledNanos, long totalWriteThrottledNanos) {
+            this(-1, -1, -1, totalReadThrottledNanos, totalWriteThrottledNanos, -1, -1, -1, -1);
         }
 
         @Override
@@ -72,6 +103,39 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
             }
             builder.field("total_read_throttled_time_nanos", totalReadThrottledNanos);
             builder.field("total_write_throttled_time_nanos", totalWriteThrottledNanos);
+            if (shardSnapshotsStarted != -1) {
+                builder.field("shard_snapshots_started", shardSnapshotsStarted);
+            }
+            if (shardSnapshotsCompleted != -1) {
+                builder.field("shard_snapshots_completed", shardSnapshotsCompleted);
+            }
+            if (shardSnapshotsInProgress != -1) {
+                builder.field("shard_snapshots_in_progress", shardSnapshotsInProgress);
+            }
+            if (numberOfBlobsUploaded != -1) {
+                builder.field("blobs_uploaded", numberOfBlobsUploaded);
+            }
+            if (numberOfBytesUploaded != -1) {
+                if (builder.humanReadable()) {
+                    builder.field("bytes_uploaded", ByteSizeValue.ofBytes(numberOfBytesUploaded));
+                } else {
+                    builder.field("bytes_uploaded", numberOfBytesUploaded);
+                }
+            }
+            if (totalUploadTimeInNanos != -1) {
+                if (builder.humanReadable()) {
+                    builder.field("total_upload_time", TimeValue.timeValueNanos(totalUploadTimeInNanos));
+                } else {
+                    builder.field("total_upload_time_in_nanos", totalUploadTimeInNanos);
+                }
+            }
+            if (totalUploadReadTimeInNanos != -1) {
+                if (builder.humanReadable()) {
+                    builder.field("total_read_time", TimeValue.timeValueNanos(totalUploadReadTimeInNanos));
+                } else {
+                    builder.field("total_read_time_in_nanos", totalUploadReadTimeInNanos);
+                }
+            }
             builder.endObject();
             return builder;
         }
@@ -80,6 +144,15 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(totalReadThrottledNanos);
             out.writeVLong(totalWriteThrottledNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
+                out.writeLong(shardSnapshotsStarted);
+                out.writeLong(shardSnapshotsCompleted);
+                out.writeLong(shardSnapshotsInProgress);
+                out.writeLong(numberOfBlobsUploaded);
+                out.writeLong(numberOfBytesUploaded);
+                out.writeLong(totalUploadTimeInNanos);
+                out.writeLong(totalUploadReadTimeInNanos);
+            }
         }
     }
 }

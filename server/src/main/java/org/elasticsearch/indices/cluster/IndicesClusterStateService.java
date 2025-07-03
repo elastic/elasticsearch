@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -781,6 +782,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
+                originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
                 new RecoveryListener(shardRouting, primaryTerm),
@@ -1330,6 +1332,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates a shard for the specified shard routing and starts recovery.
          *
+         * @param projectId              the project for the shard
          * @param shardRouting           the shard routing
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
@@ -1343,6 +1346,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
+            ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,

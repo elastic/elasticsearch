@@ -28,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.lang.String.format;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -81,6 +84,25 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     @Override
     protected Codec getCodec() {
         return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            // IVF doesn't report stats at the moment
+            assertThat(offHeap, anEmptyMap());
+            assertThat(totalByteSize, equalTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
     }
 
     @Override

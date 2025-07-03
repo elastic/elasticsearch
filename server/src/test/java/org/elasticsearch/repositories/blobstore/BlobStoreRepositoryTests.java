@@ -700,7 +700,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "new repo uuid message",
                 BlobStoreRepository.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("Generated new repository UUID [*] for repository [%s] in generation [*]", repoName)
+                Strings.format("Generated new repository UUID [*] for repository %s in generation [*]", repo.toStringShort())
             )
         );
 
@@ -729,7 +729,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
 
@@ -785,7 +785,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
             },

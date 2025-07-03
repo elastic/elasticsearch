@@ -40,6 +40,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -783,6 +786,117 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         for (DataType type : typesAndValues.keySet()) {
             deleteIndex("index-" + type.esType());
+        }
+    }
+
+    public void testDateMathIndexPattern() throws IOException {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+
+        String[] indices = {
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(1)),
+            "test-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(2)) };
+
+        int idx = 0;
+        for (String index : indices) {
+            createIndex(index);
+            for (int i = 0; i < 10; i++) {
+                Request request = new Request("POST", "/" + index + "/_doc/");
+                request.addParameter("refresh", "true");
+                request.setJsonEntity("{\"f\":" + idx++ + "}");
+                assertOK(client().performRequest(request));
+            }
+        }
+
+        String query = """
+            {
+                "query": "from <test-index-{now/d}> | sort f asc | limit 1 | keep f"
+            }
+            """;
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(query);
+        Response resp = client().performRequest(request);
+        Map<String, Object> results = entityAsMap(resp);
+        List<?> values = (List<?>) results.get("values");
+        assertThat(values.size(), is(1));
+        List<?> row = (List<?>) values.get(0);
+        assertThat(row.get(0), is(0));
+
+        query = """
+            {
+                "query": "from <test-index-{now/d-1d}> | sort f asc | limit 1 | keep f"
+            }
+            """;
+        request = new Request("POST", "/_query");
+        request.setJsonEntity(query);
+        resp = client().performRequest(request);
+        results = entityAsMap(resp);
+        values = (List<?>) results.get("values");
+        assertThat(values.size(), is(1));
+        row = (List<?>) values.get(0);
+        assertThat(row.get(0), is(10));
+
+        for (String index : indices) {
+            assertThat(deleteIndex(index).isAcknowledged(), is(true)); // clean up
+        }
+    }
+
+    public void testDateMathInJoin() throws IOException {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+
+        createIndex("idx", Settings.EMPTY, """
+            {
+                "properties": {
+                    "key": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+
+        Request request = new Request("POST", "/idx/_doc/");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"key\":\"foo\"}");
+        assertOK(client().performRequest(request));
+
+        String[] lookupIndices = {
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now),
+            "lookup-index-" + DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT).format(now.minusDays(1)) };
+
+        for (String index : lookupIndices) {
+            createIndex(index, Settings.builder().put("mode", "lookup").build(), """
+                {
+                    "properties": {
+                        "key": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+            request = new Request("POST", "/" + index + "/_doc/");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("{\"key\":\"foo\", \"value\": \"" + index + "\"}");
+            assertOK(client().performRequest(request));
+        }
+
+        String[] queries = {
+            "from idx | lookup join <lookup-index-{now/d}> on key | limit 1",
+            "from idx | lookup join <lookup-index-{now/d-1d}> on key | limit 1" };
+        for (int i = 0; i < queries.length; i++) {
+            String queryPayload = "{\"query\": \"" + queries[i] + "\"}";
+            request = new Request("POST", "/_query");
+            request.setJsonEntity(queryPayload);
+            Response resp = client().performRequest(request);
+            Map<String, Object> results = entityAsMap(resp);
+            List<?> values = (List<?>) results.get("values");
+            assertThat(values.size(), is(1));
+            List<?> row = (List<?>) values.get(0);
+            assertThat(row.get(1), is(lookupIndices[i]));
+        }
+
+        assertThat(deleteIndex("idx").isAcknowledged(), is(true)); // clean up
+        for (String index : lookupIndices) {
+            assertThat(deleteIndex(index).isAcknowledged(), is(true)); // clean up
         }
     }
 

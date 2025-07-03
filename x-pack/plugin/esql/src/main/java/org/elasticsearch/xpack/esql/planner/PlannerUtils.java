@@ -263,7 +263,6 @@ public class PlannerUtils {
                 if (matches.isEmpty() == false) {
                     Query qlQuery = TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches));
                     QueryBuilder builder = qlQuery.toQueryBuilder();
-                    LogManager.getLogger(PlannerUtils.class).error("ASFAFDSAFDSF {} {}", qlQuery, qlQuery.containsPlan());
                     if (qlQuery.containsPlan()) {
                         builder = new PlanStreamWrapperQueryBuilder(configuration, builder);
                     }

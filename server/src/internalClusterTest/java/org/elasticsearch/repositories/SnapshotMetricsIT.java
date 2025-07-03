@@ -74,8 +74,9 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         final String repositoryName = randomIdentifier();
 
-        // we want to ensure some throttling, but not too much that it slows the test down. 3 seemed a reasonable multiple to ensure that.
-        int shardSizeMultipleToEnsureThrottling = 3;
+        // we want to ensure some throttling, but not so much that it makes the test excessively slow.
+        // 3 seemed a reasonable multiple to ensure that.
+        final int shardSizeMultipleToEnsureThrottling = 3;
         createRepository(
             repositoryName,
             "mock",

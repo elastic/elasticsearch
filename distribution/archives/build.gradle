@@ -12,6 +12,7 @@ import java.nio.file.Path
 
 import static org.elasticsearch.gradle.Architecture.AMD64
 import static org.elasticsearch.gradle.Architecture.AARCH64
+import org.elasticsearch.gradle.Architecture
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 

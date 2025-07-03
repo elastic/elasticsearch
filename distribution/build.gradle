@@ -21,6 +21,7 @@ import java.nio.file.Path
 
 import static org.elasticsearch.gradle.Architecture.AMD64
 import static org.elasticsearch.gradle.Architecture.AARCH64
+import org.elasticsearch.gradle.Architecture
 
 plugins {
   id 'base'
@@ -475,7 +476,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     jdkFiles = { Project project, String os, Architecture architecture ->
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture.jdkClassifier}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

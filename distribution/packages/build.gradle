@@ -11,6 +11,7 @@ import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
 import org.redline_rpm.header.Flags
+import org.elasticsearch.gradle.Architecture
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -92,7 +93,7 @@ def commonPackageConfig(String type, Architecture architecture) {
       arch = architecture.debianClassifier
     } else {
       assert type == 'rpm': type
-      arch = architecture = architecture.jdkClassifier
+      arch = architecture.jdkClassifier
     }
     // Follow elasticsearch's file naming convention
     String prefix = "${architecture.classifier}${type}"

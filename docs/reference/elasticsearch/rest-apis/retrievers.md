@@ -259,7 +259,7 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 #### Parameters [linear-retriever-parameters]
 
 ::::{note}
-Either `query` or `retrievers` must exclusively be specified.
+Either `query` or `retrievers` must be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
@@ -341,7 +341,7 @@ Reciprocal rank fusion (RRF) is a method for combining multiple result sets with
 #### Parameters [rrf-retriever-parameters]
 
 ::::{note}
-Either `query` or `retrievers` must exclusively be specified.
+Either `query` or `retrievers` must be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 

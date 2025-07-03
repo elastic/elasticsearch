@@ -602,6 +602,9 @@ tests:
 - class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
   method: testGetNonPKCS11TrustStoreWithPasswordSet
   issue: https://github.com/elastic/elasticsearch/issues/130519
+- class: org.elasticsearch.repositories.blobstore.BlobStoreCorruptionIT
+  method: testCorruptionDetection
+  issue: https://github.com/elastic/elasticsearch/issues/130536
 
 # Examples:
 #

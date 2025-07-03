@@ -179,25 +179,19 @@ class KMeansLocal {
             }
         }
 
-        float[] scores = new float[clustersPerNeighborhood];
         for (int i = 0; i < k; i++) {
             NeighborQueue queue = neighborQueues.get(i);
-            int neighborCount = queue.size();
-            int[] neighbors = new int[neighborCount];
-            float maxIntraDistance = queue.consumeNodesWithWorstScore(neighbors, scores);
-            // Sort neighbors by their score
-            for (int j = 0; j < neighborCount; j++) {
-                for (int l = j + 1; l < neighborCount; l++) {
-                    if (scores[j] > scores[l]) {
-                        // swap
-                        int tmp = neighbors[j];
-                        neighbors[j] = neighbors[l];
-                        neighbors[l] = tmp;
-                        float tmpScore = scores[j];
-                        scores[j] = scores[l];
-                        scores[l] = tmpScore;
-                    }
-                }
+            if (queue.size() == 0) {
+                // no neighbors, skip
+                neighborhoods.set(i, NeighborHood.EMPTY);
+                continue;
+            }
+            // consume the queue into the neighbors array and get the maximum intra-cluster distance
+            int[] neighbors = new int[queue.size()];
+            float maxIntraDistance = queue.topScore();
+            int iter = 0;
+            while (queue.size() > 0) {
+                neighbors[neighbors.length - ++iter] = queue.pop();
             }
             NeighborHood neighborHood = new NeighborHood(neighbors, maxIntraDistance);
             neighborhoods.set(i, neighborHood);
@@ -283,7 +277,9 @@ class KMeansLocal {
         cluster(vectors, kMeansIntermediate, false);
     }
 
-    record NeighborHood(int[] neighbors, float maxIntraDistance) {}
+    record NeighborHood(int[] neighbors, float maxIntraDistance) {
+        static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
+    }
 
     /**
      * cluster using a lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids

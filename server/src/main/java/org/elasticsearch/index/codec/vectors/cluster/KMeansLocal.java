@@ -33,8 +33,8 @@ class KMeansLocal {
     // second closest centroid.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
 
-    private final int sampleSize;
-    private final int maxIterations;
+    final int sampleSize;
+    final int maxIterations;
 
     KMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
@@ -74,7 +74,7 @@ class KMeansLocal {
         float[][] centroids,
         float[][] nextCentroids,
         int[] assignments,
-        List<int[]> neighborhoods
+        List<NeighborHood> neighborhoods
     ) throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
@@ -116,11 +116,20 @@ class KMeansLocal {
         return changed;
     }
 
-    private static int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, int[] centroidOffsets) {
+    private static int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, NeighborHood neighborhood) {
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
-        for (int offset : centroidOffsets) {
+        for (int i = 0; i < neighborhood.neighbors.length; i++) {
+            int offset = neighborhood.neighbors[i];
+            // float score = neighborhood.scores[i];
+            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
+            if (minDsq < neighborhood.maxIntraDistance) {
+                // if the distance found is smaller than the maximum intra-cluster distance
+                // we don't consider it for further re-assignment
+                return bestCentroidOffset;
+            }
+            // compute the distance to the centroid
             float dsq = VectorUtil.squareDistance(vector, centroids[offset]);
             if (dsq < minDsq) {
                 minDsq = dsq;
@@ -143,7 +152,7 @@ class KMeansLocal {
         return bestCentroidOffset;
     }
 
-    private void computeNeighborhoods(float[][] centers, List<int[]> neighborhoods, int clustersPerNeighborhood) {
+    private void computeNeighborhoods(float[][] centers, List<NeighborHood> neighborhoods, int clustersPerNeighborhood) {
         int k = neighborhoods.size();
 
         if (k == 0 || clustersPerNeighborhood <= 0) {
@@ -164,16 +173,26 @@ class KMeansLocal {
 
         for (int i = 0; i < k; i++) {
             NeighborQueue queue = neighborQueues.get(i);
-            int neighborCount = queue.size();
-            int[] neighbors = new int[neighborCount];
-            queue.consumeNodes(neighbors);
-            neighborhoods.set(i, neighbors);
+            if (queue.size() == 0) {
+                // no neighbors, skip
+                neighborhoods.set(i, NeighborHood.EMPTY);
+                continue;
+            }
+            // consume the queue into the neighbors array and get the maximum intra-cluster distance
+            int[] neighbors = new int[queue.size()];
+            float maxIntraDistance = queue.topScore();
+            int iter = 0;
+            while (queue.size() > 0) {
+                neighbors[neighbors.length - ++iter] = queue.pop();
+            }
+            NeighborHood neighborHood = new NeighborHood(neighbors, maxIntraDistance);
+            neighborhoods.set(i, neighborHood);
         }
     }
 
     private int[] assignSpilled(
         FloatVectorValues vectors,
-        List<int[]> neighborhoods,
+        List<NeighborHood> neighborhoods,
         float[][] centroids,
         int[] assignments,
         float soarLambda
@@ -197,7 +216,6 @@ class KMeansLocal {
             float[] currentCentroid = centroids[currAssignment];
 
             // TODO: cache these?
-            // float vectorCentroidDist = assignmentDistances[i];
             float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
 
             if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
@@ -209,24 +227,33 @@ class KMeansLocal {
 
             int bestAssignment = -1;
             float minSoar = Float.MAX_VALUE;
-            assert neighborhoods.get(currAssignment) != null;
-            for (int neighbor : neighborhoods.get(currAssignment)) {
-                if (neighbor == currAssignment) {
-                    continue;
+            int centroidCount = centroids.length;
+            IntToIntFunction centroidOrds = c -> c;
+            if (neighborhoods != null) {
+                assert neighborhoods.get(currAssignment) != null;
+                NeighborHood neighborhood = neighborhoods.get(currAssignment);
+                centroidCount = neighborhood.neighbors.length;
+                centroidOrds = c -> neighborhood.neighbors[c];
+            }
+            for (int j = 0; j < centroidCount; j++) {
+                int centroidOrd = centroidOrds.apply(j);
+                if (centroidOrd == currAssignment) {
+                    continue; // skip the current assignment
                 }
-                float[] neighborCentroid = centroids[neighbor];
-                final float soar;
+                float[] centroid = centroids[centroidOrd];
+                float soar;
                 if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                    soar = ESVectorUtil.soarDistance(vector, neighborCentroid, diffs, soarLambda, vectorCentroidDist);
+                    soar = ESVectorUtil.soarDistance(vector, centroid, diffs, soarLambda, vectorCentroidDist);
                 } else {
                     // if the vector is very close to the centroid, we look for the second-nearest centroid
-                    soar = VectorUtil.squareDistance(vector, neighborCentroid);
+                    soar = VectorUtil.squareDistance(vector, centroid);
                 }
                 if (soar < minSoar) {
-                    bestAssignment = neighbor;
                     minSoar = soar;
+                    bestAssignment = centroidOrd;
                 }
             }
+
             assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
             spilledAssignments[i] = bestAssignment;
         }
@@ -234,8 +261,12 @@ class KMeansLocal {
         return spilledAssignments;
     }
 
+    record NeighborHood(int[] neighbors, float maxIntraDistance) {
+        static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
+    }
+
     /**
-     * cluster using a lloyd k-means algorithm that does not consider prior clustered neighborhoods when adjusting centroids
+     * cluster using a lloyd k-means algorithm that is not neighbor aware
      *
      * @param vectors the vectors to cluster
      * @param kMeansIntermediate the output object to populate which minimally includes centroids,
@@ -272,10 +303,11 @@ class KMeansLocal {
     private void doCluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
         throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
-        boolean computeNeighborhoods = clustersPerNeighborhood != -1 && centroids.length > 1;
+        boolean neighborAware = clustersPerNeighborhood != -1;
 
-        List<int[]> neighborhoods = null;
-        if (computeNeighborhoods) {
+        List<NeighborHood> neighborhoods = null;
+        // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
+        if (neighborAware && centroids.length > clustersPerNeighborhood) {
             int k = centroids.length;
             neighborhoods = new ArrayList<>(k);
             for (int i = 0; i < k; ++i) {
@@ -284,7 +316,7 @@ class KMeansLocal {
             computeNeighborhoods(centroids, neighborhoods, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
-        if (computeNeighborhoods) {
+        if (neighborAware && clustersPerNeighborhood > 0) {
             int[] assignments = kMeansIntermediate.assignments();
             assert assignments != null;
             assert assignments.length == vectors.size();
@@ -292,7 +324,8 @@ class KMeansLocal {
         }
     }
 
-    private void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, List<int[]> neighborhoods) throws IOException {
+    private void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, List<NeighborHood> neighborhoods)
+        throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();

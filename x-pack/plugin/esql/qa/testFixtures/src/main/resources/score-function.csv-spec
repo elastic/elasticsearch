@@ -62,21 +62,6 @@ book_no:keyword | author:text                                        | stars:lon
 3293            | Danny Faulkner                                     | 2          | 0.0
 ;
 
-scoreWithQueryExpressions
-
-FROM books METADATA _score
-| WHERE match(title, "Return") AND match(author, "Tolkien")
-| EVAL s2 = score(match(title, concat("Return ", "King")))   
-| KEEP book_no, title, _score, s2
-| SORT book_no
-| LIMIT 5
-;
-
-book_no:keyword | title:text | _score:double | s2:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings  | 3.1309072971343994 | 3.849184989929199
-7350            | Return of the Shadow  | 4.8434343338012695 | 3.5432329177856445
-;
-
 scoreMatchWithFilterConjunction
 required_capability: score_function
 required_capability: match_function

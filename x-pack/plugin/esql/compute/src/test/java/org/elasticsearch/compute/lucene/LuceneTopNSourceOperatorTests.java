@@ -58,7 +58,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     private IndexReader reader;
 
     @After
-    private void closeIndex() throws IOException {
+    public void closeIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 

@@ -53,7 +53,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
     private IndexReader reader;
 
     @After
-    private void closeIndex() throws IOException {
+    public void closeScoringIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 

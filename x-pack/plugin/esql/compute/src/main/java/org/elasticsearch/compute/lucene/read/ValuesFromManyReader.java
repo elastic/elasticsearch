@@ -16,7 +16,6 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -85,9 +84,7 @@ class ValuesFromManyReader extends ValuesReader {
                 read(firstDoc, shard);
 
                 int i = offset + 1;
-                while (i < forwards.length
-                // && estimatedMemory() < LARGE_BLOCK_BYTES NOCOMMIT
-                ) {
+                while (i < forwards.length) {
                     p = forwards[i];
                     shard = docs.shards().getInt(p);
                     segment = docs.segments().getInt(p);
@@ -114,7 +111,6 @@ class ValuesFromManyReader extends ValuesReader {
                  */
                 positions = Arrays.copyOfRange(positions, offset, end);
             }
-            LogManager.getLogger(ValuesSourceReaderOperator.class).error("AFDAF {} {} {}", offset, end, positions.length);
             for (int f = 0; f < target.length; f++) {
                 for (int s = 0; s < operator.shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
@@ -124,7 +120,6 @@ class ValuesFromManyReader extends ValuesReader {
                     }
                 }
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
-                    LogManager.getLogger(ValuesSourceReaderOperator.class).error("AFDAF {}", targetBlock);
                     target[f] = targetBlock.filter(positions);
                 }
                 operator.sanityCheckBlock(rowStride[f], positions.length, target[f], f);
@@ -146,21 +141,6 @@ class ValuesFromManyReader extends ValuesReader {
             for (int f = 0; f < builders.length; f++) {
                 rowStride[f].read(doc, storedFields, builders[f][shard]);
             }
-        }
-
-        /**
-         * An overestimate of the memory used by all builders.
-         */
-        private long estimatedMemory() {
-            long total = 0;
-            for (Block.Builder[] builders : builders) {
-                for (Block.Builder builder : builders) {
-                    if (builder != null) {
-                        total += builder.estimatedBytes();
-                    }
-                }
-            }
-            return total;
         }
 
         @Override

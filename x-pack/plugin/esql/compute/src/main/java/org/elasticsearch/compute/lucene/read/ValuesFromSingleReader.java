@@ -47,7 +47,6 @@ class ValuesFromSingleReader extends ValuesReader {
         this.segment = docs.segments().getInt(0);
     }
 
-
     @Override
     protected void load(Block[] target, int offset) throws IOException {
         assert offset == 0; // NOCOMMIT implement me
@@ -111,7 +110,7 @@ class ValuesFromSingleReader extends ValuesReader {
                 }
             }
 
-            if (rowStrideReaders.isEmpty()) {
+            if (rowStrideReaders.isEmpty() == false) {
                 loadFromRowStrideReaders(target, storedFieldsSpec, rowStrideReaders, ctx, docs);
             }
         } finally {
@@ -150,9 +149,7 @@ class ValuesFromSingleReader extends ValuesReader {
             sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
         );
         int p = 0;
-        while (p < docs.count()
-        //    && estimatedMemory(rowStrideReaders) < ValuesSourceReaderOperator.LARGE_BLOCK_BYTES NOCOMMIT
-        ) {
+        while (p < docs.count()) {
             int doc = docs.get(p++);
             storedFields.advanceTo(doc);
             for (RowStrideReaderWork work : rowStrideReaders) {
@@ -163,17 +160,6 @@ class ValuesFromSingleReader extends ValuesReader {
             target[work.offset] = work.build();
             operator.sanityCheckBlock(work.reader, p, target[work.offset], work.offset);
         }
-    }
-
-    /**
-     * An overestimate of the memory used by all builders.
-     */
-    private long estimatedMemory(List<RowStrideReaderWork> rowStrideReaders) {
-        long total = 0;
-        for (RowStrideReaderWork work : rowStrideReaders) {
-            total += work.builder.estimatedBytes();
-        }
-        return total;
     }
 
     /**
@@ -193,7 +179,7 @@ class ValuesFromSingleReader extends ValuesReader {
 
     private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int offset)
         implements
-        Releasable {
+            Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
             reader.read(doc, storedFields, builder);
         }

@@ -111,13 +111,24 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         if (next != null) {
             assert next.hasNext() == false : "has pending input page";
             next.close();
+            next = null;
         }
         if (page.getPositionCount() == 0) {
             return;
         }
-        next = new RuntimeTrackingIterator(receive(page));
-        pagesReceived++;
-        rowsReceived += page.getPositionCount();
+        try {
+            next = new RuntimeTrackingIterator(receive(page));
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
+        } finally {
+            if (next == null) {
+                /*
+                 * The `receive` operation failed, we need to release the incoming page
+                 * because it's no longer owned by anyone.
+                 */
+                page.releaseBlocks();
+            }
+        }
     }
 
     @Override

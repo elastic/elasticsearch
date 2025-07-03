@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.*;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
+import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
+import static org.elasticsearch.TransportVersions.ESQL_SPLIT_ON_BIG_VALUES;
 
 public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToIteratorOperator.Status {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -42,7 +44,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         long rowsEmitted,
         long valuesLoaded
     ) {
-        super(processNanos, pagesEmitted, pagesReceived, rowsReceived, rowsEmitted);
+        super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
         this.valuesLoaded = valuesLoaded;
     }
@@ -70,7 +72,15 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         }
         Map<String, Integer> readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
-        return new ValuesSourceReaderOperatorStatus(readersBuilt, processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, valuesLoaded);
+        return new ValuesSourceReaderOperatorStatus(
+            readersBuilt,
+            processNanos,
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted,
+            valuesLoaded
+        );
     }
 
     @Override

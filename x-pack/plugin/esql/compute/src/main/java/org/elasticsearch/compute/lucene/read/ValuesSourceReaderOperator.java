@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -20,10 +19,8 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -39,9 +36,6 @@ import java.util.function.Supplier;
  * and outputs them to a new column.
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
-    // NOCOMMIT javadoc
-    static final long LARGE_BLOCK_BYTES = ByteSizeValue.ofMb(2).getBytes();
-
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load

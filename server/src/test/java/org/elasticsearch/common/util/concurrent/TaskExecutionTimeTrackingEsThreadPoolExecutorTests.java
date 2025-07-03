@@ -116,18 +116,18 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.0);
+        assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.0);
         // Using the settableQueuingWrapper each task will report being queued for 1ms
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.6); });
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.6); });
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.84); });
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.84); });
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.936); });
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.936); });
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.9744); });
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.9744); });
         executeTask(executor, 1);
-        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillisEWMA(), 0.98976); });
+        assertBusy(() -> { assertDoublesEqual(executor.getQueuedTaskLatencyMillis(), 0.98976); });
         assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);

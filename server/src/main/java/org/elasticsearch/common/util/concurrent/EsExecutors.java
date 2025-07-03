@@ -582,9 +582,9 @@ public class EsExecutors {
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
-        private final boolean trackQueueLatencyEWMA;
+        private final boolean trackQueueLatencyAverage;
         private final double executionTimeEwmaAlpha;
-        private final double queueLatencyEWMAAlpha;
+        private final double queueLatencyEwmaAlpha;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
@@ -610,32 +610,32 @@ public class EsExecutors {
          */
         public TaskTrackingConfig(
             boolean trackOngoingTasks,
-            boolean trackQueueLatencyEWMA,
-            double executionTimeEWMAAlpha,
-            double queueLatencyEWMAAlpha
+            boolean trackQueueLatencyAverage,
+            double executionTimeEwmaAlpha,
+            double queueLatencyEwmaAlpha
         ) {
-            this(true, trackOngoingTasks, trackQueueLatencyEWMA, executionTimeEWMAAlpha, queueLatencyEWMAAlpha);
+            this(true, trackOngoingTasks, trackQueueLatencyAverage, executionTimeEwmaAlpha, queueLatencyEwmaAlpha);
         }
 
         /**
          * @param trackExecutionTime Whether to track execution stats
          * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
-         * @param trackQueueLatencyEWMA Whether to track queue latency {@link org.elasticsearch.common.ExponentiallyWeightedMovingAverage}
+         * @param trackQueueLatencyAverage Whether to track the average queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         * @param queueLatencyEWMAAlpha The alpha seed for task queue latency EWMA (ExponentiallyWeightedMovingAverage).
+         * @param queueLatencyEwmaAlpha The alpha seed for task queue latency EWMA (ExponentiallyWeightedMovingAverage).
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
-            boolean trackQueueLatencyEWMA,
+            boolean trackQueueLatencyAverage,
             double executionTimeEWMAAlpha,
-            double queueLatencyEWMAAlpha
+            double queueLatencyEwmaAlpha
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
-            this.trackQueueLatencyEWMA = trackQueueLatencyEWMA;
+            this.trackQueueLatencyAverage = trackQueueLatencyAverage;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
-            this.queueLatencyEWMAAlpha = queueLatencyEWMAAlpha;
+            this.queueLatencyEwmaAlpha = queueLatencyEwmaAlpha;
         }
 
         public boolean trackExecutionTime() {
@@ -646,8 +646,8 @@ public class EsExecutors {
             return trackOngoingTasks;
         }
 
-        public boolean trackQueueLatencyEWMA() {
-            return trackQueueLatencyEWMA;
+        public boolean trackQueueLatencyAverage() {
+            return trackQueueLatencyAverage;
         }
 
         public double getExecutionTimeEwmaAlpha() {
@@ -655,7 +655,7 @@ public class EsExecutors {
         }
 
         public double getQueueLatencyEwmaAlpha() {
-            return queueLatencyEWMAAlpha;
+            return queueLatencyEwmaAlpha;
         }
     }
 

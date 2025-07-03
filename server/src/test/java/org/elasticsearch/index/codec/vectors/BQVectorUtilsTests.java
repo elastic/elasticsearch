@@ -40,25 +40,25 @@ public class BQVectorUtilsTests extends LuceneTestCase {
 
     public void testPackAsBinary() {
         // 5 bits
-        byte[] toPack = new byte[] { 1, 1, 0, 0, 1 };
+        int[] toPack = new int[] { 1, 1, 0, 0, 1 };
         byte[] packed = new byte[1];
         BQVectorUtils.packAsBinary(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001000 }, packed);
 
         // 8 bits
-        toPack = new byte[] { 1, 1, 0, 0, 1, 0, 1, 0 };
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0 };
         packed = new byte[1];
         BQVectorUtils.packAsBinary(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010 }, packed);
 
         // 10 bits
-        toPack = new byte[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1 };
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1 };
         packed = new byte[2];
         BQVectorUtils.packAsBinary(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11000000 }, packed);
 
         // 16 bits
-        toPack = new byte[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0 };
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0 };
         packed = new byte[2];
         BQVectorUtils.packAsBinary(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11100110 }, packed);

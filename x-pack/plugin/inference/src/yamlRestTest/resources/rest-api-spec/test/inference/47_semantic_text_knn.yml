@@ -407,7 +407,7 @@ setup:
 ---
 "Apply boost and query name on single index":
   - requires:
-      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
       reason: fix boosting and query name for semantic text knn queries.
 
   - skip:
@@ -475,13 +475,13 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e15 } }
+  - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e-7 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
 "Apply boost and query name on multiple indices":
   - requires:
-      cluster_features: "semantic_text.query_rewrite.boost_and_query_name_fix"
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
       reason: fix boosting and query name for semantic text knn queries.
 
   - skip:
@@ -522,7 +522,7 @@ setup:
   - do:
       index:
         index: index-with-dense-field
-        id: doc_1
+        id: doc_2
         body:
           inference_field: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
         refresh: true
@@ -546,10 +546,10 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.9984111, error: 1e15 } }
+  - match: { hits.hits.1._id: "doc_2" }
+  - close_to: { hits.hits.0._score: { value: 0.9981499, error: 1e-7 } }
   - not_exists: hits.hits.0.matched_queries
-  - close_to: { hits.hits.1._score: { value: 0.9984111, error: 1e15 } }
+  - close_to: { hits.hits.1._score: { value: 0.9428395, error: 1e-7 } }
   - not_exists: hits.hits.1.matched_queries
 
   - do:
@@ -573,8 +573,8 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e15 } }
+  - match: { hits.hits.1._id: "doc_2" }
+  - close_to: { hits.hits.0._score: { value: 4.9907494, error: 1e-7 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
-  - close_to: { hits.hits.1._score: { value: 4.9907494, error: 1e15 } }
+  - close_to: { hits.hits.1._score: { value: 4.7141976, error: 1e-7 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }

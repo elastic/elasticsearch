@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.streams.StreamsPermissionsUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -66,6 +67,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -75,12 +77,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -93,9 +97,13 @@ public class BulkOperationTests extends ESTestCase {
     private final long millis = randomMillisUpToYear9999();
     private final String indexName = "my_index";
     private final String dataStreamName = "my_data_stream";
+
     private final String fsDataStreamName = "my_failure_store_data_stream";
     private final String fsRolloverDataStreamName = "my_failure_store_to_be_rolled_over_data_stream";
     private final String fsBySettingsDataStreamName = "my_failure_store_enabled_by_setting_data_stream";
+
+    private final String logsStreamDsName = StreamType.LOGS.getStreamName();
+    private final String logsChildStreamDsName = StreamType.LOGS.getStreamName() + ".child";
 
     private final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
         .settings(
@@ -134,6 +142,20 @@ public class BulkOperationTests extends ESTestCase {
         .numberOfShards(1)
         .build();
 
+    private final IndexMetadata streamBackingIndex = DataStreamTestHelper.createFailureStore(logsStreamDsName, 1, millis)
+        .numberOfShards(1)
+        .build();
+    private final IndexMetadata streamFailureStore = DataStreamTestHelper.createFailureStore(logsStreamDsName, 1, millis)
+        .numberOfShards(1)
+        .build();
+
+    private final IndexMetadata streamChildBackingIndex = DataStreamTestHelper.createFailureStore(logsChildStreamDsName, 1, millis)
+        .numberOfShards(1)
+        .build();
+    private final IndexMetadata streamChildFailureStore = DataStreamTestHelper.createFailureStore(logsChildStreamDsName, 1, millis)
+        .numberOfShards(1)
+        .build();
+
     private final DataStream dataStream1 = DataStreamTestHelper.newInstance(
         dataStreamName,
         List.of(ds1BackingIndex1.getIndex(), ds1BackingIndex2.getIndex())
@@ -156,6 +178,18 @@ public class BulkOperationTests extends ESTestCase {
         .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds4FailureStore1.getIndex())).build())
         .build();
 
+    private final DataStream logsDataStream = DataStream.builder(logsStreamDsName, List.of(streamChildBackingIndex.getIndex()))
+        .setGeneration(1)
+        .setDataStreamOptions(DataStreamOptions.EMPTY)
+        .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(streamFailureStore.getIndex())).build())
+        .build();
+
+    private final DataStream logsChildDataStream = DataStream.builder(logsChildStreamDsName, List.of(streamChildBackingIndex.getIndex()))
+        .setGeneration(1)
+        .setDataStreamOptions(DataStreamOptions.EMPTY)
+        .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(streamChildFailureStore.getIndex())).build())
+        .build();
+
     private final ProjectId projectId = randomProjectIdOrDefault();
     private final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
         .putProjectMetadata(
@@ -176,28 +210,23 @@ public class BulkOperationTests extends ESTestCase {
                             .build()
                     )
                 )
-                .indices(
-                    Map.of(
-                        indexName,
-                        indexMetadata,
-                        ds1BackingIndex1.getIndex().getName(),
-                        ds1BackingIndex1,
-                        ds1BackingIndex2.getIndex().getName(),
-                        ds1BackingIndex2,
-                        ds2BackingIndex1.getIndex().getName(),
-                        ds2BackingIndex1,
-                        ds2FailureStore1.getIndex().getName(),
-                        ds2FailureStore1,
-                        ds3BackingIndex1.getIndex().getName(),
-                        ds3BackingIndex1,
-                        ds3FailureStore1.getIndex().getName(),
-                        ds3FailureStore1,
-                        ds4BackingIndex1.getIndex().getName(),
-                        ds4BackingIndex1,
-                        ds4FailureStore1.getIndex().getName(),
-                        ds4FailureStore1
-                    )
-                )
+                .indices(new HashMap<>() {
+                    {
+                        put(indexName, indexMetadata);
+                        put(ds1BackingIndex1.getIndex().getName(), ds1BackingIndex1);
+                        put(ds1BackingIndex2.getIndex().getName(), ds1BackingIndex2);
+                        put(ds2BackingIndex1.getIndex().getName(), ds2BackingIndex1);
+                        put(ds2FailureStore1.getIndex().getName(), ds2FailureStore1);
+                        put(ds3BackingIndex1.getIndex().getName(), ds3BackingIndex1);
+                        put(ds3FailureStore1.getIndex().getName(), ds3FailureStore1);
+                        put(ds4BackingIndex1.getIndex().getName(), ds4BackingIndex1);
+                        put(ds4FailureStore1.getIndex().getName(), ds4FailureStore1);
+                        put(streamBackingIndex.getIndex().getName(), streamBackingIndex);
+                        put(streamFailureStore.getIndex().getName(), streamFailureStore);
+                        put(streamChildBackingIndex.getIndex().getName(), streamChildBackingIndex);
+                        put(streamChildFailureStore.getIndex().getName(), streamChildFailureStore);
+                    }
+                })
                 .dataStreams(
                     Map.of(
                         dataStreamName,
@@ -207,7 +236,11 @@ public class BulkOperationTests extends ESTestCase {
                         fsRolloverDataStreamName,
                         dataStream3,
                         fsBySettingsDataStreamName,
-                        dataStream4
+                        dataStream4,
+                        logsStreamDsName,
+                        logsDataStream,
+                        logsChildStreamDsName,
+                        logsChildDataStream
                     ),
                     Map.of()
                 )
@@ -954,6 +987,83 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    public void testIndexWriteSucceededWhenStreamsEnabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(Map.of("key", "val")));
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(eq(StreamType.LOGS), any())).thenReturn(true);
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+    }
+
+    public void testLogsDatastreamWriteSucceededWhenStreamsEnabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(logsStreamDsName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(logsStreamDsName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(eq(StreamType.LOGS), any())).thenReturn(true);
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+    }
+
+    public void testLogsDatastreamWriteSucceededWhenStreamsDisabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(logsStreamDsName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(logsStreamDsName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(eq(StreamType.LOGS), any())).thenReturn(false);
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+    }
+
+    public void testLogsChildDatastreamWriteRejectedWhenStreamsEnabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(logsChildStreamDsName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(logsChildStreamDsName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(eq(StreamType.LOGS), any())).thenReturn(true);
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+
+        for (int i = 0; i < bulkItemResponses.getItems().length; i++) {
+            assertThat(bulkItemResponses.getItems()[i].getFailure().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(
+                bulkItemResponses.getItems()[i].getFailure().getCause().getMessage(),
+                is(containsStringIgnoringCase("Writes to child stream [" + logsChildStreamDsName + "] are not allowed"))
+            );
+        }
+    }
+
+    public void testLogsChildDatastreamWriteSucceededWhenStreamsDisabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(logsChildStreamDsName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(logsChildStreamDsName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(acceptAllShardWrites());
+
+        when(streamsPermissionsUtilsMock.streamTypeIsEnabled(eq(StreamType.LOGS), any())).thenReturn(false);
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponses.hasFailures(), is(false));
     }
 
     /**

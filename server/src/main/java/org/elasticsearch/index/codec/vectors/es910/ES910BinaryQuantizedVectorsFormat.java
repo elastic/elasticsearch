@@ -27,7 +27,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsFormat;
 
 import java.io.IOException;
 
@@ -102,38 +101,37 @@ public class ES910BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
-    private static byte DEFAULT_INDEX_BITS = (byte) 1;
-    private static byte DEFAULT_QUERY_BITS = (byte) 4;
 
-    private final ES910BinaryFlatVectorsScorer scorer;
-
-    private final byte indexBits;
-    private final byte queryBits;
+    // index and query bits for quantization. They are static as we have no mapping, and thus can't create a format with specific bits.
+    // we use static setters to change the quantization bits and scorers.
+    private static byte INDEX_BITS = (byte) 1;
+    private static byte QUERY_BITS = (byte) 4;
+    private static ES910BinaryFlatVectorsScorer SCORER;
 
     public ES910BinaryQuantizedVectorsFormat() {
-        this(DEFAULT_INDEX_BITS, DEFAULT_QUERY_BITS); // Default to 4 bits for index and 2 bits for query
+        this(INDEX_BITS, QUERY_BITS); // Default to 4 bits for index and 2 bits for query
     }
 
     /** Creates a new instance with the default number of vectors per cluster. */
     public ES910BinaryQuantizedVectorsFormat(byte indexBits, byte queryBits) {
         super(NAME);
-        this.indexBits = indexBits;
-        this.queryBits = queryBits;
-        // Set the default bits for index and query vectors. I know, I know, this is a hack, but we
-        // don't have the possibility of doing a PerFieldMapperCodec yet on KnnSearcher
-        DEFAULT_QUERY_BITS = queryBits;
-        DEFAULT_INDEX_BITS = indexBits;
-        this.scorer = new ES910BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer(), indexBits, queryBits);
+        setQuantizationBits(indexBits, queryBits);
+    }
+
+    public static void setQuantizationBits(byte indexBits, byte queryBits) {
+        INDEX_BITS = indexBits;
+        QUERY_BITS = queryBits;
+        SCORER = new ES910BinaryFlatVectorsScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer(), indexBits, queryBits);
     }
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES910BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state, indexBits, queryBits);
+        return new ES910BinaryQuantizedVectorsWriter(SCORER, rawVectorFormat.fieldsWriter(state), state, INDEX_BITS, QUERY_BITS);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES910BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+        return new ES910BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), SCORER);
     }
 
     @Override
@@ -146,11 +144,11 @@ public class ES910BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
         return "ES910BinaryQuantizedVectorsFormat(name="
             + NAME
             + ", flatVectorScorer="
-            + scorer
+            + SCORER
             + ", indexBits="
-            + indexBits
+            + INDEX_BITS
             + ", queryBits="
-            + queryBits
+            + QUERY_BITS
             + ")";
     }
 }

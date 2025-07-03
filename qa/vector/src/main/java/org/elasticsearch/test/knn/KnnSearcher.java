@@ -45,6 +45,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.es910.ES910BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -115,6 +116,13 @@ class KnnSearcher {
         this.nProbe = nProbe;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
+        if (cmdLineArgs.useNewFlatVectorsFormat()) {
+            // use the query bits statically
+            ES910BinaryQuantizedVectorsFormat.setQuantizationBits(
+                (byte) cmdLineArgs.quantizeBits(),
+                (byte) cmdLineArgs.quantizeQueryBits()
+            );
+        }
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {

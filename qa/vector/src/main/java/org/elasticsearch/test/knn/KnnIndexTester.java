@@ -187,7 +187,13 @@ public class KnnIndexTester {
                 : new int[] { 0 };
             Results[] results = new Results[nProbes.length];
             for (int i = 0; i < nProbes.length; i++) {
-                results[i] = new Results(cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT), cmdLineArgs.numDocs());
+                results[i] = new Results(
+                    cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT),
+                    cmdLineArgs.numDocs(),
+                    cmdLineArgs.quantizeBits(),
+                    cmdLineArgs.quantizeQueryBits(),
+                    cmdLineArgs.overSamplingFactor()
+                );
             }
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
@@ -247,7 +253,11 @@ public class KnnIndexTester {
                 "avg_cpu_count",
                 "QPS",
                 "recall",
-                "visited" };
+                "visited",
+                "indexBits",
+                "queryBits",
+                "oversampling"
+            };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -274,8 +284,12 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", result.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", result.avgCpuCount),
                     String.format(Locale.ROOT, "%.2f", result.qps),
-                    String.format(Locale.ROOT, "%.2f", result.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", result.averageVisited) };
+                    String.format(Locale.ROOT, "%.4f", result.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", result.averageVisited),
+                    String.format(Locale.ROOT, "%d", result.indexBits),
+                    String.format(Locale.ROOT, "%d", result.queryBits),
+                    String.format(Locale.ROOT, "%.2f", result.oversampling)
+                };
 
             }
 
@@ -341,6 +355,8 @@ public class KnnIndexTester {
     static class Results {
         final String indexType;
         final int numDocs;
+        int indexBits;
+        int queryBits;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
@@ -351,10 +367,14 @@ public class KnnIndexTester {
         double averageVisited;
         double netCpuTimeMS;
         double avgCpuCount;
+        float oversampling;
 
-        Results(String indexType, int numDocs) {
+        Results(String indexType, int numDocs, int indexBits, int queryBits, float oversampling) {
             this.indexType = indexType;
             this.numDocs = numDocs;
+            this.indexBits = indexBits;
+            this.queryBits = queryBits;
+            this.oversampling = oversampling;
         }
     }
 

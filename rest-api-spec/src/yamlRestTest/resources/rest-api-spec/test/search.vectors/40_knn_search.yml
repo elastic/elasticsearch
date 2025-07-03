@@ -612,9 +612,10 @@ setup:
       indices.create:
         index: test_index
         body:
-          properties:
-            embedding:
-              type: dense_vector
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
 
   - do:
       index:

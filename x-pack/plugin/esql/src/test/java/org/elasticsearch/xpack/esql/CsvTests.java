@@ -707,21 +707,58 @@ public class CsvTests extends ESTestCase {
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
         // replace fragment inside the coordinator plan
-        List<Driver> drivers = new ArrayList<>();
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
             new OutputExec(coordinatorPlan, collectedPages::add)
         );
-        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
-        if (dataNodePlan != null) {
-            var searchStats = new DisabledSearchStats();
-            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
-            var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
-            );
 
-            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+        addDataNodePlan(
+            coordinatorNodeExecutionPlan.createDrivers(getTestName()),
+            dataNodePlan,
+            foldCtx,
+            exchangeSource,
+            exchangeSink,
+            executionPlanner,
+            listener.delegateFailureAndWrap((l, drivers) -> {
+                DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
+                    @Override
+                    protected void start(Driver driver, ActionListener<Void> driverListener) {
+                        Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
+                    }
+                };
+
+                // Execute the drivers
+                l = ActionListener.releaseAfter(l, () -> Releasables.close(drivers));
+                runner.runToCompletion(
+                    drivers,
+                    l.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+                );
+            })
+        );
+
+    }
+
+    private void addDataNodePlan(
+        List<Driver> drivers,
+        PhysicalPlan dataNodePlan,
+        FoldContext foldCtx,
+        ExchangeSourceHandler exchangeSource,
+        ExchangeSinkHandler exchangeSink,
+        LocalExecutionPlanner executionPlanner,
+        ActionListener<List<Driver>> listener
+    ) {
+        if (dataNodePlan == null) {
+            listener.onResponse(drivers);
+            return;
+        }
+
+        var searchStats = new DisabledSearchStats();
+        var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
+        );
+        PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, listener.map(csvDataNodePhysicalPlan -> {
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
@@ -732,21 +769,9 @@ public class CsvTests extends ESTestCase {
                 })
             );
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
-
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
             Randomness.shuffle(drivers);
-        }
-        // Execute the drivers
-        DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
-            }
-        };
-        listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(
-            drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
-        );
+            return drivers;
+        }));
     }
 }

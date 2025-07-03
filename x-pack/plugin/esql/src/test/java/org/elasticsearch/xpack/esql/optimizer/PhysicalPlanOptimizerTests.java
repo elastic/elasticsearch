@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -7842,7 +7843,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        ListenableActionFuture<PhysicalPlan> localPlanFuture = new ListenableActionFuture<>();
+        PlannerUtils.localPlan(config, FoldContext.small(), plan, TEST_SEARCH_STATS, localPlanFuture);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7861,7 +7863,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             List.of()
         );
 
-        return planner.plan("test", FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), localPlanFuture.actionResult());
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -8208,15 +8210,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // this is of no use in the unit tests, which checks the plan as a whole instead of each
         // individually hence why here the plan is kept as is
 
-        var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
-            return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
-        });
+        ListenableActionFuture<PhysicalPlan> l = new ListenableActionFuture<>();
 
-        // handle local reduction alignment
-        l = localRelationshipAlignment(l);
-        // System.out.println("* Localized DataNode Plan\n" + l);
-        return l;
+        p.transformUp(
+            FragmentExec.class,
+            (fragment, listener) -> PlannerUtils.localPlan(
+                config,
+                FoldContext.small(),
+                fragment,
+                searchStats,
+                listener.map(localPlan -> EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan))
+            ),
+            // handle local reduction alignment
+            l.map(PhysicalPlanOptimizerTests::localRelationshipAlignment)
+        );
+
+        return l.actionResult();
     }
 
     static SearchStats statsWithIndexedFields(String... names) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -512,9 +513,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var analyzed = analyze(analyzer, parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        ListenableActionFuture<LogicalPlan> localPlanListener = new ListenableActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized, localPlanListener);
 
-        var project = as(plan, Project.class);
+        var project = as(localPlanListener.actionResult(), Project.class);
         assertThat(project.projections(), hasSize(10));
         assertThat(
             Expressions.names(project.projections()),
@@ -800,9 +802,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+        ListenableActionFuture<LogicalPlan> localPlan = new ListenableActionFuture<>();
+        new LocalLogicalPlanOptimizer(localContext).localOptimize(plan, localPlan);
         // System.out.println(localPlan);
-        return localPlan;
+        return localPlan.actionResult();
     }
 
     private LogicalPlan localPlan(String query) {

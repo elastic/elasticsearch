@@ -60,7 +60,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -308,7 +310,7 @@ public abstract class DocsV3Support {
     protected final String name;
     protected final FunctionDefinition definition;
     protected final Logger logger;
-    private final Supplier<Map<List<DataType>, DataType>> signatures;
+    protected final Supplier<Map<List<DataType>, DataType>> signatures;
     private TempFileWriter tempFileWriter;
     private final LicenseRequirementChecker licenseChecker;
 
@@ -836,12 +838,28 @@ public abstract class DocsV3Support {
     /** Command specific docs generating, currently very empty since we only render kibana definition files */
     public static class CommandsDocsSupport extends DocsV3Support {
         private final LogicalPlan command;
+        private List<EsqlFunctionRegistry.ArgSignature> args;
         private final XPackLicenseState licenseState;
 
+        /** Used in CommandLicenseTests to generate Kibana docs with licensing information for commands */
         public CommandsDocsSupport(String name, Class<?> testClass, LogicalPlan command, XPackLicenseState licenseState) {
             super("commands", name, testClass, Map::of);
             this.command = command;
             this.licenseState = licenseState;
+        }
+
+        /** Used in LookupJoinTypesIT to generate table of supported types for join field */
+        public CommandsDocsSupport(
+            String name,
+            Class<?> testClass,
+            LogicalPlan command,
+            List<EsqlFunctionRegistry.ArgSignature> args,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("commands", name, testClass, signatures);
+            this.command = command;
+            this.args = args;
+            this.licenseState = null;
         }
 
         @Override
@@ -851,8 +869,14 @@ public abstract class DocsV3Support {
 
         @Override
         public void renderDocs() throws Exception {
-            // Currently we only render kibana definition files, but we could expand to rendering much more if we decide to
-            renderKibanaCommandDefinition();
+            // Currently we only render either signatures or kibana definition files,
+            // but we could expand to rendering much more if we decide to
+            if (args != null) {
+                renderTypes(name, args);
+            }
+            if (licenseState != null) {
+                renderKibanaCommandDefinition();
+            }
         }
 
         void renderKibanaCommandDefinition() throws Exception {
@@ -871,6 +895,47 @@ public abstract class DocsV3Support {
                 logger.info("Writing kibana command definition for [{}]:\n{}", name, rendered);
                 writeToTempKibanaDir("definition", "json", rendered);
             }
+        }
+
+        @Override
+        void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+            assert args.size() == 2;
+            StringBuilder header = new StringBuilder("| ");
+            StringBuilder separator = new StringBuilder("| ");
+            List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
+            for (String arg : argNames) {
+                header.append(arg).append(" | ");
+                separator.append("---").append(" | ");
+            }
+
+            Map<String, List<String>> compactedTable = new TreeMap<>();
+            for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) {
+                if (shouldHideSignature(sig.getKey(), sig.getValue())) {
+                    continue;
+                }
+                String mainType = sig.getKey().getFirst().esNameIfPossible();
+                String secondaryType = sig.getKey().get(1).esNameIfPossible();
+                List<String> secondaryTypes = compactedTable.computeIfAbsent(mainType, (k) -> new ArrayList<>());
+                secondaryTypes.add(secondaryType);
+            }
+
+            List<String> table = new ArrayList<>();
+            for (Map.Entry<String, List<String>> sig : compactedTable.entrySet()) {
+                String row = "| " + sig.getKey() + " | " + String.join(", ", sig.getValue()) + " |";
+                table.add(row);
+            }
+            Collections.sort(table);
+            if (table.isEmpty()) {
+                logger.info("Warning: No table of types generated for [{}]", name);
+                return;
+            }
+
+            String rendered = DOCS_WARNING + """
+                **Supported types**
+
+                """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
+            logger.info("Writing function types for [{}]:\n{}", name, rendered);
+            writeToTempSnippetsDir("types", rendered);
         }
     }
 
@@ -893,6 +958,7 @@ public abstract class DocsV3Support {
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        boolean showResultColumn = signatures.get().values().stream().anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
         StringBuilder separator = new StringBuilder("| ");
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
@@ -900,8 +966,10 @@ public abstract class DocsV3Support {
             header.append(arg).append(" | ");
             separator.append("---").append(" | ");
         }
-        header.append("result |");
-        separator.append("--- |");
+        if (showResultColumn) {
+            header.append("result |");
+            separator.append("--- |");
+        }
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
@@ -911,7 +979,7 @@ public abstract class DocsV3Support {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            table.add(getTypeRow(args, sig, argNames));
+            table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -930,7 +998,8 @@ public abstract class DocsV3Support {
     private static String getTypeRow(
         List<EsqlFunctionRegistry.ArgSignature> args,
         Map.Entry<List<DataType>, DataType> sig,
-        List<String> argNames
+        List<String> argNames,
+        boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
         for (int i = 0; i < sig.getKey().size(); i++) {
@@ -944,8 +1013,10 @@ public abstract class DocsV3Support {
             b.append(" | ");
         }
         b.append("| ".repeat(argNames.size() - sig.getKey().size()));
-        b.append(sig.getValue().esNameIfPossible());
-        b.append(" |");
+        if (showResultColumn) {
+            b.append(sig.getValue().esNameIfPossible());
+            b.append(" |");
+        }
         return b.toString();
     }
 
@@ -1021,19 +1092,21 @@ public abstract class DocsV3Support {
         builder.append("### ").append(titleName.toUpperCase(Locale.ROOT)).append("\n");
         String cleanedDesc = replaceLinks(info.description());
         cleanedDesc = removeAppliesToBlocks(cleanedDesc);
-        builder.append(cleanedDesc).append("\n\n");
+        builder.append(cleanedDesc).append("\n");
 
-        if (info.examples().length > 0) {
-            Example example = info.examples()[0];
-            builder.append("```esql\n");
-            builder.append(loadExample(example.file(), example.tag()));
-            builder.append("\n```\n");
-        }
         if (Strings.isNullOrEmpty(info.note()) == false) {
             String cleanedNote = replaceLinks(info.note());
             cleanedNote = removeAppliesToBlocks(cleanedNote);
-            builder.append("Note: ").append(cleanedNote).append("\n");
+            builder.append("\nNote: ").append(cleanedNote).append("\n");
         }
+
+        if (info.examples().length > 0) {
+            Example example = info.examples()[0];
+            builder.append("\n```esql\n");
+            builder.append(loadExample(example.file(), example.tag()));
+            builder.append("\n```\n");
+        }
+
         String rendered = builder.toString();
         logger.info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
         writeToTempKibanaDir("docs", "md", rendered);

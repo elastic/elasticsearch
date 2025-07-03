@@ -39,3 +39,22 @@ book_no:keyword | author:text | first_score:double
 7350            | [Christopher Tolkien, John Ronald Reuel Tolkien] | 3.5432329177856445
 ;
 
+scoreAfterEval
+required_capability: score_function
+required_capability: metadata_score
+
+FROM books METADATA _score
+| EVAL stars = to_long(ratings / 2.0)
+| EVAL s1 = score(match(author, "William")) 
+| WHERE match(author, "Faulkner")
+| SORT book_no 
+| KEEP book_no, author, stars, s1
+| limit 5;
+
+book_no:keyword | author:text                                        | stars:long | s1:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 3          | 0.0
+2713            | William Faulkner                                   | 2          | 1.9043500423431396
+2847            | Colleen Faulkner                                   | 3          | 0.0
+2883            | William Faulkner                                   | 2          | 1.9043500423431396
+3293            | Danny Faulkner                                     | 2          | 0.0
+;

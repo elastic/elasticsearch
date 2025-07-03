@@ -48,6 +48,22 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testDisjunctionWithFiltersNoMetadata() {
+        var query = """
+            FROM test
+            | EVAL first_score = score((match(content, "fox") OR match(content, "brown")) AND id > 1)
+            | WHERE match(content, "fox") AND match(content, "brown")
+            | KEEP id, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.4274532496929169), List.of(6, 1.1248724162578583)));
+        }
+    }
+
     public void testScoreDifferentWhereMatch() {
         var query = """
             FROM test METADATA _score

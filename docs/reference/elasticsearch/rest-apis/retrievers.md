@@ -263,19 +263,19 @@ Either `query` or `retrievers` must exclusively be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
-`query`
+`query` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
     The query to use when using the [multi-field query format](#multi-field-query-format).
 
-`fields`
+`fields` {applies_to}`stack: ga 9.1`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](#multi-field-query-format).
     Fields can include boost values using the `^` notation (e.g., `"field^2"`).
     If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
 
-`normalizer`
+`normalizer` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
     The normalizer to use when using the [multi-field query format](#multi-field-query-format).
@@ -345,12 +345,12 @@ Either `query` or `retrievers` must exclusively be specified.
 Combining `query` and `retrievers` is not supported.
 ::::
 
-`query`
+`query` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
     The query to use when using the [multi-field query format](#multi-field-query-format).
 
-`fields`
+`fields` {applies_to}`stack: ga 9.1`
 :   (Optional, array of strings)
 
     The fields to query when using the [multi-field query format](#multi-field-query-format).
@@ -1021,6 +1021,9 @@ GET /restaurants/_search
 ```
 
 ## Multi-field query format [multi-field-query-format]
+```yaml {applies_to}
+stack: ga 9.1
+```
 
 The `linear` and `rrf` retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.
 This format automatically generates appropriate inner retrievers based on the field types and query parameters.

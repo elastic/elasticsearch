@@ -108,7 +108,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -342,14 +342,22 @@ public class EsqlSession {
             return;
         }
 
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
+        BiConsumer<PreAnalysisResult, ActionListener<LogicalPlan>> analyzeAction = (preanalysisResult, l) -> {
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
+                new AnalyzerContext(
+                    configuration,
+                    functionRegistry,
+                    preanalysisResult.indices,
+                    preanalysisResult.lookupIndices,
+                    preanalysisResult.enrichResolution,
+                    preanalysisResult.inferenceResolution
+                ),
                 verifier
             );
-            LogicalPlan plan = analyzer.analyze(parsed);
-            plan.setAnalyzed();
-            return plan;
+            analyzer.analyze(parsed, l.delegateFailureAndWrap((analyzedPlanListener, plan) -> {
+                plan.setAnalyzed();
+                analyzedPlanListener.onResponse(plan);
+            }));
         };
         // Capture configured remotes list to ensure consistency throughout the session
         configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
@@ -398,19 +406,19 @@ public class EsqlSession {
         }).<LogicalPlan>andThen((l, result) -> {
             assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
             LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-            LogicalPlan plan;
             try {
                 // the order here is tricky - if the cluster has been filtered and later became unavailable,
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.unavailableClusters());
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, null);
-                plan = analyzeAction.apply(result);
+                analyzeAction.accept(result, l.delegateFailureAndWrap((analyzedPlanListener, plan) -> {
+                    LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+                    analyzedPlanListener.onResponse(plan);
+                }));
+
             } catch (Exception e) {
                 l.onFailure(e);
-                return;
             }
-            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-            l.onResponse(plan);
         }).addListener(logicalPlanListener);
     }
 
@@ -528,14 +536,13 @@ public class EsqlSession {
     }
 
     private static void analyzeAndMaybeRetry(
-        Function<PreAnalysisResult, LogicalPlan> analyzeAction,
+        BiConsumer<PreAnalysisResult, ActionListener<LogicalPlan>> analyzeAction,
         QueryBuilder requestFilter,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<LogicalPlan> logicalPlanListener,
         ActionListener<PreAnalysisResult> l
     ) {
-        LogicalPlan plan = null;
         var filterPresentMessage = requestFilter == null ? "without" : "with";
         var attemptMessage = requestFilter == null ? "the only" : "first";
         LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
@@ -546,32 +553,35 @@ public class EsqlSession {
                 // when the resolution result is not valid for a different reason.
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter);
             }
-            plan = analyzeAction.apply(result);
-        } catch (Exception e) {
-            if (e instanceof VerificationException ve) {
-                LOGGER.debug(
-                    "Analyzing the plan ({} attempt, {} filter) failed with {}",
-                    attemptMessage,
-                    filterPresentMessage,
-                    ve.getDetailedMessage()
-                );
-                if (requestFilter == null) {
-                    // if the initial request didn't have a filter, then just pass the exception back to the user
-                    logicalPlanListener.onFailure(ve);
+            analyzeAction.accept(result, ActionListener.wrap(plan -> {
+                LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
+                // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+                logicalPlanListener.onResponse(plan);
+            }, e -> {
+                if (e instanceof VerificationException ve) {
+                    LOGGER.debug(
+                        "Analyzing the plan ({} attempt, {} filter) failed with {}",
+                        attemptMessage,
+                        filterPresentMessage,
+                        ve.getDetailedMessage()
+                    );
+                    if (requestFilter == null) {
+                        // if the initial request didn't have a filter, then just pass the exception back to the user
+                        logicalPlanListener.onFailure(ve);
+                    } else {
+                        // interested only in a VerificationException, but this time we are taking out the index filter
+                        // to try and make the index resolution work without any index filtering. In the next step... to be continued
+                        l.onResponse(result);
+                    }
                 } else {
-                    // interested only in a VerificationException, but this time we are taking out the index filter
-                    // to try and make the index resolution work without any index filtering. In the next step... to be continued
-                    l.onResponse(result);
+                    // if the query failed with any other type of exception, then just pass the exception back to the user
+                    logicalPlanListener.onFailure(e);
                 }
-            } else {
-                // if the query failed with any other type of exception, then just pass the exception back to the user
-                logicalPlanListener.onFailure(e);
-            }
-            return;
+            }));
+        } catch (Exception e) {
+            // if failing with any other type of exception, then just pass the exception back to the user
+            logicalPlanListener.onFailure(e);
         }
-        LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
-        // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
-        logicalPlanListener.onResponse(plan);
     }
 
     private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {

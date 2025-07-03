@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -86,7 +87,7 @@ public class CheckLicenseTests extends ESTestCase {
                 ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
                 : l
         );
-        return analyzer(registry, operationMode).analyze(plan);
+        return AnalyzerTestUtils.analyze(analyzer(registry, operationMode), plan);
     }
 
     private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {

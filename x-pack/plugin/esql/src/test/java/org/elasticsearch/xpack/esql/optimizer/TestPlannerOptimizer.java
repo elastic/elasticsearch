@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+
 public class TestPlannerOptimizer {
     private final EsqlParser parser;
     private final Analyzer analyzer;
@@ -79,7 +81,7 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyze(analyzer, parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         return physical;

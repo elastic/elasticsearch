@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -115,15 +116,18 @@ public class QueryPlanningBenchmark {
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
     }
 
-    private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
+    private void plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query, ActionListener<LogicalPlan> listener) {
         var parsed = parser.createStatement(query, new QueryParams(), telemetry);
-        var analyzed = analyzer.analyze(parsed);
-        var optimized = optimizer.optimize(analyzed);
-        return optimized;
+        analyzer.analyze(parsed, listener.map(optimizer::optimize));
     }
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10", ActionListener.wrap(
+            p -> blackhole.consume(p),
+            e -> {
+                throw new RuntimeException("Unexpected exception", e);
+            }
+        ));
     }
 }

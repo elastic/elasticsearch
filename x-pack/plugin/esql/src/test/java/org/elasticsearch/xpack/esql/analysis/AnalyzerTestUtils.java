@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -130,16 +131,19 @@ public final class AnalyzerTestUtils {
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
         var plan = new EsqlParser().createStatement(query);
-        // System.out.println(plan);
-        var analyzed = analyzer.analyze(plan);
-        // System.out.println(analyzed);
-        return analyzed;
+        return analyze(analyzer, plan);
     }
 
     public static LogicalPlan analyze(String query, String mapping, QueryParams params) {
         var plan = new EsqlParser().createStatement(query, params);
         var analyzer = analyzer(loadMapping(mapping, "test"), TEST_VERIFIER, configuration(query));
-        return analyzer.analyze(plan);
+        return analyze(analyzer, plan);
+    }
+
+    public static LogicalPlan analyze(Analyzer analyzer, LogicalPlan plan) {
+        ListenableActionFuture<LogicalPlan> planFuture = new ListenableActionFuture<>();
+        analyzer.analyze(plan, planFuture);
+        return planFuture.actionResult();
     }
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {

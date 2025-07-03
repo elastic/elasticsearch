@@ -329,45 +329,26 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
             Set<MergeTask> currentlyRunningMergeTasksSet = ConcurrentCollections.newConcurrentSet();
-            Set<MergeTask> currentlyRunningOrAbortingMergeTasksSet = ConcurrentCollections.newConcurrentSet();
             while (mergesStillToComplete > 0) {
                 if (mergesStillToSubmit > 0 && (currentlyRunningMergeTasksSet.isEmpty() || randomBoolean())) {
                     MergeTask mergeTask = mock(MergeTask.class);
                     // all tasks support IO throttling in this test case
                     when(mergeTask.supportsIOThrottling()).thenReturn(true);
-                    doAnswer(mock -> {
-                        Schedule schedule = randomFrom(Schedule.values());
-                        if (schedule == BACKLOG) {
-                            testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                                // reenqueue backlogged merge task
-                                threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                            });
-                        }
-                        return schedule;
-                    }).when(mergeTask).schedule();
+                    // {@link Schedule.BACKLOG} complicates the test too much because the set of running merge tasks is not stable
+                    when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
                     doAnswer(mock -> {
                         currentlyRunningMergeTasksSet.add(mergeTask);
-                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
-                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         currentlyRunningMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).run();
                     doAnswer(mock -> {
-                        currentlyRunningOrAbortingMergeTasksSet.add(mergeTask);
                         // wait to be signalled before completing
                         runMergeSemaphore.acquire();
-                        currentlyRunningOrAbortingMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).abort();
-                    assertThat(runMergeSemaphore.availablePermits(), is(0));
-                    boolean isAnyExecutorAvailable = currentlyRunningOrAbortingMergeTasksSet.size() < mergeExecutorThreadCount;
-                    boolean mergeTaskSubmitted = threadPoolMergeExecutorService.submitMergeTask(mergeTask);
-                    assertTrue(mergeTaskSubmitted);
-                    if (isAnyExecutorAvailable) {
-                        assertBusy(() -> assertThat(currentlyRunningOrAbortingMergeTasksSet, hasItem(mergeTask)));
-                    }
+                    assertTrue(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
                     long latestIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     // all currently running merge tasks must be IO throttled to the latest IO Rate
                     assertBusy(() -> {

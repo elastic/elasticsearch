@@ -485,9 +485,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/129457
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testMergeTasksAreUnblockedWhenMoreDiskSpaceBecomesAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/129296
 - class: org.elasticsearch.xpack.security.PermissionsIT
   method: testCanManageIndexWithNoPermissions
   issue: https://github.com/elastic/elasticsearch/issues/129471
@@ -530,9 +527,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/129852
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/950_pinned_interaction/rrf with pinned retriever as a sub-retriever}
-  issue: https://github.com/elastic/elasticsearch/issues/129845
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/129888
@@ -563,9 +557,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.TopIntAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunnerThrowing
   issue: https://github.com/elastic/elasticsearch/issues/130145
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/130205
 - class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
   method: testKMeansNeighbors
   issue: https://github.com/elastic/elasticsearch/issues/130258
@@ -596,6 +587,27 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/130497
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectWhere
+  issue: https://github.com/elastic/elasticsearch/issues/130504
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/130505
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
+  issue: https://github.com/elastic/elasticsearch/issues/130506
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
+  issue: https://github.com/elastic/elasticsearch/issues/130507
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetSystemTrustStoreWithNoSystemProperties
+  issue: https://github.com/elastic/elasticsearch/issues/130517
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetNonPKCS11TrustStoreWithPasswordSet
+  issue: https://github.com/elastic/elasticsearch/issues/130519
 
 # Examples:
 #

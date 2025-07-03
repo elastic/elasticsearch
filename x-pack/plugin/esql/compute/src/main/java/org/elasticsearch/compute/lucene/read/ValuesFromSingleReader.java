@@ -49,7 +49,7 @@ class ValuesFromSingleReader extends ValuesReader {
 
     @Override
     protected void load(Block[] target, int offset) throws IOException {
-        assert offset == 0; // NOCOMMIT implement me
+        assert offset == 0; // TODO allow non-0 offset to support splitting pages
         if (docs.singleSegmentNonDecreasing()) {
             loadFromSingleLeaf(target, new BlockLoader.Docs() {
                 @Override

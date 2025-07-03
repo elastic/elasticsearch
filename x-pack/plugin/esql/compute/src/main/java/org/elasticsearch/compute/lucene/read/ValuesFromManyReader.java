@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -59,6 +58,7 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         void run(int offset) throws IOException {
+            assert offset == 0; // TODO allow non-0 offset to support splitting pages
             for (int f = 0; f < operator.fields.length; f++) {
                 /*
                  * Important note: each field has a desired type, which might not match the mapped type (in the case of union-types).
@@ -97,20 +97,11 @@ class ValuesFromManyReader extends ValuesReader {
                     read(docs.docs().getInt(p), shard);
                     i++;
                 }
-                buildBlocks(offset, i);
+                buildBlocks();
             }
         }
 
-        private void buildBlocks(int offset, int end) {
-            int[] positions = backwards;
-            if (offset > 0 || end < positions.length) {
-                // NOCOMMIT this doesn't make sense for shuffled arrays.
-                /*
-                 * We're loading in ascending doc order, not ascending block position order
-                 * So we can't early terminate like this.
-                 */
-                positions = Arrays.copyOfRange(positions, offset, end);
-            }
+        private void buildBlocks() {
             for (int f = 0; f < target.length; f++) {
                 for (int s = 0; s < operator.shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
@@ -120,9 +111,9 @@ class ValuesFromManyReader extends ValuesReader {
                     }
                 }
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
-                    target[f] = targetBlock.filter(positions);
+                    target[f] = targetBlock.filter(backwards);
                 }
-                operator.sanityCheckBlock(rowStride[f], positions.length, target[f], f);
+                operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
             }
         }
 

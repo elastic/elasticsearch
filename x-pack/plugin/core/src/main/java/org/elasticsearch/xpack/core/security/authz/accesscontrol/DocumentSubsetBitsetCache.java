@@ -73,8 +73,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * customisation. On a 32Gb heap, a 10% cache would be 3.2Gb which is large enough to store BitSets representing 25 billion docs.
  * <p>
  * However, because queries can be templated by user metadata and that metadata can change frequently, it is common for the
- * effetively lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
- * BitSets that are not longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
+ * effective lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
+ * BitSets that are no longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
  * chosen so that it will retain BitSets that are in active use during a user's session, but not be an ongoing drain on memory.
  *
  * @see org.elasticsearch.index.cache.bitset.BitsetFilterCache
@@ -171,7 +171,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         }
         // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
         // simpler - this callback is likely to take place on a thread that is actively adding something to the cache, and is therefore
-        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write ("eviction") lock, but we
+        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write lock ("eviction"), but we
         // need to acquire that lock here.
         cleanupExecutor.submit(() -> {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
@@ -214,7 +214,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     /**
      * Obtain the {@link BitSet} for the given {@code query} in the given {@code context}.
      * If there is a cached entry for that query and context, it will be returned.
-     * Otherwise a new BitSet will be created and stored in the cache.
+     * Otherwise, a new BitSet will be created and stored in the cache.
      * The returned BitSet may be null (e.g. if the query has no results).
      */
     @Nullable

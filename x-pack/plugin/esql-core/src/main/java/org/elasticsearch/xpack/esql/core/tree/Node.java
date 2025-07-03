@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
@@ -14,6 +17,8 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -188,13 +193,42 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<T, ActionListener<T>> rule, ActionListener<T> listener) {
+        // First apply the rule to the current node (top-down)
+        rule.accept((T) this, listener.delegateFailureAndWrap((l, transformedNode) -> {
+            // Then recursively transform the children with the same rule
+            transformedNode.transformChildren((child, childListener) -> child.transformDown(rule, childListener), l);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
 
     @SuppressWarnings("unchecked")
+    public <E extends T> void transformDown(Class<E> typeToken, BiConsumer<E, ActionListener<T>> rule, ActionListener<T> listener) {
+        transformDown(typeToken::isInstance, rule, listener);
+    }
+
+    @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
         return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> void transformDown(
+        Predicate<Node<?>> nodePredicate,
+        BiConsumer<E, ActionListener<T>> rule,
+        ActionListener<T> listener
+    ) {
+        transformDown((T node, ActionListener<T> l) -> {
+            if (nodePredicate.test(node)) {
+                rule.accept((E) node, l);
+            } else {
+                l.onResponse(node);
+            }
+        }, listener);
     }
 
     @SuppressWarnings("unchecked")
@@ -205,13 +239,46 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
+    public void transformUp(BiConsumer<T, ActionListener<T>> rule, ActionListener<T> listener) {
+        // First, recursively transform the children (depth-first, bottom-up) using the same async rule
+        transformChildren(
+            // traversal operation applied to each child
+            (child, childListener) -> child.transformUp(rule, childListener),
+            // After all children are transformed, apply the rule to the (possibly) new current node
+            listener.delegateFailureAndWrap((l, transformedChildrenNode) -> {
+                T node = transformedChildrenNode.equals(this) ? (T) this : transformedChildrenNode;
+                rule.accept(node, l);
+            })
+        );
+    }
+
     public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
-        return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+        return transformUp(typeToken::isInstance, rule);
+    }
+
+    public <E extends T> void transformUp(Class<E> typeToken, BiConsumer<E, ActionListener<T>> rule, ActionListener<T> listener) {
+        transformUp(typeToken::isInstance, rule, listener);
     }
 
     @SuppressWarnings("unchecked")
     public <E extends T> T transformUp(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
         return transformUp((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> void transformUp(
+        Predicate<Node<?>> nodePredicate,
+        BiConsumer<E, ActionListener<T>> rule,
+        ActionListener<T> listener
+    ) {
+        transformUp((T node, ActionListener<T> l) -> {
+            if (nodePredicate.test(node)) {
+                E typedNode = (E) node;
+                rule.accept((E) node, l);
+            } else {
+                l.onResponse(node);
+            }
+        }, listener);
     }
 
     @SuppressWarnings("unchecked")
@@ -236,6 +303,42 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         }
 
         return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<? super T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final SetOnce<List<T>> transformedChildren = new SetOnce<>();
+        final AtomicBoolean childrenChanged = new AtomicBoolean(false);
+
+        CountDownActionListener countDownListener = new CountDownActionListener(
+            children.size(),
+            listener.delegateFailureIgnoreResponseAndWrap((l) -> {
+                if (childrenChanged.get()) {
+                    l.onResponse(replaceChildrenSameSize(transformedChildren.get()));
+                } else {
+                    l.onResponse((T) this);
+                }
+            })
+        );
+
+        for (int i = 0, s = children.size(); i < s; i++) {
+            T child = children.get(i);
+            final int childId = i;
+            traversalOperation.accept(child, countDownListener.map(next -> {
+                if (child.equals(next) == false) {
+                    if (childrenChanged.compareAndSet(false, true) && transformedChildren.get() == null) {
+                        transformedChildren.trySet(new ArrayList<>(children));
+                    }
+                    transformedChildren.get().set(childId, next);
+                }
+                return null;
+            }));
+        }
     }
 
     public final T replaceChildrenSameSize(List<T> newChildren) {

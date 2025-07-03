@@ -33,20 +33,12 @@ class KMeansLocal {
     // second closest centroid.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
 
-    final int sampleSize;
-    final int maxIterations;
-    final int clustersPerNeighborhood;
-    final float soarLambda;
-
-    KMeansLocal(int sampleSize, int maxIterations, int clustersPerNeighborhood, float soarLambda) {
-        this.sampleSize = sampleSize;
-        this.maxIterations = maxIterations;
-        this.clustersPerNeighborhood = clustersPerNeighborhood;
-        this.soarLambda = soarLambda;
-    }
+    private final int sampleSize;
+    private final int maxIterations;
 
     KMeansLocal(int sampleSize, int maxIterations) {
-        this(sampleSize, maxIterations, -1, -1f);
+        this.sampleSize = sampleSize;
+        this.maxIterations = maxIterations;
     }
 
     /**
@@ -179,8 +171,13 @@ class KMeansLocal {
         }
     }
 
-    private int[] assignSpilled(FloatVectorValues vectors, List<int[]> neighborhoods, float[][] centroids, int[] assignments)
-        throws IOException {
+    private int[] assignSpilled(
+        FloatVectorValues vectors,
+        List<int[]> neighborhoods,
+        float[][] centroids,
+        int[] assignments,
+        float soarLambda
+    ) throws IOException {
         // SOAR uses an adjusted distance for assigning spilled documents which is
         // given by:
         //
@@ -238,7 +235,7 @@ class KMeansLocal {
     }
 
     /**
-     * cluster using a lloyd k-means algorithm that is not neighbor aware
+     * cluster using a lloyd k-means algorithm that does not consider prior clustered neighborhoods when adjusting centroids
      *
      * @param vectors the vectors to cluster
      * @param kMeansIntermediate the output object to populate which minimally includes centroids,
@@ -247,7 +244,7 @@ class KMeansLocal {
      * @throws IOException is thrown if vectors is inaccessible
      */
     void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
-        cluster(vectors, kMeansIntermediate, false);
+        doCluster(vectors, kMeansIntermediate, -1, -1);
     }
 
     /**
@@ -259,13 +256,23 @@ class KMeansLocal {
      *                     the prior assignments of the given vectors; care should be taken in
      *                     passing in a valid output object with a centroids array that is the size of centroids expected
      *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
-     * @param neighborAware whether nearby neighboring centroids and their vectors should be used to update the centroid positions,
-     *                      implies SOAR assignments
-     * @throws IOException is thrown if vectors is inaccessible
+     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
+     * @param soarLambda   lambda used for SOAR assignments
+     *
+     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      */
-    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, boolean neighborAware) throws IOException {
+    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
+        throws IOException {
+        if (clustersPerNeighborhood < 2) {
+            throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
+        }
+        doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+    }
+
+    private void doCluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
+        throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
-        boolean computeNeighborhoods = neighborAware && clustersPerNeighborhood > 0;
+        boolean computeNeighborhoods = clustersPerNeighborhood != -1;
 
         List<int[]> neighborhoods = null;
         if (computeNeighborhoods) {
@@ -281,7 +288,7 @@ class KMeansLocal {
             int[] assignments = kMeansIntermediate.assignments();
             assert assignments != null;
             assert assignments.length == vectors.size();
-            kMeansIntermediate.setSoarAssignments(assignSpilled(vectors, neighborhoods, centroids, assignments));
+            kMeansIntermediate.setSoarAssignments(assignSpilled(vectors, neighborhoods, centroids, assignments, soarLambda));
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +44,7 @@ public class LocalRelation extends LeafPlan {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             this.supplier = in.readNamedWriteable(LocalSupplier.class);
         } else {
-            this.supplier = LocalSupplier.readFrom((PlanStreamInput) in);
+            this.supplier = LocalSourceExec.readLegacyLocalSupplierFrom((PlanStreamInput) in);
         }
     }
 
@@ -54,7 +55,11 @@ public class LocalRelation extends LeafPlan {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             out.writeNamedWriteable(supplier);
         } else {
-            supplier.writeTo(out);
+            if (supplier == EmptyLocalSupplier.EMPTY) {
+                out.writeVInt(0);
+            } else {// here we can only have an ImmediateLocalSupplier as this was the only implementation apart from EMPTY
+                ((ImmediateLocalSupplier) supplier).writeTo(out);
+            }
         }
     }
 

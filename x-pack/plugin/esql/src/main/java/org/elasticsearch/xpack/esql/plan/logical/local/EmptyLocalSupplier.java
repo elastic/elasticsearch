@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 
@@ -19,15 +18,7 @@ public class EmptyLocalSupplier implements LocalSupplier {
 
     public static final LocalSupplier EMPTY = new EmptyLocalSupplier();
     public static final String NAME = "EmptySupplier";
-    private static final Writeable.Reader<LocalSupplier> EMPTY_LOCAL_SUPPLIER_READER = in -> {
-        assert in.readVInt() == 0;
-        return EMPTY;
-    };
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LocalSupplier.class,
-        NAME,
-        EMPTY_LOCAL_SUPPLIER_READER
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LocalSupplier.class, NAME, in -> EMPTY);
 
     private EmptyLocalSupplier() {}
 
@@ -47,9 +38,7 @@ public class EmptyLocalSupplier implements LocalSupplier {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(0);
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public boolean equals(Object obj) {

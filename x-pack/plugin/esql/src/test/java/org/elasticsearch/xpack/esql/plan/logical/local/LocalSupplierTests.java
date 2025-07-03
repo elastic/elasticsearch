@@ -21,6 +21,7 @@ import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,7 +46,7 @@ public class LocalSupplierTests extends AbstractWireTestCase<LocalSupplier> {
                 if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
                     return new PlanStreamInput(in, getNamedWriteableRegistry(), null).readNamedWriteable(LocalSupplier.class);
                 } else {
-                    return LocalSupplier.readFrom(new PlanStreamInput(in, getNamedWriteableRegistry(), null));
+                    return LocalSourceExec.readLegacyLocalSupplierFrom(new PlanStreamInput(in, getNamedWriteableRegistry(), null));
                 }
             }
         }

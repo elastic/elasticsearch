@@ -133,6 +133,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
+        LOGGER.info("Launching async query");
         final String asyncExecutionId = startAsyncQuery(
             client(),
             "FROM blocking,*:logs-* | STATS total=sum(coalesce(const,v)) | LIMIT 1",
@@ -141,11 +142,15 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
         try {
             // wait until we know that the local query against 'blocking' has started
+            LOGGER.info("Waiting for {} to start", asyncExecutionId);
             assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
 
             // wait until the remotes are done
+            LOGGER.info("Waiting for remotes", asyncExecutionId);
             waitForCluster(client(), REMOTE_CLUSTER_1, asyncExecutionId);
+            LOGGER.info("Remote 1 done", asyncExecutionId);
             waitForCluster(client(), REMOTE_CLUSTER_2, asyncExecutionId);
+            LOGGER.info("Remote 2 done", asyncExecutionId);
 
             /* at this point:
              *  the query against remotes should be finished

@@ -290,7 +290,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     // Package private for testing
     static boolean isEffectiveMatchAllDocsQuery(Query rewrittenQuery) {
-        if (rewrittenQuery instanceof ConstantScoreQuery && ((ConstantScoreQuery) rewrittenQuery).getQuery() instanceof MatchAllDocsQuery) {
+        if (rewrittenQuery instanceof ConstantScoreQuery csq && csq.getQuery() instanceof MatchAllDocsQuery) {
             return true;
         }
         if (rewrittenQuery instanceof MatchAllDocsQuery) {

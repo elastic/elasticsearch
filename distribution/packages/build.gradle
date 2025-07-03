@@ -93,7 +93,7 @@ def commonPackageConfig(String type, Architecture architecture) {
       arch = architecture.debianClassifier
     } else {
       assert type == 'rpm': type
-      arch = architecture.jdkClassifier
+      arch = architecture.rpmClassifier
     }
     // Follow elasticsearch's file naming convention
     String prefix = "${architecture.classifier}${type}"

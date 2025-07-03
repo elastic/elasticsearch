@@ -551,6 +551,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testTopN
   issue: https://github.com/elastic/elasticsearch/issues/130122
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/130205
 
 # Examples:
 #

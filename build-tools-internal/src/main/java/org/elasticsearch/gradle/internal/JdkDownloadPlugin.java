@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.GradleException;
@@ -135,7 +136,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             }
         } else if (jdk.getVendor().equals(VENDOR_ZULU)) {
             repoUrl = "https://cdn.azul.com";
-            if (jdk.getMajor().equals("8") && isJdkOnMacOsPlatform(jdk) && jdk.getArchitecture().equals("aarch64")) {
+            if (jdk.getMajor().equals("8") && isJdkOnMacOsPlatform(jdk) && jdk.getArchitecture().equals(Architecture.AARCH64)) {
                 artifactPattern = "zulu/bin/zulu"
                     + jdk.getDistributionVersion()
                     + "-ca-jdk"
@@ -168,7 +169,15 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     private static String dependencyNotation(Jdk jdk) {
         String platformDep = isJdkOnMacOsPlatform(jdk) ? (jdk.getVendor().equals(VENDOR_ADOPTIUM) ? "mac" : "macos") : jdk.getPlatform();
         String extension = jdk.getPlatform().equals("windows") ? "zip" : "tar.gz";
-        return groupName(jdk) + ":" + platformDep + ":" + jdk.getBaseVersion() + ":" + jdk.getArchitecture() + "@" + extension;
+        return groupName(jdk)
+            + ":"
+            + platformDep
+            + ":"
+            + jdk.getBaseVersion()
+            + ":"
+            + jdk.getArchitecture().jdkClassifier
+            + "@"
+            + extension;
     }
 
     private static boolean isJdkOnMacOsPlatform(Jdk jdk) {

@@ -10,9 +10,12 @@
 import java.nio.file.Files
 import java.nio.file.Path
 
+import static org.elasticsearch.gradle.Architecture.AMD64
+import static org.elasticsearch.gradle.Architecture.AARCH64
+
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
+CopySpec archiveFiles(String distributionType, String os, Architecture architecture, boolean isTestDistro) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
@@ -93,35 +96,35 @@ distribution_archives {
   windowsZip {
     archiveClassifier = 'windows-amd64'
     content {
-      archiveFiles('zip', 'windows', 'x64', false)
+      archiveFiles('zip', 'windows', AMD64, false)
     }
   }
 
   darwinAmd64Tar {
     archiveClassifier = 'darwin-amd64'
     content {
-      archiveFiles('tar', 'darwin', 'x64', false)
+      archiveFiles('tar', 'darwin', AMD64, false)
     }
   }
 
   darwinAarch64Tar {
     archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles('tar', 'darwin', 'aarch64', false)
+      archiveFiles('tar', 'darwin', AARCH64, false)
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles('tar', 'linux', 'aarch64', false)
+      archiveFiles('tar', 'linux', AARCH64, false)
     }
   }
 
   linuxAmd64Tar {
     archiveClassifier = 'linux-amd64'
     content {
-      archiveFiles('tar', 'linux', 'x64', false)
+      archiveFiles('tar', 'linux', AMD64, false)
     }
   }
 }

@@ -11,14 +11,20 @@ package org.elasticsearch.gradle;
 
 public enum Architecture {
 
-    AMD64("amd64", "linux/amd64"),
-    AARCH64("aarch64", "linux/arm64");
+    AMD64("amd64", "x64", "x86_64", "amd64", "linux/amd64"),
+    AARCH64("aarch64", "aarch64", "aarch64", "arm64", "linux/arm64");
 
     public final String classifier;
     public final String dockerPlatform;
+    public final String jdkClassifier;
+    public final String mlClassifier;
+    public final String debianClassifier;
 
-    Architecture(String classifier, String dockerPlatform) {
+    Architecture(String classifier, String jdkClassifier, String mlClassifier, String debianClassifier, String dockerPlatform) {
         this.classifier = classifier;
+        this.jdkClassifier = jdkClassifier;
+        this.mlClassifier = mlClassifier;
+        this.debianClassifier = debianClassifier;
         this.dockerPlatform = dockerPlatform;
     }
 
@@ -26,7 +32,7 @@ public enum Architecture {
         final String architecture = System.getProperty("os.arch", "");
         return switch (architecture) {
             case "amd64", "x86_64" -> AMD64;
-            case "aarch64" -> AARCH64;
+            case "aarch64", "arm64" -> AARCH64;
             default -> throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
         };
     }

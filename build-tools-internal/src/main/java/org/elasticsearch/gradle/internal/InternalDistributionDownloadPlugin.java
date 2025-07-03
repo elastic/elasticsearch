@@ -179,9 +179,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         Architecture architecture = distribution.getArchitecture();
         String projectName = "";
 
-        final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS
-            ? ""
-            : "-" + architecture.toString().toLowerCase();
+        final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS ? "" : "-" + architecture.toString().toLowerCase();
 
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";

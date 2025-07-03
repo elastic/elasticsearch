@@ -16,9 +16,11 @@ import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
-
 import java.nio.file.Files
 import java.nio.file.Path
+
+import static org.elasticsearch.gradle.Architecture.AMD64
+import static org.elasticsearch.gradle.Architecture.AARCH64
 
 plugins {
   id 'base'
@@ -249,7 +251,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   // Setup all required JDKs
   project.jdks {
     ['darwin', 'windows', 'linux'].each { platform ->
-      (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+      (platform == 'linux' || platform == 'darwin' ? [AMD64, AARCH64] : [AMD64]).each { architecture ->
         "bundled_${platform}_${architecture}" {
           it.platform = platform
           it.version = VersionProperties.bundledJdkVersion
@@ -379,11 +381,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
         if (os != null) {
-          String platform = os + '-' + architecture
-          if (architecture == 'x64') {
-            // ML platform dir uses the x86_64 nomenclature
-            platform = os + '-x86_64'
-          }
+          String platform = os + '-' + architecture.mlClassifier
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -475,9 +473,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { Project project, String os, String architecture ->
+    jdkFiles = { Project project, String os, Architecture architecture ->
       return copySpec {
-        from project.jdks."bundled_${os}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture.jdkClassifier}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude

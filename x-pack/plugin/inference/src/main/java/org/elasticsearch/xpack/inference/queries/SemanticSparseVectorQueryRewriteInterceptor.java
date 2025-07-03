@@ -99,8 +99,6 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost());
-        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 
@@ -120,7 +118,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 sparseVectorQueryBuilder.getTokenPruningConfig()
             ),
             ScoreMode.Max
-        );
+        ).queryName(queryBuilder.queryName()).boost(queryBuilder.boost());
     }
 
     @Override

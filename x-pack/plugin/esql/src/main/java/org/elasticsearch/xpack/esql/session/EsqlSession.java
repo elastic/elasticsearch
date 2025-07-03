@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -421,12 +422,12 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(
-        IndexPattern table,
+        IndexPattern lookupIndexPattern,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = table.indexPattern();
+        String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
         Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
@@ -471,21 +472,21 @@ public class EsqlSession {
         PreAnalysisResult result,
         String index,
         EsqlExecutionInfo executionInfo,
-        IndexResolution newIndexResolution
+        IndexResolution lookupIndexResolution
     ) {
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, newIndexResolution.unavailableClusters());
-        if (newIndexResolution.isValid() == false) {
-            // If the index resolution is invalid, or we're not dealing with CCS, don't bother with the rest of the analysis
-            return result.addLookupIndexResolution(index, newIndexResolution);
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.unavailableClusters());
+        if (lookupIndexResolution.isValid() == false) {
+            // If the index resolution is invalid, don't bother with the rest of the analysis
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
         if (executionInfo.getClusters().isEmpty() || executionInfo.isCrossClusterSearch() == false) {
             // Local only case, still do some checks, since we moved analysis checks here
-            if (newIndexResolution.get().indexNameWithModes().size() > 1) {
+            if (lookupIndexResolution.get().indexNameWithModes().size() > 1) {
                 throw new VerificationException(
                     "Lookup Join requires a single lookup mode index; [" + index + "] resolves to multiple indices"
                 );
             }
-            var indexModeEntry = newIndexResolution.get().indexNameWithModes().entrySet().iterator().next();
+            var indexModeEntry = lookupIndexResolution.get().indexNameWithModes().entrySet().iterator().next();
             if (indexModeEntry.getValue() != IndexMode.LOOKUP) {
                 throw new VerificationException(
                     "Lookup Join requires a single lookup mode index; ["
@@ -497,11 +498,11 @@ public class EsqlSession {
                         + "] mode"
                 );
             }
-            return result.addLookupIndexResolution(index, newIndexResolution);
+            return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
-        Map<String, String> clustersWithResolvedIndices = new HashMap<>(newIndexResolution.resolvedIndices().size());
-        newIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
+        Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
+        lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
             String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
@@ -547,28 +548,45 @@ public class EsqlSession {
             }
         });
 
+        return result.addLookupIndexResolution(
+            index,
+            checkSingleIndex(index, executionInfo, lookupIndexResolution, clustersWithResolvedIndices.values())
+        );
+    }
+
+    /**
+     * Check whether the lookup index resolves to a single concrete index on all clusters or not.
+     * If it's a single index, we are compatible with old pre-9.2 LOOKUP JOIN code and just need to send the same resolution as we did.
+     * If there are multiple index names (e.g. due to aliases) then pre-9.2 clusters won't be able to handle it so we need to skip them.
+     * @return An updated `IndexResolution` object if the index resolves to a single concrete index,
+     *         or the original `lookupIndexResolution` if no changes are needed.
+     */
+    private IndexResolution checkSingleIndex(
+        String index,
+        EsqlExecutionInfo executionInfo,
+        IndexResolution lookupIndexResolution,
+        Collection<String> indexNames
+    ) {
+        if (lookupIndexResolution.get().indexNameWithModes().size() <= 1) {
+            // Shortcut for single-index case
+            return lookupIndexResolution;
+        }
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var indexNames = clustersWithResolvedIndices.values()
-            .stream()
-            .map(n -> RemoteClusterAware.splitIndexName(n)[1])
-            .collect(Collectors.toSet());
-        if (indexNames.size() == 1) {
-            String indexName = indexNames.iterator().next();
-            var newIndex = new EsIndex(index, newIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
-            newIndexResolution = IndexResolution.valid(
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(Collectors.toSet());
+        if (localIndexNames.size() == 1) {
+            String indexName = localIndexNames.iterator().next();
+            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
+            return IndexResolution.valid(
                 newIndex,
                 newIndex.concreteIndices(),
-                newIndexResolution.getUnavailableShards(),
-                newIndexResolution.unavailableClusters()
+                lookupIndexResolution.getUnavailableShards(),
+                lookupIndexResolution.unavailableClusters()
             );
-        } else {
-            // validate remotes to be able to handle multiple indices in LOOKUP JOIN
-            validateRemoteVersions(executionInfo);
         }
-
-        return result.addLookupIndexResolution(index, newIndexResolution);
-
+        // validate remotes to be able to handle multiple indices in LOOKUP JOIN
+        validateRemoteVersions(executionInfo);
+        return lookupIndexResolution;
     }
 
     /**

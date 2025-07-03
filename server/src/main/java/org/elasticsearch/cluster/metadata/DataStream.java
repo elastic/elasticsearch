@@ -423,7 +423,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return A JSON CompressedXContent representation of the effective mappings of this data stream
      * @throws Exception
      */
-    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws Exception {
+    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws IOException {
         return getEffectiveMappings(projectMetadata, getMatchingIndexTemplate(projectMetadata), mappings, getWriteIndex(), indicesService);
     }
 

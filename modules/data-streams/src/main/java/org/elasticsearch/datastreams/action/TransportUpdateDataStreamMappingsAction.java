@@ -36,6 +36,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -169,7 +170,7 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 dataStream.getEffectiveMappings(clusterService.state().metadata().getProject(projectId), indicesService)
                             )
                         );
-                    } catch (Exception e) {
+                    } catch (IOException e) {
                         dataStreamMappingsResponseActionListener.onResponse(
                             new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
                                 dataStreamName,

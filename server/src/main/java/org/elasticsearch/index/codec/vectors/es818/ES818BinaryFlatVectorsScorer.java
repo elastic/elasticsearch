@@ -77,7 +77,7 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
                 VectorUtil.l2normalize(copy);
             }
             target = copy;
-            byte[] initial = new byte[target.length];
+            int[] initial = new int[target.length];
             byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, initial, (byte) 4, centroid);
             BQSpaceUtils.transposeHalfByte(initial, quantized);

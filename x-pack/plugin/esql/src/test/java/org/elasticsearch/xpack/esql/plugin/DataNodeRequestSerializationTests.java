@@ -60,7 +60,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
-        writeables.addAll(new EsqlPlugin().getNamedWriteables());
+        writeables.addAll(new EsqlPlugin(Settings.EMPTY).getNamedWriteables());
         return new NamedWriteableRegistry(writeables);
     }
 
@@ -302,7 +302,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
+        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
     }
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {

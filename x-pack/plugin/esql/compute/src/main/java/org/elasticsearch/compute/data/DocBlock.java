@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -17,7 +19,7 @@ import java.io.IOException;
 /**
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
-public class DocBlock extends AbstractVectorBlock implements Block {
+public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     private final DocVector vector;
 
@@ -96,6 +98,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
+        private ShardRefCounted shardRefCounters = ShardRefCounted.ALWAYS_REFERENCED;
+
+        public Builder setShardRefCounted(ShardRefCounted shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            return this;
+        }
 
         private Builder(BlockFactory blockFactory, int estimatedSize) {
             IntVector.Builder shards = null;
@@ -183,7 +191,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shards, segments, docs, null);
+                result = new DocVector(shardRefCounters, shards, segments, docs, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {

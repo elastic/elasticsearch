@@ -345,7 +345,11 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs("popular name", List.of("Luke")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new QueryAndDocsInputs("popular name", List.of("Luke"), null, null, false),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(

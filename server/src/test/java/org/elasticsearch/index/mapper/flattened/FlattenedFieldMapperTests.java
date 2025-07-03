@@ -931,6 +931,35 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"key1":"foo"}}"""));
     }
 
+    public void testSyntheticSourceWithMatchesInNestedPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        // This test covers a scenario that previously had a bug.
+        // Since a.b.c and b.b.d have a matching middle key `b`, and b.b.d starts with a `b`,
+        // startObject was not called for the first `b` in b.b.d.
+        // For a full explanation see this comment: https://github.com/elastic/elasticsearch/pull/129600#issuecomment-3024476134
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("a");
+                {
+                    b.startObject("b").field("c", "1").endObject();
+                }
+                b.endObject();
+                b.startObject("b");
+                {
+                    b.startObject("b").field("d", "2").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

@@ -25,10 +25,11 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
-class SampleReader extends FloatVectorValues implements HasIndexSlice {
+public class SampleReader extends FloatVectorValues implements HasIndexSlice {
     private final FloatVectorValues origin;
     private final int sampleSize;
     private final IntUnaryOperator sampleFunction;
@@ -71,7 +72,8 @@ class SampleReader extends FloatVectorValues implements HasIndexSlice {
 
     @Override
     public int ordToDoc(int ord) {
-        throw new IllegalStateException("Not supported");
+        // get the original ordinal from the sample ordinal
+        return sampleFunction.applyAsInt(ord);
     }
 
     @Override
@@ -79,13 +81,15 @@ class SampleReader extends FloatVectorValues implements HasIndexSlice {
         throw new IllegalStateException("Not supported");
     }
 
-    static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
+    public static SampleReader createSampleReader(FloatVectorValues origin, int k, long seed) {
         // TODO can we do something algorithmically that aligns an ordinal with a unique integer between 0 and numVectors?
         if (k >= origin.size()) {
             new SampleReader(origin, origin.size(), i -> i);
         }
         // TODO maybe use bigArrays?
         int[] samples = reservoirSample(origin.size(), k, seed);
+        // sort to prevent random backwards access weirdness
+        Arrays.sort(samples);
         return new SampleReader(origin, samples.length, i -> samples[i]);
     }
 

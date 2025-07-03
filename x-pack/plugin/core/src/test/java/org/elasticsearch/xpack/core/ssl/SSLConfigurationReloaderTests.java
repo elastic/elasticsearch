@@ -37,6 +37,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
@@ -66,7 +68,9 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -79,6 +83,7 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -557,6 +562,38 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         } catch (Exception e) {
             fail("SSLConfigurationReloader threw exception, but is expected to catch and log file access errors instead:" + e);
         }
+    }
+
+    /**
+     * Due to exclusive access entitlements
+     * (see {@link org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData#exclusive}),
+     * it is not safe to monitor a directory or any files that are not an explicit part of this SSL configuration.
+     */
+    public void testReloaderOnlyWatchesSpecifiedFiles() throws Exception {
+        final Set<Path> watchedPaths = new HashSet<>();
+        final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
+        Mockito.when(mockResourceWatcher.add(Mockito.any(ResourceWatcher.class), Mockito.any(ResourceWatcherService.Frequency.class)))
+            .then(inv -> {
+                final FileWatcher fileWatcher = asInstanceOf(FileWatcher.class, inv.getArguments()[0]);
+                watchedPaths.add(fileWatcher.getPath());
+                return null;
+            });
+
+        final Path tempDir = createTempDir();
+        final Path clientCertPath = tempDir.resolve("testclient.crt");
+        Settings settings = baseKeystoreSettings(tempDir, null).putList(
+            "xpack.security.transport.ssl.certificate_authorities",
+            clientCertPath.toString()
+        ).put("path.home", createTempDir()).build();
+
+        final Environment env = newEnvironment(settings);
+        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
+
+        assertThat(
+            watchedPaths,
+            containsInAnyOrder(tempDir.resolve("testclient.pem"), tempDir.resolve("testclient.crt"), tempDir.resolve("testclientcert.crt"))
+        );
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {

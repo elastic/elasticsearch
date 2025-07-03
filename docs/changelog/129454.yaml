@@ -1,0 +1,5 @@
+pr: 129454
+summary: Aggressive release of shard contexts
+area: ES|QL
+type: enhancement
+issues: []

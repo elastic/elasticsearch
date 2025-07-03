@@ -18,12 +18,23 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 
 /**
  * Extracts values into a {@link BreakingBytesRefBuilder}.
  */
 interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
+
+    /**
+     * This should return a non-null value if the row is supposed to hold a temporary reference to a shard (including incrementing and
+     * decrementing it) in between encoding and decoding the row values.
+     */
+    @Nullable
+    default RefCounted getRefCountedForShard(int position) {
+        return null;
+    }
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {

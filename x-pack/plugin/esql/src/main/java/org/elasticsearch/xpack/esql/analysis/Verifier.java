@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -60,7 +61,7 @@ public class Verifier {
          * Build a list of checks to perform on the plan. Each one is called once per
          * {@link LogicalPlan} node in the plan.
          */
-        List<BiConsumer<LogicalPlan, Failures>> extra();
+        List<BiConsumer<LogicalPlan, Failures>> extra(Settings settings);
     }
 
     /**
@@ -69,15 +70,17 @@ public class Verifier {
     private final List<ExtraCheckers> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
 
     public Verifier(Metrics metrics, XPackLicenseState licenseState) {
-        this(metrics, licenseState, Collections.emptyList());
+        this(metrics, licenseState, Collections.emptyList(), Settings.EMPTY);
     }
 
-    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<ExtraCheckers> extraCheckers) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<ExtraCheckers> extraCheckers, Settings settings) {
         this.metrics = metrics;
         this.licenseState = licenseState;
         this.extraCheckers = extraCheckers;
+        this.settings = settings;
     }
 
     /**
@@ -102,7 +105,7 @@ public class Verifier {
         // collect plan checkers
         var planCheckers = planCheckers(plan);
         for (ExtraCheckers e : extraCheckers) {
-            planCheckers.addAll(e.extra());
+            planCheckers.addAll(e.extra(settings));
         }
 
         // Concrete verifications

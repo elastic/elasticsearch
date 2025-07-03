@@ -153,7 +153,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             new ILMHistoryStore(
                 new OriginSettingClient(services.client(), INDEX_LIFECYCLE_ORIGIN),
                 services.clusterService(),
-                services.threadPool()
+                services.threadPool(),
+                services.projectResolver()
             )
         );
         /*

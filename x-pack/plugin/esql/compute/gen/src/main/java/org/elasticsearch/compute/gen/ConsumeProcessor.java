@@ -35,6 +35,7 @@ public class ConsumeProcessor implements Processor {
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         return Set.of(
+            "org.elasticsearch.xpack.esql.SupportsObservabilityTier",
             "org.elasticsearch.core.Nullable",
             "org.elasticsearch.injection.guice.Inject",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",

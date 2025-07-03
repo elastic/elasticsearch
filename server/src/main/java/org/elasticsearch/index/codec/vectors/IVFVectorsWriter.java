@@ -23,7 +23,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -140,7 +139,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
-        IntArrayList[] assignmentsByCluster
+        int[][] assignmentsByCluster
     ) throws IOException;
 
     abstract CentroidSupplier createCentroidSupplier(

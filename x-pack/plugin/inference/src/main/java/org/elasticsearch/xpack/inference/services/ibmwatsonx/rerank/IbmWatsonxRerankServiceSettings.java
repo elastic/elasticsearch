@@ -41,7 +41,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     /**
      * Rate limits are defined at
      * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
-     * For Lite plan, you've 120 requests per minute.
+     * For the Lite plan, the limit is 120 requests per minute.
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 

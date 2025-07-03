@@ -50,9 +50,10 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
         return StGeohex.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
-    private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid(precision, bbox);
-        return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+    private static Long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        StGeohex.GeoHexBoundedGrid bounds = new StGeohex.GeoHexBoundedGrid.Factory(precision, bbox).get(null);
+        long gridId = bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+        return gridId < 0 ? null : gridId;
     }
 
     @Override

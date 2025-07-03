@@ -134,12 +134,13 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(916998));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(924248));
         /*
          * History:
          *  953.7kb - shorten error messages for UnsupportedAttributes #111973
          *  967.7kb - cache EsFields #112008 (little overhead of the cache)
          *  895.5kb - string serialization #112929
+         *  902.5kb - added time series field type to EsField  #129649
          */
     }
 
@@ -148,13 +149,14 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1300467));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1307718));
         /*
          * History:
          * 16.9mb - start
          *  1.8mb - shorten error messages for UnsupportedAttributes #111973
          *  1.3mb - cache EsFields #112008
          *  1.2mb - string serialization #112929
+         *  1.2mb - added time series field type to EsField  #129649
          */
     }
 
@@ -214,10 +216,11 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * A single root with 9 children, each of which has 9 children etc. 6 levels deep.
      */
     public void testDeeplyNestedFields() throws IOException {
-        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(9425494);
+        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(10023365);
         /*
          * History:
          *  9425494b - string serialization #112929
+         *  10023365b - added time series field type to EsField  #129649
          */
 
         int depth = 6;

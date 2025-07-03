@@ -98,6 +98,10 @@ public class EntitlementBootstrap {
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
+
+        if (EntitlementInitialization.getError() != null) {
+            throw EntitlementInitialization.getError();
+        }
     }
 
     private static Path getUserHome() {
@@ -118,7 +122,7 @@ public class EntitlementBootstrap {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 

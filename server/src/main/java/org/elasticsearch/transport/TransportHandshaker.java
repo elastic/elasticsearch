@@ -241,8 +241,8 @@ final class TransportHandshaker {
                     logger.warn(
                         """
                             Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
-                            from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
-                            Upgrading to a chronologically-older release may not work reliably and is not recommended. \
+                            from a chronologically-newer release with a numerically-older version compared to this node's version [{}/{}]. \
+                            Upgrading to this version from a chronologically-newer release may not work reliably and is not recommended. \
                             Falling back to transport protocol version [{}].""",
                         releaseVersion,
                         remoteTransportVersion,

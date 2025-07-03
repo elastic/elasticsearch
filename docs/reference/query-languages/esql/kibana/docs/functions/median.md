@@ -3,8 +3,9 @@
 ### MEDIAN
 The value that is greater than half of all values and less than half of all values, also known as the 50% [`PERCENTILE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile).
 
+Note: Like [`PERCENTILE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile), `MEDIAN` is [usually approximate](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile-approximate).
+
 ```esql
 FROM employees
 | STATS MEDIAN(salary), PERCENTILE(salary, 50)
 ```
-Note: Like [`PERCENTILE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile), `MEDIAN` is [usually approximate](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-percentile-approximate).

@@ -51,6 +51,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -203,8 +204,14 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
         }
         switch (elementType()) {
-            case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);
-            case BYTE -> assertTrue(query instanceof ESKnnByteVectorQuery);
+            case FLOAT -> assertThat(
+                query,
+                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
+            );
+            case BYTE -> assertThat(
+                query,
+                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
+            );
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -244,10 +251,34 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 expectedStrategy
             );
         };
+
+        Query bruteForceVectorQueryBuilt = switch (elementType()) {
+            case BIT, BYTE -> {
+                if (filterQuery != null) {
+                    yield new BooleanQuery.Builder().add(
+                        new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD),
+                        BooleanClause.Occur.SHOULD
+                    ).add(filterQuery, BooleanClause.Occur.FILTER).build();
+                } else {
+                    yield new DenseVectorQuery.Bytes(queryBuilder.queryVector().asByteVector(), VECTOR_FIELD);
+                }
+            }
+            case FLOAT -> {
+                if (filterQuery != null) {
+                    yield new BooleanQuery.Builder().add(
+                        new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD),
+                        BooleanClause.Occur.SHOULD
+                    ).add(filterQuery, BooleanClause.Occur.FILTER).build();
+                } else {
+                    yield new DenseVectorQuery.Floats(queryBuilder.queryVector().asFloatVector(), VECTOR_FIELD);
+                }
+            }
+        };
+
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();
         }
-        assertEquals(query, knnVectorQueryBuilt);
+        assertThat(query, anyOf(equalTo(knnVectorQueryBuilt), equalTo(bruteForceVectorQueryBuilt)));
     }
 
     public void testWrongDimension() {

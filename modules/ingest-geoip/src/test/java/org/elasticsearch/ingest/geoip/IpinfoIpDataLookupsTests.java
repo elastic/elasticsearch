@@ -14,8 +14,10 @@ import com.maxmind.db.Networks;
 import com.maxmind.db.Reader;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -555,10 +557,11 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName) {
         Path path = tmpDir.resolve(databaseName);
         copyDatabase("ipinfo/" + databaseName, path); // the ipinfo databases are prefixed on the test classpath
         final GeoIpCache cache = new GeoIpCache(1000);
-        return new DatabaseReaderLazyLoader(cache, path, null);
+        return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
     }
 }

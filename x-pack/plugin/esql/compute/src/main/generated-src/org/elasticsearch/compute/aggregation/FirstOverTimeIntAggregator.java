@@ -92,16 +92,20 @@ public class FirstOverTimeIntAggregator {
         }
 
         void collectValue(int groupId, long timestamp, int value) {
+            boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
                 if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) > timestamp) {
                     timestamps.set(groupId, timestamp);
-                    values.set(groupId, value);
+                    updated = true;
                 }
             } else {
                 timestamps = bigArrays.grow(timestamps, groupId + 1);
-                values = bigArrays.grow(values, groupId + 1);
                 timestamps.set(groupId, timestamp);
+                updated = true;
+            }
+            if (updated) {
+                values = bigArrays.grow(values, groupId + 1);
                 values.set(groupId, value);
             }
             maxGroupId = Math.max(maxGroupId, groupId);

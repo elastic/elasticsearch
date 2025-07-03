@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -49,6 +50,10 @@ public abstract class SpatialNoLicenseTestCase extends ESIntegTestCase {
      * This is used to test the behavior of spatial functions when no valid license is present.
      */
     public static class TestEsqlPlugin extends EsqlPlugin {
+        public TestEsqlPlugin(Settings settings) {
+            super(settings);
+        }
+
         protected XPackLicenseState getLicenseState() {
             return SpatialNoLicenseTestCase.getLicenseState();
         }

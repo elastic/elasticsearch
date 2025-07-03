@@ -2006,7 +2006,7 @@ public class AnalyzerTests extends ESTestCase {
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 8 problems
-            line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
@@ -2028,7 +2028,7 @@ public class AnalyzerTests extends ESTestCase {
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
             """, """
             Found 5 problems
-            line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -2375,7 +2375,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(loadMapping("mapping-dense_vector.json", "vectors"));
 
         var plan = analyze("""
-            from test | where knn(vector, [0.342, 0.164, 0.234])
+            from test | where knn(vector, [0.342, 0.164, 0.234], 10)
             """, "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);

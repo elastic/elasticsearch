@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -39,13 +42,20 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     private final Expression timestamp;
 
     @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "compute the rate of a counter field. Available in METRICS command only",
-        type = FunctionType.AGGREGATE
+        description = "The rate of a counter field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
+    public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
+        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    }
+
     public Rate(
         Source source,
-        @Param(name = "field", type = { "counter_long|counter_integer|counter_double" }, description = "counter field") Expression field,
+        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
     ) {
         this(source, field, Literal.TRUE, timestamp);
@@ -73,10 +83,6 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    public static Rate withUnresolvedTimestamp(Source source, Expression field) {
-        return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
     @Override

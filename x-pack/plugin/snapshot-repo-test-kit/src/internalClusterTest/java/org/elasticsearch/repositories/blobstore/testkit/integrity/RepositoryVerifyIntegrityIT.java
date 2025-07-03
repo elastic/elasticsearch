@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshotsI
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -468,7 +470,11 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotInfo snapshotInfo;
         try (var inputStream = Files.newInputStream(snapshotInfoBlob)) {
-            snapshotInfo = SNAPSHOT_FORMAT.deserialize(testContext.repositoryName(), xContentRegistry(), inputStream);
+            snapshotInfo = SNAPSHOT_FORMAT.deserialize(
+                new ProjectRepo(ProjectId.DEFAULT, testContext.repositoryName()),
+                xContentRegistry(),
+                inputStream
+            );
         }
 
         final var newIndices = new ArrayList<>(snapshotInfo.indices());
@@ -727,7 +733,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
         final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
         try (var inputStream = Files.newInputStream(shardGenerationBlob)) {
             blobStoreIndexShardSnapshots = INDEX_SHARD_SNAPSHOTS_FORMAT.deserialize(
-                testContext.repositoryName(),
+                new ProjectRepo(ProjectId.DEFAULT, testContext.repositoryName()),
                 xContentRegistry(),
                 inputStream
             );

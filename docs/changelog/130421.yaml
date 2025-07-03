@@ -1,0 +1,5 @@
+pr: 130421
+summary: Support avg on aggregate metric double
+area: ES|QL
+type: bug
+issues: []

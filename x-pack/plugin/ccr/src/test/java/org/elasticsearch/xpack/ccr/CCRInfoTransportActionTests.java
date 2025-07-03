@@ -11,7 +11,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -92,7 +93,8 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageStats() throws Exception {
-        Metadata.Builder metadata = Metadata.builder();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
 
         int numFollowerIndices = randomIntBetween(0, 32);
         for (int i = 0; i < numFollowerIndices; i++) {
@@ -102,7 +104,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
                 .numberOfReplicas(0)
                 .creationDate(i)
                 .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
-            metadata.put(followerIndex);
+            project.put(followerIndex);
         }
 
         // Add a regular index, to check that we do not take that one into account:
@@ -111,7 +113,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .creationDate(numFollowerIndices);
-        metadata.put(regularIndex);
+        project.put(regularIndex);
 
         int numAutoFollowPatterns = randomIntBetween(0, 32);
         Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = Maps.newMapWithExpectedSize(numAutoFollowPatterns);
@@ -136,9 +138,9 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             );
             patterns.put("pattern" + i, pattern);
         }
-        metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));
+        project.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).putProjectMetadata(project).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -149,7 +151,8 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             threadPool,
             mock(ActionFilters.class),
             Settings.EMPTY,
-            licenseState
+            licenseState,
+            TestProjectResolvers.singleProject(projectId)
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, clusterState, future);

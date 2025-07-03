@@ -1195,12 +1195,14 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot()),
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
          */
         LIKE_WITH_LIST_OF_PATTERNS,
+
+        LIKE_LIST_ON_INDEX_FIELDS,
 
         /**
          * Support parameters for SAMPLE command.
@@ -1220,9 +1222,23 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * Support improved behavior for LIKE operator when used with index fields.
+         */
+        LIKE_ON_INDEX_FIELDS,
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
-        RLIKE_WITH_LIST_OF_PATTERNS;
+        RLIKE_WITH_LIST_OF_PATTERNS
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

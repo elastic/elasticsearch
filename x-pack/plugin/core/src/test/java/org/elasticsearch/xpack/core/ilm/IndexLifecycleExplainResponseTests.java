@@ -20,16 +20,20 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -110,13 +114,15 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         assertThat(exception.getMessage(), containsString("=null"));
     }
 
-    public void testIndexAges() {
+    public void testIndexAges() throws IOException {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
         assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
 
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
+
+        assertAgeInMillisXContentAbsentForUnmanagedResponse(unmanagedExplainResponse);
 
         IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
             "indexName",
@@ -155,6 +161,46 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
         assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
+
+        long expectedAgeInMillisForThisCase = Math.max(0L, now - managedExplainResponse.getLifecycleDate());
+        assertAgeInMillisXContent(managedExplainResponse, expectedAgeInMillisForThisCase, now);
+    }
+
+    protected void assertAgeInMillisXContent(
+        final IndexLifecycleExplainResponse managedExplainResponse,
+        final long expectedAgeInMillis,
+        final long now
+    ) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        managedExplainResponse.nowSupplier = () -> now;
+        try (builder) {
+            managedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, hasKey("age_in_millis"));
+            final long actualParsedAgeInMillis = ((Number) parsedMap.get("age_in_millis")).longValue();
+            assertThat(actualParsedAgeInMillis, equalTo((Number) expectedAgeInMillis));
+        }
+    }
+
+    protected void assertAgeInMillisXContentAbsentForUnmanagedResponse(final IndexLifecycleExplainResponse unmanagedExplainResponse)
+        throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        try (builder) {
+            unmanagedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, not(hasKey("age_in_millis")));
+        }
+
     }
 
     @Override

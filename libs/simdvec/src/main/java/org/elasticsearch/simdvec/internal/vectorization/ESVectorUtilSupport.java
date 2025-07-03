@@ -39,4 +39,6 @@ public interface ESVectorUtilSupport {
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
+    int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
+
 }

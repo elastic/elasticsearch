@@ -171,7 +171,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                     && new String((byte[]) token.credentials(), StandardCharsets.UTF_8).equals("fail")) {
                     String errorMessage = "failed to authenticate user, gss context negotiation not complete";
                     ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
-                    ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
+                    ese.addBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate FAIL");
                     authListener.onFailure(ese);
                     return Void.TYPE;
                 }
@@ -320,9 +320,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         action.doExecute(null, createTokenRequest, tokenResponseFuture);
         if (failOrSuccess.equals("fail")) {
             ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> tokenResponseFuture.actionGet());
-            assertNotNull(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
-            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
-            assertThat(ese.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
+            assertNotNull(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE));
+            assertThat(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).size(), is(1));
+            assertThat(ese.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0), is("Negotiate FAIL"));
         } else {
             CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
             assertNotNull(createTokenResponse.getRefreshToken());

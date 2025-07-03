@@ -316,6 +316,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return block;
         }
 
+        @Override
+        public String toString() {
+            return name;
+        }
+
         public static APIBlock fromName(String name) {
             for (APIBlock block : APIBlock.values()) {
                 if (block.name.equals(name)) {

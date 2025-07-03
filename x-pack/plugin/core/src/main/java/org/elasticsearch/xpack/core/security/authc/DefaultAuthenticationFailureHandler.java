@@ -170,13 +170,13 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
         if (t instanceof ElasticsearchSecurityException) {
             assert ((ElasticsearchSecurityException) t).status() == RestStatus.UNAUTHORIZED;
             ese = (ElasticsearchSecurityException) t;
-            if (ese.getHeader("WWW-Authenticate") != null && ese.getHeader("WWW-Authenticate").isEmpty() == false) {
+            if (ese.getBodyHeader("WWW-Authenticate") != null && ese.getBodyHeader("WWW-Authenticate").isEmpty() == false) {
                 /**
                  * If 'WWW-Authenticate' header is present with 'Negotiate ' then do not
                  * replace. In case of kerberos spnego mechanism, we use
                  * 'WWW-Authenticate' header value to communicate outToken to peer.
                  */
-                containsNegotiateWithToken = ese.getHeader("WWW-Authenticate")
+                containsNegotiateWithToken = ese.getBodyHeader("WWW-Authenticate")
                     .stream()
                     .anyMatch(s -> s != null && s.regionMatches(true, 0, "Negotiate ", 0, "Negotiate ".length()));
             } else {
@@ -191,7 +191,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                 return;
             }
             // If it is already present then it will replace the existing header.
-            ese.addHeader(key, value);
+            ese.addBodyHeader(key, value);
         });
         return ese;
     }

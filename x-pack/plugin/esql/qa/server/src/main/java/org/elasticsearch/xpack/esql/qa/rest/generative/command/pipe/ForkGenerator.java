@@ -34,7 +34,7 @@ public class ForkGenerator implements CommandGenerator {
             }
         }
 
-        int n = randomIntBetween(2, 8);
+        int n = randomIntBetween(2, 3);
 
         String cmd = " | FORK " + "( WHERE true ) ".repeat(n) + " | WHERE _fork == \"fork" + randomIntBetween(1, n) + "\" | DROP _fork";
 

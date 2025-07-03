@@ -413,6 +413,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#inferenceCommandOptions}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -1,5 +1,6 @@
 ALL-UNNAMED:
   - set_https_connection_properties # potentially required by apache.httpcomponents
+  - manage_threads # For org.elasticsearch.client.snif.Sniffer
   # the original policy has java.net.SocketPermission "*", "accept,connect"
   # but a comment stating it was "needed for multiple server implementations used in tests"
   # TODO: this is likely not needed, but including here to be on the safe side until

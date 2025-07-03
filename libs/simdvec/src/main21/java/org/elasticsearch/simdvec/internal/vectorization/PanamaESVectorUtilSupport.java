@@ -791,4 +791,32 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         return sum;
     }
+
+    @Override
+    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
+        float nSteps = ((1 << bits) - 1);
+        float step = (upperInterval - lowInterval) / nSteps;
+        int sumQuery = 0;
+        int i = 0;
+        if (vector.length > 2 * FLOAT_SPECIES.length()) {
+            int limit = FLOAT_SPECIES.loopBound(vector.length);
+            FloatVector lowVec = FloatVector.broadcast(FLOAT_SPECIES, lowInterval);
+            FloatVector upperVec = FloatVector.broadcast(FLOAT_SPECIES, upperInterval);
+            FloatVector stepVec = FloatVector.broadcast(FLOAT_SPECIES, step);
+            for (; i < limit; i += FLOAT_SPECIES.length()) {
+                FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
+                FloatVector xi = v.max(lowVec).min(upperVec); // clamp
+                IntVector assignment = xi.sub(lowVec).div(stepVec).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts(); // round
+                sumQuery += assignment.reduceLanes(ADD);
+                assignment.intoArray(destination, i);
+            }
+        }
+        for (; i < vector.length; i++) {
+            float xi = Math.min(Math.max(vector[i], lowInterval), upperInterval);
+            int assignment = Math.round((xi - lowInterval) / step);
+            sumQuery += assignment;
+            destination[i] = assignment;
+        }
+        return sumQuery;
+    }
 }

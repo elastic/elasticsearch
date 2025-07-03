@@ -67,18 +67,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
-        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return parseMappings(p); },
+            MAPPINGS,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             XContentParser.Token token;
@@ -102,6 +96,19 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
+    }
+
+    public static CompressedXContent parseMappings(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new CompressedXContent(Base64.getDecoder().decode(parser.text()));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return new CompressedXContent(parser.binaryValue());
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Nullable

@@ -61,3 +61,7 @@ org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, j
 
 @defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
 org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()
+
+@defaultMessage Use org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer instead
+org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction, float, int)
+org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction)

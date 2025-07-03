@@ -298,7 +298,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use KNN function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V2.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -566,7 +566,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
+        LogicalPlan parsed = parser.createStatement(testCase.query, EsqlTestUtils.TEST_CFG);
         var testDatasets = testDatasets(parsed);
         LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 

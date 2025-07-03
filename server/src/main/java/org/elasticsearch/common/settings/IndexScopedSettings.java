@@ -159,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
+                DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 FieldMapper.IGNORE_MALFORMED_SETTING,

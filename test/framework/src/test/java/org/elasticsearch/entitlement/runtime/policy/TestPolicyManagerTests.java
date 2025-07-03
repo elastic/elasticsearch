@@ -31,22 +31,24 @@ public class TestPolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
             Map.of(),
-            new TestPathLookup()
+            new TestPathLookup(Map.of()),
+            List.of()
         );
+        policyManager.setActive(true);
     }
 
     public void testReset() {
-        assertTrue(policyManager.moduleEntitlementsMap.isEmpty());
+        assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
-        assertFalse(policyManager.moduleEntitlementsMap.isEmpty());
+        assertFalse(policyManager.classEntitlementsMap.isEmpty());
 
         policyManager.reset();
 
-        assertTrue(policyManager.moduleEntitlementsMap.isEmpty());
+        assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());
-        assertFalse(policyManager.moduleEntitlementsMap.isEmpty());
+        assertFalse(policyManager.classEntitlementsMap.isEmpty());
     }
 
     public void testIsTriviallyAllowed() {
@@ -54,6 +56,8 @@ public class TestPolicyManagerTests extends ESTestCase {
         assertTrue(policyManager.isTriviallyAllowed(org.junit.Before.class));
         assertTrue(policyManager.isTriviallyAllowed(PolicyManager.class));
 
+        assertTrue(policyManager.isTriviallyAllowed(getClass()));
+        policyManager.setTriviallyAllowingTestCode(false);
         assertFalse(policyManager.isTriviallyAllowed(getClass()));
     }
 }

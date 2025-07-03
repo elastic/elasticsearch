@@ -461,7 +461,7 @@ public class FileAccessTreeTests extends ESTestCase {
                 )
             ),
             TEST_PATH_LOOKUP,
-            null,
+            List.of(),
             List.of()
         );
 
@@ -487,7 +487,7 @@ public class FileAccessTreeTests extends ESTestCase {
                 )
             ),
             TEST_PATH_LOOKUP,
-            null,
+            List.of(),
             List.of()
         );
 

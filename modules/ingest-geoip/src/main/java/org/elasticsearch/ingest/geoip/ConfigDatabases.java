@@ -10,6 +10,8 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -69,12 +71,13 @@ final class ConfigDatabases implements Closeable {
         return configDatabases;
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     void updateDatabase(Path file, boolean update) {
         String databaseFileName = file.getFileName().toString();
         try {
             if (update) {
                 logger.info("database file changed [{}], reloading database...", file);
-                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, null);
+                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, file, null);
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.shutdown();
@@ -90,6 +93,7 @@ final class ConfigDatabases implements Closeable {
         }
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     Map<String, DatabaseReaderLazyLoader> initConfigDatabases() throws IOException {
         Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
 
@@ -103,7 +107,7 @@ final class ConfigDatabases implements Closeable {
                     if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         assert Files.exists(databasePath);
                         String databaseFileName = databasePath.getFileName().toString();
-                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath, null);
+                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, databasePath, null);
                         databases.put(databaseFileName, loader);
                     }
                 }

@@ -56,7 +56,7 @@ public class MultiFieldsInnerRetrieverUtils {
      */
     public static ActionRequestValidationException validateParams(
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers,
-        List<String> fields,
+        @Nullable List<String> fields,
         @Nullable String query,
         String retrieverName,
         String retrieversParamName,
@@ -64,7 +64,7 @@ public class MultiFieldsInnerRetrieverUtils {
         String queryParamName,
         ActionRequestValidationException validationException
     ) {
-        if (fields.isEmpty() == false || query != null) {
+        if (fields != null || query != null) {
             // Using the multi-fields query format
             if (query == null) {
                 // Return early here because the following validation checks assume a query param value is provided
@@ -83,6 +83,13 @@ public class MultiFieldsInnerRetrieverUtils {
             if (query.isEmpty()) {
                 validationException = addValidationError(
                     String.format(Locale.ROOT, "[%s] [%s] cannot be empty", retrieverName, queryParamName),
+                    validationException
+                );
+            }
+
+            if (fields != null && fields.isEmpty()) {
+                validationException = addValidationError(
+                    String.format(Locale.ROOT, "[%s] [%s] cannot be empty", retrieverName, fieldsParamName),
                     validationException
                 );
             }
@@ -131,13 +138,15 @@ public class MultiFieldsInnerRetrieverUtils {
      * @return The inner retriever tree as a {@code RetrieverBuilder} list
      */
     public static List<RetrieverBuilder> generateInnerRetrievers(
-        List<String> fieldsAndWeights,
+        @Nullable List<String> fieldsAndWeights,
         String query,
         Collection<IndexMetadata> indicesMetadata,
         Function<List<WeightedRetrieverSource>, CompoundRetrieverBuilder<?>> innerNormalizerGenerator,
         @Nullable Consumer<Float> weightValidator
     ) {
-        Map<String, Float> parsedFieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fieldsAndWeights);
+        Map<String, Float> parsedFieldsAndWeights = fieldsAndWeights != null
+            ? QueryParserHelper.parseFieldsAndWeights(fieldsAndWeights)
+            : Map.of();
         if (weightValidator != null) {
             parsedFieldsAndWeights.values().forEach(weightValidator);
         }

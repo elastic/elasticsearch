@@ -5,16 +5,44 @@
 simpleFork
 required_capability: fork_v9
 
+// tag::simpleFork[]
 FROM employees
 | FORK ( WHERE emp_no == 10001 )
        ( WHERE emp_no == 10002 )
 | KEEP emp_no, _fork
 | SORT emp_no
+// end::simpleFork[]
 ;
 
+// tag::simpleFork-result-[]
 emp_no:integer | _fork:keyword
 10001          | fork1
 10002          | fork2
+// end::simpleFork-result[]
+;
+
+simpleForkWithStats
+required_capability: fork_v9
+
+// tag::simpleForkWithStats[]
+FROM books METADATA _score
+| WHERE author:"Faulkner"
+| EVAL score = round(_score, 2)
+| FORK (SORT score DESC, author | LIMIT 5 | KEEP author, score)
+       (STATS total = COUNT(*))
+| SORT _fork, score DESC, author
+// end::simpleForkWithStats[]
+;
+
+// tag::simpleForkWithStats-result[]
+author:text      | score:double | _fork:keyword | total:long
+William Faulkner | 2.39         | fork1         | null
+William Faulkner | 2.39         | fork1         | null
+Colleen Faulkner | 1.59         | fork1         | null
+Danny Faulkner   | 1.59         | fork1         | null
+Keith Faulkner   | 1.59         | fork1         | null
+null             | null         | fork2         | 18
+// end::simpleForkWithStats-result[]
 ;
 
 forkWithWhereSortAndLimit

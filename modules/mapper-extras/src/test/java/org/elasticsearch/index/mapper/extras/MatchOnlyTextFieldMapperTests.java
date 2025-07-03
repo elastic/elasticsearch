@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -21,9 +24,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -348,6 +354,35 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         {
             List<IndexableField> fields = doc.rootDoc().getFields("name.text._original");
             assertThat(fields, empty());
+        }
+    }
+
+    public void testLoadSyntheticSourceFromStringOrBytesRef() throws IOException {
+        var mappings = mapping(b -> {
+            b.startObject("field1").field("type", "match_only_text").endObject();
+            b.startObject("field2").field("type", "match_only_text").endObject();
+        });
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(IndexVersions.UPGRADE_TO_LUCENE_10_2_2, settings, () -> true, mappings)
+            .documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+
+            LuceneDocument document = new LuceneDocument();
+            document.add(new StringField("field1", "foo", Field.Store.NO));
+            document.add(new StoredField("field1._original", "foo"));
+
+            document.add(new StringField("field2", "bar", Field.Store.NO));
+            document.add(new StoredField("field2._original", new BytesRef("bar")));
+
+            iw.addDocument(document);
+            iw.close();
+
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                String syntheticSource = syntheticSource(mapper, null, indexReader, 0);
+                assertEquals("{\"field1\":\"foo\",\"field2\":\"bar\"}", syntheticSource);
+            }
         }
     }
 }

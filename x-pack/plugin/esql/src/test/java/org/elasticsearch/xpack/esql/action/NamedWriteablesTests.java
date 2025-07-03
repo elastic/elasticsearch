@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -18,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class NamedWriteablesTests extends ESTestCase {
 
     public void testTopNStatus() throws Exception {
-        try (EsqlPlugin plugin = new EsqlPlugin()) {
+        try (EsqlPlugin plugin = new EsqlPlugin(Settings.EMPTY)) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(plugin.getNamedWriteables());
             TopNOperatorStatus origin = new TopNOperatorStatus(
                 randomNonNegativeInt(),

@@ -473,7 +473,7 @@ public class TokenServiceTests extends ESTestCase {
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-            final String headerValue = e.getHeader("WWW-Authenticate").get(0);
+            final String headerValue = e.getBodyHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }
@@ -674,7 +674,7 @@ public class TokenServiceTests extends ESTestCase {
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-            final String headerValue = e.getHeader("WWW-Authenticate").get(0);
+            final String headerValue = e.getBodyHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }

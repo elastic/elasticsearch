@@ -10,17 +10,24 @@ ROW message = "foo * bar"
 ```
 
 
-```esql
-ROW message = "foobar"
-| WHERE message like ("foo*", "bar?")
-```
-
-
 To reduce the overhead of escaping, we suggest using triple quotes strings `"""`
 
 ```esql
 ROW message = "foo * bar"
 | WHERE message LIKE """foo \* bar"""
+```
+
+
+```{applies_to}
+stack: ga 9.1
+serverless: ga
+```
+Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+the expression will return true if any of the patterns match.
+
+```esql
+ROW message = "foobar"
+| WHERE message like ("foo*", "bar?")
 ```
 
 

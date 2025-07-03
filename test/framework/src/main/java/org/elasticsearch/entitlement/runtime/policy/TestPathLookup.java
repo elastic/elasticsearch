@@ -10,9 +10,18 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class TestPathLookup implements PathLookup {
+    final Map<BaseDir, Collection<Path>> baseDirPaths;
+
+    public TestPathLookup(Map<BaseDir, Collection<Path>> baseDirPaths) {
+        this.baseDirPaths = baseDirPaths;
+    }
+
     @Override
     public Path pidFile() {
         return null;
@@ -20,7 +29,7 @@ public class TestPathLookup implements PathLookup {
 
     @Override
     public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
-        return Stream.empty();
+        return baseDirPaths.getOrDefault(baseDir, List.of()).stream();
     }
 
     @Override

@@ -34,7 +34,7 @@ public class InvalidMappedField extends EsField {
     private final Map<String, Set<String>> typesToIndices;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        this(name, errorMessage, properties, Map.of());
+        this(name, errorMessage, properties, Map.of(), TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, String errorMessage) {
@@ -45,17 +45,29 @@ public class InvalidMappedField extends EsField {
      * Constructor supporting union types, used in ES|QL.
      */
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices);
+        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, TimeSeriesFieldType.UNKNOWN);
     }
 
-    private InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties, Map<String, Set<String>> typesToIndices) {
-        super(name, DataType.UNSUPPORTED, properties, false);
+    private InvalidMappedField(
+        String name,
+        String errorMessage,
+        Map<String, EsField> properties,
+        Map<String, Set<String>> typesToIndices,
+        TimeSeriesFieldType type
+    ) {
+        super(name, DataType.UNSUPPORTED, properties, false, type);
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
+        this(
+            readCachedStringWithVersionCheck(in),
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, EsField::readFrom),
+            Map.of(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     public Set<DataType> types() {
@@ -67,6 +79,7 @@ public class InvalidMappedField extends EsField {
         writeCachedStringWithVersionCheck(out, getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

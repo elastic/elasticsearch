@@ -131,7 +131,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse(
                             dataStreamName,
                             false,
-                            e.getMessage(),
+                            Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
                             EMPTY,
                             EMPTY,
                             UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult.EMPTY
@@ -222,9 +222,10 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
         Map<String, Object> settingsToApply = new HashMap<>();
         List<String> appliedToDataStreamOnly = new ArrayList<>();
         List<String> appliedToDataStreamAndBackingIndices = new ArrayList<>();
+        Settings effectiveSettings = dataStream.getEffectiveSettings(projectResolver.getProjectMetadata(clusterService.state()));
         for (String settingName : requestSettings.keySet()) {
             if (APPLY_TO_BACKING_INDICES.contains(settingName)) {
-                settingsToApply.put(settingName, requestSettings.get(settingName));
+                settingsToApply.put(settingName, effectiveSettings.get(settingName));
                 appliedToDataStreamAndBackingIndices.add(settingName);
             } else if (APPLY_TO_DATA_STREAM_ONLY.contains(settingName)) {
                 appliedToDataStreamOnly.add(settingName);
@@ -242,9 +243,7 @@ public class TransportUpdateDataStreamSettingsAction extends TransportMasterNode
                         true,
                         null,
                         settingsFilter.filter(dataStream.getSettings()),
-                        settingsFilter.filter(
-                            dataStream.getEffectiveSettings(clusterService.state().projectState(projectResolver.getProjectId()).metadata())
-                        ),
+                        settingsFilter.filter(effectiveSettings),
                         new UpdateDataStreamSettingsAction.DataStreamSettingsResponse.IndicesSettingsResult(
                             appliedToDataStreamOnly,
                             appliedToDataStreamAndBackingIndices,

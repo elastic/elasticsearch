@@ -33,7 +33,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
@@ -47,7 +47,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             "L7kj7UvlKbT-vN73el4faQ",
             TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
         );
-        assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -85,7 +85,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
@@ -97,7 +97,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             "L7kj7UvlKbT-vN73el4faQ",
             TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
         );
-        assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
         assertEquals(Long.valueOf(2L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("basket"));
 
         assertNotNull(response.getStackTraces());

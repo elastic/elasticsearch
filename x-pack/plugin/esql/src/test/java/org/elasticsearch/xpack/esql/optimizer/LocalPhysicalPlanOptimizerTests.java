@@ -1363,12 +1363,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     public void testKnnOptionsPushDown() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
 
         String query = """
             from test
-            | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], 5,
+                { "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);

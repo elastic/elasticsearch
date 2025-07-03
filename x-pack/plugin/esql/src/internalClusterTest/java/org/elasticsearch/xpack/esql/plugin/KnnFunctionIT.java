@@ -39,7 +39,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s)
+            | WHERE knn(vector, %s, 10)
             | KEEP id, floats, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
@@ -73,7 +73,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, {"k": 5})
+            | WHERE knn(vector, %s, 5)
             | KEEP id, floats, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
@@ -94,7 +94,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         // TODO we need to decide what to do when / if user uses k for limit, as no more than k results will be returned from knn query
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, {"k": 5}) OR id > 10
+            | WHERE knn(vector, %s, 5) OR id > 10
             | KEEP id, floats, _score, vector
             | SORT _score DESC
             """, Arrays.toString(queryVector));
@@ -111,7 +111,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V2.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();

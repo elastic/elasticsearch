@@ -24,13 +24,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.cohere.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.junit.After;
@@ -44,9 +42,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -134,68 +132,7 @@ public class CohereCompletionActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
-        }
-    }
-
-    public void testExecute_ReturnsSuccessfulResponse_WithoutModelSpecified() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
-            sender.start();
-
-            String responseJson = """
-                {
-                     "response_id": "some id",
-                     "text": "result",
-                     "generation_id": "some id",
-                     "chat_history": [
-                         {
-                             "role": "USER",
-                             "message": "input"
-                         },
-                         {
-                             "role": "CHATBOT",
-                             "message": "result"
-                         }
-                     ],
-                     "finish_reason": "COMPLETE",
-                     "meta": {
-                         "api_version": {
-                             "version": "1"
-                         },
-                         "billed_units": {
-                             "input_tokens": 4,
-                             "output_tokens": 191
-                         },
-                         "tokens": {
-                             "input_tokens": 70,
-                             "output_tokens": 191
-                         }
-                     }
-                 }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var action = createAction(getUrl(webServer), "secret", null, sender);
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-            assertThat(
-                webServer.requests().get(0).getHeader(CohereUtils.REQUEST_SOURCE_HEADER),
-                equalTo(CohereUtils.ELASTIC_REQUEST_SOURCE)
-            );
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc")));
+            assertThat(requestMap, is(Map.of("message", "abc", "model", "model", "stream", false)));
         }
     }
 
@@ -341,9 +278,8 @@ public class CohereCompletionActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
+        var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
         var model = CohereCompletionModelTests.createModel(url, apiKey, modelName);
-        var requestManager = CohereCompletionRequestManager.of(model, threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere completion");
-        return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, "Cohere completion");
+        return actionCreator.create(model, Map.of());
     }
 }

@@ -101,7 +101,14 @@ record SageMakerTaskSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_SAGEMAKER;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_8_19);
     }
 
     @Override

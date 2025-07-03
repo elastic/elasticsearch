@@ -22,12 +22,13 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
@@ -66,6 +67,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportCleanupRepositoryAction(
@@ -73,7 +75,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         ClusterService clusterService,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -86,6 +89,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
         // We add a state applier that will remove any dangling repository cleanup actions on master failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
@@ -134,22 +138,23 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<CleanupRepositoryResponse> listener
     ) {
-        cleanupRepo(request.name(), listener.map(CleanupRepositoryResponse::new));
+        cleanupRepo(projectResolver.getProjectId(), request.name(), listener.map(CleanupRepositoryResponse::new));
     }
 
     @Override
     protected ClusterBlockException checkBlock(CleanupRepositoryRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     /**
      * Runs cleanup operations on the given repository.
+     * @param projectId Project for the repository
      * @param repositoryName Repository to clean up
      * @param listener Listener for cleanup result
      */
-    private void cleanupRepo(String repositoryName, ActionListener<RepositoryCleanupResult> listener) {
-        final Repository repository = repositoriesService.repository(repositoryName);
+    private void cleanupRepo(ProjectId projectId, String repositoryName, ActionListener<RepositoryCleanupResult> listener) {
+        final Repository repository = repositoriesService.repository(projectId, repositoryName);
         if (repository instanceof BlobStoreRepository == false) {
             listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
             return;
@@ -172,8 +177,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        SnapshotsService.ensureRepositoryExists(repositoryName, currentState);
-                        SnapshotsService.ensureNotReadOnly(currentState, repositoryName);
+                        final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+                        SnapshotsService.ensureRepositoryExists(repositoryName, projectMetadata);
+                        SnapshotsService.ensureNotReadOnly(projectMetadata, repositoryName);
+                        // Repository cleanup is intentionally cluster wide exclusive
                         final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(currentState);
                         if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                             throw new IllegalStateException(
@@ -200,8 +207,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"
                             );
                         }
-                        @FixForMultiProject
-                        final var projectId = ProjectId.DEFAULT;
                         return ClusterState.builder(currentState)
                             .putCustom(
                                 RepositoryCleanupInProgress.TYPE,

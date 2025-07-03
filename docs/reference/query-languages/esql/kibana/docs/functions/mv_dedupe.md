@@ -3,8 +3,9 @@
 ### MV DEDUPE
 Remove duplicate values from a multivalued field.
 
+Note: `MV_DEDUPE` may, but won’t always, sort the values in the column.
+
 ```esql
 ROW a=["foo", "foo", "bar", "foo"]
 | EVAL dedupe_a = MV_DEDUPE(a)
 ```
-Note: `MV_DEDUPE` may, but won’t always, sort the values in the column.

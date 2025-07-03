@@ -1,0 +1,5 @@
+pr: 130303
+summary: Drain responses on completion for `TransportNodesAction`
+area: Distributed
+type: bug
+issues: []

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -53,12 +55,10 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
      */
     protected static class GeoTileBoundedGrid implements BoundedGrid {
         private final int precision;
-        private final GeoBoundingBox bbox;
         private final GeoTileBoundedPredicate bounds;
 
-        public GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
+        private GeoTileBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
-            this.bbox = bbox;
             this.bounds = new GeoTileBoundedPredicate(precision, bbox);
         }
 
@@ -69,7 +69,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.validTile(x, y, precision)) {
                 return GeoTileUtils.longEncodeTiles(precision, x, y);
             }
-            // TODO: Are we sure negative numbers are not valid
+            // GeoTileUtils uses the highest 6 bits to store the zoom level. However, MAX_ZOOM is 29, which takes 5 bits.
+            // This leaves the sign bit unused, so it can be used to indicate an invalid tile.
             return -1L;
         }
 
@@ -78,9 +79,18 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             return precision;
         }
 
-        @Override
-        public String toString() {
-            return "[" + bbox + "]";
+        protected static class Factory {
+            private final int precision;
+            private final GeoBoundingBox bbox;
+
+            Factory(int precision, GeoBoundingBox bbox) {
+                this.precision = checkPrecisionRange(precision);
+                this.bbox = bbox;
+            }
+
+            public GeoTileBoundedGrid get(DriverContext context) {
+                return new GeoTileBoundedGrid(precision, bbox);
+            }
         }
     }
 
@@ -169,10 +179,14 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             }
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
-            GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
+            GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
-                ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), bounds)
-                : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
+                ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField()),
+                    bounds::get
+                )
+                : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
             return spatialDocsValues
@@ -190,7 +204,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
             GeoTileBoundedGrid bounds = new GeoTileBoundedGrid(precision, bbox);
-            return bounds.calculateGridId(GEO.wkbAsPoint(point));
+            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
+            return gridId < 0 ? null : gridId;
         }
     }
 
@@ -205,7 +220,12 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoTileBoundedGrid bounds) {
+    static void fromFieldAndLiteralAndLiteral(
+        LongBlock.Builder results,
+        int p,
+        BytesRefBlock in,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds
+    ) {
         fromWKB(results, p, in, bounds);
     }
 
@@ -214,7 +234,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed GeoTileBoundedGrid bounds
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
     }

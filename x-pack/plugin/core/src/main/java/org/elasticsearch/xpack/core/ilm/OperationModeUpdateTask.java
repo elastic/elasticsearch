@@ -14,7 +14,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 
@@ -29,6 +32,8 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  */
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
+
+    private final ProjectId projectId;
     @Nullable
     private final OperationMode ilmMode;
     @Nullable
@@ -47,18 +52,21 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         };
     }
 
-    private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
+    private OperationModeUpdateTask(Priority priority, ProjectId projectId, OperationMode ilmMode, OperationMode slmMode) {
         super(priority);
+        this.projectId = projectId;
         this.ilmMode = ilmMode;
         this.slmMode = slmMode;
     }
 
-    public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), mode, null);
+    public static OperationModeUpdateTask ilmMode(ProjectId projectId, OperationMode mode) {
+        return new OperationModeUpdateTask(getPriority(mode), projectId, mode, null);
     }
 
     public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(getPriority(mode), null, mode);
+        @FixForMultiProject // Use non-default ID when SLM has been made project-aware
+        final var projectId = ProjectId.DEFAULT;
+        return new OperationModeUpdateTask(getPriority(mode), projectId, null, mode);
     }
 
     private static Priority getPriority(OperationMode mode) {
@@ -79,22 +87,24 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        ClusterState newState = currentState;
-        newState = updateILMState(newState);
-        newState = updateSLMState(newState);
-        return newState;
-    }
-
-    private ClusterState updateILMState(final ClusterState currentState) {
-        if (ilmMode == null) {
+        ProjectMetadata oldProject = currentState.metadata().getProject(projectId);
+        ProjectMetadata newProject = updateILMState(oldProject);
+        newProject = updateSLMState(newProject);
+        if (newProject == oldProject) {
             return currentState;
         }
+        return ClusterState.builder(currentState).putProjectMetadata(newProject).build();
+    }
 
-        final var project = currentState.metadata().getProject();
-        final OperationMode currentMode = currentILMMode(project);
+    private ProjectMetadata updateILMState(final ProjectMetadata currentProject) {
+        if (ilmMode == null) {
+            return currentProject;
+        }
+
+        final OperationMode currentMode = currentILMMode(currentProject);
         if (currentMode.equals(ilmMode)) {
             // No need for a new state
-            return currentState;
+            return currentProject;
         }
 
         final OperationMode newMode;
@@ -102,24 +112,23 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = ilmMode;
         } else {
             // The transition is invalid, return the current state
-            return currentState;
+            return currentProject;
         }
 
         logger.info("updating ILM operation mode to {}", newMode);
-        final var updatedMetadata = new LifecycleOperationMetadata(newMode, currentSLMMode(currentState));
-        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
+        final var updatedMetadata = new LifecycleOperationMetadata(newMode, currentSLMMode(currentProject));
+        return currentProject.copyAndUpdate(b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
     }
 
-    private ClusterState updateSLMState(final ClusterState currentState) {
+    private ProjectMetadata updateSLMState(final ProjectMetadata currentProject) {
         if (slmMode == null) {
-            return currentState;
+            return currentProject;
         }
 
-        final var project = currentState.metadata().getProject();
-        final OperationMode currentMode = currentSLMMode(currentState);
+        final OperationMode currentMode = currentSLMMode(currentProject);
         if (currentMode.equals(slmMode)) {
             // No need for a new state
-            return currentState;
+            return currentProject;
         }
 
         final OperationMode newMode;
@@ -127,12 +136,12 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = slmMode;
         } else {
             // The transition is invalid, return the current state
-            return currentState;
+            return currentProject;
         }
 
         logger.info("updating SLM operation mode to {}", newMode);
-        final var updatedMetadata = new LifecycleOperationMetadata(currentILMMode(project), newMode);
-        return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
+        final var updatedMetadata = new LifecycleOperationMetadata(currentILMMode(currentProject), newMode);
+        return currentProject.copyAndUpdate(b -> b.putCustom(LifecycleOperationMetadata.TYPE, updatedMetadata));
     }
 
     @Override

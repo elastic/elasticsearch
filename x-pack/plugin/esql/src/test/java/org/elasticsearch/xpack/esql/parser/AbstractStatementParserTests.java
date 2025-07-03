@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -57,11 +58,11 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     LogicalPlan statement(String e, QueryParams params) {
-        return parser.createStatement(e, params);
+        return parser.createStatement(e, params, EsqlTestUtils.TEST_CFG);
     }
 
     LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
+        return parser.createStatement("row a = 1 | " + e, EsqlTestUtils.TEST_CFG);
     }
 
     static UnresolvedAttribute attribute(String name) {
@@ -170,7 +171,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
             "Query [" + query + "] is expected to throw " + VerificationException.class + " with message [" + errorMessage + "]",
             VerificationException.class,
             containsString(errorMessage),
-            () -> parser.createStatement(query)
+            () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG)
         );
     }
 

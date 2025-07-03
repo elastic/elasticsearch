@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # _source field [mapping-source-field]
@@ -48,7 +51,7 @@ For all other field types, the original value of the field is stored as is, in t
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type’s [documentation](/reference/elasticsearch/mapping-reference/field-data-types.md).
 
-Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indexes that use synthetic `_source`, choose a different repository type.
+Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indices that use synthetic `_source`, choose a different repository type.
 
 ### Synthetic `_source` modifications [synthetic-source-modifications]
 
@@ -320,7 +323,7 @@ Users often disable the `_source` field without thinking about the consequences,
 ::::
 
 ::::{note}
-You can't disable the `_source` field for indexes with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
+You can't disable the `_source` field for indices with [`index_mode`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) set to `logsdb` or `time_series`.
 ::::
 
 

@@ -45,6 +45,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature IVF_FORMAT_CLUSTER_FEATURE = new NodeFeature("mapper.ivf_format_cluster_feature");
     static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
+    static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -76,7 +77,8 @@ public class MapperFeatures implements FeatureSpecification {
             IVF_FORMAT_CLUSTER_FEATURE,
             IVF_NESTED_SUPPORT,
             SEARCH_LOAD_PER_SHARD,
-            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
+            PATTERNED_TEXT
         );
     }
 }

@@ -71,7 +71,8 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             false,
             Map.of(),
             System.nanoTime(),
-            randomBoolean()
+            randomBoolean(),
+            true
         );
     }
 

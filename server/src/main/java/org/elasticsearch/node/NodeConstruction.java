@@ -1115,7 +1115,8 @@ class NodeConstruction {
             repositoriesService,
             transportService,
             actionModule.getActionFilters(),
-            systemIndices
+            systemIndices,
+            projectResolver.supportsMultipleProjects()
         );
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
@@ -1125,7 +1126,7 @@ class NodeConstruction {
             indicesService
         );
 
-        actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
+        actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
         var fileSettingsHealthIndicatorPublisher = new FileSettingsService.FileSettingsHealthIndicatorPublisherImpl(clusterService, client);

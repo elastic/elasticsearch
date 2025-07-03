@@ -16,19 +16,11 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-```{applies_to}
-stack: coming 9.0.3
-```
 ## 9.0.3 [elasticsearch-9.0.3-deprecations]
 
 Engine:
 * Deprecate `indices.merge.scheduler.use_thread_pool` setting [#129464](https://github.com/elastic/elasticsearch/pull/129464)
 
-
-
-```{applies_to}
-stack: coming 9.0.2
-```
 ## 9.0.2 [elasticsearch-9.0.2-deprecations]
 
 No deprecations in this version.

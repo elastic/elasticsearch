@@ -38,7 +38,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new TupleBlockSourceOperator(
+        return new TupleLongLongBlockSourceOperator(
             blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % 5, randomLongBetween(-max, max)))
         );

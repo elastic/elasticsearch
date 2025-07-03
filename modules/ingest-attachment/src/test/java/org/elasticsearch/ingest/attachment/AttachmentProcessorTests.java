@@ -15,6 +15,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.Before;
 
 import java.io.InputStream;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@WithoutEntitlements // ES-12084
 public class AttachmentProcessorTests extends ESTestCase {
 
     private Processor processor;

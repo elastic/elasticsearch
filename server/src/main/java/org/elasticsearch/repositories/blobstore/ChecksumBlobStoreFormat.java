@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.CorruptStateException;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -69,9 +70,9 @@ public final class ChecksumBlobStoreFormat<T> {
 
     private final String blobNameFormat;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader;
 
     private final Function<T, ? extends ToXContent> writer;
 
@@ -85,8 +86,8 @@ public final class ChecksumBlobStoreFormat<T> {
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
-        CheckedBiFunction<String, XContentParser, T, IOException> reader,
-        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader,
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
+        @Nullable CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader,
         Function<T, ? extends ToXContent> writer
     ) {
         this.reader = reader;
@@ -105,7 +106,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
-        CheckedBiFunction<String, XContentParser, T, IOException> reader,
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
         Function<T, ? extends ToXContent> writer
     ) {
         this(codec, blobNameFormat, reader, null, writer);
@@ -118,11 +119,11 @@ public final class ChecksumBlobStoreFormat<T> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-    public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
+    public T read(ProjectRepo projectRepo, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
         try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
-            return deserialize(repoName, namedXContentRegistry, in);
+            return deserialize(projectRepo, namedXContentRegistry, in);
         }
     }
 
@@ -130,7 +131,7 @@ public final class ChecksumBlobStoreFormat<T> {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
-    public T deserialize(String repoName, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
+    public T deserialize(ProjectRepo projectRepo, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
@@ -154,7 +155,7 @@ public final class ChecksumBlobStoreFormat<T> {
                         XContentType.SMILE
                     )
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 } catch (Exception e) {
                     try (
@@ -165,7 +166,7 @@ public final class ChecksumBlobStoreFormat<T> {
                             XContentType.SMILE
                         )
                     ) {
-                        result = fallbackReader.apply(repoName, parser);
+                        result = fallbackReader.apply(projectRepo, parser);
                         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                     }
                 }
@@ -174,7 +175,7 @@ public final class ChecksumBlobStoreFormat<T> {
                     XContentParser parser = XContentType.SMILE.xContent()
                         .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 }
                 deserializeMetaBlobInputStream.verifyFooter();

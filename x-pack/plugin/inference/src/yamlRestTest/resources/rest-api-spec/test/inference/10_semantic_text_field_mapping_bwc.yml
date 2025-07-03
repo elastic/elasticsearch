@@ -736,3 +736,146 @@ setup:
                   type: int8_flat
 
   - match: { status: 400 }
+
+---
+"Displaying default index_options with and without include_defaults":
+  - requires:
+      cluster_features: "semantic_text.index_options_with_defaults"
+      reason: Index options defaults support introduced in 9.2.0
+
+  # Semantic text defaults to BBQ HNSW starting in 8.19.0/9.1.0
+  - do:
+      indices.create:
+        index: test-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense
+
+  - not_exists: test-index-options-dense.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
+  - do:
+      indices.create:
+        index: test-index-options-dense2
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+                    m: 16
+                    ef_construction: 100
+                    rescore_vector:
+                      oversample: 3
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense2
+
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense2
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  # Indices not compatible with BBQ for whatever reason will fall back to whatever `dense_vector` defaults are.
+  - do:
+      indices.create:
+        index: test-index-options-dense-no-bbq
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense-no-bbq
+
+  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense-no-bbq
+        fields: semantic_field
+        include_defaults: true
+
+  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
+
+  # Sparse embeddings models do not have index options for semantic_text in 8.19/9.1.
+  - do:
+      indices.create:
+        index: test-index-options-sparse
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse
+
+  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse
+        fields: semantic_field
+        include_defaults: true
+
+  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
+

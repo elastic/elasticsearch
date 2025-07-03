@@ -249,6 +249,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
     }
 
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC, checkPartialResults);
+    }
+
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
         indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
     }

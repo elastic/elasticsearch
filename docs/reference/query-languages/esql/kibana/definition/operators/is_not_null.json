@@ -223,6 +223,9 @@
       "returnType" : "boolean"
     }
   ],
+  "examples" : [
+    "FROM employees\n| WHERE is_rehired IS NOT NULL\n| STATS COUNT(emp_no)"
+  ],
   "preview" : false,
   "snapshot_only" : false
 }

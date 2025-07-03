@@ -10,8 +10,6 @@
       indices.create:
         index: test2
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               pagerank:
@@ -29,8 +27,6 @@
       indices.create:
         index: test1
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               pagerank:

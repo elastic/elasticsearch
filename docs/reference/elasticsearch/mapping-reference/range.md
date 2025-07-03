@@ -215,6 +215,70 @@ The following parameters are accepted by range types:
 [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md)
 :   Whether the field value should be stored and retrievable separately from the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepts `true` or `false` (default).
 
+## Sorting
+
+Sorting is not supported for any of the `range` field types. Attempting to sort by a field of type range_field will result in a `400 Bad Request` response.
+For example, executing a sort query on a field of type `integer_range`,
+```console
+PUT idx
+{
+  "mappings": {
+    "properties": {
+      "my_range": {
+        "type": "integer_range"
+      }
+    }
+  }
+}
+
+POST idx/_search
+{
+  "sort": [
+    {
+      "my_range": {
+        "order": "asc"
+      }
+    }
+  ]
+}
+```
+results in the following response:
+```console-result
+{
+    "error": {
+        "root_cause": [
+            {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        ],
+        "type": "search_phase_execution_exception",
+        "reason": "all shards failed",
+        "phase": "query",
+        "grouped": true,
+        "failed_shards": [
+            {
+                "shard": 0,
+                "index": "idx",
+                "node": "7pzVSCf5TuSNZYj-N7u3tw",
+                "reason": {
+                    "type": "illegal_argument_exception",
+                    "reason": "Sorting by range field [my_range] is not supported"
+                }
+            }
+        ],
+        "caused_by": {
+            "type": "illegal_argument_exception",
+            "reason": "Sorting by range field [my_range] is not supported",
+            "caused_by": {
+                "type": "illegal_argument_exception",
+                "reason": "Sorting by range field [my_range] is not supported"
+            }
+        }
+    },
+    "status": 400
+}
+```
 
 ## Synthetic `_source` [range-synthetic-source]
 

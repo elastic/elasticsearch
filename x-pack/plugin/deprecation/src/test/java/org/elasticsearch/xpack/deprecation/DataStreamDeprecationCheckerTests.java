@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -49,11 +47,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DataStream dataStream = createTestDataStream(oldIndexCount, 0, newIndexCount, 0, nameToIndexMetadata, expectedIndices);
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -70,7 +67,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         );
 
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
@@ -86,13 +83,12 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DataStream dataStream = createTestDataStream(0, 0, newOpenIndexCount, newClosedIndexCount, nameToIndexMetadata, expectedIndices);
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
@@ -118,11 +114,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -138,7 +133,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -277,11 +272,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             null
         );
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
@@ -299,7 +293,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -344,12 +338,12 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             randomBoolean(),
             null
         );
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
             .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        assertThat(checker.check(clusterState), equalTo(Map.of()));
+
+        assertThat(checker.check(project), equalTo(Map.of()));
     }
 
 }

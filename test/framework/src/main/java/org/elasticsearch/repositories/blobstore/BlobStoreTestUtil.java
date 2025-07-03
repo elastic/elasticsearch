@@ -398,14 +398,14 @@ public final class BlobStoreTestUtil {
      * @param repositoryMetadata RepositoryMetadata to initialize the cluster state with
      * @return Mock ClusterService
      */
-    public static ClusterService mockClusterService(RepositoryMetadata repositoryMetadata) {
+    public static ClusterService mockClusterService(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         return mockClusterService(
             ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
-                    Metadata.builder()
+                    Metadata.builder(ClusterState.EMPTY_STATE.metadata())
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
                         .put(
-                            ProjectMetadata.builder(ProjectId.DEFAULT)
+                            ProjectMetadata.builder(projectId)
                                 .putCustom(
                                     RepositoriesMetadata.TYPE,
                                     new RepositoriesMetadata(Collections.singletonList(repositoryMetadata))

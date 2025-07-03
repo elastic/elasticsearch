@@ -28,6 +28,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -70,12 +72,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
 
     public ReindexDataStreamPersistentTaskExecutor(Client client, ClusterService clusterService, String taskName, ThreadPool threadPool) {
         super(taskName, threadPool.generic());
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.projectResolver = client.projectResolver();
     }
 
     @Override
@@ -87,8 +91,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         PersistentTasksCustomMetadata.PersistentTask<ReindexDataStreamTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
+        ProjectId projectId = projectResolver.getProjectId();
         ReindexDataStreamTaskParams params = taskInProgress.getParams();
         return new ReindexDataStreamTask(
+            projectId,
             clusterService,
             params.startTime(),
             params.totalIndices(),
@@ -125,7 +131,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
                 boolean includeSystem = dataStream.isSystem();
-                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, includeSystem).test(
+                if (getReindexRequiredPredicate(projectResolver.getProjectMetadata(clusterService.state()), false, includeSystem).test(
                     dataStream.getWriteIndex()
                 )) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
@@ -174,7 +180,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     ) {
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
-            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false, dataStream.isSystem()))
+            .filter(getReindexRequiredPredicate(projectResolver.getProjectMetadata(clusterService.state()), false, dataStream.isSystem()))
             .toList();
         final ReindexDataStreamPersistentTaskState updatedState;
         if (params.totalIndices() != totalIndicesInDataStream
@@ -337,7 +343,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         @Nullable ReindexDataStreamPersistentTaskState state
     ) {
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state(),
+            projectResolver.getProjectMetadata(clusterService.state()),
             reindexDataStreamTask.getPersistentTaskId()
         );
         if (persistentTask == null) {

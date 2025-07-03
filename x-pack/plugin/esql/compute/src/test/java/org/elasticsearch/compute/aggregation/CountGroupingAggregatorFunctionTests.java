@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -37,7 +37,7 @@ public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         if (randomBoolean()) {
-            return new TupleBlockSourceOperator(
+            return new TupleLongLongBlockSourceOperator(
                 blockFactory,
                 LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLong()))
             );

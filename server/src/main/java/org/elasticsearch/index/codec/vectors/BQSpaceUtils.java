@@ -57,4 +57,33 @@ public class BQSpaceUtils {
             quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
         }
     }
+
+    /**
+     * Same as {@link #transposeHalfByte(byte[], byte[])} but the input vector is provided as
+     * an array of integers.
+     *
+     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
+     * @param quantQueryByte the byte array to store the transposed query vector
+     * */
+    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        for (int i = 0; i < q.length;) {
+            assert q[i] >= 0 && q[i] <= 15;
+            int lowerByte = 0;
+            int lowerMiddleByte = 0;
+            int upperMiddleByte = 0;
+            int upperByte = 0;
+            for (int j = 7; j >= 0 && i < q.length; j--) {
+                lowerByte |= (q[i] & 1) << j;
+                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+                upperByte |= ((q[i] >> 3) & 1) << j;
+                i++;
+            }
+            int index = ((i + 7) / 8) - 1;
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+        }
+    }
 }

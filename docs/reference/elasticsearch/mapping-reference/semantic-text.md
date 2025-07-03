@@ -112,31 +112,10 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 `inference_id` will be used at both index and query time.
 
 `index_options`
-:   (Optional, string) Specifies the index options to override default values
+:   (Optional, object) Specifies the index options to override default values
 for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
-
-An example of how to set index_options for a `semantic_text` field:
-
-```console
-PUT my-index-000004
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text",
-        "inference_id": "my-text-embedding-endpoint",
-        "index_options": {
-          "dense_vector": {
-            "type": "int4_flat"
-          }
-        }
-      }
-    }
-  }
-}
-```
 
 `chunking_settings`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -165,7 +144,7 @@ To completely disable chunking, use the `none` chunking strategy.
     or `1`. Required for `sentence` type chunking settings
 
 ::::{warning}
-If the input exceeds the maximum token limit of the underlying model, some
+When using the `none` chunking strategy, if the input exceeds the maximum token limit of the underlying model, some
 services (such as OpenAI) may return an
 error. In contrast, the `elastic` and `elasticsearch` services will
 automatically truncate the input to fit within the
@@ -252,7 +231,7 @@ Refer
 to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
 to learn more about semantic search using `semantic_text`.
 
-## Extracting Relevant Fragments from Semantic Text [semantic-text-highlighting]
+## Extracting relevant fragments from semantic text [semantic-text-highlighting]
 
 You can extract the most relevant fragments from a semantic text field by using
 the [highlight parameter](/reference/elasticsearch/rest-apis/highlighting.md) in
@@ -315,18 +294,37 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
-In case you want to customize data indexing, use the [
-`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
-or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with
-an [{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
-generate the
-embeddings. [This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
-walks you through the process. In these cases - when you use `sparse_vector` or
-`dense_vector` field types instead of the `semantic_text` field type to
-customize indexing - using the [
-`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
-is not supported for querying the field data.
+If you want to override those defaults and customize the embeddings that
+`semantic_text` indexes, you can do so by modifying [parameters](#semantic-text-params):
+
+- Use `index_options` to specify alternate index options such as specific
+  `dense_vector` quantization methods
+- Use `chunking_settings` to override the chunking strategy associated with the
+  {{infer}} endpoint, or completely disable chunking using the `none` type
+
+Here is an example of how to set these parameters for a text embedding endpoint:
+
+```console
+PUT my-index-000004
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": "my-text-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "type": "int4_flat"
+          }
+        },
+        "chunking_settings": {
+          "type": "none"
+        }
+      }
+    }
+  }
+}
+```
 
 ## Updates to `semantic_text` fields [update-script]
 
@@ -399,6 +397,6 @@ PUT test-index
 * `semantic_text` fields are not currently supported as elements
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
-  of [Dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
+  of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
 * `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
   Cross-Cluster Replication (CCR).

@@ -22,8 +22,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -95,9 +97,10 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
         AbstractSimpleTransportTestCase.connectToNode(transports.get(""), transports.get("cluster_a").getLocalNode());
         AbstractSimpleTransportTestCase.connectToNode(transports.get(""), transports.get("cluster_b").getLocalNode());
-        localCluster = newEnrichPolicyResolver(LOCAL_CLUSTER_GROUP_KEY);
-        clusterA = newEnrichPolicyResolver("cluster_a");
-        clusterB = newEnrichPolicyResolver("cluster_b");
+        final var projectId = randomProjectIdOrDefault();
+        localCluster = newEnrichPolicyResolver(projectId, LOCAL_CLUSTER_GROUP_KEY);
+        clusterA = newEnrichPolicyResolver(projectId, "cluster_a");
+        clusterB = newEnrichPolicyResolver(projectId, "cluster_b");
 
         // hosts policies are the same across clusters
         var hostsPolicy = new EnrichPolicy("match", null, List.of(), "ip", List.of("region", "cost"));
@@ -401,8 +404,8 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
     }
 
-    TestEnrichPolicyResolver newEnrichPolicyResolver(String cluster) {
-        return new TestEnrichPolicyResolver(cluster, new HashMap<>(), new HashMap<>(), new HashMap<>());
+    TestEnrichPolicyResolver newEnrichPolicyResolver(ProjectId projectId, String cluster) {
+        return new TestEnrichPolicyResolver(projectId, cluster, new HashMap<>(), new HashMap<>(), new HashMap<>());
     }
 
     class TestEnrichPolicyResolver extends EnrichPolicyResolver {
@@ -412,15 +415,17 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         final Map<String, Map<String, String>> mappings;
 
         TestEnrichPolicyResolver(
+            ProjectId projectId,
             String cluster,
             Map<String, EnrichPolicy> policies,
             Map<String, String> aliases,
             Map<String, Map<String, String>> mappings
         ) {
             super(
-                mockClusterService(policies),
+                mockClusterService(projectId, policies),
                 transports.get(cluster),
-                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings))
+                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings)),
+                TestProjectResolvers.singleProject(projectId)
             );
             this.policies = policies;
             this.cluster = cluster;
@@ -457,11 +462,11 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             listener.onResponse(transports.get("").getConnection(transports.get(remoteCluster).getLocalNode()));
         }
 
-        static ClusterService mockClusterService(Map<String, EnrichPolicy> policies) {
+        static ClusterService mockClusterService(ProjectId projectId, Map<String, EnrichPolicy> policies) {
             ClusterService clusterService = mock(ClusterService.class);
             EnrichMetadata enrichMetadata = new EnrichMetadata(policies);
             ClusterState state = ClusterState.builder(new ClusterName("test"))
-                .metadata(Metadata.builder().projectCustoms(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).customs(Map.of(EnrichMetadata.TYPE, enrichMetadata)))
                 .build();
             when(clusterService.state()).thenReturn(state);
             return clusterService;

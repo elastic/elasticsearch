@@ -19,9 +19,12 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -66,27 +69,25 @@ public class ILMHistoryStore implements Closeable {
     );
 
     private volatile boolean ilmHistoryEnabled = true;
+    private final ProjectResolver projectResolver;
     private final BulkProcessor2 processor;
 
-    public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this(client, clusterService, threadPool, ActionListener.noop(), TimeValue.timeValueSeconds(5));
+    public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool, ProjectResolver projectResolver) {
+        this(client, clusterService, threadPool, projectResolver, ActionListener.noop(), TimeValue.timeValueSeconds(5));
     }
 
     /**
-     *  For unit testing, allows a more frequent flushInterval
-     * @param client
-     * @param clusterService
-     * @param threadPool
-     * @param listener
-     * @param flushInterval
+     * For unit testing, allows a more frequent flushInterval
      */
     ILMHistoryStore(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
+        ProjectResolver projectResolver,
         ActionListener<BulkResponse> listener,
         TimeValue flushInterval
     ) {
+        this.projectResolver = projectResolver;
         this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
 
@@ -95,7 +96,8 @@ public class ILMHistoryStore implements Closeable {
             new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
-                    if (clusterService.state().getMetadata().getProject().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
+                    final var project = projectResolver.getProjectMetadata(clusterService.state());
+                    if (project.templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException("no ILM history template");
                         logger.warn(
                             () -> format(
@@ -169,7 +171,8 @@ public class ILMHistoryStore implements Closeable {
     /**
      * Attempts to asynchronously index an ILM history entry
      */
-    public void putAsync(ILMHistoryItem item) {
+    @NotMultiProjectCapable(description = "See comment inside method")
+    public void putAsync(ProjectId projectId, ILMHistoryItem item) {
         if (ilmHistoryEnabled == false) {
             logger.trace(
                 "not recording ILM history item because [{}] is [false]: [{}]",
@@ -182,7 +185,10 @@ public class ILMHistoryStore implements Closeable {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
             IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
-            processor.add(request);
+            // Even though this looks project-aware, it's not really. The bulk processor flushes the history items at "arbitrary" moments,
+            // meaning it will send bulk requests with history items of multiple projects, but the _bulk API will index everything into
+            // the project of the last history item that came in.
+            projectResolver.executeOnProject(projectId, () -> processor.add(request));
         } catch (Exception e) {
             logger.error(() -> format("failed to send ILM history item to index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), e);
         }

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.elastic.rerank.ElasticInferenceServiceRerankRequest;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 

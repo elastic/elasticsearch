@@ -14,6 +14,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
  * comes back and no exception.
  */
 @SuppressFileSystems("ExtrasFS") // don't try to parse extraN
+@WithoutEntitlements // ES-12084
 public class TikaDocTests extends ESTestCase {
 
     /** some test files from tika test suite, zipped up */

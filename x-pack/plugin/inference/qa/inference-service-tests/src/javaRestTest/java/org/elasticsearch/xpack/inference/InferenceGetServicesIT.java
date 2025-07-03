@@ -151,7 +151,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "completion_test_service",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -169,7 +170,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "amazon_sagemaker",
                     "googlevertexai",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.lucene;
+package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,9 +18,9 @@ import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperator.Status> {
-    public static ValuesSourceReaderOperator.Status simple() {
-        return new ValuesSourceReaderOperator.Status(Map.of("ReaderType", 3), 1022323, 123, 200, 111, 222, 1000);
+public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializingTestCase<ValuesSourceReaderOperatorStatus> {
+    public static ValuesSourceReaderOperatorStatus simple() {
+        return new ValuesSourceReaderOperatorStatus(Map.of("ReaderType", 3), 1022323, 123, 200, 111, 222, 1000);
     }
 
     public static String simpleToJson() {
@@ -44,13 +44,13 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     }
 
     @Override
-    protected Writeable.Reader<ValuesSourceReaderOperator.Status> instanceReader() {
-        return ValuesSourceReaderOperator.Status::readFrom;
+    protected Writeable.Reader<ValuesSourceReaderOperatorStatus> instanceReader() {
+        return ValuesSourceReaderOperatorStatus::readFrom;
     }
 
     @Override
-    public ValuesSourceReaderOperator.Status createTestInstance() {
-        return new ValuesSourceReaderOperator.Status(
+    public ValuesSourceReaderOperatorStatus createTestInstance() {
+        return new ValuesSourceReaderOperatorStatus(
             randomReadersBuilt(),
             randomNonNegativeLong(),
             randomNonNegativeInt(),
@@ -71,7 +71,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
     }
 
     @Override
-    protected ValuesSourceReaderOperator.Status mutateInstance(ValuesSourceReaderOperator.Status instance) throws IOException {
+    protected ValuesSourceReaderOperatorStatus mutateInstance(ValuesSourceReaderOperatorStatus instance) throws IOException {
         Map<String, Integer> readersBuilt = instance.readersBuilt();
         long processNanos = instance.processNanos();
         int pagesReceived = instance.pagesReceived();
@@ -89,7 +89,7 @@ public class ValuesSourceReaderOperatorStatusTests extends AbstractWireSerializi
             case 6 -> valuesLoaded = randomValueOtherThan(valuesLoaded, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new ValuesSourceReaderOperator.Status(
+        return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
             processNanos,
             pagesReceived,

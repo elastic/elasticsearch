@@ -41,7 +41,8 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ShardRefCounted;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -411,7 +412,7 @@ public class ValuesSourceReaderBenchmark {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
         boolean foundStoredFieldLoader = false;
-        ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
             if (e.getKey().indexOf("stored_fields") >= 0) {
                 foundStoredFieldLoader = true;

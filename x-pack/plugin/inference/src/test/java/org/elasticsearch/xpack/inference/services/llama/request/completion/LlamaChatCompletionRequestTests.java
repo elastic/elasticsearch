@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -37,7 +38,7 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("n"), is(1));
         assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertNotNull(httpPost.getHeaders("Authorization"));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
     }
 
     public void testCreateRequest_NoStreaming_NoAuthorization() throws IOException {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +24,18 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
             EmptyTaskSettings.INSTANCE,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static LlamaEmbeddingsModel createEmbeddingsModelNoAuth(String modelId, String url) {
+        return new LlamaEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "llama",
+            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, null),
+            EmptyTaskSettings.INSTANCE,
+            null,
+            EmptySecretSettings.INSTANCE
         );
     }
 }

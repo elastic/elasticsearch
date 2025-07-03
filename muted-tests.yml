@@ -602,6 +602,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
   issue: https://github.com/elastic/elasticsearch/issues/130507
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetSystemTrustStoreWithNoSystemProperties
+  issue: https://github.com/elastic/elasticsearch/issues/130517
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetNonPKCS11TrustStoreWithPasswordSet
+  issue: https://github.com/elastic/elasticsearch/issues/130519
 
 # Examples:
 #

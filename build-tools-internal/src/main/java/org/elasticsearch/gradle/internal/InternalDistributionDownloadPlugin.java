@@ -179,7 +179,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         Architecture architecture = distribution.getArchitecture();
         String projectName = "";
 
-        final String archString = platform == ElasticsearchDistribution.Platform.WINDOWS ? "" : "-" + architecture.toString().toLowerCase();
+        final String archString = calculateArchString(distribution);
 
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
@@ -203,6 +203,20 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             return projectName + "wolfi-docker" + archString + "-export";
         }
         return projectName + architecture.classifier + "-" + distribution.getType().getName();
+    }
+
+    private static String calculateArchString(ElasticsearchDistribution distribution) {
+        Architecture architecture = distribution.getArchitecture();
+        ElasticsearchDistribution.Platform platform = distribution.getPlatform();
+        Version version = Version.fromString(distribution.getVersion());
+
+        if (version.onOrAfter("9.2.0")) {
+            return platform == ElasticsearchDistribution.Platform.WINDOWS ? "" : "-" + architecture.toString().toLowerCase();
+        } else {
+            return platform == ElasticsearchDistribution.Platform.WINDOWS || architecture == Architecture.AMD64
+                ? ""
+                : "-" + architecture.toString().toLowerCase();
+        }
     }
 
     public static class ProjectBasedDistributionDependency implements DistributionDependency {

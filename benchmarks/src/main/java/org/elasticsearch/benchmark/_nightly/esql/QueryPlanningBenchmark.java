@@ -116,18 +116,27 @@ public class QueryPlanningBenchmark {
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()));
     }
 
-    private void plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query, ActionListener<LogicalPlan> listener) {
+    private void plan(
+        EsqlParser parser,
+        Analyzer analyzer,
+        LogicalPlanOptimizer optimizer,
+        String query,
+        ActionListener<LogicalPlan> listener
+    ) {
         var parsed = parser.createStatement(query, new QueryParams(), telemetry);
         analyzer.analyze(parsed, listener.map(optimizer::optimize));
     }
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10", ActionListener.wrap(
-            p -> blackhole.consume(p),
-            e -> {
+        plan(
+            defaultParser,
+            manyFieldsAnalyzer,
+            defaultOptimizer,
+            "FROM test | LIMIT 10",
+            ActionListener.wrap(p -> blackhole.consume(p), e -> {
                 throw new RuntimeException("Unexpected exception", e);
-            }
-        ));
+            })
+        );
     }
 }

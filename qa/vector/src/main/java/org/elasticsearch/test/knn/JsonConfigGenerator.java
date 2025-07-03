@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.knn;
 
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;

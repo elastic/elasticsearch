@@ -256,8 +256,7 @@ public class KnnIndexTester {
                 "visited",
                 "indexBits",
                 "queryBits",
-                "oversampling"
-            };
+                "oversampling" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -288,8 +287,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", result.averageVisited),
                     String.format(Locale.ROOT, "%d", result.indexBits),
                     String.format(Locale.ROOT, "%d", result.queryBits),
-                    String.format(Locale.ROOT, "%.2f", result.oversampling)
-                };
+                    String.format(Locale.ROOT, "%.2f", result.oversampling) };
 
             }
 

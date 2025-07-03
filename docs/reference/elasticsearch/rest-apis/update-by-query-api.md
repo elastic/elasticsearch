@@ -21,7 +21,7 @@ You can learn how to:
 - Use slicing to parallelize updates
 - Apply updates after mapping changes
 
-## Basic usage
+## Run basic updates
 
 The simplest usage of `_update_by_query` just performs an update on every document in the data stream or index without changing the source. This is useful to [pick up a new property](#pick-up-a-new-property) or some other online mapping change. 
 

@@ -432,15 +432,13 @@ public class MultiClustersIT extends ESRestTestCase {
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
-        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false);
-        if (isSupported == false) {
-            // we require that the admin client supports the like_on_index_fields capability
-            // otherwise we will get an error when trying to toggle the setting
-            // the remote client does not have to support it
-            logger.info("-->  skipping testLikeIndexLegacySettingNoResults, due to missing capability");
-            return;
-        }
-        try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
+        // the feature is completely supported if both local and remote clusters support it
+        assumeTrue("not supported", clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
             // test code with the setting changed
             boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("""
@@ -457,14 +455,10 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     public void testLikeIndexLegacySettingResults() throws Exception {
-        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false);
-        if (isSupported == false) {
-            // we require that the admin client supports the like_on_index_fields capability
-            // otherwise we will get an error when trying to toggle the setting
-            // the remote client does not have to support it
-            logger.info("-->  skipping testLikeIndexLegacySettingNoResults, due to missing capability");
-            return;
-        }
+        // we require that the admin client supports the like_on_index_fields capability
+        // otherwise we will get an error when trying to toggle the setting
+        // the remote client does not have to support it
+        assumeTrue("not supported", clusterHasCapability("POST", "/_query", List.of(), List.of("like_on_index_fields")).orElse(false));
         try (ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true)) {
             boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("""

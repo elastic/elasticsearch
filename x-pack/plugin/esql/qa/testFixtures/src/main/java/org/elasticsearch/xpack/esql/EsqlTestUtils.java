@@ -430,8 +430,7 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-            false,
-            true // stringLikeOnIndex, default to true for tests
+            false
         );
     }
 

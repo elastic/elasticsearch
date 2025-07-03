@@ -100,6 +100,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // The symbolic constant for this one is in SecurityActionMapper, so not
                 // accessible from X-Pack core
                 "cluster:admin/analyze",
+                "cluster:admin/script/put",
+                "cluster:admin/script/get",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
@@ -265,6 +267,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Observability, etc.
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_INDEX_ALIAS).privileges("all").build(),
+                // "Cases as data" analytics indexes and aliases
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_INDEXES).privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_ALIASES).privileges("all").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -468,6 +473,9 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "delete",
+
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
                         "manage",
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name()
@@ -482,6 +490,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name(),
                         TransportAutoPutMappingAction.TYPE.name()

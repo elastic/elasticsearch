@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -39,9 +38,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFi
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompletion;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
@@ -82,7 +82,7 @@ import java.util.List;
  *     <li>The {@link LogicalPlanOptimizer#substitutions()} phase rewrites things to expand out shorthand in the syntax.  For example,
  *     a nested expression embedded in a stats gets replaced with an eval followed by a stats, followed by another eval.  This phase
  *     also applies surrogates, such as replacing an average with a sum divided by a count.</li>
- *     <li>{@link LogicalPlanOptimizer#operators()} (NB: The word "operator" is extremely overloaded and referrers to many different
+ *     <li>{@link LogicalPlanOptimizer#operators(boolean)} (NB: The word "operator" is extremely overloaded and referrers to many different
  *     things.) transform the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse
  *     time), combining expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever
  *     possible.  These rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off
@@ -90,14 +90,14 @@ import java.util.List;
  *     <li>{@link LogicalPlanOptimizer#cleanup()}  Which can replace sorts+limit with a TopN</li>
  * </ul>
  *
- * <p>Note that the {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
+ * <p>Note that the {@link LogicalPlanOptimizer#operators(boolean)} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
  * {@link LocalLogicalPlanOptimizer} layer.</p>
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
-        operators(),
+        operators(false),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
@@ -160,14 +160,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
     }
 
-    protected static Batch<LogicalPlan> operators() {
+    protected static Batch<LogicalPlan> operators(boolean local) {
         return new Batch<>(
             "Operator Optimization",
-            new CombineProjections(),
+            new CombineProjections(local),
             new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
-            new ConvertStringToByteRef(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
@@ -194,10 +193,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
             new PushDownAndCombineSample(),
-            new PushDownCompletion(),
+            new PushDownInferencePlan(),
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),
+            new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),

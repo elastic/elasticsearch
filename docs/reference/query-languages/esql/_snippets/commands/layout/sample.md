@@ -1,7 +1,8 @@
 ## `SAMPLE` [esql-sample]
 
 ```yaml {applies_to}
-stack: preview 9.1
+serverless: preview
+stack: preview 9.1.0
 ```
 
 The `SAMPLE` command samples a fraction of the table rows.

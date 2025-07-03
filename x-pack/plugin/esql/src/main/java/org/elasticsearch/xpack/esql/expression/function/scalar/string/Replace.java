@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -199,7 +200,7 @@ public class Replace extends EsqlScalarFunction {
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
             try {
-                regexPattern = Pattern.compile(((BytesRef) regex.fold(toEvaluator.foldCtx())).utf8ToString());
+                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
             } catch (PatternSyntaxException pse) {
                 // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
                 // this should generate a header warning and return null (as do the rest of this functionality in evaluators),

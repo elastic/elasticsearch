@@ -10,9 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -69,7 +72,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new SetSingleNodeAllocateStep(key, nextKey, instance.getClient());
+        return new SetSingleNodeAllocateStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
@@ -221,15 +224,17 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices).transientSettings(clusterSettings))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(project).transientSettings(clusterSettings))
             .nodes(nodes)
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
+        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, state, null));
 
         Mockito.verifyNoMoreInteractions(client);
     }
@@ -302,11 +307,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(nodes)
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
         Exception exception = new RuntimeException();
@@ -326,9 +333,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
@@ -368,18 +377,17 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(nodes)
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> performActionAndWait(step, indexMetadata, clusterState, null)
-        );
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertEquals(indexMetadata.getIndex(), e.getIndex());
 
         Mockito.verifyNoMoreInteractions(client);
@@ -630,11 +638,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexRoutingTable indexRoutingTable
     ) throws Exception {
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(nodes)
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
@@ -653,9 +663,11 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
@@ -670,15 +682,17 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     private void assertNoValidNode(IndexMetadata indexMetadata, Index index, DiscoveryNodes nodes, IndexRoutingTable indexRoutingTable) {
 
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(nodes)
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
+        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, state, null));
 
         Mockito.verifyNoMoreInteractions(client);
     }

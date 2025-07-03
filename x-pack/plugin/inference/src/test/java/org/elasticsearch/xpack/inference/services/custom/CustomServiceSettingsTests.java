@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.NoopResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
@@ -74,8 +74,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             default -> new NoopResponseParser();
         };
 
-        var errorParser = new ErrorResponseParser("$.error.message", randomAlphaOfLength(5));
-
         RateLimitSettings rateLimitSettings = new RateLimitSettings(randomLongBetween(1, 1000000));
 
         return new CustomServiceSettings(
@@ -90,8 +88,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             queryParameters,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings,
-            errorParser
+            rateLimitSettings
         );
     }
 
@@ -133,11 +130,11 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                            ),
-                            CustomServiceSettings.ERROR_PARSER,
-                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                            )
                         )
-                    )
+                    ),
+                    CustomServiceSettings.BATCH_SIZE,
+                    11
                 )
             ),
             ConfigurationParseContext.REQUEST,
@@ -161,7 +158,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     requestContentString,
                     responseParser,
                     new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message", "inference_id")
+                    11,
+                    InputTypeTranslator.EMPTY_TRANSLATOR
                 )
             )
         );
@@ -186,9 +184,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                            ),
-                            CustomServiceSettings.ERROR_PARSER,
-                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                            )
                         )
                     )
                 )
@@ -208,8 +204,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message", "inference_id")
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -250,9 +245,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                             CustomServiceSettings.JSON_PARSER,
                             new HashMap<>(
                                 Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                            ),
-                            CustomServiceSettings.ERROR_PARSER,
-                            new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                            )
                         )
                     )
                 )
@@ -277,8 +270,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000),
-                    new ErrorResponseParser("$.error.message", "inference_id")
+                    new RateLimitSettings(10_000)
                 )
             )
         );
@@ -311,9 +303,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
                     )
                 )
             )
@@ -360,9 +350,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
                     )
                 )
             )
@@ -400,9 +388,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
                     )
                 )
             )
@@ -434,9 +420,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
                     )
                 )
             )
@@ -452,8 +436,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             is(
                 "Validation Failed: 1: [service_settings] does not contain the required setting [response];"
                     + "2: [service_settings.response] does not contain the required setting [json_parser];"
-                    + "3: [service_settings.response] does not contain the required setting [error_parser];"
-                    + "4: Encountered a null input map while parsing field [path];"
             )
         );
     }
@@ -481,9 +463,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                                 "key",
                                 "value"
                             )
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message"))
+                        )
                     )
                 )
             )
@@ -522,8 +502,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
                         ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message")),
                         "key",
                         "value"
                     )
@@ -540,46 +518,6 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             exception.getMessage(),
             is(
                 "Configuration contains unknown settings [{key=value}] while parsing field [response]"
-                    + " for settings [custom_service_settings]"
-            )
-        );
-    }
-
-    public void testFromMap_ReturnsError_IfErrorParserMapIsNotEmptyAfterParsing() {
-        String url = "http://www.abc.com";
-        String requestContentString = "request body";
-
-        var mapSettings = new HashMap<String, Object>(
-            Map.of(
-                CustomServiceSettings.URL,
-                url,
-                CustomServiceSettings.HEADERS,
-                new HashMap<>(Map.of("key", "value")),
-                CustomServiceSettings.REQUEST,
-                requestContentString,
-                CustomServiceSettings.RESPONSE,
-                new HashMap<>(
-                    Map.of(
-                        CustomServiceSettings.JSON_PARSER,
-                        new HashMap<>(
-                            Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message", "key", "value"))
-                    )
-                )
-            )
-        );
-
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> CustomServiceSettings.fromMap(mapSettings, ConfigurationParseContext.REQUEST, TaskType.TEXT_EMBEDDING, "inference_id")
-        );
-
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Configuration contains unknown settings [{key=value}] while parsing field [error_parser]"
                     + " for settings [custom_service_settings]"
             )
         );
@@ -603,9 +541,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                         CustomServiceSettings.JSON_PARSER,
                         new HashMap<>(
                             Map.of(TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.result.embeddings[*].embedding")
-                        ),
-                        CustomServiceSettings.ERROR_PARSER,
-                        new HashMap<>(Map.of(ErrorResponseParser.MESSAGE_PATH, "$.error.message", "key", "value"))
+                        )
                     )
                 )
             )
@@ -627,8 +563,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             null,
             "string",
             new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
-            null,
-            new ErrorResponseParser("$.error.message", "inference_id")
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -645,14 +580,105 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "response": {
                     "json_parser": {
                         "text_embeddings": "$.result.embeddings[*].embedding"
-                    },
-                    "error_parser": {
-                        "path": "$.error.message"
                     }
+                },
+                "input_type": {
+                    "translation": {},
+                    "default": ""
                 },
                 "rate_limit": {
                     "requests_per_minute": 10000
-                }
+                },
+                "batch_size": 10
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testXContent_WithInputTypeTranslationValues() throws IOException {
+        var entity = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            "http://www.abc.com",
+            Map.of("key", "value"),
+            null,
+            "string",
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
+            null,
+            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "http://www.abc.com",
+                "headers": {
+                    "key": "value"
+                },
+                "request": "string",
+                "response": {
+                    "json_parser": {
+                        "text_embeddings": "$.result.embeddings[*].embedding"
+                    }
+                },
+                "input_type": {
+                    "translation": {
+                        "ingest": "do_ingest",
+                        "search": "do_search"
+                    },
+                    "default": "a_default"
+                },
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "batch_size": 10
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testXContent_BatchSize11() throws IOException {
+        var entity = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            "http://www.abc.com",
+            Map.of("key", "value"),
+            null,
+            "string",
+            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding"),
+            null,
+            11,
+            InputTypeTranslator.EMPTY_TRANSLATOR
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "url": "http://www.abc.com",
+                "headers": {
+                    "key": "value"
+                },
+                "request": "string",
+                "response": {
+                    "json_parser": {
+                        "text_embeddings": "$.result.embeddings[*].embedding"
+                    }
+                },
+                "input_type": {
+                    "translation": {},
+                    "default": ""
+                },
+                "rate_limit": {
+                    "requests_per_minute": 10000
+                },
+                "batch_size": 11
             }
             """);
 

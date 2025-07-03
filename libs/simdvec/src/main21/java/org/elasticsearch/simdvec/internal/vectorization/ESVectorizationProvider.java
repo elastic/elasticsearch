@@ -13,6 +13,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
 import java.io.IOException;
@@ -37,6 +38,9 @@ public abstract class ESVectorizationProvider {
 
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException;
+
+    /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */
+    public abstract ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException;
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {

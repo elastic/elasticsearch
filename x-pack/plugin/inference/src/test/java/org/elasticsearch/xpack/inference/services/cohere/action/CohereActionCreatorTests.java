@@ -94,7 +94,7 @@ public class CohereActionCreatorTests extends ESTestCase {
                     },
                     "meta": {
                         "api_version": {
-                            "version": "1"
+                            "version": "2"
                         },
                         "billed_units": {
                             "input_tokens": 1
@@ -209,67 +209,7 @@ public class CohereActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
-        }
-    }
-
-    public void testCreate_CohereCompletionModel_WithoutModelSpecified() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var sender = createSender(senderFactory)) {
-            sender.start();
-
-            String responseJson = """
-                {
-                     "response_id": "some id",
-                     "text": "result",
-                     "generation_id": "some id",
-                     "chat_history": [
-                         {
-                             "role": "USER",
-                             "message": "input"
-                         },
-                         {
-                             "role": "CHATBOT",
-                             "message": "result"
-                         }
-                     ],
-                     "finish_reason": "COMPLETE",
-                     "meta": {
-                         "api_version": {
-                             "version": "1"
-                         },
-                         "billed_units": {
-                             "input_tokens": 4,
-                             "output_tokens": 191
-                         },
-                         "tokens": {
-                             "input_tokens": 70,
-                             "output_tokens": 191
-                         }
-                     }
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", null);
-            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, Map.of());
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc")));
+            assertThat(requestMap, is(Map.of("message", "abc", "model", "model", "stream", false)));
         }
     }
 }

@@ -28,6 +28,7 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
     static final byte MAX_INT7_VALUE = 127;
 
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
+    static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
     static final int[] VECTOR_DIMS = { 1, 4, 6, 8, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 1023, 1024, 1025 };
 
@@ -35,8 +36,11 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
 
     static Arena arena;
 
+    final double delta;
+
     public JDKVectorLibraryTests(int size) {
         this.size = size;
+        this.delta = 1e-5 * size; // scale the delta with the size
     }
 
     @BeforeClass
@@ -103,11 +107,24 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
     public void testIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
-        var e = expectThrows(IAE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(e.getMessage(), containsString("dimensions differ"));
 
-        e = expectThrows(IAE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
-        assertThat(e.getMessage(), containsString("greater than vector dimensions"));
+        var e1 = expectThrows(IAE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        assertThat(e1.getMessage(), containsString("dimensions differ"));
+
+        var e2 = expectThrows(IOOBE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        assertThat(e2.getMessage(), containsString("out of bounds for length"));
+
+        var e3 = expectThrows(IOOBE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
+        assertThat(e3.getMessage(), containsString("out of bounds for length"));
+
+        var e4 = expectThrows(IAE, () -> squareDistance7u(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        assertThat(e4.getMessage(), containsString("dimensions differ"));
+
+        var e5 = expectThrows(IOOBE, () -> squareDistance7u(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        assertThat(e5.getMessage(), containsString("out of bounds for length"));
+
+        var e6 = expectThrows(IOOBE, () -> squareDistance7u(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
+        assertThat(e6.getMessage(), containsString("out of bounds for length"));
     }
 
     int dotProduct7u(MemorySegment a, MemorySegment b, int length) {

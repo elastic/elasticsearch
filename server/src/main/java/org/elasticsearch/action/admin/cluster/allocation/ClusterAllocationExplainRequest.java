@@ -31,34 +31,29 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
         PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
-        PARSER.declareField(
-            ClusterAllocationExplainRequest::setShard,
-            (xContentParser) -> {
-                if (xContentParser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    if (xContentParser.numberType() == XContentParser.NumberType.INT) {
-                        return xContentParser.intValue();
-                    } else {
-                        throw new IllegalArgumentException("Expected an integer value for [shard]");
-                    }
-                } else if (xContentParser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    String text = xContentParser.text();
-                    try {
-                        // Only accept if the string is a valid integer representation
-                        if (text.matches("[-+]?\\d+")) {
-                            return Integer.parseInt(text);
-                        } else {
-                            throw new IllegalArgumentException("String value for [shard] must be an integer, but was: " + text);
-                        }
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("Invalid integer value for [shard]: " + text, e);
-                    }
+        PARSER.declareField(ClusterAllocationExplainRequest::setShard, (xContentParser) -> {
+            if (xContentParser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                if (xContentParser.numberType() == XContentParser.NumberType.INT) {
+                    return xContentParser.intValue();
                 } else {
-                    throw new IllegalArgumentException("Expected an integer for [shard]");
+                    throw new IllegalArgumentException("Expected an integer value for [shard]");
                 }
-            },
-            new ParseField("shard"),
-            ObjectParser.ValueType.INT
-        );
+            } else if (xContentParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                String text = xContentParser.text();
+                try {
+                    // Only accept if the string is a valid integer representation
+                    if (text.matches("[-+]?\\d+")) {
+                        return Integer.parseInt(text);
+                    } else {
+                        throw new IllegalArgumentException("String value for [shard] must be an integer, but was: " + text);
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid integer value for [shard]: " + text, e);
+                }
+            } else {
+                throw new IllegalArgumentException("Expected an integer for [shard]");
+            }
+        }, new ParseField("shard"), ObjectParser.ValueType.INT);
         PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
         PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField("current_node"));
     }

@@ -12,14 +12,12 @@ This page provides examples of how to use the [Update by query API](https://www.
 
 You can learn how to:
 
-- [Run a basic `_update_by_query` request](#basic-usage)
-- Use custom batch sizes or limits
-- Modify document source fields with a script
-- Use ingest pipelines
-- Monitor or cancel long-running update operations
-- Throttle update operations
-- Use slicing to parallelize updates
-- Apply updates after mapping changes
+- [Run basic update-by-query operations](#run-basic-updates)
+- [Modify documents using scripts or ingest pipelines](#update-the-document)
+- [Throttle update operations](#change-throttling-for-a-request)
+- [Parallelize updates using manual slicing](#slice-manually)
+- [Automate slicing for better performance](#use-automatic-slicing)
+- [Apply mapping changes to existing documents](#pick-up-a-new-property)
 
 ## Run basic updates
 

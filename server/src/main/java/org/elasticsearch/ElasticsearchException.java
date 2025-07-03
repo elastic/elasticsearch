@@ -132,7 +132,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
-        maybeAddErrorHeaders();
     }
 
     /**
@@ -147,7 +146,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
-        maybeAddErrorHeaders();
     }
 
     /**
@@ -164,7 +162,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
-        maybeAddErrorHeaders();
     }
 
     @SuppressWarnings("this-escape")
@@ -253,6 +250,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a set of all body header keys on this exception
      */
     public Set<String> getBodyHeaderKeys() {
+        maybeAddErrorHeaders();
         return bodyHeaders.keySet();
     }
 
@@ -261,10 +259,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * given key exists.
      */
     public List<String> getBodyHeader(String key) {
+        maybeAddErrorHeaders();
         return bodyHeaders.get(key);
     }
 
     protected Map<String, List<String>> getBodyHeaders() {
+        maybeAddErrorHeaders();
         return bodyHeaders;
     }
 
@@ -288,6 +288,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a set of all body header keys on this exception
      */
     public Set<String> getHttpHeaderKeys() {
+        maybeAddErrorHeaders();
         return httpHeaders.keySet();
     }
 
@@ -296,10 +297,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * given key exists.
      */
     public List<String> getHttpHeader(String key) {
+        maybeAddErrorHeaders();
         return httpHeaders.get(key);
     }
 
     protected Map<String, List<String>> getHttpHeaders() {
+        maybeAddErrorHeaders();
         return httpHeaders;
     }
 

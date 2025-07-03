@@ -1195,7 +1195,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION(Build.current().isSnapshot()),
+        KNN_FUNCTION_V2(Build.current().isSnapshot()),
 
         LIKE_WITH_LIST_OF_PATTERNS,
 
@@ -1216,6 +1216,16 @@ public class EsqlCapabilities {
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
+
+        /**
+         * FUSE command
+         */
+        FUSE(Build.current().isSnapshot()),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
          * Forbid usage of brackets in unquoted index and enrich policy names

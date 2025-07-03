@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.license.License;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -50,9 +50,10 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
         return StGeotile.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
-    private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid(precision, bbox);
-        return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+    private static Long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
+        long gridId = bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+        return gridId < 0 ? null : gridId;
     }
 
     @Override
@@ -64,7 +65,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
     public void testInvalidPrecision() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(-1, StGeotileTests::valueOf));
         assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of -1. Must be between 0 and 29."));
-        ex = expectThrows(IllegalArgumentException.class, () -> process(GeoTileUtils.MAX_ZOOM + 1, StGeotileTests::valueOf));
+        ex = expectThrows(IllegalArgumentException.class, () -> process(MAX_ZOOM + 1, StGeotileTests::valueOf));
         assertThat(ex.getMessage(), containsString("Invalid geotile_grid precision of 30. Must be between 0 and 29."));
     }
 }

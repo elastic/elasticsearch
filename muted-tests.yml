@@ -611,6 +611,9 @@ tests:
 - class: org.elasticsearch.reindex.ReindexRestClientSslTests
   method: testClientFailsWithUntrustedCertificate
   issue: https://github.com/elastic/elasticsearch/issues/130585
+- class: org.elasticsearch.reindex.ReindexRestClientSslTests
+  method: testClientSucceedsWithCertificateAuthorities
+  issue: https://github.com/elastic/elasticsearch/issues/130586
 
 # Examples:
 #

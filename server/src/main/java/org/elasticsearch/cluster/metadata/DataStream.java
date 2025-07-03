@@ -421,7 +421,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param projectMetadata
      * @param indicesService  Used in the logic that merges all mappings together into one mapping
      * @return A JSON CompressedXContent representation of the effective mappings of this data stream
-     * @throws Exception
+     * @throws IOException
      */
     public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws IOException {
         return getEffectiveMappings(projectMetadata, getMatchingIndexTemplate(projectMetadata), mappings, getWriteIndex(), indicesService);
@@ -440,7 +440,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *                   from this writeIndex.
      * @param indicesService
      * @return A JSON CompressedXContent representation of the effective mappings for the composableTemplate plus mappingsOverrides
-     * @throws Exception
+     * @throws IOException
      */
     @SuppressWarnings("unchecked")
     public static CompressedXContent getEffectiveMappings(

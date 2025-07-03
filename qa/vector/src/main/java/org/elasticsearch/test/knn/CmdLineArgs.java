@@ -49,7 +49,9 @@ record CmdLineArgs(
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination
+    boolean earlyTermination,
+    boolean useNewFlatVectorsFormat,
+    int quantizeQueryBits
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -73,6 +75,8 @@ record CmdLineArgs(
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
+    static final ParseField USE_NEW_FLAT_VECTORS_FORMAT_FIELD = new ParseField("use_new_flat_vectors_format");
+    static final ParseField QUANTIZE_QUERY_BITS_FIELD = new ParseField("quantize_query_bits");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -103,6 +107,8 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
         PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
+        PARSER.declareBoolean(Builder::setUseNewFlatVectorsFormat, USE_NEW_FLAT_VECTORS_FORMAT_FIELD);
+        PARSER.declareInt(Builder::setQuantizeQueryBits, QUANTIZE_QUERY_BITS_FIELD);
     }
 
     @Override
@@ -132,6 +138,8 @@ record CmdLineArgs(
         builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
         builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
         builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+        builder.field(USE_NEW_FLAT_VECTORS_FORMAT_FIELD.getPreferredName(), useNewFlatVectorsFormat);
+        builder.field(QUANTIZE_QUERY_BITS_FIELD.getPreferredName(), quantizeQueryBits);
         return builder.endObject();
     }
 
@@ -162,6 +170,8 @@ record CmdLineArgs(
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
         private boolean earlyTermination;
+        private boolean useNewFlatVectorsFormat = false;
+        private int quantizeQueryBits = 8;
 
         public Builder setDocVectors(String docVectors) {
             this.docVectors = PathUtils.get(docVectors);
@@ -268,6 +278,16 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setUseNewFlatVectorsFormat(boolean useNewFlatVectorsFormat) {
+            this.useNewFlatVectorsFormat = useNewFlatVectorsFormat;
+            return this;
+        }
+
+        public Builder setQuantizeQueryBits(int quantizeQueryBits) {
+            this.quantizeQueryBits = quantizeQueryBits;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -298,7 +318,9 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
+                useNewFlatVectorsFormat,
+                quantizeQueryBits
             );
         }
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es910.ES910BinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -73,6 +74,9 @@ public class KnnIndexTester {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
+            if (args.useNewFlatVectorsFormat()) {
+                suffix.add(Integer.toString(args.quantizeBits()));
+            }
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
@@ -91,7 +95,10 @@ public class KnnIndexTester {
         if (args.indexType() == IndexType.IVF) {
             format = new IVFVectorsFormat(args.ivfClusterSize());
         } else {
-            if (args.quantizeBits() == 1) {
+            if (args.useNewFlatVectorsFormat() && args.indexType() == IndexType.FLAT) {
+                logger.warn("Using new flat vectors format for index type FLAT");
+                format = new ES910BinaryQuantizedVectorsFormat((byte) args.quantizeBits(), (byte) args.quantizeQueryBits());
+            } else if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
                     format = new ES818BinaryQuantizedVectorsFormat();
                 } else {
@@ -113,6 +120,7 @@ public class KnnIndexTester {
                 format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
             }
         }
+        logger.info("Using vector format: " + format);
         return new Lucene101Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {

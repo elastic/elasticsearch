@@ -14,20 +14,20 @@ import org.elasticsearch.action.ActionListener;
 import java.util.Map;
 
 /**
- * Collects the write load estimates for each node in the cluster.
+ * Collects the usage stats (like write thread pool load) estimations for each node in the cluster.
  * <p>
- * Results are returned as a map of node ID to node write load.
+ * Results are returned as a map of node ID to node usage stats.
  */
-public interface WriteLoadCollector {
+public interface NodeUsageLoadCollector {
     /**
-     * This will be used when there is no WriteLoadCollector available.
+     * This will be used when there is no NodeUsageLoadCollector available.
      */
-    WriteLoadCollector EMPTY = listener -> listener.onResponse(Map.of());
+    NodeUsageLoadCollector EMPTY = listener -> listener.onResponse(Map.of());
 
     /**
      * Collects the write load estimates from the cluster.
      *
      * @param listener The listener to receive the write load results.
      */
-    void collectWriteLoads(ActionListener<Map<String, NodeWriteLoad>> listener);
+    void collectUsageStats(ActionListener<Map<String, NodeExecutionLoad>> listener);
 }

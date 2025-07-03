@@ -84,14 +84,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         final FakeClusterInfoServiceClient client = new FakeClusterInfoServiceClient(threadPool);
         final EstimatedHeapUsageCollector mockEstimatedHeapUsageCollector = spy(new StubEstimatedEstimatedHeapUsageCollector());
-        final WriteLoadCollector mockWriteLoadCollector = spy(new StubWriteLoadCollector());
+        final NodeUsageLoadCollector mockNodeUsageLoadCollector = spy(new StubNodeUsageLoadCollector());
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
             clusterService,
             threadPool,
             client,
             mockEstimatedHeapUsageCollector,
-            mockWriteLoadCollector
+            mockNodeUsageLoadCollector
         );
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
@@ -129,14 +129,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             Mockito.clearInvocations(mockEstimatedHeapUsageCollector);
-            Mockito.clearInvocations(mockWriteLoadCollector);
+            Mockito.clearInvocations(mockNodeUsageLoadCollector);
             final int initialRequestCount = client.requestCount;
             final long duration = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings).millis();
             runFor(deterministicTaskQueue, duration);
             deterministicTaskQueue.runAllRunnableTasks();
             assertThat(client.requestCount, equalTo(initialRequestCount + 2)); // should have run two client requests per interval
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
-            verify(mockWriteLoadCollector).collectWriteLoads(any());
+            verify(mockNodeUsageLoadCollector).collectUsageStats(any());
         }
 
         final AtomicBoolean failMaster2 = new AtomicBoolean();
@@ -162,11 +162,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     /**
-     * Simple for test {@link WriteLoadCollector} implementation that returns an empty map of nodeId string to {@link NodeWriteLoad}.
+     * Simple for test {@link NodeUsageLoadCollector} implementation that returns an empty map of nodeId string to {@link NodeExecutionLoad}.
      */
-    private static class StubWriteLoadCollector implements WriteLoadCollector {
+    private static class StubNodeUsageLoadCollector implements NodeUsageLoadCollector {
         @Override
-        public void collectWriteLoads(ActionListener<Map<String, NodeWriteLoad>> listener) {
+        public void collectUsageStats(ActionListener<Map<String, NodeExecutionLoad>> listener) {
             listener.onResponse(Map.of());
         }
     }

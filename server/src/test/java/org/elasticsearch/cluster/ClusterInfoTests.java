@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,17 +64,19 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return nodeHeapUsage;
     }
 
-    private static Map<String, NodeWriteLoad> randomNodeWriteLoads() {
+    private static Map<String, NodeExecutionLoad> randomNodeWriteLoads() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, NodeWriteLoad> nodeWriteLoads = new HashMap<>(numEntries);
+        Map<String, NodeExecutionLoad> nodeWriteLoads = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String nodeIdKey = randomAlphaOfLength(32);
-            final NodeWriteLoad nodeWriteLoad = new NodeWriteLoad(/* nodeId= */ nodeIdKey,
-                /* totalWriteThreadPoolThreads= */ randomIntBetween(1, 16),
-                /* averageWriteThreadPoolUtilization= */randomIntBetween(0, 100),
-                /* averageWriteThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+            NodeExecutionLoad.ThreadPoolUsageStats writeThreadPoolStats = new NodeExecutionLoad.ThreadPoolUsageStats(
+                /* totalThreadPoolThreads= */ randomIntBetween(1, 16),
+                /* averageThreadPoolUtilization= */ randomFloat(),
+                /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
             );
-            nodeWriteLoads.put(nodeIdKey, nodeWriteLoad);
+            Map<String, NodeExecutionLoad.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
+            statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
+            nodeWriteLoads.put(ThreadPool.Names.WRITE, new NodeExecutionLoad(nodeIdKey, statsForThreadPools));
         }
         return nodeWriteLoads;
     }

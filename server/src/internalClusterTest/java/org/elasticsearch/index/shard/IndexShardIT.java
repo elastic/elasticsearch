@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.NodeWriteLoad;
-import org.elasticsearch.cluster.WriteLoadCollector;
+import org.elasticsearch.cluster.NodeExecutionLoad;
+import org.elasticsearch.cluster.NodeUsageLoadCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -78,6 +78,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -90,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -131,7 +133,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class, BogusWriteLoadCollectorPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class, BogusNodeUsageLoadCollectorPlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -305,11 +307,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testNodeWriteLoadsArePresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
-        Map<String, NodeWriteLoad> nodeWriteLoads = clusterInfoService.getClusterInfo().getNodeWriteLoads();
-        assertNotNull(nodeWriteLoads);
+        Map<String, NodeExecutionLoad> nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeExecutionStats();
+        assertNotNull(nodeThreadPoolStats);
         /** Not collecting stats yet because allocation write load stats collection is disabled by default.
          *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
-        assertTrue(nodeWriteLoads.isEmpty());
+        assertTrue(nodeThreadPoolStats.isEmpty());
 
         // Enable collection for node write loads.
         updateClusterSettings(
@@ -323,18 +325,21 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             // Force a ClusterInfo refresh to run collection of the node write loads.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
-            nodeWriteLoads = clusterInfoService.getClusterInfo().getNodeWriteLoads();
+            nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeExecutionStats();
 
-            /** Verify that each node has a write load reported. The test {@link BogusWriteLoadCollector} generates random load values */
+            /** Verify that each node has a write load reported. The test {@link BogusNodeUsageLoadCollector} generates random load values */
             ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            assertEquals(state.nodes().size(), nodeWriteLoads.size());
+            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
             for (DiscoveryNode node : state.nodes()) {
-                assertTrue(nodeWriteLoads.containsKey(node.getId()));
-                NodeWriteLoad nodeWriteLoad = nodeWriteLoads.get(node.getId());
-                assertThat(nodeWriteLoad.nodeId(), equalTo(node.getId()));
-                assertThat(nodeWriteLoad.totalWriteThreadPoolThreads(), greaterThanOrEqualTo(0));
-                assertThat(nodeWriteLoad.averageWriteThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-                assertThat(nodeWriteLoad.averageWriteThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+                NodeExecutionLoad nodeExecutionLoad = nodeThreadPoolStats.get(node.getId());
+                assertThat(nodeExecutionLoad.nodeId(), equalTo(node.getId()));
+                NodeExecutionLoad.ThreadPoolUsageStats writeThreadPoolStats = nodeExecutionLoad.threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE);
+                assertNotNull(writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+                assertThat(writeThreadPoolStats.averageThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
             }
         } finally {
             updateClusterSettings(
@@ -925,42 +930,48 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * A simple {@link WriteLoadCollector} implementation that creates and returns random {@link NodeWriteLoad} for each node in the
+     * A simple {@link NodeUsageLoadCollector} implementation that creates and returns random {@link NodeExecutionLoad} for each node in the
      * cluster.
      * <p>
      * Note: there's an 'org.elasticsearch.cluster.WriteLoadCollector' file that declares this implementation so that the plugin system can
      * pick it up and use it for the test set-up.
      */
-    public static class BogusWriteLoadCollector implements WriteLoadCollector {
+    public static class BogusNodeUsageLoadCollector implements NodeUsageLoadCollector {
 
-        private final BogusWriteLoadCollectorPlugin plugin;
+        private final BogusNodeUsageLoadCollectorPlugin plugin;
 
-        public BogusWriteLoadCollector(BogusWriteLoadCollectorPlugin plugin) {
+        public BogusNodeUsageLoadCollector(BogusNodeUsageLoadCollectorPlugin plugin) {
             this.plugin = plugin;
         }
 
         @Override
-        public void collectWriteLoads(ActionListener<Map<String, NodeWriteLoad>> listener) {
+        public void collectUsageStats(ActionListener<Map<String, NodeExecutionLoad>> listener) {
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()
                     .state()
                     .nodes()
                     .stream()
-                    .collect(
-                        Collectors.toUnmodifiableMap(
-                            DiscoveryNode::getId,
-                            node -> new NodeWriteLoad(node.getId(), randomNonNegativeInt(), randomNonNegativeInt(), randomNonNegativeLong())
-                        )
-                    )
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> makeRandomNodeLoad(node.getId())))
             );
+        }
+
+        private NodeExecutionLoad makeRandomNodeLoad(String nodeId) {
+            NodeExecutionLoad.ThreadPoolUsageStats writeThreadPoolStats = new NodeExecutionLoad.ThreadPoolUsageStats(
+                randomNonNegativeInt(),
+                randomFloat(),
+                randomNonNegativeLong()
+            );
+            Map<String, NodeExecutionLoad.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
+            statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
+            return new NodeExecutionLoad(nodeId, statsForThreadPools);
         }
     }
 
     /**
      * Make a plugin to gain access to the {@link ClusterService} instance.
      */
-    public static class BogusWriteLoadCollectorPlugin extends Plugin implements ClusterPlugin {
+    public static class BogusNodeUsageLoadCollectorPlugin extends Plugin implements ClusterPlugin {
 
         private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 

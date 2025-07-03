@@ -102,7 +102,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, ByteSizeValue> maxHeapPerNode;
     private volatile Map<String, Long> estimatedHeapUsagePerNode;
-    private volatile Map<String, NodeWriteLoad> nodeWriteLoadPerNode;
+    private volatile Map<String, NodeExecutionLoad> nodeExecutionLoadPerNode;
     private volatile IndicesStatsSummary indicesStatsSummary;
 
     private final ThreadPool threadPool;
@@ -112,7 +112,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
-    private final WriteLoadCollector writeLoadCollector;
+    private final NodeUsageLoadCollector nodeUsageLoadCollector;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -124,18 +124,18 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ThreadPool threadPool,
         Client client,
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
-        WriteLoadCollector writeLoadCollector
+        NodeUsageLoadCollector nodeUsageLoadCollector
     ) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.maxHeapPerNode = Map.of();
         this.estimatedHeapUsagePerNode = Map.of();
-        this.nodeWriteLoadPerNode = Map.of();
+        this.nodeExecutionLoadPerNode = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
-        this.writeLoadCollector = writeLoadCollector;
+        this.nodeUsageLoadCollector = nodeUsageLoadCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.diskThresholdEnabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -264,21 +264,21 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 }
             } else {
                 logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
-                nodeWriteLoadPerNode = Map.of();
+                nodeExecutionLoadPerNode = Map.of();
             }
         }
 
         private void fetchNodesWriteLoadStats() {
-            writeLoadCollector.collectWriteLoads(ActionListener.releaseAfter(new ActionListener<>() {
+            nodeUsageLoadCollector.collectUsageStats(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, NodeWriteLoad> writeLoads) {
-                    nodeWriteLoadPerNode = writeLoads;
+                public void onResponse(Map<String, NodeExecutionLoad> writeLoads) {
+                    nodeExecutionLoadPerNode = writeLoads;
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch write load estimates for nodes", e);
-                    nodeWriteLoadPerNode = Map.of();
+                    nodeExecutionLoadPerNode = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -527,8 +527,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
-        final Map<String, NodeWriteLoad> nodeWriteLoads = new HashMap<>();
-        nodeWriteLoadPerNode.forEach((nodeId, nodeWriteLoad) -> { nodeWriteLoads.put(nodeId, nodeWriteLoad); });
+        final Map<String, NodeExecutionLoad> nodeWriteLoads = new HashMap<>();
+        nodeExecutionLoadPerNode.forEach((nodeId, nodeWriteLoad) -> { nodeWriteLoads.put(nodeId, nodeWriteLoad); });
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,

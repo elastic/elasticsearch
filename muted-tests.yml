@@ -540,14 +540,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   method: testCohereEmbeddings
   issue: https://github.com/elastic/elasticsearch/issues/130010
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/130067
 - class: org.elasticsearch.xpack.esql.action.EnrichIT
   method: testTopN
   issue: https://github.com/elastic/elasticsearch/issues/130122
@@ -587,6 +581,30 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=msearch/20_typed_keys/Multisearch test with typed_keys parameter for sampler and significant terms}
   issue: https://github.com/elastic/elasticsearch/issues/130472
+- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/130497
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectWhere
+  issue: https://github.com/elastic/elasticsearch/issues/130504
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testTopNPushedToLucene
+  issue: https://github.com/elastic/elasticsearch/issues/130505
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
+  issue: https://github.com/elastic/elasticsearch/issues/130506
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
+  issue: https://github.com/elastic/elasticsearch/issues/130507
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetSystemTrustStoreWithNoSystemProperties
+  issue: https://github.com/elastic/elasticsearch/issues/130517
+- class: org.elasticsearch.common.ssl.DefaultJdkTrustConfigTests
+  method: testGetNonPKCS11TrustStoreWithPasswordSet
+  issue: https://github.com/elastic/elasticsearch/issues/130519
+- class: org.elasticsearch.repositories.blobstore.BlobStoreCorruptionIT
+  method: testCorruptionDetection
+  issue: https://github.com/elastic/elasticsearch/issues/130536
 
 # Examples:
 #

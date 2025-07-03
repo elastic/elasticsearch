@@ -64,18 +64,10 @@ public final class HdfsRepository extends BlobStoreRepository {
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(
-            projectId,
-            metadata,
-            namedXContentRegistry,
-            clusterService,
-            bigArrays,
-            recoverySettings,
-            BlobPath.EMPTY,
-            SnapshotMetrics.NOOP
-        );
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);

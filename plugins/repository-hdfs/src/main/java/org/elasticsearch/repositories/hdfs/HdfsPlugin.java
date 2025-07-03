@@ -80,7 +80,8 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                snapshotMetrics
             )
         );
     }

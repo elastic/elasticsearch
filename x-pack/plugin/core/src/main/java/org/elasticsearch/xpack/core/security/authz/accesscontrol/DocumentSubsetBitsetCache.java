@@ -130,7 +130,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
      */
-    protected DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+    // visible for testing
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());

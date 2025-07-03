@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
@@ -47,6 +48,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final NodeClient client;
     private final SearchUsageHolder searchUsageHolder;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMultiSearchTemplateAction(
@@ -57,7 +59,8 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         NodeClient client,
         UsageService usageService,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        ProjectResolver projectResolver
     ) {
         super(
             MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name(),
@@ -68,6 +71,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.projectResolver = projectResolver;
         this.clusterSupportsFeature = f -> {
             ClusterState state = clusterService.state();
             return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
@@ -92,6 +96,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             SearchRequest searchRequest;
             try {
                 searchRequest = convert(
+                    projectResolver.getProjectId(),
                     searchTemplateRequest,
                     searchTemplateResponse,
                     scriptService,

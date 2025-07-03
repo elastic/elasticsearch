@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -245,7 +246,7 @@ public class TemplateRoleNameTests extends ESTestCase {
             () -> 1L
         ) {
             @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 if ("valid".equals(id)) {
                     return new StoredScriptSource("painless", "params.metedata.group", Map.of());
                 } else {
@@ -299,7 +300,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
-        when(metadata.getProject()).thenReturn(project);
+        when(metadata.getProject(any())).thenReturn(project);
         when(storedScriptSource.getLang()).thenReturn("mustache");
         when(storedScriptSource.getSource()).thenReturn("");
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
@@ -329,7 +330,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
-        when(metadata.getProject()).thenReturn(project);
+        when(metadata.getProject(any())).thenReturn(project);
         scriptService.applyClusterState(clusterChangedEvent);
 
         final BytesReference storedScript = new BytesArray("""

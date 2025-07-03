@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -39,7 +40,7 @@ public class TestTemplateService extends ScriptService {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+    public <FactoryType> FactoryType compile(ProjectId projectId, Script script, ScriptContext<FactoryType> context) {
         if (this.compilationException) {
             throw new RuntimeException("could not compile script");
         } else {

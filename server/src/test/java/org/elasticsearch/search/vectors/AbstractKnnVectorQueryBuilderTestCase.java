@@ -12,6 +12,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
@@ -206,11 +207,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         switch (elementType()) {
             case FLOAT -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnFloatVectorQuery.class), instanceOf(DenseVectorQuery.Floats.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnFloatVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Floats.class),
+                    instanceOf(BooleanQuery.class),
+                    instanceOf(PatienceKnnVectorQuery.class)
+                )
             );
             case BYTE -> assertThat(
                 query,
-                anyOf(instanceOf(ESKnnByteVectorQuery.class), instanceOf(DenseVectorQuery.Bytes.class), instanceOf(BooleanQuery.class))
+                anyOf(
+                    instanceOf(ESKnnByteVectorQuery.class),
+                    instanceOf(DenseVectorQuery.Bytes.class),
+                    instanceOf(BooleanQuery.class),
+                    instanceOf(PatienceKnnVectorQuery.class)
+                )
             );
         }
 
@@ -278,7 +289,18 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         if (query instanceof VectorSimilarityQuery vectorSimilarityQuery) {
             query = vectorSimilarityQuery.getInnerKnnQuery();
         }
-        assertThat(query, anyOf(equalTo(knnVectorQueryBuilt), equalTo(bruteForceVectorQueryBuilt)));
+        assertThat(
+            query,
+            anyOf(
+                equalTo(knnVectorQueryBuilt),
+                equalTo(
+                    knnVectorQueryBuilt instanceof ESKnnByteVectorQuery esKnnByteVectorQuery
+                        ? PatienceKnnVectorQuery.fromByteQuery(esKnnByteVectorQuery)
+                        : PatienceKnnVectorQuery.fromFloatQuery((ESKnnFloatVectorQuery) knnVectorQueryBuilt)
+                ),
+                equalTo(bruteForceVectorQueryBuilt)
+            )
+        );
     }
 
     public void testWrongDimension() {

@@ -565,6 +565,34 @@ public class MultiClustersIT extends ESRestTestCase {
         assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
+    public void testRLikeListIndex() throws Exception {
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("rlike_with_list_of_patterns")));
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index RLIKE (".*remote.*", ".*not-exist.*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+    }
+
+    public void testNotRLikeListIndex() throws Exception {
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("rlike_with_list_of_patterns")));
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT RLIKE (".*remote.*", ".*not-exist.*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+    }
+
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));

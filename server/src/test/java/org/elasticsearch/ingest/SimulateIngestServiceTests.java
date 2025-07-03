@@ -49,10 +49,6 @@ public class SimulateIngestServiceTests extends ESTestCase {
         return map;
     }
 
-    private static <K, V> Map<K, V> emptyMutableHashMap() {
-        return new HashMap<>(0);
-    }
-
     public void testGetPipeline() {
         PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
             {"processors": [{"processor1" : {}}]}"""), XContentType.JSON);
@@ -130,14 +126,14 @@ public class SimulateIngestServiceTests extends ESTestCase {
             {"processors": []}"""), XContentType.JSON);
         final IngestMetadata ingestMetadata = new IngestMetadata(Map.of("pipeline1", pipelineConfiguration));
         final Processor.Factory factoryThatThrowsElasticParseException = (factory, tag, description, config, projectId) -> {
-            throw new ElasticsearchParseException("house: it's never lupus");
+            throw new ElasticsearchParseException("exception to be caught");
         };
         final Map<String, Processor.Factory> processors = Map.of("parse_exception_processor", factoryThatThrowsElasticParseException);
         final var projectId = randomProjectIdOrDefault();
         IngestService ingestService = createWithProcessors(projectId, processors);
         ingestService.innerUpdatePipelines(projectId, ingestMetadata);
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
-            newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", emptyMutableHashMap())))),
+            newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", new HashMap<>(0))))),
             Map.of(),
             Map.of(),
             Map.of()
@@ -147,7 +143,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> new SimulateIngestService(ingestService, simulateBulkRequest)
         );
-        assertThat(ex.getMessage(), is("house: it's never lupus"));
+        assertThat(ex.getMessage(), is("exception to be caught"));
     }
 
     private static IngestService createWithProcessors(ProjectId projectId, Map<String, Processor.Factory> processors) {

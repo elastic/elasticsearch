@@ -66,13 +66,13 @@ public abstract class DiskBBQBulkWriter {
 
     public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final byte[] binarized;
-        private final byte[] initQuantized;
+        private final int[] initQuantized;
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
         public OneBitDiskBBQBulkWriter(int bulkSize, OptimizedScalarQuantizer quantizer, FloatVectorValues fvv, IndexOutput out) {
             super(bulkSize, quantizer, fvv, out);
             this.binarized = new byte[discretize(fvv.dimension(), 64) / 8];
-            this.initQuantized = new byte[fvv.dimension()];
+            this.initQuantized = new int[fvv.dimension()];
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
 

@@ -58,6 +58,8 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -104,6 +106,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -135,6 +139,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.cluster.metadata.RepositoriesMetadata.HIDE_GENERATIONS_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -1131,11 +1136,17 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 .put("stateless.object_store.base_path", "base_path")
                 .put("stateless.object_store.client", "default")
                 .build(),
-            Settings.EMPTY
+            Settings.EMPTY,
+            null
         );
     }
 
-    protected void putProject(ProjectId projectId, Settings projectSettings, Settings projectSecrets) throws Exception {
+    protected void putProject(
+        ProjectId projectId,
+        Settings projectSettings,
+        Settings projectSecrets,
+        @Nullable RepositoryMetadata repositoryMetadata
+    ) throws Exception {
         assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
         final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
         assertTrue(fileSettingsService.watching());
@@ -1143,7 +1154,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         final long newVersion = reservedStateVersionCounter.incrementAndGet();
 
         final String settingsJson = addProjectIdToSettingsJson(fileSettingsService, newVersion, projectId.id());
-
+        final String repositoryJson = getRepositoryJson(repositoryMetadata);
         final var projectSettingsJson = Strings.format("""
             {
                  "metadata": {
@@ -1151,9 +1162,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                      "compatibility": "8.4.0"
                  },
                  "state": {
-                     "project_settings": %s
+                     "project_settings": %s,
+                     "snapshot_repositories": %s
                  }
-            }""", newVersion, projectSettings.toString());
+            }""", newVersion, projectSettings.toString(), repositoryJson);
 
         final var projectSecretsJson = Strings.format("""
             {
@@ -1209,6 +1221,21 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         @FixForMultiProject(description = "Remove the API call once https://elasticco.atlassian.net/browse/ES-11454 is resolved")
         final var request = new DeleteProjectAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, projectId);
         assertTrue(safeGet(client().execute(DeleteProjectAction.INSTANCE, request)).isAcknowledged());
+    }
+
+    private static String getRepositoryJson(RepositoryMetadata repositoryMetadata) throws IOException {
+        if (repositoryMetadata == null) {
+            return "{}";
+        }
+        final var xContentBuilder = XContentFactory.jsonBuilder();
+        xContentBuilder.startObject();
+        RepositoriesMetadata.toXContent(
+            repositoryMetadata,
+            xContentBuilder,
+            new ToXContent.MapParams(Map.of(HIDE_GENERATIONS_PARAM, "true"))
+        );
+        xContentBuilder.endObject();
+        return Strings.toString(xContentBuilder);
     }
 
     private String addProjectIdToSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
